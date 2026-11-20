@@ -8,7 +8,7 @@ Feature scopes live in `features/README.md` and in each feature README. The repo
 
 ## Layout
 
-`shared/` is the workspace package `@steve/shared`. A feature may import this package and no other workspace package. `shared/` holds typed contracts, the `VoiceProvider` interface, the logger, the LLM client, and design tokens. It holds no business logic.
+`shared/` is the workspace package `@steve/shared`. A feature may import this package and no other workspace package. `shared/` holds typed contracts, the `VoiceProvider` interface, the logger, the LLM client, design tokens, and the marmot avatar definition. It holds no business logic.
 
 The demo core is `@steve/shared`, `@steve/voice`, `@steve/conversation`, `@steve/triage`, and `@steve/booking`.
 
@@ -36,7 +36,7 @@ Each directory under `features/` is one package. The packages, in order, are `@s
 
 The front is a later user app in `app/`. The app uses the `@steve/shared` contracts. Keep `app/` out of `features/`.
 
-Design tokens live in `shared/src/design-tokens.ts`. The primary color is `#5c59f3`. Every other token is the string `placeholder`.
+Design tokens live in `shared/src/design-tokens.ts`. The set is Soft Companion, grouped into color, radius, shadow, and font. The primary color is `designTokens.color.primary`, `#5c59f3`. The marmot definition is `shared/src/mascot/marmot.json`, exported as `marmot` from `@steve/shared`. Its color is the primary token.
 
 ## Commands
 
