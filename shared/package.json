@@ -1,0 +1,12 @@
+{
+  "name": "@steve/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "pnpm --dir .. exec tsc --noEmit -p shared",
+    "test": "pnpm --dir .. exec vitest run --passWithNoTests shared"
+  }
+}

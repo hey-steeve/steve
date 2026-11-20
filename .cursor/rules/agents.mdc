@@ -1,0 +1,6 @@
+---
+description: Follow AGENTS.md for Steve repo rules.
+alwaysApply: true
+---
+
+Read AGENTS.md at the repo root and follow it. AGENTS.md is the source of truth for layout, boundaries, and commands.

@@ -1,0 +1,12 @@
+{
+  "name": "@steve/voice",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "pnpm --dir ../.. exec tsc --noEmit -p features/voice",
+    "test": "pnpm --dir ../.. exec vitest run --passWithNoTests features/voice"
+  }
+}

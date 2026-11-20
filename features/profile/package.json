@@ -1,0 +1,12 @@
+{
+  "name": "@steve/profile",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "pnpm --dir ../.. exec tsc --noEmit -p features/profile",
+    "test": "pnpm --dir ../.. exec vitest run --passWithNoTests features/profile"
+  }
+}
