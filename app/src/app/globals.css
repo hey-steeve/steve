@@ -1,0 +1,81 @@
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-family: var(--font-alan-sans), var(--font-fallback);
+  font-weight: var(--font-weight-body);
+}
+
+body {
+  min-height: 100vh;
+}
+
+main {
+  box-sizing: border-box;
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.card {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-default);
+  box-shadow: var(--shadow-faint);
+  padding: 1.5rem;
+}
+
+h1 {
+  margin: 0;
+  color: var(--color-heading);
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-heading);
+}
+
+p {
+  margin: 0.25rem 0 0;
+}
+
+.stage {
+  width: 16rem;
+  height: 16rem;
+  margin: 1.25rem auto;
+}
+
+.moments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+button {
+  border: 0;
+  border-radius: var(--radius-default);
+  background: var(--color-indigo-50);
+  box-shadow: var(--shadow-faint);
+  color: var(--color-heading);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--font-weight-button);
+  padding: 0.6rem 0.9rem;
+}
+
+button[aria-pressed="true"] {
+  background: var(--color-primary);
+  color: var(--color-canvas);
+}
+
+button[aria-pressed="true"]:hover {
+  background: var(--color-indigo-700);
+}
+
+button[aria-pressed="true"]:active {
+  background: var(--color-indigo-900);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

@@ -3,10 +3,10 @@ import steve from "./tooling/eslint/plugin.js";
 
 export default [
   {
-    ignores: ["**/dist/**", "**/coverage/**"],
+    ignores: ["**/dist/**", "**/coverage/**", "**/.next/**"],
   },
   {
-    files: ["shared/**/*.ts", "features/**/*.ts"],
+    files: ["shared/**/*.ts", "features/**/*.ts", "app/**/*.ts", "app/**/*.tsx"],
     languageOptions: {
       parser: tseslint.parser,
       sourceType: "module",
