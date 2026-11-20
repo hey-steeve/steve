@@ -4,15 +4,33 @@ Steve is a health agent that people phone. The agent handles orientation and car
 
 The project is Alan AI Health Hack #2 on 28 Nov 2026.
 
-Planned work covers memory and profile, a document vault, booking by an outbound call to a medical practice, and reminders. The repo holds only the skeleton. Domain types and feature behavior are not here yet.
+Feature scopes live in `features/README.md` and in each feature README. The repo holds only the skeleton. Domain types and feature behavior are not here yet.
 
 ## Layout
 
-`shared/` is the workspace package `@steve/shared`. A feature may import this package and no other workspace package.
+`shared/` is the workspace package `@steve/shared`. A feature may import this package and no other workspace package. `shared/` holds typed contracts, the `VoiceProvider` interface, the logger, the LLM client, and design tokens. It holds no business logic.
 
-The demo core is `@steve/shared`, `@steve/voice`, `@steve/call`, `@steve/triage`, and `@steve/booking`.
+The demo core is `@steve/shared`, `@steve/voice`, `@steve/conversation`, `@steve/triage`, and `@steve/booking`.
 
-Each directory under `features/` is one package. The packages, in order, are `@steve/voice`, `@steve/call`, `@steve/triage`, `@steve/booking`, `@steve/inbox`, `@steve/profile`, `@steve/vault`, and `@steve/reminders`.
+Each directory under `features/` is one package. The packages, in order, are `@steve/voice`, `@steve/conversation`, `@steve/triage`, `@steve/directory`, `@steve/booking`, `@steve/agenda`, `@steve/profile`, `@steve/vault`, `@steve/reminders`, and `@steve/inbox`.
+
+`@steve/voice` connects Twilio to the voice provider. Grok is first. An env variable swaps the provider. Audio goes both ways. Voice decides nothing.
+
+`@steve/conversation` runs one conversation, by voice or by text. Text means the app chat. SMS and email come later, through inbox. The flow stays the same. Conversation greets, understands, and hands off. It does not triage. It does not book.
+
+`@steve/triage` runs a small scoped LLM classifier on every turn. The result is urgent, watch, or not urgent. Triage orients toward a practitioner type and a delay. It never diagnoses or prescribes.
+
+`@steve/directory` finds practitioners by specialty, distance, and conventionnement in the public Annuaire Santé. It does not book.
+
+`@steve/booking` receives a chosen practitioner, places the outbound voice call to the practice, and returns a confirmed or refused slot. It tries at most 2 practitioners.
+
+`@steve/agenda` is the patient calendar. It records a confirmed appointment only. It syncs Google Calendar and `.ics`. Reminders read the agenda.
+
+`@steve/profile` stores patient memory: identity, declared history, preferences, and call history. It does not interpret that memory.
+
+`@steve/vault` stores, retrieves, and summarizes documents. It does not interpret them medically.
+
+`@steve/reminders` sends appointment reminders and medication reminders, by call or by SMS, and only for appointments in the agenda.
 
 `@steve/inbox` handles email in and email out. Each user gets a Steve email address. Inbox ingests appointment confirmations and lab or practice reports into reminders and the vault. Documents to practitioners go out from inbox.
 

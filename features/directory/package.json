@@ -1,0 +1,12 @@
+{
+  "name": "@steve/directory",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "pnpm --dir ../.. exec tsc --noEmit -p features/directory",
+    "test": "pnpm --dir ../.. exec vitest run --passWithNoTests features/directory"
+  }
+}

@@ -26,7 +26,7 @@ async function messages(code: string, relativePath: string) {
 describe("package lint rules", () => {
   it("reports a feature importing another feature", async () => {
     const found = await messages(
-      'import "@steve/call";\n',
+      'import "@steve/conversation";\n',
       "features/voice/src/cross.ts",
     );
     expect(found).toEqual([featureBoundary]);
@@ -34,7 +34,7 @@ describe("package lint rules", () => {
 
   it("reports an import() type query of another feature", async () => {
     const found = await messages(
-      'export type T = import("@steve/call").X;\n',
+      'export type T = import("@steve/conversation").X;\n',
       "features/voice/src/type-query.ts",
     );
     expect(found).toEqual([featureBoundary]);
@@ -42,7 +42,7 @@ describe("package lint rules", () => {
 
   it("reports a relative import that leaves the feature", async () => {
     const found = await messages(
-      'import "../../call/src/index.ts";\n',
+      'import "../../conversation/src/index.ts";\n',
       "features/voice/src/relative.ts",
     );
     expect(found).toEqual([featureBoundary]);
@@ -50,11 +50,11 @@ describe("package lint rules", () => {
 
   it("reports require() of another feature", async () => {
     const byPackage = await messages(
-      'require("@steve/call");\n',
+      'require("@steve/conversation");\n',
       "features/voice/src/require-package.ts",
     );
     const byPath = await messages(
-      'require("../../call/src/index.ts");\n',
+      'require("../../conversation/src/index.ts");\n',
       "features/voice/src/require-path.ts",
     );
     expect(byPackage).toEqual([featureBoundary]);

@@ -1,0 +1,12 @@
+{
+  "name": "@steve/agenda",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "pnpm --dir ../.. exec tsc --noEmit -p features/agenda",
+    "test": "pnpm --dir ../.. exec vitest run --passWithNoTests features/agenda"
+  }
+}
