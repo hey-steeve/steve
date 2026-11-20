@@ -8,7 +8,7 @@ Feature scopes live in `features/README.md` and in each feature README. The repo
 
 ## Layout
 
-`shared/` is the workspace package `@steve/shared`. A feature may import this package and no other workspace package. `shared/` holds typed contracts, the `VoiceProvider` interface, the logger, the LLM client, and design tokens. It holds no business logic.
+`shared/` is the workspace package `@steve/shared`. A feature may import this package and no other workspace package. `shared/` holds typed contracts, the `VoiceProvider` interface, the logger, the LLM client, design tokens, and the marmot avatar definition. It holds no business logic. The `@steve/shared` entry imports its modules with a `.ts` extension so `app/` can bundle that source.
 
 The demo core is `@steve/shared`, `@steve/voice`, `@steve/conversation`, `@steve/triage`, and `@steve/booking`.
 
@@ -34,9 +34,9 @@ Each directory under `features/` is one package. The packages, in order, are `@s
 
 `@steve/inbox` handles email in and email out. Each user gets a Steve email address. Inbox ingests appointment confirmations and lab or practice reports into reminders and the vault. Documents to practitioners go out from inbox.
 
-The front is a later user app in `app/`. The app uses the `@steve/shared` contracts. Keep `app/` out of `features/`.
+`app/` is the workspace package `@steve/app`. It is the user app, the front. For now the only page is `/`, the marmot demo. `app/` may import `@steve/shared`. It may import a feature only as `@steve/<feature>`, the package public index. It must not import a path into `features/*/src`. A feature must not import `app/`. `shared/` must not import `app/`.
 
-Design tokens live in `shared/src/design-tokens.ts`. The primary color is `#5c59f3`. Every other token is the string `placeholder`.
+Design tokens live in `shared/src/design-tokens.ts`. The set is Soft Companion, grouped into color, radius, shadow, and font. The primary color is `designTokens.color.primary`, `#5c59f3`. The marmot definition is `shared/src/mascot/marmot.json`, exported as `marmot` from `@steve/shared`. Its color is the primary token.
 
 ## Commands
 
@@ -58,7 +58,9 @@ When two features need the same type or helper, add it under `shared/` in its ow
 
 Do not import a feature from `shared/` by package name or by a relative path. `require()` follows the same limit.
 
-Do not call `console` in `shared/` or in a feature. Call `log()` from `@steve/shared/logger`. The logger is not in the repo yet. It lands with the shared contracts.
+Do not import `app/` from a feature or from `shared/`. From `app/`, import `@steve/shared` or a feature public index `@steve/<feature>`. Do not import a deep path into `features/*/src`. `require()` follows the same limits.
+
+Do not call `console` in `shared/`, in a feature, or in `app/`. Call `log()` from `@steve/shared/logger`. The logger is not in the repo yet. It lands with the shared contracts.
 
 Use only synthetic data. Never put real health data in the repo.
 
@@ -66,4 +68,4 @@ Use one feature per branch. Change `shared/` on its own branch.
 
 ## Stack
 
-The skeleton uses TypeScript, pnpm, ESLint, and Vitest. Node with Fastify, Zod, Postgres with Prisma, Twilio, and Langfuse are chosen and are not installed yet.
+The skeleton uses TypeScript, pnpm, ESLint, and Vitest. The user app in `app/` uses Next.js. Node with Fastify, Zod, Postgres with Prisma, Twilio, and Langfuse are chosen and are not installed yet.

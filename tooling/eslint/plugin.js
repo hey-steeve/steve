@@ -7,8 +7,16 @@ const featureMessage =
 const sharedMessage =
   "shared/ must not import features. Put shared types and helpers in shared/ and let features import them from @steve/shared.";
 
+const appInboundMessage =
+  "Features and shared must not import app.";
+
+const appOutboundMessage =
+  "app may import @steve/shared and features only through their package public index (@steve/<feature>), never a deep path.";
+
 const consoleMessage =
   "Do not use console. Use log() from @steve/shared/logger.";
+
+const featureNamesByRoot = new Map();
 
 function repoRoot(filename) {
   let dir = path.resolve(path.dirname(filename));
@@ -22,6 +30,24 @@ function repoRoot(filename) {
     }
     dir = parent;
   }
+}
+
+function featureNames(root) {
+  const cached = featureNamesByRoot.get(root);
+  if (cached) {
+    return cached;
+  }
+  const names = new Set();
+  const dir = path.join(root, "features");
+  if (fs.existsSync(dir)) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        names.add(entry.name);
+      }
+    }
+  }
+  featureNamesByRoot.set(root, names);
+  return names;
 }
 
 function locate(filename) {
@@ -38,6 +64,9 @@ function locate(filename) {
   if (portable === "shared" || portable.startsWith("shared/")) {
     return { kind: "shared", name: "shared" };
   }
+  if (portable === "app" || portable.startsWith("app/")) {
+    return { kind: "app", name: "app" };
+  }
   return { kind: "other", name: "" };
 }
 
@@ -47,9 +76,51 @@ function samePackage(left, right) {
   );
 }
 
+function isAppSpecifier(source, filename) {
+  if (source === "@steve/app" || source.startsWith("@steve/app/")) {
+    return true;
+  }
+  if (!source.startsWith(".")) {
+    return false;
+  }
+  const resolved = path.resolve(path.dirname(filename), source);
+  return locate(resolved).kind === "app";
+}
+
+function isFeaturePublicIndex(source, filename) {
+  const match = /^@steve\/([^/]+)$/.exec(source);
+  const name = match?.[1];
+  if (!name || name === "shared" || name === "app") {
+    return false;
+  }
+  return featureNames(repoRoot(filename)).has(name);
+}
+
+function appAllows(source, filename) {
+  if (source.startsWith(".")) {
+    const resolved = path.resolve(path.dirname(filename), source);
+    return locate(resolved).kind === "app";
+  }
+  if (source === "@steve/shared" || isFeaturePublicIndex(source, filename)) {
+    return true;
+  }
+  if (source === "@steve" || source.startsWith("@steve/")) {
+    return false;
+  }
+  return true;
+}
+
 function boundaryMessage(location, source, filename) {
   if (location.kind === "other") {
     return null;
+  }
+
+  if (location.kind !== "app" && isAppSpecifier(source, filename)) {
+    return appInboundMessage;
+  }
+
+  if (location.kind === "app") {
+    return appAllows(source, filename) ? null : appOutboundMessage;
   }
 
   if (source.startsWith(".")) {
