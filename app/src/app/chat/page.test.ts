@@ -22,7 +22,7 @@ it("limits the composer to the user message cap", () => {
 it("renders the home greeting", async () => {
   const view = await mount();
   expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Bonjour",
+    "Hey",
   );
   expect(view.container.querySelector('[aria-label="Retour"]')).toBeNull();
 });
@@ -54,7 +54,7 @@ it("returns to the empty home state from Retour in the conversation header", asy
   });
 
   expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Bonjour",
+    "Hey",
   );
   expect(header()?.querySelector('[aria-label="Retour"]')).toBeNull();
   expect(view.container.querySelector(".chat-thread")).toBeNull();
@@ -74,7 +74,7 @@ it("returns to the empty home state from Retour in the conversation header", asy
   });
 
   expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Bonjour",
+    "Hey",
   );
   expect(view.container.textContent).not.toContain("Réponse tardive.");
   expect(view.container.querySelector(".chat-thread")).toBeNull();
