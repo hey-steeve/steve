@@ -166,6 +166,25 @@ it("keeps an emergency number on a length-capped reply", async () => {
   }
 });
 
+it("keeps a bare number at the end of a line", async () => {
+  const cases = [
+    { content: "Appelle le\n112.", reply: "Appelle le\n112." },
+    { content: "Note.\n2.", reply: "Note.\n2." },
+  ];
+  for (const item of cases) {
+    const response = await liveReply({
+      finish_reason: "length",
+      content: item.content,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      reply: item.reply,
+      mocked: false,
+      model: "google/gemini-3.8-flash",
+    });
+  }
+});
+
 it("returns the upstream error when finish_reason is content_filter", async () => {
   const content = "Voici un fragment filtré.";
   const response = await liveReply({
