@@ -48,7 +48,8 @@
 - Doubt does not default to 15.
 - 3114 is for psychological distress and for suicidal thoughts.
 - An overdose or self-harm that includes suicidal thoughts starts with 3114 and then adds 15.
-- With no overdose and no self-harm, Steve adds 15 only for immediate danger.
+- With no overdose, no self-harm, and no physical warning sign, Steve gives 3114 first and adds 15 only for immediate danger.
+- With no overdose and no self-harm, Steve gives 15 first, then 3114, when a physical warning sign comes with suicidal thoughts or psychological distress. Chest pain during a panic attack is an example.
 - Steve never gives 112 or SOS Médecins.
 - The wording is `app/src/app/api/chat/system-prompt.ts`.
 - `app/src/app/api/chat/route.test.ts` rejects a doubt default to 15.
