@@ -144,6 +144,28 @@ it("does not treat a line-start list number as a sentence end", async () => {
   expect(JSON.parse(text)).toEqual({ error: upstreamError });
 });
 
+it("keeps an emergency number on a length-capped reply", async () => {
+  const cases = [
+    { content: "Appelle le\n15.", reply: "Appelle le\n15." },
+    { content: "3114.", reply: "3114." },
+    { content: "15. Sinon…", reply: "15." },
+    { content: "3114. Sinon…", reply: "3114." },
+    { content: "C'est urgent.\n15. Sinon…", reply: "C'est urgent.\n15." },
+  ];
+  for (const item of cases) {
+    const response = await liveReply({
+      finish_reason: "length",
+      content: item.content,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      reply: item.reply,
+      mocked: false,
+      model: "google/gemini-3.8-flash",
+    });
+  }
+});
+
 it("returns the upstream error when finish_reason is content_filter", async () => {
   const content = "Voici un fragment filtré.";
   const response = await liveReply({
