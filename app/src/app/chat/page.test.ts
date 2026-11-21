@@ -6,18 +6,10 @@ import { designTokens } from "@steve/shared";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../chat/request.js";
 import RootLayout from "../layout.js";
 import ChatPage from "./page.js";
-
-const routerPush = vi.hoisted(() => vi.fn());
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: routerPush,
-  }),
-}));
 
 vi.mock("next/font/local", () => ({
   default: () => ({ variable: "alan-sans" }),
@@ -29,6 +21,11 @@ const chatCss = readFileSync(
 );
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
+
+beforeEach(() => {
+  vi.spyOn(history, "pushState");
+  vi.spyOn(history, "replaceState");
+});
 
 it("renders the profile button with aria-label Profil", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
@@ -476,14 +473,14 @@ it("adds the exit state on Retour and resets to the empty home when that animati
     "Prendre rendez-vous chez un généraliste",
   );
   expect(field.value).toBe("brouillon");
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 
   await act(async () => {
     endColumnExit(column);
   });
 
   expectEmptyHome(view.container);
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 });
 
 it("resets to the empty home when the exit animation never ends", async () => {
@@ -500,7 +497,7 @@ it("resets to the empty home when the exit animation never ends", async () => {
     true,
   );
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
   await act(async () => {
     vi.advanceTimersByTime(239);
   });
@@ -508,18 +505,18 @@ it("resets to the empty home when the exit animation never ends", async () => {
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
     "Prendre rendez-vous chez un généraliste",
   );
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
   await act(async () => {
     vi.advanceTimersByTime(1);
   });
   expectEmptyHome(view.container);
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 
   await act(async () => {
     endColumnExit(columnOf(view.container));
   });
   expectEmptyHome(view.container);
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 });
 
 it("resets to the empty home immediately when motion is reduced", async () => {
@@ -534,7 +531,7 @@ it("resets to the empty home immediately when motion is reduced", async () => {
   });
 
   expectEmptyHome(view.container);
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 });
 
 it("resets to the empty home once when Retour is tapped twice", async () => {
@@ -557,7 +554,7 @@ it("resets to the empty home once when Retour is tapped twice", async () => {
     vi.advanceTimersByTime(240);
   });
   expectEmptyHome(view.container);
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 });
 
 it("ignores a child animationend while the column exit plays", async () => {
@@ -600,14 +597,14 @@ it("ignores a child animationend while the column exit plays", async () => {
   expect(column.classList.contains("chat-column-leave")).toBe(true);
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(thread.textContent).toContain("Prendre rendez-vous chez un généraliste");
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 
   await act(async () => {
     endColumnExit(column);
   });
 
   expectEmptyHome(view.container);
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 });
 
 it("does not send when Enter is pressed during the column exit", async () => {
@@ -623,6 +620,12 @@ it("does not send when Enter is pressed during the column exit", async () => {
   const view = await mount();
   const back = await openConversation(view);
   expect(fetchMock).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    vi.advanceTimersByTime(700);
+  });
+  await act(async () => {
+    vi.advanceTimersByTime(1400);
+  });
   const field = composerField(view.container);
 
   await act(async () => {
@@ -659,7 +662,154 @@ it("does not send when Enter is pressed during the column exit", async () => {
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
     "Pharmacie de garde",
   );
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
+});
+
+it("remounts the home hero when Retour finishes after the hero has left", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const view = await mount();
+  await openConversation(view);
+  expect(view.container.querySelector(".chat-hero")).not.toBeNull();
+
+  await act(async () => {
+    vi.advanceTimersByTime(240);
+  });
+
+  expect(view.container.querySelector(".chat-hero")).toBeNull();
+  const back = view.container.querySelector('[aria-label="Retour"]');
+  if (!(back instanceof HTMLButtonElement)) {
+    throw new Error("missing back");
+  }
+  await act(async () => {
+    back.click();
+  });
+  expect(view.container.querySelector(".chat-hero")).toBeNull();
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    true,
+  );
+
+  await act(async () => {
+    endColumnExit(columnOf(view.container));
+  });
+
+  expectEmptyHome(view.container);
+  expectNoHistoryChange();
+});
+
+it("does not finish a later Retour with the previous exit timeout", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const view = await mount();
+  const first = await openConversation(view);
+
+  await act(async () => {
+    first.click();
+  });
+  await act(async () => {
+    endColumnExit(columnOf(view.container));
+  });
+  expectEmptyHome(view.container);
+
+  await act(async () => {
+    vi.advanceTimersByTime(100);
+  });
+
+  const chip = view.container.querySelector(".chat-chip");
+  if (!(chip instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+  await act(async () => {
+    chip.click();
+  });
+  const second = view.container.querySelector('[aria-label="Retour"]');
+  if (!(second instanceof HTMLButtonElement)) {
+    throw new Error("missing back");
+  }
+  await act(async () => {
+    second.click();
+  });
+  await act(async () => {
+    vi.advanceTimersByTime(140);
+  });
+
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    true,
+  );
+  expect(view.container.querySelector(".chat-greeting")).toBeNull();
+  expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+    "Prendre rendez-vous chez un généraliste",
+  );
+  expectNoHistoryChange();
+});
+
+it("stops dictation when Retour starts", async () => {
+  installDictation();
+  stubReply();
+  const view = await mount();
+  await openConversation(view);
+  expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
+    "Dicter un message",
+  );
+
+  await act(async () => {
+    activateDictationFromKeyboard(dictateButton(view.container));
+  });
+  expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
+    "Arrêter la dictée",
+  );
+
+  const back = view.container.querySelector('[aria-label="Retour"]');
+  if (!(back instanceof HTMLButtonElement)) {
+    throw new Error("missing back");
+  }
+  await act(async () => {
+    back.click();
+  });
+
+  expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
+    "Dicter un message",
+  );
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    true,
+  );
+});
+
+it("does not start dictation from the keyboard while the column exit plays", async () => {
+  installDictation();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const view = await mount();
+  const back = await openConversation(view);
+  expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
+    "Dicter un message",
+  );
+
+  await act(async () => {
+    back.click();
+  });
+  await act(async () => {
+    activateDictationFromKeyboard(dictateButton(view.container));
+  });
+
+  expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
+    "Dicter un message",
+  );
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    true,
+  );
+
+  await act(async () => {
+    endColumnExit(columnOf(view.container));
+  });
+  expectEmptyHome(view.container);
+
+  await act(async () => {
+    activateDictationFromKeyboard(dictateButton(view.container));
+  });
+  expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
+    "Arrêter la dictée",
+  );
 });
 
 it("returns home from Retour, starts another conversation, and returns home again", async () => {
@@ -718,7 +868,7 @@ it("returns home from Retour, starts another conversation, and returns home agai
     endColumnExit(columnOf(view.container));
   });
   expectEmptyHome(view.container);
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 
   pending.resolve(
     Response.json({
@@ -778,7 +928,7 @@ it("keeps the keyboard pin while the column exit plays", async () => {
     expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
       "Prendre rendez-vous chez un généraliste",
     );
-    expect(routerPush).not.toHaveBeenCalled();
+    expectNoHistoryChange();
   } finally {
     viewport.restore();
   }
@@ -1255,14 +1405,14 @@ it("drops a late reply after Retour and returns to the empty home", async () => 
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
     "Prendre rendez-vous chez un généraliste",
   );
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 
   await act(async () => {
     vi.advanceTimersByTime(240);
   });
 
   expectEmptyHome(view.container);
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 
   reply.resolve(
     new Response(
@@ -1295,7 +1445,7 @@ it("drops a late reply after Retour and returns to the empty home", async () => 
   expect(view.container.textContent).toContain("Deuxième.");
   expect(view.container.textContent).not.toContain("Réponse tardive.");
   expect(view.container.querySelector(".chat-badge")).toBeNull();
-  expect(routerPush).not.toHaveBeenCalled();
+  expectNoHistoryChange();
 });
 
 const threadLength = 2000;
@@ -1327,6 +1477,11 @@ async function openConversation(view: {
     throw new Error("missing back");
   }
   return back;
+}
+
+function expectNoHistoryChange(): void {
+  expect(vi.mocked(history.pushState)).not.toHaveBeenCalled();
+  expect(vi.mocked(history.replaceState)).not.toHaveBeenCalled();
 }
 
 function expectEmptyHome(container: ParentNode): void {
@@ -1375,6 +1530,61 @@ function setField(field: HTMLTextAreaElement, value: string): void {
   )?.set;
   setter?.call(field, value);
   field.dispatchEvent(new InputEvent("input", { bubbles: true }));
+}
+
+function installDictation(): void {
+  class FakeRecognition {
+    lang = "";
+    interimResults = false;
+    continuous = false;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null = null;
+    onerror: ((event: SpeechRecognitionErrorEvent) => void) | null = null;
+    onend: (() => void) | null = null;
+    started = false;
+    stopped = false;
+    start(): void {
+      this.started = true;
+    }
+    stop(): void {
+      this.stopped = true;
+      this.onend?.();
+    }
+    abort(): void {
+      this.stopped = true;
+    }
+  }
+  vi.stubGlobal("SpeechRecognition", FakeRecognition);
+  vi.stubGlobal("isSecureContext", true);
+}
+
+function dictateButton(container: ParentNode): HTMLButtonElement {
+  const button = container.querySelector(
+    '[aria-label="Dicter un message"], [aria-label="Arrêter la dictée"]',
+  );
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error("missing dictation");
+  }
+  return button;
+}
+
+function activateDictationFromKeyboard(button: HTMLButtonElement): void {
+  button.focus();
+  const keydown = new KeyboardEvent("keydown", {
+    key: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+  button.dispatchEvent(keydown);
+  if (keydown.defaultPrevented) {
+    return;
+  }
+  button.dispatchEvent(
+    new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      detail: 0,
+    }),
+  );
 }
 
 function pressEnter(field: HTMLTextAreaElement): void {
@@ -1644,7 +1854,6 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 const roots: Root[] = [];
 
 afterEach(() => {
-  routerPush.mockClear();
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
