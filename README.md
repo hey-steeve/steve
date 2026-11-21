@@ -24,3 +24,11 @@ Les règles des agents sont dans [AGENTS.md](./AGENTS.md).
 ## Licence
 
 [Apache-2.0](LICENSE). Copyright 2026 Steve.
+
+### Tiers
+
+Apache-2.0 couvre uniquement le code et les assets propres à Steve.
+
+La [SIL Open Font License 1.1](app/src/fonts/OFL.txt) couvre la police Alan Sans.
+
+La marmotte Alan dans `shared/assets/mascot/duo/` appartient à Alan. Apache-2.0 ne la couvre pas.
