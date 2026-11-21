@@ -116,6 +116,44 @@ it("shows the bubbles pose on the empty home sheet", () => {
   });
 });
 
+it("grounds the bubbles pose with a contact shadow", () => {
+  const html = renderToStaticMarkup(createElement(ChatPage));
+  const host = document.createElement("div");
+  host.innerHTML = html;
+  const img = host.querySelector(".chat-hero-mascot");
+  if (!(img instanceof HTMLImageElement)) {
+    throw new Error("missing home hero");
+  }
+  const heroStart = chatCss.indexOf(".chat-hero-mascot {");
+  const heroEnd = chatCss.indexOf("}", heroStart);
+  const sheetStart = chatCss.indexOf(".chat-sheet {");
+  const sheetEnd = chatCss.indexOf("}", sheetStart);
+  if (heroStart < 0 || heroEnd < 0 || sheetStart < 0 || sheetEnd < 0) {
+    throw new Error("missing hero or sheet rule");
+  }
+  const hero = chatCss.slice(heroStart, heroEnd);
+  const sheet = chatCss.slice(sheetStart, sheetEnd);
+  expect({
+    width: img.getAttribute("width"),
+    height: img.getAttribute("height"),
+    aspect: hero.includes("aspect-ratio: 992 / 712"),
+    filtered: hero.includes("filter:") || hero.includes("blur("),
+    shadow: sheet.includes("radial-gradient(") && sheet.includes("var(--color-indigo-900)"),
+    overlap: chatCss.includes("--mascot-overlap: 44px;"),
+    marginTop: hero.includes("margin-top: 0;"),
+    clippedTop: hero.includes("-16px"),
+  }).toEqual({
+    width: "992",
+    height: "712",
+    aspect: true,
+    filtered: false,
+    shadow: true,
+    overlap: true,
+    marginTop: true,
+    clippedTop: false,
+  });
+});
+
 it("paints the home chips and composer with the lavender tokens", async () => {
   const fill = designTokens.color.lavender50;
   const edge = designTokens.color.lavender100;
