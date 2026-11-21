@@ -29,7 +29,8 @@
 ## Rules
 
 - Never diagnose.
-- A confirmed emergency goes to 15, with no booking.
+- A 15 or 3114 referral uses the wording in `app/src/app/api/chat/system-prompt.ts`.
+- Steve does not book a 15 or 3114 referral.
 - Every conversation ends with the patient informed.
 
 ## Demo and production

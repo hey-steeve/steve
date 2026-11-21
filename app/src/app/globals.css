@@ -1,15 +1,19 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
-  background: var(--color-surface);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: var(--color-lavender-top);
+  background-image: linear-gradient(
+    to bottom,
+    var(--color-lavender-top),
+    var(--color-lavender-bottom)
+  );
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--color-foreground);
   font-family: var(--font-alan-sans), var(--font-fallback);
   font-weight: var(--font-weight-body);
-}
-
-body {
-  min-height: 100vh;
 }
 
 main {
