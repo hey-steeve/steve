@@ -175,7 +175,9 @@ export default function ChatPage() {
       frame = null;
       const thread = threadRef.current;
       const keepBottom = threadNearBottom(thread);
-      const keyboardOpen = window.innerHeight - viewport.height > keyboardOpenGap;
+      const keyboardOpen =
+        Math.abs(viewport.scale - 1) < 0.01 &&
+        window.innerHeight - viewport.height > keyboardOpenGap;
       const keyboardOpened = keyboardOpen && !page.hasAttribute("data-keyboard-open");
       page.style.transform = "";
       page.style.top = `${viewport.offsetTop}px`;
