@@ -185,6 +185,7 @@ it("frames message avatars in a white circle with a lavender ring", async () => 
         ring: channels(computed.borderTopColor),
         border: computed.borderTopWidth,
         padding: computed.paddingTop,
+        boxSizing: computed.boxSizing,
         width: computed.width,
         height: computed.height,
         radius: computed.borderRadius,
@@ -192,7 +193,8 @@ it("frames message avatars in a white circle with a lavender ring", async () => 
         background: channels(canvas),
         ring: channels(ring),
         border: "1px",
-        padding: "1px",
+        padding: "3px",
+        boxSizing: "border-box",
         width: "32px",
         height: "32px",
         radius: "999px",
@@ -203,8 +205,8 @@ it("frames message avatars in a white circle with a lavender ring", async () => 
       throw new Error("missing Steve avatar");
     }
     expect(image.alt).toBe("");
-    expect(image.getAttribute("width")).toBe("32");
-    expect(image.getAttribute("height")).toBe("32");
+    expect(image.getAttribute("width")).toBe("24");
+    expect(image.getAttribute("height")).toBe("24");
     const imageStyle = getComputedStyle(image);
     expect(imageStyle.width).toBe("100%");
     expect(imageStyle.height).toBe("100%");
