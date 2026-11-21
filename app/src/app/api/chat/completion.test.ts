@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { readCompletion } from "../../../chat/completion.js";
 import { chatRequestLimits } from "../../../chat/request.js";
-import { POST, readCompletion } from "./route.js";
+import { POST } from "./route.js";
 
 const canary = "test-openrouter-key-canary";
 const echo =
