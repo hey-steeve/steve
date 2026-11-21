@@ -39,6 +39,8 @@ Les fichiers de `body/`, de `duo/` et de `avatar/` ne correspondent à aucun mom
 - `fistbump.jpg` est la scène où Steve et la marmotte Alan se tapent le poing.
 - `dad-son.jpg` est la scène où Alan pose une patte sur l'épaule de Steve. Steve est à côté d'Alan.
 
+Grok Imagine a généré ces scènes à partir des visuels publics de la mascotte Alan. Spidey a décidé le 21 novembre 2026 de les garder. Aucune app ne les utilise.
+
 `avatar/` contient la tête et deux photos de profil.
 
 - `head.png` est la tête seule, avec transparence.
