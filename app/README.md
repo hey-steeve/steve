@@ -40,7 +40,7 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `STEVE_CHAT_LIVE` must be exactly `1`, and `OPENROUTER_API_KEY` must be set, before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set. `true`, `0`, and ` 1 ` keep the canned reply.
 
-When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The JSON includes `max_tokens` set to 1024. HTTP 200 looks like this.
+When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The JSON includes `max_tokens` set to 1024 and `reasoning` set to `{ "effort": "low", "exclude": true }`. HTTP 200 looks like this.
 
 ```json
 {
@@ -59,6 +59,9 @@ The route aborts the OpenRouter call after 30 seconds. Each case below returns H
 - The call exceeds 30 seconds and aborts.
 - The 2xx body is not JSON.
 - The JSON has no assistant text, including a missing `choices` array, an empty `choices` array, a missing `message`, or blank `content`.
+- `finish_reason` is `length`, and the assistant text has no complete sentence.
+
+A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark stays with the sentence. A `.` inside a token, such as `2.5`, is not an ending. When `finish_reason` is `length` and a complete sentence remains, the route returns the text through the last one. The 4000-character cap still applies. If the cap cuts off the ending, the route trims to the last sentence inside the cap. When that trim finds nothing, the route returns the 502 above. When `finish_reason` is `stop`, the route returns the assistant text after the same cap.
 
 The route does not return the upstream body. Do not print the key.
 

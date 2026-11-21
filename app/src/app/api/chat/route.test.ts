@@ -109,6 +109,7 @@ it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => 
   expect(JSON.parse(String(init?.body))).toEqual({
     model: "google/gemini-flash",
     max_tokens: 1024,
+    reasoning: { effort: "low", exclude: true },
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: "De garde" },
