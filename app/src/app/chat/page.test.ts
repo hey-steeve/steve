@@ -2,12 +2,18 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { designTokens } from "@steve/shared";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../chat/request.js";
+import RootLayout from "../layout.js";
 import ChatPage from "./page.js";
+
+vi.mock("next/font/local", () => ({
+  default: () => ({ variable: "alan-sans" }),
+}));
 
 const chatCss = readFileSync(
   path.join(process.cwd(), "app/src/app/chat/chat.css"),
@@ -73,14 +79,11 @@ it("renders the home greeting", async () => {
 });
 
 it("paints the home chips and composer with the lavender tokens", async () => {
-  const fill = "#102030";
-  const edge = "#405060";
-  const canvas = "#ffffff";
-  const border = "#ecf1fc";
-  document.documentElement.style.setProperty("--color-indigo-50", fill);
-  document.documentElement.style.setProperty("--color-indigo-100", edge);
-  document.documentElement.style.setProperty("--color-canvas", canvas);
-  document.documentElement.style.setProperty("--color-border", border);
+  const fill = designTokens.color.lavender50;
+  const edge = designTokens.color.lavender100;
+  const canvas = designTokens.color.canvas;
+  expect(fill).not.toBe(designTokens.color.indigo50);
+  expect(edge).not.toBe(designTokens.color.indigo100);
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -91,7 +94,9 @@ it("paints the home chips and composer with the lavender tokens", async () => {
     ),
   );
   try {
-    const view = await mount();
+    const view = await mount(
+      createElement(RootLayout, null, createElement(ChatPage)),
+    );
     const sheet = view.container.querySelector(".chat-sheet");
     const composer = view.container.querySelector(".chat-sheet .chat-composer");
     const chips = [
@@ -1107,13 +1112,15 @@ async function flushFrame(): Promise<void> {
   });
 }
 
-async function mount(): Promise<{ container: HTMLDivElement; root: Root }> {
+async function mount(
+  node: ReturnType<typeof createElement> = createElement(ChatPage),
+): Promise<{ container: HTMLDivElement; root: Root }> {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   roots.push(root);
   await act(async () => {
-    root.render(createElement(ChatPage));
+    root.render(node);
   });
   return { container, root };
 }
