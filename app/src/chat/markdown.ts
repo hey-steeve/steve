@@ -122,20 +122,41 @@ function takeItems(
   return items;
 }
 
+interface CloserTables {
+  readonly star: Int32Array;
+  readonly under: Int32Array;
+  readonly stars: Int32Array;
+  readonly unders: Int32Array;
+}
+
 function parseInline(input: string): readonly Inline[] {
+  return parseInlineRange(input, 0, input.length, closerTables(input));
+}
+
+function parseInlineRange(
+  input: string,
+  start: number,
+  end: number,
+  tables: CloserTables,
+): readonly Inline[] {
   const nodes: Inline[] = [];
   let buffer = "";
-  let index = 0;
-  while (index < input.length) {
-    const marker = openerAt(input, index);
+  let index = start;
+  while (index < end) {
+    const marker = openerInRange(input, index, end);
     const close =
-      marker === null ? -1 : findCloser(input, index + marker.length, marker);
+      marker === null ? -1 : findCloser(tables, marker, index + marker.length, end);
     if (marker !== null && close > index + marker.length) {
       if (buffer.length > 0) {
         nodes.push({ kind: "text", text: buffer });
         buffer = "";
       }
-      const children = parseInline(input.slice(index + marker.length, close));
+      const children = parseInlineRange(
+        input,
+        index + marker.length,
+        close,
+        tables,
+      );
       nodes.push(
         marker.length === 2
           ? { kind: "bold", children }
@@ -153,6 +174,14 @@ function parseInline(input: string): readonly Inline[] {
   return nodes;
 }
 
+function openerInRange(input: string, index: number, end: number): Marker | null {
+  const marker = openerAt(input, index);
+  if (marker === null || index + marker.length >= end) {
+    return null;
+  }
+  return marker;
+}
+
 function openerAt(input: string, index: number): Marker | null {
   const marker = markerAt(input, index);
   if (marker === null) {
@@ -165,25 +194,66 @@ function openerAt(input: string, index: number): Marker | null {
   return marker;
 }
 
-function findCloser(input: string, from: number, marker: Marker): number {
-  let index = from;
-  while (index < input.length) {
-    const found = input.indexOf(marker, index);
-    if (found === -1) {
-      return -1;
-    }
-    if (marker.length === 1 && input.startsWith(`${marker}${marker}`, found)) {
-      index = found + 2;
+function closerTables(input: string): CloserTables {
+  return {
+    star: closerFrom(input, "*"),
+    under: closerFrom(input, "_"),
+    stars: closerFrom(input, "**"),
+    unders: closerFrom(input, "__"),
+  };
+}
+
+function closerFrom(input: string, marker: Marker): Int32Array {
+  const length = input.length;
+  const from = new Int32Array(length + 2);
+  from[length] = -1;
+  from[length + 1] = -1;
+  const markerLength = marker.length;
+  for (let index = length - 1; index >= 0; index -= 1) {
+    if (!input.startsWith(marker, index)) {
+      from[index] = from[index + 1] ?? -1;
       continue;
     }
-    const before = input.charAt(found - 1);
-    const after = input.charAt(found + marker.length);
-    if (!/\s/u.test(before) && isBoundary(after)) {
-      return found;
+    if (markerLength === 1 && input.startsWith(`${marker}${marker}`, index)) {
+      from[index] = from[index + 2] ?? -1;
+      continue;
     }
-    index = found + marker.length;
+    const before = input.charAt(index - 1);
+    const after = input.charAt(index + markerLength);
+    if (!/\s/u.test(before) && isBoundary(after)) {
+      from[index] = index;
+      continue;
+    }
+    from[index] = from[index + markerLength] ?? -1;
   }
-  return -1;
+  return from;
+}
+
+function findCloser(
+  tables: CloserTables,
+  marker: Marker,
+  start: number,
+  end: number,
+): number {
+  const from = tableFor(tables, marker);
+  const found = from[start] ?? -1;
+  if (found < 0 || found + marker.length > end) {
+    return -1;
+  }
+  return found;
+}
+
+function tableFor(tables: CloserTables, marker: Marker): Int32Array {
+  if (marker === "*") {
+    return tables.star;
+  }
+  if (marker === "_") {
+    return tables.under;
+  }
+  if (marker === "**") {
+    return tables.stars;
+  }
+  return tables.unders;
 }
 
 function markerAt(input: string, index: number): Marker | null {
