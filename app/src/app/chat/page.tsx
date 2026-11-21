@@ -210,8 +210,10 @@ export default function ChatPage() {
       if (keepBottom || keyboardOpened) {
         scrollThreadToBottom(thread);
         pinned.current = true;
+        setUnseenReply((current) => (current ? false : current));
       } else if (threadNearBottom(thread)) {
         pinned.current = true;
+        setUnseenReply((current) => (current ? false : current));
       }
     };
     const pinWindow = () => {
