@@ -375,7 +375,7 @@ export default function ChatPage() {
   return (
     <main
       ref={pageRef}
-      className={empty ? "chat-page chat-page-home" : "chat-page"}
+      className="chat-page"
     >
       <div className="chat-column">
         <header className="chat-header">
