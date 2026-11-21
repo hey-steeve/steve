@@ -253,14 +253,14 @@ it("trims the OpenRouter key and ignores a blank one", async () => {
 });
 
 it("requires a JSON content type", async () => {
-  const missing = await POST(
-    new Request("http://localhost/api/chat", {
-      method: "POST",
-      body: JSON.stringify(history),
-    }),
-  );
-  expect(missing.status).toBe(415);
-  expect(await missing.json()).toEqual({
+  const missing = new Request("http://localhost/api/chat", {
+    method: "POST",
+    body: new TextEncoder().encode(JSON.stringify(history)),
+  });
+  expect(missing.headers.get("content-type")).toBeNull();
+  const missingResponse = await POST(missing);
+  expect(missingResponse.status).toBe(415);
+  expect(await missingResponse.json()).toEqual({
     error: "Type de contenu non pris en charge.",
   });
 
@@ -282,6 +282,31 @@ it("requires a JSON content type", async () => {
   );
   expect(charset.status).toBe(200);
   expect(await charset.json()).toMatchObject({ mocked: true, model: "mock" });
+});
+
+it("reads a JSON body that arrives in several chunks", async () => {
+  const bytes = new TextEncoder().encode(JSON.stringify(history));
+  const mid = Math.max(1, Math.floor(bytes.length / 2));
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes.subarray(0, mid));
+      controller.enqueue(bytes.subarray(mid));
+      controller.close();
+    },
+  });
+  const init = {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: stream,
+    duplex: "half",
+  };
+  const response = await POST(new Request("http://localhost/api/chat", init));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    reply: echo,
+    mocked: true,
+    model: "mock",
+  });
 });
 
 it("rejects a history that is not a user and assistant alternation", async () => {
