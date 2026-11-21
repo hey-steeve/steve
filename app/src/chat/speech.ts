@@ -265,14 +265,17 @@ function isSpeechSynthesis(value: unknown): value is SpeechSynthesis {
 
 export function useSpeechPlayback(): {
   readonly activeId: string | null;
+  readonly supported: boolean;
   readonly toggle: (id: string, text: string) => void;
   readonly stop: () => void;
 } {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [supported, setSupported] = useState(false);
   const activeRef = useRef<string | null>(null);
 
   useEffect(() => {
     const synth = readSpeechSynthesis(window);
+    setSupported(synth !== null);
     if (synth === null) {
       return;
     }
@@ -311,17 +314,19 @@ export function useSpeechPlayback(): {
     if (voice !== null) {
       utterance.voice = voice;
     }
-    utterance.onend = () => {
+    const finish = () => {
       if (activeRef.current !== id) {
         return;
       }
       activeRef.current = null;
       setActiveId(null);
     };
+    utterance.onend = finish;
+    utterance.onerror = finish;
     activeRef.current = id;
     setActiveId(id);
     synth.speak(utterance);
   }, []);
 
-  return { activeId, toggle, stop };
+  return { activeId, supported, toggle, stop };
 }
