@@ -21,6 +21,7 @@ const disclaimer =
   "Steve n'est pas médecin et ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
+const clientTimeoutMs = 35_000;
 
 type UiMessage =
   | {
@@ -137,6 +138,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           messages: toProviderMessages(history),
         }),
+        signal: AbortSignal.timeout(clientTimeoutMs),
       });
       let payload: unknown = null;
       try {
