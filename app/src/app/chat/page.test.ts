@@ -846,6 +846,10 @@ it("keeps the scroll position and shows a new-message pill when a reply arrives 
       label: pill?.getAttribute("aria-label") ?? null,
       type: pill?.getAttribute("type") ?? null,
       live: pill?.closest("[aria-live]")?.getAttribute("aria-live") ?? null,
+      arrow: pill?.querySelector("[aria-hidden='true']")?.textContent ?? null,
+      threadLive:
+        session.container.querySelector(".chat-thread")?.getAttribute("aria-live") ??
+        null,
       scrollTop: session.scrolled.top,
       insideThread: pill === null ? null : session.thread.contains(pill),
       afterThread:
@@ -864,7 +868,9 @@ it("keeps the scroll position and shows a new-message pill when a reply arrives 
       text: "Nouveau message ↓",
       label: "Nouveau message",
       type: "button",
-      live: "polite",
+      live: null,
+      arrow: "↓",
+      threadLive: "polite",
       scrollTop: 0,
       insideThread: false,
       afterThread: true,
@@ -891,6 +897,7 @@ it("scrolls smoothly to the bottom and hides the pill when the new-message pill 
     if (!(pill instanceof HTMLButtonElement)) {
       throw new Error("missing new-message pill");
     }
+    const newest = newestReply(session.container);
     await act(async () => {
       pill.click();
     });
@@ -898,13 +905,12 @@ it("scrolls smoothly to the bottom and hides the pill when the new-message pill 
       { top: session.thread.scrollHeight, behavior: "smooth" },
     ]);
     expect(session.scrolled.top).toBe(0);
-    expect(newMessagePill(session.container)).not.toBeNull();
-    await act(async () => {
-      session.scrolled.top = session.thread.scrollHeight;
-      session.thread.dispatchEvent(new Event("scroll"));
-    });
-    expect(session.scrolled.top).toBe(session.thread.scrollHeight);
     expect(newMessagePill(session.container)).toBeNull();
+    expect(document.activeElement).toBe(newest);
+    expect(newest.getAttribute("tabindex")).toBe("-1");
+    expect(document.activeElement).not.toBe(
+      session.container.querySelector("textarea"),
+    );
   } finally {
     session.restore();
   }
@@ -973,14 +979,135 @@ it("scrolls instantly when the new-message pill is tapped with reduced motion", 
     if (!(pill instanceof HTMLButtonElement)) {
       throw new Error("missing new-message pill");
     }
+    const newest = newestReply(session.container);
     await act(async () => {
       pill.click();
     });
     expect(motions).not.toContain("smooth");
     expect(session.scrolled.top).toBe(session.thread.scrollHeight);
     expect(newMessagePill(session.container)).toBeNull();
+    expect(document.activeElement).toBe(newest);
+    expect(newest.getAttribute("tabindex")).toBe("-1");
   } finally {
     restoreMotion();
+    session.restore();
+  }
+});
+
+it("follows an in-flight reply when the keyboard opens without a further scroll", async () => {
+  const session = await pendingThread();
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    session.viewport.height = 420;
+    session.viewport.offsetTop = 180;
+    await fireViewport(session.viewport);
+    expect(session.scrolled.top).toBe(threadLength);
+    await session.release("Voici la suite.");
+    expect(session.container.textContent).toContain("Voici la suite.");
+    expect(newMessagePill(session.container)).toBeNull();
+  } finally {
+    session.restore();
+  }
+});
+
+it("follows the next reply when a keyboard close lands inside 80px without scrolling", async () => {
+  const session = await pendingThread();
+  try {
+    session.viewport.height = 420;
+    session.viewport.offsetTop = 180;
+    await fireViewport(session.viewport);
+    const parked = threadLength - session.thread.clientHeight - 81;
+    session.scrolled.top = parked;
+    session.thread.dispatchEvent(new Event("scroll"));
+    session.viewport.height = 844;
+    session.viewport.offsetTop = 0;
+    await fireViewport(session.viewport);
+    expect(session.scrolled.top).toBe(parked);
+    await session.release("Voici la suite.");
+    expect(newMessagePill(session.container)).toBeNull();
+    expect(session.scrolled.top).toBe(threadLength);
+  } finally {
+    session.restore();
+  }
+});
+
+it("hides the pill inside the 80px band without moving the thread", async () => {
+  const session = await pendingThread();
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    const parked = threadLength - session.thread.clientHeight - 40;
+    await act(async () => {
+      session.scrolled.top = parked;
+      session.thread.dispatchEvent(new Event("scroll"));
+    });
+    expect(newMessagePill(session.container)).toBeNull();
+    expect(session.scrolled.top).toBe(parked);
+  } finally {
+    session.restore();
+  }
+});
+
+it("follows the thread and hides the pill when you send while scrolled up", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const session = await pendingThread();
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    expect(newMessagePill(session.container)).not.toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(700);
+    });
+    await sendComposer(session.container, "Encore");
+    expect(newMessagePill(session.container)).toBeNull();
+    expect(session.scrolled.top).toBe(threadLength);
+    expect(session.container.textContent).toContain("Encore");
+  } finally {
+    session.restore();
+  }
+});
+
+it("shows the pill when an error reply arrives above the bottom", async () => {
+  const session = await pendingThread();
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Le service est indisponible.", "error");
+    expect(session.scrolled.top).toBe(0);
+    expect(session.container.querySelector(".chat-error")?.textContent).toBe(
+      "Le service est indisponible.",
+    );
+    expect(newMessagePill(session.container)?.textContent).toBe(
+      "Nouveau message ↓",
+    );
+  } finally {
+    session.restore();
+  }
+});
+
+it("returns to the top of home with no pill after Retour from an unread reply", async () => {
+  const session = await pendingThread();
+  try {
+    session.scrolled.top = 400;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    expect(newMessagePill(session.container)).not.toBeNull();
+    const back = session.container.querySelector('[aria-label="Retour"]');
+    if (!(back instanceof HTMLButtonElement)) {
+      throw new Error("missing back");
+    }
+    await act(async () => {
+      back.click();
+    });
+    expect(newMessagePill(session.container)).toBeNull();
+    expect(session.scrolled.top).toBe(0);
+    expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
+      "Hey",
+    );
+  } finally {
     session.restore();
   }
 });
@@ -1175,7 +1302,8 @@ async function pendingThread(): Promise<{
   container: HTMLDivElement;
   thread: HTMLElement;
   scrolled: { top: number };
-  release: (reply: string) => Promise<void>;
+  viewport: ViewportStub;
+  release: (reply: string, kind?: "agent" | "error") => Promise<void>;
   restore: () => void;
 }> {
   const pending = deferFetch();
@@ -1199,11 +1327,19 @@ async function pendingThread(): Promise<{
       container: view.container,
       thread,
       scrolled: trackScroll(thread, threadLength),
-      release: async (reply: string) => {
+      viewport,
+      release: async (reply: string, kind: "agent" | "error" = "agent") => {
         await act(async () => {
-          pending.resolve(
-            Response.json({ reply, mocked: true, model: "mock" }),
-          );
+          if (kind === "error") {
+            pending.resolve(
+              new Response(JSON.stringify({ error: reply }), {
+                status: 500,
+                headers: { "content-type": "application/json" },
+              }),
+            );
+            return;
+          }
+          pending.resolve(Response.json({ reply, mocked: true, model: "mock" }));
         });
       },
       restore: () => {
@@ -1214,6 +1350,36 @@ async function pendingThread(): Promise<{
     viewport.restore();
     throw error;
   }
+}
+
+function newestReply(container: ParentNode): HTMLElement {
+  const newest = container.querySelector(".chat-thread > li:last-child");
+  if (!(newest instanceof HTMLElement)) {
+    throw new Error("missing newest reply");
+  }
+  return newest;
+}
+
+async function sendComposer(container: ParentNode, text: string): Promise<void> {
+  const field = container.querySelector("textarea");
+  if (!(field instanceof HTMLTextAreaElement)) {
+    throw new Error("missing composer");
+  }
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  await act(async () => {
+    setter?.call(field, text);
+    field.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  });
+  const send = container.querySelector('button[aria-label="Envoyer"]');
+  if (!(send instanceof HTMLButtonElement)) {
+    throw new Error("missing send");
+  }
+  await act(async () => {
+    send.click();
+  });
 }
 
 function trackScroll(thread: HTMLElement, height: number): { top: number } {
