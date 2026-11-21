@@ -40,8 +40,11 @@ export function createStaging(publicDir: string, prefix: string): string {
 }
 
 export function publishStaging(staging: string, destDir: string): void {
-  mkdirSync(destDir, { recursive: true });
   const names = readdirSync(staging);
+  if (names.length === 0) {
+    return;
+  }
+  mkdirSync(destDir, { recursive: true });
   for (const name of names) {
     renameSync(path.join(staging, name), path.join(destDir, name));
   }
