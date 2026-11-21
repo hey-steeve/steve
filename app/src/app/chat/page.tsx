@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { composerControl, type ComposerControl } from "../../chat/composer-control";
 import type { ExchangeKind } from "../../chat/exchange";
@@ -47,7 +46,6 @@ type UiMessage =
 type BackExit = "idle" | "playing" | "done";
 
 export default function ChatPage() {
-  const router = useRouter();
   const [messages, setMessages] = useState<readonly UiMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
@@ -73,9 +71,7 @@ export default function ChatPage() {
   const [homeMounted, setHomeMounted] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const backExit = useRef<BackExit>("idle");
-  const navigateHome = useRef(router.push);
   emptyRef.current = empty;
-  navigateHome.current = router.push;
   const control = composerControl({
     draft,
     listening: dictation.listening,
@@ -161,18 +157,30 @@ export default function ChatPage() {
     };
   }, [empty, homeMounted]);
 
+  function finishExit() {
+    if (backExit.current !== "playing") {
+      return;
+    }
+    backExit.current = "done";
+    busy.current = false;
+    setLeaving(false);
+    setMessages([]);
+    setDraft("");
+    setDemo(false);
+    setExchange("idle");
+    setHomeMounted(true);
+    queueMicrotask(() => {
+      if (backExit.current === "done") {
+        backExit.current = "idle";
+      }
+    });
+  }
+
   useEffect(() => {
     if (!leaving) {
       return;
     }
     const column = columnRef.current;
-    const finishExit = () => {
-      if (backExit.current === "done") {
-        return;
-      }
-      backExit.current = "done";
-      navigateHome.current("/");
-    };
     const timer = window.setTimeout(finishExit, homeLeaveMs);
     const finish = (event: globalThis.AnimationEvent) => {
       if (
@@ -295,14 +303,13 @@ export default function ChatPage() {
     if (backExit.current !== "idle") {
       return;
     }
+    backExit.current = "playing";
     conversation.current += 1;
     dictation.stop();
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      backExit.current = "done";
-      navigateHome.current("/");
+      finishExit();
       return;
     }
-    backExit.current = "playing";
     setLeaving(true);
   }
 
