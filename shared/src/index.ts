@@ -1,1 +1,2 @@
-export { designTokens } from "./design-tokens.js";
+export { designTokens } from "./design-tokens.ts";
+export { marmot } from "./mascot/index.ts";

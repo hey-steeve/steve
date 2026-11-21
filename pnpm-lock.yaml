@@ -44,7 +44,11 @@ importers:
 
   features/voice: {}
 
-  shared: {}
+  shared:
+    dependencies:
+      open-bot-avatar:
+        specifier: ^0.3.0
+        version: 0.3.0
 
 packages:
 
@@ -640,6 +644,9 @@ packages:
   obug@3.0.0:
     resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
+
+  open-bot-avatar@0.3.0:
+    resolution: {integrity: sha512-3P0o8eiClHHiLr7lIFZE/WxUtqHLjVb0xQ0PqYzA48XG/oQlWyeIdcY0egK6H8AgFuoY1aKVhc8QKSaj4z5ZOw==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -1397,6 +1404,8 @@ snapshots:
   natural-compare@1.4.0: {}
 
   obug@3.0.0: {}
+
+  open-bot-avatar@0.3.0: {}
 
   optionator@0.9.4:
     dependencies:
