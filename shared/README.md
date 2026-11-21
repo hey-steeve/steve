@@ -11,6 +11,7 @@
 - Logger.
 - Client LLM.
 - Jetons de design.
+- Images de la mascotte, dans `shared/assets/mascot/`.
 
 ## Ne fait pas
 
