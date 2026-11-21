@@ -118,18 +118,16 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (messages.length === 0 || !pinned.current) {
+    const thread = threadRef.current;
+    if (thread === null || !pinned.current) {
       return;
     }
-    scrollThreadToBottom(threadRef.current);
-  }, [messages, exchange]);
-
-  useEffect(() => {
-    if (unseenReply || messages.length === 0 || !pinned.current) {
+    if (messages.length === 0) {
+      thread.scrollTop = 0;
       return;
     }
-    scrollThreadToBottom(threadRef.current);
-  }, [unseenReply]);
+    scrollThreadToBottom(thread);
+  }, [messages]);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -211,6 +209,8 @@ export default function ChatPage() {
       page.toggleAttribute("data-keyboard-open", keyboardNow && !zoomed);
       if (keepBottom || keyboardOpened) {
         scrollThreadToBottom(thread);
+        pinned.current = true;
+      } else if (threadNearBottom(thread)) {
         pinned.current = true;
       }
     };
@@ -401,11 +401,12 @@ export default function ChatPage() {
     }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       scrollThreadToBottom(thread);
-      pinned.current = true;
-      setUnseenReply(false);
-      return;
+    } else {
+      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
     }
-    thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
+    pinned.current = true;
+    setUnseenReply(false);
+    focusNewestReply(thread);
   }
 
   return (
@@ -492,14 +493,14 @@ export default function ChatPage() {
                     <UserAvatar />
                   </li>
                 ) : message.role === "error" ? (
-                  <li key={message.id} className="chat-row chat-row-agent">
+                  <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
                     <div className="chat-error" role="alert">
                       {message.content}
                     </div>
                   </li>
                 ) : (
-                  <li key={message.id} className="chat-row chat-row-agent">
+                  <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
                     <div className="chat-agent">
                       <div className="chat-agent-text">
@@ -527,18 +528,18 @@ export default function ChatPage() {
             </ol>
           )}
         </div>
-        {empty || !unseenReply ? null : (
-          <div className="chat-new-message-row" aria-live="polite">
+        {unseenReply ? (
+          <div className="chat-new-message-row">
             <button
               type="button"
               className="chat-new-message"
               aria-label="Nouveau message"
               onClick={showLatest}
             >
-              Nouveau message ↓
+              Nouveau message <span aria-hidden="true">↓</span>
             </button>
           </div>
-        )}
+        ) : null}
         {empty ? null : (
           <div className="chat-dock chat-dock-enter">
             {composer}
@@ -661,6 +662,14 @@ function MicIcon() {
       />
     </svg>
   );
+}
+
+function focusNewestReply(thread: HTMLElement): void {
+  const newest = thread.querySelector(".chat-thread > li:last-child");
+  if (!(newest instanceof HTMLElement)) {
+    return;
+  }
+  newest.focus({ preventScroll: true });
 }
 
 function scrollThreadToBottom(thread: HTMLElement | null) {
