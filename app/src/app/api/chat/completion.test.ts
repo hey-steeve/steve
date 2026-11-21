@@ -223,6 +223,31 @@ it("returns the upstream error when finish_reason is error", async () => {
   expect(JSON.parse(text)).toEqual({ error: upstreamError });
 });
 
+it("returns the upstream error when choices is an object", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  delete process.env["OPENROUTER_MODEL"];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        model: "google/gemini-3.8-flash",
+        choices: {
+          0: {
+            finish_reason: "stop",
+            message: { content: "secret-fragment" },
+          },
+        },
+      }),
+    ),
+  );
+  const response = await post(history);
+  const text = await response.text();
+  expect(response.status).toBe(502);
+  expect(text).not.toContain("secret-fragment");
+  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+});
+
 it("returns the upstream error when the OpenRouter JSON omits choices", async () => {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
