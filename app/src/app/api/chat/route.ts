@@ -151,7 +151,7 @@ function completeSentences(content: string): string | null {
     if (char !== "." && char !== "!" && char !== "?") {
       continue;
     }
-    if (char === "." && isLineStartNumberDot(text, index)) {
+    if (char === "." && isListMarkerDot(text, index)) {
       continue;
     }
     const closer = closingGuillemet(text, index + 1);
@@ -174,21 +174,93 @@ function completeSentences(content: string): string | null {
   return sentence;
 }
 
-function isLineStartNumberDot(text: string, dotIndex: number): boolean {
-  const next = text.charAt(dotIndex + 1);
-  if (next !== " " && next !== "\t") {
+function isListMarkerDot(text: string, dotIndex: number): boolean {
+  const lineStart = lineStartAt(text, dotIndex);
+  const digits = listMarkerDigits(text, lineStart);
+  if (digits === null || lineStart + digits.length !== dotIndex) {
     return false;
   }
-  let lineStart = dotIndex;
-  while (lineStart > 0 && text.charAt(lineStart - 1) !== "\n") {
-    lineStart -= 1;
+  return isListItemAt(text, lineStart);
+}
+
+function isListItemAt(text: string, lineStart: number): boolean {
+  let start: number | null = lineStart;
+  while (start !== null) {
+    const digits = listMarkerDigits(text, start);
+    if (digits === null) {
+      return false;
+    }
+    if (Number.parseInt(digits, 10) === 1) {
+      return true;
+    }
+    start = previousNonEmptyLineStart(text, start);
   }
-  const matched = /^\s*(\d+)$/.exec(text.slice(lineStart, dotIndex));
-  if (matched === null) {
-    return false;
+  return false;
+}
+
+function listMarkerDigits(text: string, lineStart: number): string | null {
+  const line = text.slice(lineStart, lineEndAt(text, lineStart));
+  const digits = /^(\d+)\.(?=[^\S\n\r])/.exec(line)?.[1];
+  if (digits === undefined) {
+    return null;
   }
-  const number = matched[1];
-  return number !== undefined && number !== "15" && number !== "3114";
+  return digits;
+}
+
+function lineStartAt(text: string, index: number): number {
+  let cursor = index;
+  while (cursor > 0) {
+    const prev = text.charAt(cursor - 1);
+    if (prev === "\n" || prev === "\r") {
+      break;
+    }
+    cursor -= 1;
+  }
+  return cursor;
+}
+
+function lineEndAt(text: string, lineStart: number): number {
+  let cursor = lineStart;
+  while (cursor < text.length) {
+    const char = text.charAt(cursor);
+    if (char === "\n" || char === "\r") {
+      break;
+    }
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function previousNonEmptyLineStart(text: string, lineStart: number): number | null {
+  let start = previousLineStart(text, lineStart);
+  while (start !== null) {
+    if (text.slice(start, lineEndAt(text, start)).trim().length > 0) {
+      return start;
+    }
+    start = previousLineStart(text, start);
+  }
+  return null;
+}
+
+function previousLineStart(text: string, lineStart: number): number | null {
+  if (lineStart === 0) {
+    return null;
+  }
+  let cursor = lineStart - 1;
+  if (text.charAt(cursor) === "\n") {
+    cursor -= 1;
+  }
+  if (cursor >= 0 && text.charAt(cursor) === "\r") {
+    cursor -= 1;
+  }
+  if (cursor < 0) {
+    return null;
+  }
+  const char = text.charAt(cursor);
+  if (char === "\n" || char === "\r") {
+    return cursor + 1;
+  }
+  return lineStartAt(text, cursor);
 }
 
 function closingGuillemet(text: string, from: number): number | null {
