@@ -164,6 +164,111 @@ it("drops the covering home sheet when its leave animation is cancelled", async 
   );
 });
 
+it("drops the covering home sheet when its leave animation ends", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(() => new Promise(() => {})),
+  );
+  const view = await mount();
+  const chip = view.container.querySelector(".chat-chip");
+  if (!(chip instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+
+  await act(async () => {
+    chip.click();
+  });
+  const hero = view.container.querySelector(".chat-hero");
+  if (!(hero instanceof HTMLElement)) {
+    throw new Error("missing hero");
+  }
+
+  await act(async () => {
+    hero.dispatchEvent(
+      new AnimationEvent("animationend", {
+        animationName: "chat-home-out",
+        bubbles: true,
+      }),
+    );
+  });
+
+  expect(view.container.querySelector(".chat-hero")).toBeNull();
+  expect(view.container.querySelector(".chat-user")?.textContent).toContain(
+    "Prendre rendez-vous chez un généraliste",
+  );
+});
+
+it("ignores a home leave animationend that arrives after Retour", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(() => new Promise(() => {})),
+  );
+  const captured: Array<{
+    node: HTMLElement;
+    listener: (event: AnimationEvent) => void;
+  }> = [];
+  const original = HTMLElement.prototype.addEventListener;
+  const spy = vi
+    .spyOn(HTMLElement.prototype, "addEventListener")
+    .mockImplementation(function (
+      this: HTMLElement,
+      type: string,
+      listener: EventListenerOrEventListenerObject | null,
+      options?: boolean | AddEventListenerOptions,
+    ): void {
+      if (listener === null) {
+        return;
+      }
+      if (type === "animationend" && typeof listener === "function") {
+        captured.push({
+          node: this,
+          listener: listener as (event: AnimationEvent) => void,
+        });
+      }
+      if (options === undefined) {
+        original.call(this, type, listener);
+        return;
+      }
+      original.call(this, type, listener, options);
+    });
+  try {
+    const view = await mount();
+    const chip = view.container.querySelector(".chat-chip");
+    if (!(chip instanceof HTMLButtonElement)) {
+      throw new Error("missing suggestion");
+    }
+    await act(async () => {
+      chip.click();
+    });
+    const back = view.container.querySelector('[aria-label="Retour"]');
+    if (!(back instanceof HTMLButtonElement)) {
+      throw new Error("missing back");
+    }
+    await act(async () => {
+      back.click();
+    });
+    const homeLeave = captured.find((item) =>
+      item.node.classList.contains("chat-hero"),
+    );
+    if (homeLeave === undefined) {
+      throw new Error("missing animationend listener");
+    }
+    await act(async () => {
+      homeLeave.listener.call(homeLeave.node, {
+        target: homeLeave.node,
+        animationName: "chat-home-out",
+      } as unknown as AnimationEvent);
+    });
+    expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
+      "Hey",
+    );
+    expect(view.container.querySelector(".chat-hero")).not.toBeNull();
+    expect(view.container.querySelector(".chat-field")).not.toBeNull();
+  } finally {
+    spy.mockRestore();
+  }
+});
+
 it("pins the chat page to the visual viewport when the keyboard resizes it", async () => {
   vi.stubGlobal(
     "fetch",
@@ -231,6 +336,7 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
     scrolled.top = 0;
     viewport.height = 420;
     viewport.offsetTop = 180;
+    page.style.transform = "translateY(12px)";
     await act(async () => {
       for (const listener of listeners.get("resize") ?? []) {
         listener();
@@ -276,7 +382,131 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
   }
 });
 
+it("does not jump to the latest message when the viewport resizes while older messages are on screen", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    scrolled.top = 0;
+    viewport.setInnerHeight(700);
+    viewport.height = 690;
+    viewport.offsetTop = 24;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("keeps the latest reply visible when the viewport resizes at the bottom of the thread", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    scrolled.top = threadLength - threadWindow;
+    viewport.setInnerHeight(700);
+    viewport.height = 690;
+    viewport.offsetTop = 12;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(threadLength);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("keeps the latest reply visible when the keyboard opens at the bottom of the thread", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    scrolled.top = threadLength - threadWindow;
+    viewport.height = 420;
+    viewport.offsetTop = 180;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    expect(scrolled.top).toBe(threadLength);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("does not jump to the latest message when the keyboard closes over older messages", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 420, offsetTop: 180, innerHeight: 844 });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    scrolled.top = 0;
+    viewport.height = 844;
+    viewport.offsetTop = 0;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("restores page scroll when the chat unmounts", async () => {
+  const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
+  const html = document.documentElement;
+  const body = document.body;
+  const previous = {
+    htmlOverflow: html.style.overflow,
+    bodyOverflow: body.style.overflow,
+    htmlOverscroll: html.style.overscrollBehavior,
+    bodyOverscroll: body.style.overscrollBehavior,
+  };
+  html.style.overflow = "visible";
+  body.style.overflow = "scroll";
+  html.style.overscrollBehavior = "auto";
+  body.style.overscrollBehavior = "contain";
+  try {
+    const view = await mount();
+    await flushFrame();
+    expect(html.style.overflow).toBe("hidden");
+    expect(body.style.overflow).toBe("hidden");
+    expect(html.style.overscrollBehavior).toBe("none");
+    expect(body.style.overscrollBehavior).toBe("none");
+    await unmount(view);
+    expect(html.style.overflow).toBe("visible");
+    expect(body.style.overflow).toBe("scroll");
+    expect(html.style.overscrollBehavior).toBe("auto");
+    expect(body.style.overscrollBehavior).toBe("contain");
+  } finally {
+    viewport.restore();
+    html.style.overflow = previous.htmlOverflow;
+    body.style.overflow = previous.bodyOverflow;
+    html.style.overscrollBehavior = previous.htmlOverscroll;
+    body.style.overscrollBehavior = previous.bodyOverscroll;
+  }
+});
+
+it("stops following the visual viewport after the chat unmounts", async () => {
+  const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
+  try {
+    const view = await mount();
+    await flushFrame();
+    const page = view.container.querySelector(".chat-page");
+    if (!(page instanceof HTMLElement)) {
+      throw new Error("missing chat page");
+    }
+    await unmount(view);
+    expect(page.style.height).toBe("");
+    viewport.height = 320;
+    viewport.offsetTop = 40;
+    await fireViewport(viewport);
+    expect(page.style.top).toBe("");
+    expect(page.style.height).toBe("");
+  } finally {
+    viewport.restore();
+  }
+});
+
 it("returns to the empty home state from Retour in the conversation header", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const reply = deferred<Response>();
   vi.stubGlobal(
     "fetch",
@@ -308,6 +538,17 @@ it("returns to the empty home state from Retour in the conversation header", asy
   expect(header()?.querySelector('[aria-label="Retour"]')).toBeNull();
   expect(view.container.querySelector(".chat-thread")).toBeNull();
 
+  await act(async () => {
+    vi.advanceTimersByTime(300);
+  });
+
+  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
+    "Hey",
+  );
+  expect(view.container.querySelector(".chat-hero")).not.toBeNull();
+  expect(view.container.querySelector(".chat-field")).not.toBeNull();
+  expect(view.container.querySelector(".chat-thread")).toBeNull();
+
   reply.resolve(
     new Response(
       JSON.stringify({
@@ -328,6 +569,138 @@ it("returns to the empty home state from Retour in the conversation header", asy
   expect(view.container.textContent).not.toContain("Réponse tardive.");
   expect(view.container.querySelector(".chat-thread")).toBeNull();
 });
+
+const threadLength = 900;
+const threadWindow = 200;
+
+function stubReply(): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        reply: "Je peux vous aider à préparer ça.",
+        mocked: true,
+        model: "mock",
+      }),
+    ),
+  );
+}
+
+type ViewportStub = {
+  height: number;
+  offsetTop: number;
+  setInnerHeight(value: number): void;
+  fire(type: string): void;
+  restore(): void;
+};
+
+function installViewport(initial: {
+  height: number;
+  offsetTop: number;
+  innerHeight: number;
+}): ViewportStub {
+  const listeners = new Map<string, Array<() => void>>();
+  const viewport = {
+    height: initial.height,
+    offsetTop: initial.offsetTop,
+    addEventListener(type: string, listener: EventListener) {
+      const current = listeners.get(type) ?? [];
+      current.push(listener as () => void);
+      listeners.set(type, current);
+    },
+    removeEventListener(type: string, listener: EventListener) {
+      const current = listeners.get(type) ?? [];
+      listeners.set(
+        type,
+        current.filter((item) => item !== listener),
+      );
+    },
+  };
+  let innerHeight = initial.innerHeight;
+  const previousViewport = Object.getOwnPropertyDescriptor(window, "visualViewport");
+  const previousInnerHeight = Object.getOwnPropertyDescriptor(window, "innerHeight");
+  Object.defineProperty(window, "visualViewport", {
+    configurable: true,
+    value: viewport,
+  });
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    get: () => innerHeight,
+  });
+  return {
+    get height() {
+      return viewport.height;
+    },
+    set height(value: number) {
+      viewport.height = value;
+    },
+    get offsetTop() {
+      return viewport.offsetTop;
+    },
+    set offsetTop(value: number) {
+      viewport.offsetTop = value;
+    },
+    setInnerHeight(value: number) {
+      innerHeight = value;
+    },
+    fire(type: string) {
+      for (const listener of [...(listeners.get(type) ?? [])]) {
+        listener();
+      }
+    },
+    restore() {
+      if (previousViewport === undefined) {
+        Reflect.deleteProperty(window, "visualViewport");
+      } else {
+        Object.defineProperty(window, "visualViewport", previousViewport);
+      }
+      if (previousInnerHeight === undefined) {
+        Reflect.deleteProperty(window, "innerHeight");
+      } else {
+        Object.defineProperty(window, "innerHeight", previousInnerHeight);
+      }
+    },
+  };
+}
+
+async function fireViewport(viewport: ViewportStub): Promise<void> {
+  await act(async () => {
+    viewport.fire("resize");
+    viewport.fire("scroll");
+  });
+  await flushFrame();
+}
+
+async function scrolledThread(): Promise<{
+  page: HTMLElement;
+  scrolled: { top: number };
+}> {
+  const view = await mount();
+  await flushFrame();
+  const chip = view.container.querySelector(".chat-chip");
+  if (!(chip instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+  await act(async () => {
+    chip.click();
+  });
+  const page = view.container.querySelector(".chat-page");
+  const thread = view.container.querySelector(".chat-scroll");
+  if (!(page instanceof HTMLElement) || !(thread instanceof HTMLElement)) {
+    throw new Error("missing chat shell");
+  }
+  return { page, scrolled: trackScroll(thread, threadLength, threadWindow) };
+}
+
+async function unmount(view: { root: Root }): Promise<void> {
+  const index = roots.indexOf(view.root);
+  if (index >= 0) {
+    roots.splice(index, 1);
+  }
+  await act(async () => {
+    view.root.unmount();
+  });
+}
 
 function trackScroll(
   thread: HTMLElement,
@@ -387,6 +760,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 const roots: Root[] = [];
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   for (const root of roots.splice(0)) {
     act(() => {

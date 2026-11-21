@@ -24,6 +24,7 @@ const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
 const clientTimeoutMs = 35_000;
 const homeLeaveMs = 240;
 const keyboardOpenGap = 120;
+const nearBottomGap = 80;
 
 type UiMessage =
   | {
@@ -172,14 +173,17 @@ export default function ChatPage() {
     let frame: number | null = null;
     const apply = () => {
       frame = null;
+      const thread = threadRef.current;
+      const keepBottom = threadNearBottom(thread);
+      const keyboardOpen = window.innerHeight - viewport.height > keyboardOpenGap;
+      const keyboardOpened = keyboardOpen && !page.hasAttribute("data-keyboard-open");
       page.style.transform = "";
       page.style.top = `${viewport.offsetTop}px`;
       page.style.height = `${viewport.height}px`;
-      page.toggleAttribute(
-        "data-keyboard-open",
-        window.innerHeight - viewport.height > keyboardOpenGap,
-      );
-      scrollThreadToBottom(threadRef.current);
+      page.toggleAttribute("data-keyboard-open", keyboardOpen);
+      if (keepBottom || keyboardOpened) {
+        scrollThreadToBottom(thread);
+      }
     };
     const pinWindow = () => {
       if (window.scrollX !== 0 || window.scrollY !== 0) {
@@ -645,6 +649,13 @@ function scrollThreadToBottom(thread: HTMLElement | null) {
     return;
   }
   thread.scrollTop = thread.scrollHeight;
+}
+
+function threadNearBottom(thread: HTMLElement | null): boolean {
+  if (thread === null) {
+    return false;
+  }
+  return thread.scrollHeight - thread.scrollTop - thread.clientHeight <= nearBottomGap;
 }
 
 function resizeComposerField(field: HTMLTextAreaElement): boolean {
