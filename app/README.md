@@ -34,7 +34,7 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `OPENROUTER_API_KEY` is the OpenRouter API key. The route reads it on the server and trims it. Whitespace alone counts as empty.
 
-`OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends `google/gemini-3.8-flash`.
+`OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends the pinned default, `google/gemini-3.8-flash`.
 
 `STEVE_CHAT_LIVE` must be exactly `1`, and `OPENROUTER_API_KEY` must be set, before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set. `true`, `0`, and ` 1 ` keep the canned reply.
 
@@ -50,7 +50,15 @@ When the route calls OpenRouter, it sends a short French system prompt, then the
 
 `model` is the `model` field from the OpenRouter JSON. That field names the model that ran. When that field is missing, `model` is the id the route sent.
 
-The route aborts the OpenRouter call after 30 seconds. A non-2xx response, a network failure, or that timeout returns HTTP 502 and `{ "error": "Le service de chat est indisponible. Réessayez." }`. The route does not return the upstream body. Do not print the key.
+The route aborts the OpenRouter call after 30 seconds. Each case below returns HTTP 502 and `{ "error": "Le service de chat est indisponible. Réessayez." }`.
+
+- OpenRouter responds with a status outside 2xx.
+- The call throws a network error.
+- The call exceeds 30 seconds and aborts.
+- The 2xx body is not JSON.
+- The JSON has no assistant text, including a missing `choices` array, an empty `choices` array, a missing `message`, or blank `content`.
+
+The route does not return the upstream body. Do not print the key.
 
 The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows the model id under each agent reply when the reply is not mocked. It shows a failed reply on an error card.
 
@@ -63,6 +71,8 @@ Live mode stays on the tailnet only, so the route has no auth and no rate limit.
 `shared/assets/mascot/` is the source. `app/src/sync-mascot-webps.ts` encodes WebP files into `app/public/mascot/`. `app/next.config.ts` calls `syncBrandIcons()` and then `syncMascotWebps()` on `next dev`, `next build`, and `next start`.
 
 `app/public/mascot/` is gitignored. Commit the PNG sources. Do not commit the WebP files.
+
+A later run replaces the files inside `app/public/mascot/` and leaves that folder in place. `app/public/icons/` works the same way. The run deletes its own staging directory. It also deletes a staging directory whose age is at least 15 minutes.
 
 The encoder is sharp 0.35.5, a dependency of `@steve/app`. Next.js lists the same version as an optional dependency. The script resizes each PNG, then encodes WebP at quality 80 and alpha quality 80.
 
