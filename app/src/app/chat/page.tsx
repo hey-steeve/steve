@@ -48,6 +48,7 @@ export default function ChatPage() {
   const [demo, setDemo] = useState(false);
   const draftRef = useRef(draft);
   const busy = useRef(false);
+  const conversation = useRef(0);
   const threadRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const [fieldGrown, setFieldGrown] = useState(false);
@@ -119,6 +120,7 @@ export default function ChatPage() {
     busy.current = true;
     dictation.stop();
     playback.stop();
+    const ticket = conversation.current;
     const history: readonly UiMessage[] = [
       ...messages,
       { id: newMessageId(), role: "user", content },
@@ -126,10 +128,21 @@ export default function ChatPage() {
     setMessages(history);
     setDraft((current) => (current.trim() === content ? "" : current));
     setExchange("awaiting");
-    void post(history);
+    void post(history, ticket);
   }
 
-  async function post(history: readonly UiMessage[]) {
+  function startOver() {
+    conversation.current += 1;
+    busy.current = false;
+    dictation.stop();
+    playback.stop();
+    setMessages([]);
+    setDraft("");
+    setDemo(false);
+    setExchange("idle");
+  }
+
+  async function post(history: readonly UiMessage[], ticket: number) {
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -143,6 +156,9 @@ export default function ChatPage() {
         payload = await response.json();
       } catch {
         payload = null;
+      }
+      if (conversation.current !== ticket) {
+        return;
       }
       if (!response.ok) {
         pushError(errorText(payload));
@@ -159,10 +175,15 @@ export default function ChatPage() {
       pushAgent(reply.reply, reply.model, reply.mocked);
       setExchange("rendering");
     } catch {
+      if (conversation.current !== ticket) {
+        return;
+      }
       pushError(fallbackReply);
       setExchange("failed");
     } finally {
-      busy.current = false;
+      if (conversation.current === ticket) {
+        busy.current = false;
+      }
     }
   }
 
@@ -231,115 +252,133 @@ export default function ChatPage() {
   );
 
   return (
-    <main className="chat-page">
-      <header className="chat-header">
+    <main className={empty ? "chat-page chat-page-home" : "chat-page"}>
+      <div className="chat-column">
+        <header className="chat-header">
+          {empty ? (
+            <h1 className="chat-greeting">Bonjour</h1>
+          ) : (
+            <button
+              type="button"
+              className="chat-back"
+              aria-label="Retour"
+              onClick={startOver}
+            >
+              <span className="chat-back-face">
+                <BackIcon />
+              </span>
+            </button>
+          )}
+          {empty ? null : (
+            <div className="chat-title">
+              <img src={headerAvatarSrc} alt="" width={40} height={40} />
+              <h1>Steve</h1>
+            </div>
+          )}
+          <ProfileButton />
+          {empty || !demo ? null : (
+            <p className="chat-badge">Mode démo : réponses simulées</p>
+          )}
+        </header>
+        <div className="chat-scroll" ref={threadRef}>
+          {empty ? (
+            <div className="chat-hero">
+              <img
+                className="chat-hero-mascot"
+                src={heroSrc}
+                alt="Steve"
+                width={514}
+                height={640}
+              />
+              <div className="chat-sheet">
+                <div className="chat-dock">
+                  {composer}
+                  {footnote}
+                </div>
+                <div className="chat-chips" role="group" aria-label="Suggestions">
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="chat-chip"
+                      onClick={() => {
+                        send(suggestion);
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <ol className="chat-thread" aria-live="polite">
+              {messages.map((message) =>
+                message.role === "user" ? (
+                  <li key={message.id} className="chat-row chat-row-user">
+                    <div className="chat-user">{message.content}</div>
+                    <UserAvatar />
+                  </li>
+                ) : message.role === "error" ? (
+                  <li key={message.id} className="chat-row chat-row-agent">
+                    <SteveAvatar />
+                    <div className="chat-error" role="alert">
+                      {message.content}
+                    </div>
+                  </li>
+                ) : (
+                  <li key={message.id} className="chat-row chat-row-agent">
+                    <SteveAvatar />
+                    <div className="chat-agent">
+                      <div className="chat-agent-text">
+                        <ChatMarkdown text={message.content} />
+                      </div>
+                      {message.mocked || message.model === "mock" ? null : (
+                        <p className="chat-model">{message.model}</p>
+                      )}
+                      <button
+                        type="button"
+                        className="chat-speak"
+                        aria-label={
+                          playback.activeId === message.id
+                            ? "Arrêter la lecture"
+                            : "Lire la réponse"
+                        }
+                        aria-pressed={playback.activeId === message.id}
+                        onClick={() => {
+                          playback.toggle(message.id, message.content);
+                        }}
+                      >
+                        <SpeakerIcon />
+                      </button>
+                    </div>
+                  </li>
+                ),
+              )}
+              {exchange === "awaiting" ? (
+                <li
+                  className="chat-row chat-row-agent"
+                  role="status"
+                  aria-label="Steve écrit"
+                >
+                  <SteveAvatar />
+                  <div className="chat-typing">
+                    <span className="chat-dot" />
+                    <span className="chat-dot" />
+                    <span className="chat-dot" />
+                  </div>
+                </li>
+              ) : null}
+            </ol>
+          )}
+        </div>
         {empty ? null : (
-          <div className="chat-title">
-            <img src={headerAvatarSrc} alt="" width={28} height={28} />
-            <h1>Steve</h1>
-          </div>
-        )}
-        <ProfileButton />
-        {empty || !demo ? null : (
-          <p className="chat-badge">Mode démo : réponses simulées</p>
-        )}
-      </header>
-      <div className="chat-scroll" ref={threadRef}>
-        {empty ? (
-        <div className="chat-hero">
-          <img
-            className="chat-hero-mascot"
-            src={heroSrc}
-            alt="Steve"
-            width={514}
-            height={640}
-          />
           <div className="chat-dock">
             {composer}
             {footnote}
           </div>
-          <div className="chat-chips" role="group" aria-label="Suggestions">
-            {suggestions.map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                className="chat-chip"
-                onClick={() => {
-                  send(suggestion);
-                }}
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-          <ol className="chat-thread" aria-live="polite">
-            {messages.map((message) =>
-              message.role === "user" ? (
-                <li key={message.id} className="chat-row chat-row-user">
-                  <div className="chat-user">{message.content}</div>
-                  <UserAvatar />
-                </li>
-              ) : message.role === "error" ? (
-                <li key={message.id} className="chat-row chat-row-agent">
-                  <SteveAvatar />
-                  <div className="chat-error" role="alert">
-                    {message.content}
-                  </div>
-                </li>
-              ) : (
-                <li key={message.id} className="chat-row chat-row-agent">
-                  <SteveAvatar />
-                  <div className="chat-agent">
-                    <div className="chat-agent-text">
-                      <ChatMarkdown text={message.content} />
-                    </div>
-                    {message.mocked || message.model === "mock" ? null : (
-                      <p className="chat-model">{message.model}</p>
-                    )}
-                    <button
-                      type="button"
-                      className="chat-speak"
-                      aria-label={
-                        playback.activeId === message.id
-                          ? "Arrêter la lecture"
-                          : "Lire la réponse"
-                      }
-                      aria-pressed={playback.activeId === message.id}
-                      onClick={() => {
-                        playback.toggle(message.id, message.content);
-                      }}
-                    >
-                      <SpeakerIcon />
-                    </button>
-                  </div>
-                </li>
-              ),
-            )}
-            {exchange === "awaiting" ? (
-              <li
-                className="chat-row chat-row-agent"
-                role="status"
-                aria-label="Steve écrit"
-              >
-                <SteveAvatar />
-                <div className="chat-typing">
-                  <span className="chat-dot" />
-                  <span className="chat-dot" />
-                  <span className="chat-dot" />
-                </div>
-              </li>
-            ) : null}
-          </ol>
-      )}
+        )}
       </div>
-      {empty ? null : (
-        <div className="chat-dock">
-          {composer}
-          {footnote}
-        </div>
-      )}
     </main>
   );
 }
@@ -367,6 +406,17 @@ function ComposerAction(props: {
     >
       <MicIcon />
     </button>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12l6.6-6.6z"
+      />
+    </svg>
   );
 }
 
