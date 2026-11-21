@@ -1701,6 +1701,31 @@ it("follows an in-flight reply when the keyboard opens without a further scroll"
   }
 });
 
+it("hides a visible pill when the keyboard opens over an unread reply", async () => {
+  const session = await pendingThread();
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    expect(newMessagePill(session.container)).not.toBeNull();
+    expect(session.scrolled.top).toBe(0);
+    session.viewport.height = 420;
+    session.viewport.offsetTop = 180;
+    await fireViewport(session.viewport);
+    const page = session.container.querySelector(".chat-page");
+    if (!(page instanceof HTMLElement)) {
+      throw new Error("missing chat page");
+    }
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    expect(newMessagePill(session.container)).toBeNull();
+    expect(session.scrolled.top).toBe(
+      session.thread.scrollHeight - session.thread.clientHeight,
+    );
+  } finally {
+    session.restore();
+  }
+});
+
 it("follows the next reply when a keyboard close lands inside 80px without scrolling", async () => {
   const session = await pendingThread();
   try {
