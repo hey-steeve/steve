@@ -5,8 +5,8 @@ coverage/
 app/next-env.d.ts
 *.tsbuildinfo
 .DS_Store
-.env
-.env*.local
+.env*
+!.env.example
 app/public/icons/
 app/public/icons.tmp-*
 app/public/mascot/
