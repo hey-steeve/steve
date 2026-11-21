@@ -11,28 +11,23 @@ import ChatPage from "./chat/page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-const lavenderTop = designTokens.color.lavenderTop;
-const lavenderBottom = designTokens.color.lavenderBottom;
+const page = "#eff1fe";
 
 const chatCss = readFileSync(
   path.join(process.cwd(), "app/src/app/chat/chat.css"),
   "utf8",
 );
 
-it("pins theme-color to the top of the page gradient", () => {
-  expect(viewport.themeColor).toBe(lavenderTop);
+it("pins theme-color to the flat page background", () => {
+  expect(designTokens.color.page).toBe(page);
+  expect(viewport.themeColor).toBe(page);
 });
 
-it("paints the home screen and the chat screen with that page background", async () => {
+it("paints the home screen and the chat screen with that flat page background", async () => {
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
-  document.documentElement.style.setProperty("--color-lavender-top", lavenderTop);
-  document.documentElement.style.setProperty("--color-lavender-bottom", lavenderBottom);
-  document.documentElement.style.setProperty(
-    "--color-indigo-100",
-    designTokens.color.indigo100,
-  );
+  document.documentElement.style.setProperty("--color-page", page);
 
   vi.stubGlobal(
     "fetch",
@@ -44,8 +39,8 @@ it("paints the home screen and the chat screen with that page background", async
   const view = await mount();
   const home = pageOf(view.container);
   expect(paint(home)).toEqual({
-    backgroundColor: channels(lavenderTop),
-    backgroundImage: `linear-gradient(to bottom, ${lavenderTop}, ${lavenderBottom})`,
+    backgroundColor: channels(page),
+    backgroundImage: "none",
   });
 
   const chip = view.container.querySelector(".chat-chip");
@@ -58,8 +53,8 @@ it("paints the home screen and the chat screen with that page background", async
 
   const chat = pageOf(view.container);
   expect(paint(chat)).toEqual({
-    backgroundColor: channels(lavenderTop),
-    backgroundImage: `linear-gradient(to bottom, ${lavenderTop}, ${lavenderBottom})`,
+    backgroundColor: channels(page),
+    backgroundImage: "none",
   });
 });
 
@@ -78,9 +73,15 @@ function paint(page: HTMLElement): {
   const style = getComputedStyle(page);
   return {
     backgroundColor: channels(style.backgroundColor),
-    backgroundImage:
-      style.backgroundImage === "initial" ? "none" : style.backgroundImage,
+    backgroundImage: image(style.backgroundImage),
   };
+}
+
+function image(value: string): string {
+  if (value === "" || value === "none" || value === "initial") {
+    return "none";
+  }
+  return value;
 }
 
 function channels(color: string): string {

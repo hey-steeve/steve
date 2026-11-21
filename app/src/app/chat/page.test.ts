@@ -78,9 +78,7 @@ it("keeps the profile button on the home screen only", async () => {
 
 it("renders the home greeting", async () => {
   const view = await mount();
-  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Bonjour,",
-  );
+  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe("Hey");
   expect(view.container.querySelector('[aria-label="Retour"]')).toBeNull();
 });
 
@@ -103,8 +101,8 @@ it("shows the bubbles pose on the empty home sheet", () => {
   const hero = chatCss.slice(heroStart, heroEnd);
   expect({
     alt: img.getAttribute("alt"),
-    overlap: chatCss.includes("--mascot-overlap: 44px;"),
-    width: hero.includes("width: min(329px, 100%);"),
+    overlap: chatCss.includes("--mascot-overlap: 26px;"),
+    width: hero.includes("width: min(280px, 100%);"),
     marginTop: hero.includes("margin-top: 0;"),
     clippedTop: hero.includes("-16px"),
     bottomOverlap: hero.includes("calc(-1 * var(--mascot-overlap))"),
@@ -122,7 +120,7 @@ it("shows the bubbles pose on the empty home sheet", () => {
   });
 });
 
-it("grounds the bubbles pose with a contact shadow", () => {
+it("rests the bubbles pose on the top edge of the sheet", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
   const host = document.createElement("div");
   host.innerHTML = html;
@@ -144,28 +142,33 @@ it("grounds the bubbles pose with a contact shadow", () => {
     height: img.getAttribute("height"),
     aspect: hero.includes("aspect-ratio: 992 / 712"),
     filtered: hero.includes("filter:") || hero.includes("blur("),
-    shadow: sheet.includes("radial-gradient(") && sheet.includes("var(--color-indigo-900)"),
-    overlap: chatCss.includes("--mascot-overlap: 44px;"),
+    shadow: sheet.includes("radial-gradient("),
+    overlap: chatCss.includes("--mascot-overlap: 26px;"),
     marginTop: hero.includes("margin-top: 0;"),
     clippedTop: hero.includes("-16px"),
+    insetLeft: sheet.includes("margin-left: 10px;"),
+    insetRight: sheet.includes("margin-right: 8px;"),
+    radius: chatCss.includes("--radius-sheet: 34px;"),
   }).toEqual({
     width: "992",
     height: "712",
     aspect: true,
     filtered: false,
-    shadow: true,
+    shadow: false,
     overlap: true,
     marginTop: true,
     clippedTop: false,
+    insetLeft: true,
+    insetRight: true,
+    radius: true,
   });
 });
 
-it("paints the home chips and composer with the lavender tokens", async () => {
-  const fill = designTokens.color.lavender50;
-  const edge = designTokens.color.lavender100;
+it("paints the home chips and composer white, and the profile face lavender", async () => {
+  const fill = designTokens.color.canvas;
+  const edge = designTokens.color.border;
   const canvas = designTokens.color.canvas;
-  expect(fill).not.toBe(designTokens.color.indigo50);
-  expect(edge).not.toBe(designTokens.color.indigo100);
+  expect(designTokens.color.profile).toBe("#daddfe");
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -188,6 +191,22 @@ it("paints the home chips and composer with the lavender tokens", async () => {
       throw new Error("missing home sheet");
     }
     expect(chips).toHaveLength(4);
+    const chipList = view.container.querySelector(".chat-chips");
+    if (!(chipList instanceof HTMLElement)) {
+      throw new Error("missing suggestions");
+    }
+    expect(getComputedStyle(chipList).flexDirection).toBe("column");
+    expect(getComputedStyle(chipList).alignItems).toBe("center");
+    const face = view.container.querySelector(".chat-profile-face");
+    if (!(face instanceof HTMLElement)) {
+      throw new Error("missing profile");
+    }
+    expect(channels(getComputedStyle(face).backgroundColor)).toBe(
+      channels(designTokens.color.profile),
+    );
+    expect(channels(getComputedStyle(face).color)).toBe(
+      channels(designTokens.color.primary),
+    );
     expect(channels(getComputedStyle(sheet).backgroundColor)).toBe(
       channels(canvas),
     );
@@ -1578,7 +1597,7 @@ function expectEmptyHome(container: ParentNode): void {
       HTMLElement,
     badge: container.querySelector(".chat-badge"),
   }).toEqual({
-    greeting: "Bonjour,",
+    greeting: "Hey",
     back: null,
     thread: null,
     hero: true,
