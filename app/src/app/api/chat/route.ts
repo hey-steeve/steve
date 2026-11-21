@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
   if (messages === null) {
     return Response.json({ error: "Requête invalide." }, { status: 400 });
   }
-  if (envString("STEVE_CHAT_LIVE") !== "1") {
+  if (!liveChatEnabled()) {
     const result = mockChatResult(messages);
     return Response.json(result.body, { status: result.status });
   }
@@ -201,6 +201,11 @@ function isJsonContentType(header: string | null): boolean {
     return false;
   }
   return media.trim().toLowerCase() === "application/json";
+}
+
+function liveChatEnabled(): boolean {
+  const value: unknown = Reflect.get(process.env, "STEVE_CHAT_LIVE");
+  return value === "1";
 }
 
 function envString(name: string): string | undefined {

@@ -36,7 +36,7 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends `google/gemini-3.8-flash`.
 
-`STEVE_CHAT_LIVE` must be `1` before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set.
+`STEVE_CHAT_LIVE` must be exactly `1`, and `OPENROUTER_API_KEY` must be set, before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set. `true`, `0`, and ` 1 ` keep the canned reply.
 
 When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The JSON includes `max_tokens` set to 1024. HTTP 200 looks like this.
 

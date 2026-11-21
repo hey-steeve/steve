@@ -54,6 +54,23 @@ it("returns the labelled mock unless STEVE_CHAT_LIVE is 1", async () => {
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
+it("keeps the mock for every STEVE_CHAT_LIVE value other than 1", async () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  for (const value of ["true", "0", " 1 "]) {
+    vi.stubEnv("STEVE_CHAT_LIVE", value);
+    const response = await post(history);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      reply: echo,
+      mocked: true,
+      model: "mock",
+    });
+  }
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
 it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
