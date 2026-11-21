@@ -1,6 +1,6 @@
 # Steve
 
-Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. For an emergency, the agent refers the caller to 15, the SAMU emergency line. For suicidal thoughts or psychological distress, the agent refers the caller to 3114, the national suicide prevention line.
+Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. 15 is only for a real emergency. A real emergency is physical warning signs, an overdose, self-harm, or immediate danger. For an ordinary symptom, the agent names 15 only beside physical warning signs. Doubt does not default to 15. 3114 is for psychological distress and for suicidal thoughts. An overdose or self-harm that includes suicidal thoughts starts with 3114 and then adds 15. With no overdose and no self-harm, the agent adds 15 only for immediate danger. The agent never gives 112 or SOS Médecins. The wording is `app/src/app/api/chat/system-prompt.ts`.
 
 The project is Alan AI Health Hack #2 on 28 Nov 2026.
 

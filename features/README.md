@@ -16,7 +16,17 @@ Ten features. The detail is in each README. The common contracts are in the [sha
 ## Rules
 
 - Never diagnose.
-- A confirmed emergency goes to 15, with no booking.
+- 15 is only for a real emergency.
+- A real emergency is physical warning signs, an overdose, self-harm, or immediate danger.
+- For an ordinary symptom, Steve names 15 only beside physical warning signs.
+- Doubt does not default to 15.
+- 3114 is for psychological distress and for suicidal thoughts.
+- An overdose or self-harm that includes suicidal thoughts starts with 3114 and then adds 15.
+- With no overdose and no self-harm, Steve adds 15 only for immediate danger.
+- Steve never gives 112 or SOS Médecins.
+- The wording is `app/src/app/api/chat/system-prompt.ts`.
+- `app/src/app/api/chat/route.test.ts` rejects a doubt default to 15.
+- Steve does not book a 15 or 3114 referral.
 - Nothing enters the agenda without confirmation from the practice.
 - Reminders cover only appointments that are in the agenda.
 - Every conversation ends with the patient informed.
@@ -54,7 +64,7 @@ stateDiagram-v2
   s5: Document or question
   s6: Practitioner choice
   s7: Recap to the patient
-  s8: Referral to 15
+  s8: Referral to 15 or 3114
   s9: Steve calls the practice
   s10: Call ended
   s11: Slot confirmed
@@ -63,18 +73,18 @@ stateDiagram-v2
   [*] --> s0
   s0 --> s1: The patient calls
   s1 --> s2: The patient explains the request
-  s2 --> s3: Emergency detected or doubt
+  s2 --> s3: Possible 15 or 3114 referral
   s2 --> s4: Not urgent [appointment request]
   s2 --> s5: Not urgent [document or question]
   s3 --> s4: The patient denies the emergency [appointment request]
-  s3 --> s8: Confirmed emergency or persistent doubt
+  s3 --> s8: Confirmed 15 or 3114 referral
   s3 --> s5: The patient denies the emergency [document or question]
   s4 --> s6: Steve suggests nearby practitioners
   s5 --> s7: Steve files or summarizes the document
   s6 --> s3: The patient describes a serious symptom [triage on every turn]
   s6 --> s9: The patient chooses a practitioner
   s7 --> s10: Steve recaps and hangs up
-  s8 --> s10: Steve says to call 15 and hangs up
+  s8 --> s10: Steve gives 15, or 3114, or 3114 followed by 15, and hangs up
   s9 --> s11: The practice confirms the slot
   s9 --> s12: The practice refuses
   s11 --> s13: Steve records the appointment in the agenda
