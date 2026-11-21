@@ -354,11 +354,40 @@ it("reverses the home open motion for the column exit", () => {
   );
 });
 
-it("adds the exit state on Retour and navigates home when that animation ends", async () => {
+it("sends the home draft when Enter is pressed", async () => {
+  const fetchMock = vi.fn<typeof fetch>(async () =>
+    Response.json({
+      reply: "D'accord.",
+      mocked: false,
+      model: "mock",
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const view = await mount();
+  const field = composerField(view.container);
+
+  await act(async () => {
+    setField(field, "Bonjour");
+  });
+  await act(async () => {
+    pressEnter(field);
+  });
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(view.container.querySelector(".chat-user")?.textContent).toContain(
+    "Bonjour",
+  );
+});
+
+it("adds the exit state on Retour and resets to the empty home when that animation ends", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   stubReply();
   const view = await mount();
   const back = await openConversation(view);
+  const field = composerField(view.container);
+  await act(async () => {
+    setField(field, "brouillon");
+  });
 
   await act(async () => {
     back.click();
@@ -370,17 +399,18 @@ it("adds the exit state on Retour and navigates home when that animation ends", 
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
     "Prendre rendez-vous chez un généraliste",
   );
+  expect(field.value).toBe("brouillon");
   expect(routerPush).not.toHaveBeenCalled();
 
   await act(async () => {
     endColumnExit(column);
   });
 
-  expect(routerPush).toHaveBeenCalledTimes(1);
-  expect(routerPush).toHaveBeenCalledWith("/");
+  expectEmptyHome(view.container);
+  expect(routerPush).not.toHaveBeenCalled();
 });
 
-it("navigates home when the exit animation never ends", async () => {
+it("resets to the empty home when the exit animation never ends", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   stubReply();
   const view = await mount();
@@ -393,24 +423,30 @@ it("navigates home when the exit animation never ends", async () => {
   expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
     true,
   );
+  expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(routerPush).not.toHaveBeenCalled();
   await act(async () => {
     vi.advanceTimersByTime(239);
   });
+  expect(view.container.querySelector(".chat-greeting")).toBeNull();
+  expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+    "Prendre rendez-vous chez un généraliste",
+  );
   expect(routerPush).not.toHaveBeenCalled();
   await act(async () => {
     vi.advanceTimersByTime(1);
   });
-  expect(routerPush).toHaveBeenCalledTimes(1);
-  expect(routerPush).toHaveBeenCalledWith("/");
+  expectEmptyHome(view.container);
+  expect(routerPush).not.toHaveBeenCalled();
 
   await act(async () => {
     endColumnExit(columnOf(view.container));
   });
-  expect(routerPush).toHaveBeenCalledTimes(1);
+  expectEmptyHome(view.container);
+  expect(routerPush).not.toHaveBeenCalled();
 });
 
-it("navigates home immediately when motion is reduced", async () => {
+it("resets to the empty home immediately when motion is reduced", async () => {
   stubReducedMotion();
   stubReply();
   const view = await mount();
@@ -421,14 +457,11 @@ it("navigates home immediately when motion is reduced", async () => {
     back.click();
   });
 
-  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
-    false,
-  );
-  expect(routerPush).toHaveBeenCalledTimes(1);
-  expect(routerPush).toHaveBeenCalledWith("/");
+  expectEmptyHome(view.container);
+  expect(routerPush).not.toHaveBeenCalled();
 });
 
-it("navigates home once when Retour is tapped twice", async () => {
+it("resets to the empty home once when Retour is tapped twice", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   stubReply();
   const view = await mount();
@@ -441,13 +474,189 @@ it("navigates home once when Retour is tapped twice", async () => {
 
   const column = columnOf(view.container);
   expect(column.classList.contains("chat-column-leave")).toBe(true);
+  expect(view.container.querySelector(".chat-greeting")).toBeNull();
   await act(async () => {
     endColumnExit(column);
     endColumnExit(column);
     vi.advanceTimersByTime(240);
   });
-  expect(routerPush).toHaveBeenCalledTimes(1);
-  expect(routerPush).toHaveBeenCalledWith("/");
+  expectEmptyHome(view.container);
+  expect(routerPush).not.toHaveBeenCalled();
+});
+
+it("ignores a child animationend while the column exit plays", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const view = await mount();
+  const back = await openConversation(view);
+
+  await act(async () => {
+    back.click();
+  });
+
+  const column = columnOf(view.container);
+  const thread = view.container.querySelector(".chat-thread");
+  if (!(thread instanceof HTMLElement)) {
+    throw new Error("missing thread");
+  }
+
+  await act(async () => {
+    thread.dispatchEvent(
+      new AnimationEvent("animationend", {
+        animationName: "chat-enter-fade",
+        bubbles: true,
+      }),
+    );
+    thread.dispatchEvent(
+      new AnimationEvent("animationend", {
+        animationName: "chat-column-out",
+        bubbles: true,
+      }),
+    );
+    column.dispatchEvent(
+      new AnimationEvent("animationend", {
+        animationName: "chat-enter-fade",
+        bubbles: true,
+      }),
+    );
+  });
+
+  expect(column.classList.contains("chat-column-leave")).toBe(true);
+  expect(view.container.querySelector(".chat-greeting")).toBeNull();
+  expect(thread.textContent).toContain("Prendre rendez-vous chez un généraliste");
+  expect(routerPush).not.toHaveBeenCalled();
+
+  await act(async () => {
+    endColumnExit(column);
+  });
+
+  expectEmptyHome(view.container);
+  expect(routerPush).not.toHaveBeenCalled();
+});
+
+it("does not send when Enter is pressed during the column exit", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const fetchMock = vi.fn<typeof fetch>(async () =>
+    Response.json({
+      reply: "D'accord.",
+      mocked: false,
+      model: "mock",
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const view = await mount();
+  const back = await openConversation(view);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  const field = composerField(view.container);
+
+  await act(async () => {
+    setField(field, "Pharmacie de garde");
+  });
+  await act(async () => {
+    back.click();
+  });
+  await act(async () => {
+    pressEnter(field);
+  });
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(view.container.querySelectorAll(".chat-user")).toHaveLength(1);
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    true,
+  );
+  expect(field.value).toBe("Pharmacie de garde");
+
+  await act(async () => {
+    endColumnExit(columnOf(view.container));
+  });
+  expectEmptyHome(view.container);
+
+  const homeField = composerField(view.container);
+  await act(async () => {
+    setField(homeField, "Pharmacie de garde");
+  });
+  await act(async () => {
+    pressEnter(homeField);
+  });
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(view.container.querySelector(".chat-user")?.textContent).toContain(
+    "Pharmacie de garde",
+  );
+  expect(routerPush).not.toHaveBeenCalled();
+});
+
+it("returns home from Retour, starts another conversation, and returns home again", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const view = await mount();
+  const first = await openConversation(view);
+  expect(view.container.querySelector(".chat-badge")).not.toBeNull();
+
+  await act(async () => {
+    first.click();
+  });
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    true,
+  );
+
+  await act(async () => {
+    endColumnExit(columnOf(view.container));
+  });
+  expectEmptyHome(view.container);
+
+  const pending = deferred<Response>();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => pending.promise),
+  );
+  const chip = view.container.querySelector(".chat-chip");
+  if (!(chip instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+  await act(async () => {
+    chip.click();
+  });
+
+  expect(view.container.querySelector(".chat-badge")).toBeNull();
+  expect(view.container.querySelector(".chat-user")?.textContent).toContain(
+    "Prendre rendez-vous chez un généraliste",
+  );
+  const second = view.container.querySelector('[aria-label="Retour"]');
+  if (!(second instanceof HTMLButtonElement)) {
+    throw new Error("missing back");
+  }
+
+  await act(async () => {
+    second.click();
+  });
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    true,
+  );
+  expect(view.container.querySelector(".chat-greeting")).toBeNull();
+  expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+    "Prendre rendez-vous chez un généraliste",
+  );
+
+  await act(async () => {
+    endColumnExit(columnOf(view.container));
+  });
+  expectEmptyHome(view.container);
+  expect(routerPush).not.toHaveBeenCalled();
+
+  pending.resolve(
+    Response.json({
+      reply: "Tardive.",
+      mocked: true,
+      model: "mock",
+    }),
+  );
+  await act(async () => {
+    await pending.promise;
+  });
+
+  expect(view.container.textContent).not.toContain("Tardive.");
+  expectEmptyHome(view.container);
 });
 
 it("keeps the keyboard pin while the column exit plays", async () => {
@@ -489,6 +698,10 @@ it("keeps the keyboard pin while the column exit plays", async () => {
       transform: "",
       keyboard: true,
     });
+    expect(view.container.querySelector(".chat-greeting")).toBeNull();
+    expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+      "Prendre rendez-vous chez un généraliste",
+    );
     expect(routerPush).not.toHaveBeenCalled();
   } finally {
     viewport.restore();
@@ -928,13 +1141,19 @@ it("stops following the visual viewport after the chat unmounts", async () => {
   }
 });
 
-it("drops a late reply after Retour and navigates home once", async () => {
+it("drops a late reply after Retour and returns to the empty home", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const reply = deferred<Response>();
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(() => reply.promise),
+  const fetchMock = vi.fn<typeof fetch>();
+  fetchMock.mockImplementationOnce(() => reply.promise);
+  fetchMock.mockImplementation(async () =>
+    Response.json({
+      reply: "Deuxième.",
+      mocked: false,
+      model: "mock",
+    }),
   );
+  vi.stubGlobal("fetch", fetchMock);
   const view = await mount();
   const header = () => view.container.querySelector(".chat-header");
   const chip = view.container.querySelector(".chat-chip");
@@ -966,8 +1185,8 @@ it("drops a late reply after Retour and navigates home once", async () => {
     vi.advanceTimersByTime(240);
   });
 
-  expect(routerPush).toHaveBeenCalledTimes(1);
-  expect(routerPush).toHaveBeenCalledWith("/");
+  expectEmptyHome(view.container);
+  expect(routerPush).not.toHaveBeenCalled();
 
   reply.resolve(
     new Response(
@@ -984,10 +1203,23 @@ it("drops a late reply after Retour and navigates home once", async () => {
   });
 
   expect(view.container.textContent).not.toContain("Réponse tardive.");
-  expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+  expectEmptyHome(view.container);
+
+  const next = view.container.querySelector(".chat-chip");
+  if (!(next instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+  await act(async () => {
+    next.click();
+  });
+
+  expect(view.container.querySelector(".chat-user")?.textContent).toContain(
     "Prendre rendez-vous chez un généraliste",
   );
-  expect(routerPush).toHaveBeenCalledTimes(1);
+  expect(view.container.textContent).toContain("Deuxième.");
+  expect(view.container.textContent).not.toContain("Réponse tardive.");
+  expect(view.container.querySelector(".chat-badge")).toBeNull();
+  expect(routerPush).not.toHaveBeenCalled();
 });
 
 const threadLength = 2000;
@@ -1019,6 +1251,64 @@ async function openConversation(view: {
     throw new Error("missing back");
   }
   return back;
+}
+
+function expectEmptyHome(container: ParentNode): void {
+  const hero = container.querySelector(".chat-hero");
+  const field = container.querySelector(".chat-field");
+  const column = container.querySelector(".chat-column");
+  expect({
+    greeting: container.querySelector(".chat-greeting")?.textContent ?? null,
+    back: container.querySelector('[aria-label="Retour"]'),
+    thread: container.querySelector(".chat-thread"),
+    hero: hero instanceof HTMLElement && !hero.classList.contains("chat-hero-leave"),
+    mascot: container.querySelector(".chat-hero-mascot") instanceof HTMLElement,
+    draft: field instanceof HTMLTextAreaElement ? field.value : null,
+    chip: container.querySelector(".chat-chip")?.textContent ?? null,
+    leaving: column?.classList.contains("chat-column-leave") ?? null,
+    profile:
+      container.querySelector('.chat-header [aria-label="Profil"]') instanceof
+      HTMLElement,
+    badge: container.querySelector(".chat-badge"),
+  }).toEqual({
+    greeting: "Hey",
+    back: null,
+    thread: null,
+    hero: true,
+    mascot: true,
+    draft: "",
+    chip: "Prendre rendez-vous chez un généraliste",
+    leaving: false,
+    profile: true,
+    badge: null,
+  });
+}
+
+function composerField(container: ParentNode): HTMLTextAreaElement {
+  const field = container.querySelector(".chat-field");
+  if (!(field instanceof HTMLTextAreaElement)) {
+    throw new Error("missing composer");
+  }
+  return field;
+}
+
+function setField(field: HTMLTextAreaElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  setter?.call(field, value);
+  field.dispatchEvent(new InputEvent("input", { bubbles: true }));
+}
+
+function pressEnter(field: HTMLTextAreaElement): void {
+  field.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 }
 
 function columnOf(container: ParentNode): HTMLElement {
