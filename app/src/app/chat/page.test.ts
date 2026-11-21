@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -105,9 +105,10 @@ const roots: Root[] = [];
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  for (const root of roots) {
-    root.unmount();
+  for (const root of roots.splice(0)) {
+    act(() => {
+      root.unmount();
+    });
   }
-  roots.length = 0;
   document.body.replaceChildren();
 });
