@@ -67,8 +67,10 @@ button[aria-pressed="true"] {
   color: var(--color-canvas);
 }
 
-button[aria-pressed="true"]:hover {
-  background: var(--color-indigo-700);
+@media (hover: hover) {
+  button[aria-pressed="true"]:hover {
+    background: var(--color-indigo-700);
+  }
 }
 
 button[aria-pressed="true"]:active {
