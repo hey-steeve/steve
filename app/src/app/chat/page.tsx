@@ -171,18 +171,20 @@ export default function ChatPage() {
     body.style.overscrollBehavior = "none";
 
     let frame: number | null = null;
+    let keyboardOpen = false;
     const apply = () => {
       frame = null;
       const thread = threadRef.current;
       const keepBottom = threadNearBottom(thread);
-      const keyboardOpen =
-        Math.abs(viewport.scale - 1) < 0.01 &&
-        window.innerHeight - viewport.height > keyboardOpenGap;
-      const keyboardOpened = keyboardOpen && !page.hasAttribute("data-keyboard-open");
+      const zoomed = Math.abs(viewport.scale - 1) >= 0.01;
+      const unzoomedHeight = viewport.height * viewport.scale;
+      const keyboardNow = window.innerHeight - unzoomedHeight > keyboardOpenGap;
+      const keyboardOpened = keyboardNow && !keyboardOpen && !zoomed;
+      keyboardOpen = keyboardNow;
       page.style.transform = "";
       page.style.top = `${viewport.offsetTop}px`;
       page.style.height = `${viewport.height}px`;
-      page.toggleAttribute("data-keyboard-open", keyboardOpen);
+      page.toggleAttribute("data-keyboard-open", keyboardNow && !zoomed);
       if (keepBottom || keyboardOpened) {
         scrollThreadToBottom(thread);
       }
