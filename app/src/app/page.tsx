@@ -32,6 +32,11 @@ export default function Page() {
       <section className="card">
         <h1>Steve</h1>
         <p>Marmot</p>
+        <p>
+          <a href="/chat" style={{ color: designTokens.color.primary }}>
+            Chat
+          </a>
+        </p>
         <div ref={host} className="stage" />
         <div className="moments" role="group" aria-label="Moments">
           {moments.map((moment) => (
