@@ -1,5 +1,7 @@
 const indigo500 = "#5c59f3";
 const lavender = "#dac4e8";
+const lavenderTop = "#f1e9f7";
+const lavenderBottom = "#fbf8fd";
 const emphasis = 500;
 const fontFallback = ["Helvetica", "Arial", "sans-serif"] as const;
 
@@ -12,6 +14,8 @@ export const designTokens = {
     indigo100: "#d6dbff",
     indigo50: "#f0f3ff",
     lavender,
+    lavenderTop,
+    lavenderBottom,
     heading: "#282830",
     foreground: "#464754",
     caption: "#656779",

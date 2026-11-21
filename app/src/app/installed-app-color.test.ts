@@ -17,21 +17,22 @@ vi.mock("next/font/local", () => ({
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-const lavender = designTokens.color.lavender;
+const lavenderTop = designTokens.color.lavenderTop;
+const lavenderBottom = designTokens.color.lavenderBottom;
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(appDir, "../../..");
 const manifestPath = path.join(repoRoot, "shared/assets/brand/site.webmanifest");
 
-it("uses one lavender for the manifest, the theme color, and the pages", async () => {
+it("matches the installed app to the top of the page gradient", async () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
     theme_color: string;
     background_color: string;
   };
-  expect(manifest.theme_color).toBe(lavender);
-  expect(manifest.background_color).toBe(lavender);
-  expect(viewport.themeColor).toBe(lavender);
-  expect(chatViewport.themeColor).toBe(lavender);
+  expect(manifest.theme_color).toBe(lavenderTop);
+  expect(manifest.background_color).toBe(lavenderTop);
+  expect(viewport.themeColor).toBe(lavenderTop);
+  expect(chatViewport.themeColor).toBe(lavenderTop);
 
   const style = document.createElement("style");
   style.textContent = [
@@ -49,15 +50,67 @@ it("uses one lavender for the manifest, the theme color, and the pages", async (
 
   await mount(createElement(RootLayout, null, createElement(ChatPage)));
 
-  expect(channels(getComputedStyle(document.body).backgroundColor)).toBe(
-    channels(lavender),
-  );
   const page = document.querySelector(".chat-page");
   if (!(page instanceof HTMLElement)) {
     throw new Error("missing chat page");
   }
-  expect(channels(getComputedStyle(page).backgroundColor)).toBe(channels(lavender));
+  const painted = {
+    top: channels(lavenderTop),
+    bottom: channels(lavenderBottom),
+  };
+  expect(verticalStops(getComputedStyle(document.documentElement).backgroundImage)).toEqual(
+    painted,
+  );
+  expect(verticalStops(getComputedStyle(document.body).backgroundImage)).toEqual(painted);
+  expect(verticalStops(getComputedStyle(page).backgroundImage)).toEqual(painted);
 });
+
+function verticalStops(image: string): { top: string; bottom: string } {
+  const match = /^linear-gradient\(\s*to bottom\s*,\s*([\s\S]*)\)$/i.exec(image.trim());
+  if (match === null) {
+    return { top: image, bottom: image };
+  }
+  const stops = splitStops(match[1] ?? "");
+  const first = stops[0] ?? "";
+  const last = stops[stops.length - 1] ?? "";
+  return { top: channels(stopColor(first)), bottom: channels(stopColor(last)) };
+}
+
+function splitStops(value: string): string[] {
+  const stops: string[] = [];
+  let current = "";
+  let depth = 0;
+  for (const char of value) {
+    if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    }
+    if (char === "," && depth === 0) {
+      stops.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim() !== "") {
+    stops.push(current);
+  }
+  return stops;
+}
+
+function stopColor(stop: string): string {
+  const trimmed = stop.trim();
+  const rgb = /^(rgba?\([^)]*\))/i.exec(trimmed);
+  if (rgb !== null) {
+    return rgb[1] ?? trimmed;
+  }
+  const hex = /^(#[0-9a-f]{3,8})/i.exec(trimmed);
+  if (hex !== null) {
+    return hex[1] ?? trimmed;
+  }
+  return trimmed.split(/\s+/)[0] ?? trimmed;
+}
 
 function channels(color: string): string {
   const hex = /^#([0-9a-f]{6})$/i.exec(color);
