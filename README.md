@@ -20,3 +20,15 @@ pnpm verify
 ```
 
 Agent rules live in [AGENTS.md](./AGENTS.md).
+
+## License
+
+[Apache-2.0](LICENSE). Copyright 2026 Steve.
+
+### Third-party
+
+Apache-2.0 covers only the code and Steve's own assets.
+
+The [SIL Open Font License 1.1](app/src/fonts/OFL.txt) covers the Alan Sans font.
+
+The Alan marmot in `shared/assets/mascot/duo/` belongs to Alan and is not covered by Apache-2.0.
