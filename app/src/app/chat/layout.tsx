@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { designTokens } from "@steve/shared";
 
 export const viewport: Viewport = {
-  themeColor: designTokens.color.lavenderTop,
+  themeColor: designTokens.color.page,
 };
 
 export default function ChatLayout({ children }: { children: ReactNode }) {

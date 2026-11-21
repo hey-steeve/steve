@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: designTokens.color.lavenderTop,
+  themeColor: designTokens.color.page,
 };
 
 function themeCss(): string {
@@ -43,10 +43,8 @@ function themeCss(): string {
   return [
     `--color-primary:${color.primary}`,
     `--color-indigo-50:${color.indigo50}`,
-    `--color-lavender-100:${color.lavender100}`,
-    `--color-lavender-50:${color.lavender50}`,
-    `--color-lavender-top:${color.lavenderTop}`,
-    `--color-lavender-bottom:${color.lavenderBottom}`,
+    `--color-page:${color.page}`,
+    `--color-profile:${color.profile}`,
     `--color-indigo-100:${color.indigo100}`,
     `--color-indigo-700:${color.indigo700}`,
     `--color-indigo-900:${color.indigo900}`,

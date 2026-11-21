@@ -439,9 +439,9 @@ export default function ChatPage() {
         ref={columnRef}
         className={leaving ? "chat-column chat-column-leave" : "chat-column"}
       >
-        <header className="chat-header">
+        <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <h1 className="chat-greeting">Bonjour,</h1>
+            <h1 className="chat-greeting">Hey</h1>
           ) : (
             <button
               type="button"
