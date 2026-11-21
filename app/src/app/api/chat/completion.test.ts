@@ -103,6 +103,64 @@ it("trims a length-capped reply back to the last complete sentence", async () =>
   }
 });
 
+it("does not treat a line-start list number as a sentence end", async () => {
+  const kept = await liveReply({
+    finish_reason: "length",
+    content: "Première phrase.\n1. Appelle le médecin",
+  });
+  expect(kept.status).toBe(200);
+  expect(await kept.json()).toEqual({
+    reply: "Première phrase.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+
+  const throughItem = await liveReply({
+    finish_reason: "length",
+    content: "Voici les étapes :\n1. Appelle le médecin.\n2. Attends",
+  });
+  expect(throughItem.status).toBe(200);
+  expect(await throughItem.json()).toEqual({
+    reply: "Voici les étapes :\n1. Appelle le médecin.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+
+  const indented = await liveReply({
+    finish_reason: "length",
+    content: "Appelez demain.\n  10. Ensuite",
+  });
+  expect(indented.status).toBe(200);
+  expect(await indented.json()).toEqual({
+    reply: "Appelez demain.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+
+  const onlyMarker = await liveReply({
+    finish_reason: "length",
+    content: "Voici les étapes :\n1. Appelle…",
+  });
+  const text = await onlyMarker.text();
+  expect(onlyMarker.status).toBe(502);
+  expect(text).not.toContain("1.");
+  expect(text).not.toContain(canary);
+  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+});
+
+it("returns the upstream error when finish_reason is content_filter", async () => {
+  const content = "Voici un fragment filtré.";
+  const response = await liveReply({
+    finish_reason: "content_filter",
+    content,
+  });
+  const text = await response.text();
+  expect(response.status).toBe(502);
+  expect(text).not.toContain(content);
+  expect(text).not.toContain(canary);
+  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+});
+
 it("returns the upstream error when a length-capped reply has no complete sentence", async () => {
   for (const content of [
     "avec cette souff",
