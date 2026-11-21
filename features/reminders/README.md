@@ -1,46 +1,46 @@
 # reminders
 
-## Rôle
+## Role
 
-`reminders` envoie un rappel de rendez-vous ou de médicament, par appel ou par SMS, seulement pour un rendez-vous de l'agenda.
+`reminders` sends an appointment reminder or a medication reminder, by call or by SMS, only for an appointment in the agenda.
 
-## Fait
+## Does
 
-- Rappel de rendez-vous.
-- Rappel de médicament.
-- Canal : appel, ou SMS.
-- Le rendez-vous doit être dans `agenda`.
+- Appointment reminder.
+- Medication reminder.
+- The channel is a call, or SMS.
+- The appointment must be in `agenda`.
 
-## Ne fait pas
+## Does not
 
-- Pas de rappel si le rendez-vous n'est pas dans l'agenda.
-- Ne réserve pas.
-- Ne diagnostique pas.
+- No reminder if the appointment is not in the agenda.
+- Does not book.
+- Does not diagnose.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : rendez-vous présent dans `agenda`. Le contrat est à définir.
-- Sortie : rappel par appel, ou rappel par SMS. Les contrats sont à définir.
+- The input is an appointment that is in `agenda`. The contract is to be defined.
+- The output is a reminder by call, or a reminder by SMS. The contracts are to be defined.
 
-## Dépend de
+## Depends on
 
-`@steve/shared`. La source est `agenda`, par un contrat partagé à définir.
+`@steve/shared`. The source is `agenda`, through a shared contract to be defined.
 
-## Règles à tenir
+## Rules
 
-- Les rappels ne portent que sur les rendez-vous qui sont dans l'agenda.
-- Ne jamais diagnostiquer.
+- Reminders cover only appointments that are in the agenda.
+- Never diagnose.
 
-## Démo vs prod
+## Demo and production
 
-À définir.
+To be defined.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/reminders test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:

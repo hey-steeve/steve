@@ -68,6 +68,8 @@ Use only synthetic data. Never put real health data in the repo.
 
 Use one feature per branch. Change `shared/` on its own branch.
 
+Write docs, pull request text, and code comments in English. Keep user-facing strings in the app in French.
+
 ## Stack
 
 The skeleton uses TypeScript, pnpm, ESLint, and Vitest. The user app in `app/` uses Next.js. Node with Fastify, Zod, Postgres with Prisma, Twilio, and Langfuse are chosen and are not installed yet.

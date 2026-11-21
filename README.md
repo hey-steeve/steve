@@ -1,13 +1,22 @@
-# Steve
+<h1 align="center">Steve</h1>
 
-Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. For an emergency, the agent refers the caller to 15, the SAMU emergency line.
+<p align="center">
+  <em>The health agent that acts for you.</em>
+</p>
 
-This repo is the skeleton for Alan AI Health Hack #2 on 28 Nov 2026.
+<p align="center">
+  <img src="shared/assets/mascot/body/lounge-call.png" alt="Steve on the phone in an armchair" width="200">
+</p>
 
-## Commands
+<p align="center">Steve guides and organizes your care pathway. He calls, books and reschedules for you.</p>
 
-Run `pnpm install` to install dependencies.
+Built for [Alan x Qovery x AWS: AI Health Hack 2](https://luma.com/o1eopuwy), Paris, 28 November 2026.
 
-Run `pnpm verify` to lint, typecheck, and test.
+## Run
+
+```bash
+pnpm install
+pnpm verify
+```
 
 Agent rules live in [AGENTS.md](./AGENTS.md).
