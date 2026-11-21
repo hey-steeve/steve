@@ -61,8 +61,9 @@ The route aborts the OpenRouter call after 30 seconds. Each case below returns H
 - The JSON has no assistant text, including a missing `choices` array, an empty `choices` array, a missing `message`, or blank `content`.
 - `finish_reason` is `length`, and the assistant text has no complete sentence.
 - `finish_reason` is `content_filter`.
+- `finish_reason` is `error`. The provider failed during the reply, so the route drops any partial text.
 
-A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark stays with the sentence. A `.` inside a token, such as `2.5`, is not an ending. A `.` after a number at the start of a line, such as `1.`, is not an ending. When `finish_reason` is `length` and a complete sentence remains, the route returns the text through the last one. The trimmed reply still ends on a sentence. The route drops any cut-off sentence after that ending. The 4000-character cap still applies. If the cap cuts off the ending, the route trims to the last sentence inside the cap. When that trim finds nothing, the route returns the 502 above. When `finish_reason` is `stop`, the route returns the assistant text after the same cap. Any other `finish_reason`, including `error`, returns the assistant text after that cap.
+A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark stays with the sentence. A `.` inside a token, such as `2.5`, is not an ending. A `.` after a number at the start of a line, such as `1.`, is not an ending. When `finish_reason` is `length` and a complete sentence remains, the route returns the text through the last one. The trimmed reply still ends on a sentence. The route drops any cut-off sentence after that ending. The 4000-character cap still applies. If the cap cuts off the ending, the route trims to the last sentence inside the cap. When that trim finds nothing, the route returns the 502 above. When `finish_reason` is `stop`, the route returns the assistant text after the same cap. A missing `finish_reason` does the same. Any other `finish_reason` returns the assistant text after that cap.
 
 The route does not return the upstream body. Do not print the key.
 

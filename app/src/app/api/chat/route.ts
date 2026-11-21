@@ -116,7 +116,7 @@ function readCompletion(
     return null;
   }
   const finish = field(first, "finish_reason");
-  if (finish === "content_filter") {
+  if (finish === "content_filter" || finish === "error") {
     return null;
   }
   const reply =
