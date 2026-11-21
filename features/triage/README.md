@@ -10,7 +10,9 @@
 - The output is `urgent`, `watch`, or `not urgent`.
 - Zod validates the output.
 - If the output is invalid, or the time limit is exceeded, the result is `watch`, with a confirmation question.
-- An emergency or a doubt leads to a confirmation question, then a referral to 15.
+- A possible 15 or 3114 case leads to a confirmation question.
+- Doubt does not default to 15.
+- The referral wording is `app/src/app/api/chat/system-prompt.ts`.
 - Orients toward a practitioner type and a delay.
 - Evaluations cover 50 to 100 tricky cases. Example: "mon père a fait un AVC il y a 5 ans".
 - No missed emergency is accepted.
@@ -39,8 +41,19 @@
 - Never prescribe.
 - No keyword list.
 - If the output is invalid, or the time limit is exceeded, the result is `watch`, then a confirmation question.
-- An emergency or a doubt leads to a confirmation question, then a referral to 15.
-- A confirmed emergency goes to 15, with no booking.
+- A possible 15 or 3114 case leads to a confirmation question.
+- 15 is only for a real emergency.
+- A real emergency is physical warning signs, an overdose, self-harm, or immediate danger.
+- For an ordinary symptom, Steve names 15 only beside physical warning signs.
+- Doubt does not default to 15.
+- 3114 is for psychological distress and for suicidal thoughts.
+- An overdose or self-harm that includes suicidal thoughts or psychological distress starts with 3114 and then adds 15.
+- For suicidal thoughts or psychological distress, with no overdose, no self-harm and no physical warning sign, Steve gives 3114 first and adds 15 only for immediate danger.
+- With no overdose and no self-harm, Steve gives 15 first, then 3114, when a physical warning sign comes with suicidal thoughts or psychological distress. Chest pain during a panic attack is an example.
+- Steve never gives 112 or SOS Médecins.
+- The wording is `app/src/app/api/chat/system-prompt.ts`.
+- `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
+- Steve does not book a 15 or 3114 referral.
 
 ## Demo and production
 
