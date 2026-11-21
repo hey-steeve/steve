@@ -43,6 +43,8 @@ type UiMessage =
       readonly content: string;
     };
 
+type BackExit = "idle" | "playing" | "done";
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<readonly UiMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -52,6 +54,7 @@ export default function ChatPage() {
   const busy = useRef(false);
   const conversation = useRef(0);
   const pageRef = useRef<HTMLElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
@@ -68,6 +71,8 @@ export default function ChatPage() {
   const empty = messages.length === 0;
   const emptyRef = useRef(empty);
   const [homeMounted, setHomeMounted] = useState(true);
+  const [leaving, setLeaving] = useState(false);
+  const backExit = useRef<BackExit>("idle");
   emptyRef.current = empty;
   const control = composerControl({
     draft,
@@ -152,13 +157,17 @@ export default function ChatPage() {
     }
     const hero = heroRef.current;
     const timer = window.setTimeout(() => {
+      if (emptyRef.current || backExit.current !== "idle") {
+        return;
+      }
       setHomeMounted(false);
     }, homeLeaveMs);
     const finish = (event: globalThis.AnimationEvent) => {
       if (
         event.target !== hero ||
         event.animationName !== "chat-home-out" ||
-        emptyRef.current
+        emptyRef.current ||
+        backExit.current !== "idle"
       ) {
         return;
       }
@@ -172,6 +181,51 @@ export default function ChatPage() {
       hero?.removeEventListener("animationcancel", finish);
     };
   }, [empty, homeMounted]);
+
+  function finishExit() {
+    if (backExit.current !== "playing") {
+      return;
+    }
+    backExit.current = "done";
+    busy.current = false;
+    setLeaving(false);
+    pinned.current = true;
+    setUnseenReply(false);
+    setMessages([]);
+    setDraft("");
+    setDemo(false);
+    setExchange("idle");
+    setHomeMounted(true);
+    queueMicrotask(() => {
+      if (backExit.current === "done") {
+        backExit.current = "idle";
+      }
+    });
+  }
+
+  useEffect(() => {
+    if (!leaving) {
+      return;
+    }
+    const column = columnRef.current;
+    const timer = window.setTimeout(finishExit, homeLeaveMs);
+    const finish = (event: globalThis.AnimationEvent) => {
+      if (
+        event.target !== column ||
+        event.animationName !== "chat-column-out"
+      ) {
+        return;
+      }
+      finishExit();
+    };
+    column?.addEventListener("animationend", finish);
+    column?.addEventListener("animationcancel", finish);
+    return () => {
+      window.clearTimeout(timer);
+      column?.removeEventListener("animationend", finish);
+      column?.removeEventListener("animationcancel", finish);
+    };
+  }, [leaving]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -257,6 +311,7 @@ export default function ChatPage() {
     if (
       content.length === 0 ||
       busy.current ||
+      backExit.current !== "idle" ||
       exchange === "awaiting" ||
       exchange === "rendering"
     ) {
@@ -278,17 +333,19 @@ export default function ChatPage() {
     void post(history, ticket);
   }
 
-  function startOver() {
+  function leaveToHome() {
+    if (backExit.current !== "idle") {
+      return;
+    }
+    backExit.current = "playing";
     conversation.current += 1;
-    busy.current = false;
     dictation.stop();
-    setMessages([]);
-    setDraft("");
-    setDemo(false);
-    setExchange("idle");
-    setHomeMounted(true);
-    pinned.current = true;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finishExit();
+      return;
+    }
     setUnseenReply(false);
+    setLeaving(true);
   }
 
   async function post(history: readonly UiMessage[], ticket: number) {
@@ -379,7 +436,12 @@ export default function ChatPage() {
       <ComposerAction
         control={control}
         pending={exchange === "awaiting"}
-        onDictate={dictation.toggle}
+        onDictate={() => {
+          if (backExit.current !== "idle") {
+            return;
+          }
+          dictation.toggle();
+        }}
         onSend={() => {
           send(draft);
         }}
@@ -416,7 +478,10 @@ export default function ChatPage() {
       ref={pageRef}
       className="chat-page"
     >
-      <div className="chat-column">
+      <div
+        ref={columnRef}
+        className={leaving ? "chat-column chat-column-leave" : "chat-column"}
+      >
         <header className="chat-header">
           {empty ? (
             <h1 className="chat-greeting">Bonjour,</h1>
@@ -425,7 +490,7 @@ export default function ChatPage() {
               type="button"
               className="chat-back"
               aria-label="Retour"
-              onClick={startOver}
+              onClick={leaveToHome}
             >
               <span className="chat-back-face">
                 <BackIcon />
