@@ -64,11 +64,18 @@ The route aborts the OpenRouter call after 30 seconds. Each case below returns H
 - `finish_reason` is `content_filter`.
 - `finish_reason` is `error`. The provider failed during the reply, so the route drops any partial text.
 
-A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark stays with the sentence. A `.` inside a token, such as `2.5`, is not an ending. A `.` after a number at the start of a line is not an ending when a space or a tab follows that dot, as in `1. Appelle`. `15` and `3114` stay endings. A line that starts `15. Sinon` still ends at `15.`. A line that is only `15.` or `3114.` is an ending. When `finish_reason` is `length` and a complete sentence remains, the route returns the text through the last one. The trimmed reply still ends on a sentence. The route drops any cut-off sentence after that ending. The 4000-character cap still applies. If the cap cuts off the ending, the route trims to the last sentence inside the cap. When that trim finds nothing, the route returns the 502 above. When `finish_reason` is `stop`, the route returns the assistant text after the same cap. A missing `finish_reason` does the same. Any other `finish_reason` returns the assistant text after that cap.
+A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark stays with the sentence. A `.` inside a token, such as `2.5`, is not an ending. A `.` after a number at the start of a line is not an ending when that line is a list item. A list item has no leading space. It starts with `N.` and then non-newline whitespace. That whitespace includes a space, a tab, and a no-break space. `N` is 1, or one greater than the number on the previous list item. The previous item is the previous non-empty line. Any other line-start `N.` is an ending, including `15.` and `3114.`. A line that starts `15. Sinon` outside a list still ends at `15.`. A line that is only `15.` or `3114.` is an ending. A cut inside a later list item drops that marker when the items are consecutive and the list starts at 1. A cut can leave a dangling marker in these cases.
+
+- The list starts at 3.
+- A bullet comes before `2.`.
+- The markers mix `1)` and `2.`.
+- The marker is indented, as in `  10.`.
+
+When `finish_reason` is `length` and a complete sentence remains, the route returns the text through the last one. The trimmed reply still ends on a sentence. The route drops any cut-off sentence after that ending. The 4000-character cap still applies. If the cap cuts off the ending, the route trims to the last sentence inside the cap. When that trim finds nothing, the route returns the 502 above. When `finish_reason` is `stop`, the route returns the assistant text after the same cap. A missing `finish_reason` does the same. Any other `finish_reason` returns the assistant text after that cap.
 
 The route does not return the upstream body. Do not print the key.
 
-The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows the model id under each agent reply when the reply is not mocked. It shows a failed reply on an error card.
+The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows a failed reply on an error card.
 
 ## Access
 
