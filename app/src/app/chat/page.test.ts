@@ -333,7 +333,7 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
     ) {
       throw new Error("missing chat shell");
     }
-    const scrolled = trackScroll(thread, threadLength, 200);
+    const scrolled = trackScroll(thread, threadLength);
     scrolled.top = 0;
     viewport.height = 420;
     viewport.offsetTop = 180;
@@ -347,12 +347,12 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
       }
     });
     await flushFrame();
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
     expect({
       top: page.style.top,
       height: page.style.height,
       transform: page.style.transform,
       position: getComputedStyle(page).position,
-      keyboard: page.getAttribute("data-keyboard-open"),
       disclaimer: getComputedStyle(disclaimer).display,
       scrollTop: scrolled.top,
       overflow: document.documentElement.style.overflow,
@@ -362,7 +362,6 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
       height: "420px",
       transform: "",
       position: "fixed",
-      keyboard: "",
       disclaimer: "none",
       scrollTop: threadLength,
       overflow: "hidden",
@@ -404,8 +403,8 @@ it("keeps the latest reply visible when the viewport resizes at the bottom of th
   stubReply();
   const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
   try {
-    const { page, scrolled } = await scrolledThread();
-    scrolled.top = threadLength - inlinePageHeight(page);
+    const { page, thread, scrolled } = await scrolledThread();
+    scrolled.top = threadLength - thread.clientHeight;
     viewport.setInnerHeight(700);
     viewport.height = 690;
     viewport.offsetTop = 12;
@@ -421,8 +420,8 @@ it("keeps the latest reply visible when the keyboard opens at the bottom of the 
   stubReply();
   const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
   try {
-    const { page, scrolled } = await scrolledThread();
-    scrolled.top = threadLength - inlinePageHeight(page);
+    const { page, thread, scrolled } = await scrolledThread();
+    scrolled.top = threadLength - thread.clientHeight;
     viewport.height = 420;
     viewport.offsetTop = 180;
     await fireViewport(viewport);
@@ -483,12 +482,84 @@ it("does not scroll when the keyboard stays open over older messages", async () 
   }
 });
 
-it("scrolls a reader within 80px of the bottom and leaves a reader past that gap", async () => {
+it("keeps a mid-thread reader in place when zoom returns to 1x with the keyboard still open", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 420, offsetTop: 180, innerHeight: 844 });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    scrolled.top = 0;
+    viewport.scale = 1.2;
+    viewport.height = 350;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+    viewport.scale = 1;
+    viewport.height = 420;
+    viewport.offsetTop = 180;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    expect(scrolled.top).toBe(0);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("does not scroll a mid-thread reader when the keyboard opens while zoomed and the user zooms out", async () => {
+  stubReply();
+  const viewport = installViewport({
+    height: 700,
+    offsetTop: 0,
+    innerHeight: 844,
+    scale: 1.2,
+  });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    scrolled.top = 0;
+    viewport.height = 350;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+    viewport.scale = 1;
+    viewport.height = 420;
+    viewport.offsetTop = 180;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    expect(scrolled.top).toBe(0);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("scrolls a mid-thread reader when a pinch with no keyboard is followed by the keyboard at 1x", async () => {
   stubReply();
   const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
   try {
     const { page, scrolled } = await scrolledThread();
-    const client = inlinePageHeight(page);
+    scrolled.top = 0;
+    viewport.scale = 1.2;
+    viewport.height = 700;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+    viewport.scale = 1;
+    viewport.height = 420;
+    viewport.offsetTop = 180;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    expect(scrolled.top).toBe(threadLength);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("scrolls a reader within 80px of the bottom and leaves a reader past that gap", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
+  try {
+    const { page, thread, scrolled } = await scrolledThread();
+    const client = thread.clientHeight;
     scrolled.top = threadLength - client - 80;
     viewport.offsetTop = 16;
     await fireViewport(viewport);
@@ -625,7 +696,6 @@ it("returns to the empty home state from Retour in the conversation header", asy
 });
 
 const threadLength = 2000;
-const threadWindow = 200;
 
 function stubReply(): void {
   vi.stubGlobal(
@@ -736,6 +806,7 @@ async function fireViewport(viewport: ViewportStub): Promise<void> {
 
 async function scrolledThread(): Promise<{
   page: HTMLElement;
+  thread: HTMLElement;
   scrolled: { top: number };
 }> {
   const view = await mount();
@@ -752,7 +823,7 @@ async function scrolledThread(): Promise<{
   if (!(page instanceof HTMLElement) || !(thread instanceof HTMLElement)) {
     throw new Error("missing chat shell");
   }
-  return { page, scrolled: trackScroll(thread, threadLength, threadWindow) };
+  return { page, thread, scrolled: trackScroll(thread, threadLength) };
 }
 
 async function unmount(view: { root: Root }): Promise<void> {
@@ -765,34 +836,11 @@ async function unmount(view: { root: Root }): Promise<void> {
   });
 }
 
-function inlinePageHeight(page: HTMLElement): number {
-  const height = Number.parseFloat(page.style.height);
-  if (!Number.isFinite(height)) {
-    throw new Error("missing page height");
-  }
-  return height;
-}
-
-function trackScroll(
-  thread: HTMLElement,
-  height: number,
-  client: number,
-): { top: number } {
+function trackScroll(thread: HTMLElement, height: number): { top: number } {
   const scrolled = { top: 0 };
   Object.defineProperty(thread, "scrollHeight", {
     configurable: true,
     get: () => height,
-  });
-  const page = thread.closest(".chat-page");
-  Object.defineProperty(thread, "clientHeight", {
-    configurable: true,
-    get: () => {
-      if (!(page instanceof HTMLElement)) {
-        return client;
-      }
-      const inline = Number.parseFloat(page.style.height);
-      return Number.isFinite(inline) ? inline : client;
-    },
   });
   Object.defineProperty(thread, "scrollTop", {
     configurable: true,
