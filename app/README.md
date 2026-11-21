@@ -40,7 +40,7 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `STEVE_CHAT_LIVE` must be exactly `1`, and `OPENROUTER_API_KEY` must be set, before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set. `true`, `0`, and ` 1 ` keep the canned reply.
 
-When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The JSON includes `max_tokens` set to 1024 and `reasoning` set to `{ "effort": "low", "exclude": true }`. HTTP 200 looks like this.
+When the route calls OpenRouter, it sends the French system prompt in `system-prompt.ts`, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The prompt states the 15 and 3114 rules, the medication ban, and the reply limits. The JSON includes `max_tokens` set to 1024 and `reasoning` set to `{ "effort": "low", "exclude": true }`. HTTP 200 looks like this.
 
 ```json
 {
