@@ -22,6 +22,7 @@ const disclaimer =
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
 const clientTimeoutMs = 35_000;
+const homeLeaveMs = 240;
 
 type UiMessage =
   | {
@@ -50,6 +51,8 @@ export default function ChatPage() {
   const draftRef = useRef(draft);
   const busy = useRef(false);
   const conversation = useRef(0);
+  const pageRef = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const restoreFocus = useRef(false);
@@ -120,7 +123,56 @@ export default function ChatPage() {
     fieldRef.current?.focus();
   }, [messages]);
 
-  function send(text: string) {
+  useEffect(() => {
+    if (empty || !homeMounted) {
+      return;
+    }
+    const hero = heroRef.current;
+    const timer = window.setTimeout(() => {
+      setHomeMounted(false);
+    }, homeLeaveMs);
+    const finish = (event: globalThis.AnimationEvent) => {
+      if (
+        event.target !== hero ||
+        event.animationName !== "chat-home-out" ||
+        emptyRef.current
+      ) {
+        return;
+      }
+      setHomeMounted(false);
+    };
+    hero?.addEventListener("animationend", finish);
+    hero?.addEventListener("animationcancel", finish);
+    return () => {
+      window.clearTimeout(timer);
+      hero?.removeEventListener("animationend", finish);
+      hero?.removeEventListener("animationcancel", finish);
+    };
+  }, [empty, homeMounted]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const page = pageRef.current;
+    if (viewport == null || page === null || !Number.isFinite(viewport.height)) {
+      return;
+    }
+    const sync = () => {
+      page.style.height = `${viewport.height}px`;
+      page.style.transform =
+        viewport.offsetTop === 0 ? "" : `translateY(${viewport.offsetTop}px)`;
+    };
+    sync();
+    viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    return () => {
+      viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+      page.style.height = "";
+      page.style.transform = "";
+    };
+  }, []);
+
+  function send(text: string, restoreComposerFocus = true) {
     const content = text.trim();
     if (
       content.length === 0 ||
@@ -131,7 +183,7 @@ export default function ChatPage() {
       return;
     }
     busy.current = true;
-    restoreFocus.current = messages.length === 0;
+    restoreFocus.current = messages.length === 0 && restoreComposerFocus;
     dictation.stop();
     playback.stop();
     const ticket = conversation.current;
@@ -270,7 +322,10 @@ export default function ChatPage() {
   );
 
   return (
-    <main className={empty ? "chat-page chat-page-home" : "chat-page"}>
+    <main
+      ref={pageRef}
+      className={empty ? "chat-page chat-page-home" : "chat-page"}
+    >
       <div className="chat-column">
         <header className="chat-header">
           {empty ? (
@@ -301,19 +356,10 @@ export default function ChatPage() {
         <div className="chat-scroll" ref={threadRef}>
           {homeMounted ? (
             <div
+              ref={heroRef}
               className={empty ? "chat-hero" : "chat-hero chat-hero-leave"}
               aria-hidden={empty ? undefined : true}
               inert={empty ? undefined : true}
-              onAnimationEnd={(event) => {
-                if (
-                  event.target !== event.currentTarget ||
-                  event.animationName !== "chat-home-out" ||
-                  emptyRef.current
-                ) {
-                  return;
-                }
-                setHomeMounted(false);
-              }}
             >
               <img
                 className="chat-hero-mascot"
@@ -336,7 +382,7 @@ export default function ChatPage() {
                       type="button"
                       className="chat-chip"
                       onClick={() => {
-                        send(suggestion);
+                        send(suggestion, false);
                       }}
                     >
                       {suggestion}
