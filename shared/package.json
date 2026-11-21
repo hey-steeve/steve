@@ -8,8 +8,5 @@
   "scripts": {
     "typecheck": "pnpm --dir .. exec tsc --noEmit -p shared",
     "test": "pnpm --dir .. exec vitest run --passWithNoTests shared"
-  },
-  "dependencies": {
-    "open-bot-avatar": "^0.3.0"
   }
 }

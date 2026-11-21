@@ -1,4 +1,3 @@
-import type { AvatarState } from "open-bot-avatar";
 import type { MascotCue } from "./exchange";
 
 export const steveFace = {
@@ -26,7 +25,7 @@ const faceByState = {
   working: steveFace.calling,
   done: steveFace.done,
   blocked: steveFace.urgent,
-} as const satisfies Record<AvatarState, SteveFace>;
+} as const satisfies Record<MascotCue["state"], SteveFace>;
 
 export const heroSrc = "/mascot/shrug.webp";
 

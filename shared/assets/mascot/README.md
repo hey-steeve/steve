@@ -8,21 +8,21 @@
 
 The files in `avatar/` and in `states/` are 1024 by 1024 pixel PNGs. In `body/`, `hello.png`, `present.png`, and `celebrate.png` are too. `lounge-call.png` is 1024 by 1024 pixels and is not a pose. The other poses in `body/` have another size, written in the list. `duo/` holds JPEGs.
 
-`states/` holds busts of the head and shoulders, with transparency. Each file name follows the visual pose. `listening`, `thinking`, and `calling` reuse the moment id. `thinking` and `done` reuse the `state`. `urgent` reuses neither the moment id nor the `state`.
+`states/` holds busts of the head and shoulders, with transparency. Each file name follows the visual pose. `listening`, `thinking`, and `calling` reuse the cue id in `app/src/chat/exchange.ts`. `thinking` and `done` reuse the `state`. `urgent` reuses neither the cue id nor the `state`.
 
-The `idle` moment in `app/src/moments.ts` has no dedicated image.
+Idle has no dedicated image.
 
-- `listening.png` matches the `listening` moment and the `waiting` state. Steve's eyes are open.
-- `thinking.png` matches the `thinking` moment and the `thinking` state. The visor shows a ring.
-- `calling.png` matches the `calling` moment and the `working` state. Steve is on the phone.
-- `done.png` matches the `happy` moment and the `done` state. Steve is happy.
-- `urgent.png` matches the `serious` moment and the `blocked` state. The eyes are exclamation marks.
+- `listening.png` matches the `listening` cue and the `waiting` state. Steve's eyes are open.
+- `thinking.png` matches the `thinking` cue and the `thinking` state. The visor shows a ring.
+- `calling.png` matches the `calling` cue and the `working` state. Steve is on the phone.
+- `done.png` matches the `happy` cue and the `done` state. Steve is happy.
+- `urgent.png` matches the `serious` cue and the `blocked` state. The eyes are exclamation marks.
 
-The files in `body/`, in `duo/`, and in `avatar/` match no moment.
+The files in `body/`, in `duo/`, and in `avatar/` match no cue.
 
 `body/` holds the full body, with transparency.
 
-- `hello.png` is the empty-state pose. This file matches no moment. Steve waves with one hand.
+- `hello.png` is the empty-state pose. This file matches no cue. Steve waves with one hand.
 - `present.png` is the presentation pose. Steve holds out one hand.
 - `celebrate.png` is the celebration pose. Steve raises both arms.
 - `shrug.png` is the pose where Steve shrugs, palms up. The file is 688 by 857 pixels.
@@ -46,8 +46,6 @@ Grok Imagine generated these scenes from Alan's public mascot visuals. Spidey de
 - `head.png` is the head alone, with transparency.
 - `pfp-indigo.png` is a square opaque profile photo, on an indigo background.
 - `pfp-lavender.png` is a square opaque profile photo, on a lavender background.
-
-No app uses these files yet. They are separate from the marmot definition in `shared/src/mascot`. The marmot definition will be replaced later.
 
 ## Does not
 
