@@ -315,6 +315,59 @@ it("rejects a history that is not a user and assistant alternation", async () =>
   expect(accepted.status).toBe(200);
 });
 
+it("caps a long mock reply and accepts that reply on the next turn", async () => {
+  const asked = "a".repeat(chatRequestLimits.maxMessageChars);
+  const first = await post({ messages: [{ role: "user", content: asked }] });
+  expect(first.status).toBe(200);
+  const payload = await first.json();
+  expect(payload).toMatchObject({ mocked: true, model: "mock" });
+  expect(payload.reply.startsWith("[Réponse simulée] ")).toBe(true);
+  expect(payload.reply).toHaveLength(chatRequestLimits.maxMessageChars);
+
+  const follow = await post({
+    messages: [
+      { role: "user", content: asked },
+      { role: "assistant", content: payload.reply },
+      { role: "user", content: "Merci" },
+    ],
+  });
+  expect(follow.status).toBe(200);
+  expect(await follow.json()).toMatchObject({ mocked: true, model: "mock" });
+});
+
+it("caps a live reply at the message cap", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  const long = "b".repeat(chatRequestLimits.maxMessageChars + 80);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        model: "google/gemini-3.8-flash",
+        choices: [{ message: { content: `  ${long}  ` } }],
+      }),
+    ),
+  );
+
+  const first = await post(history);
+  expect(first.status).toBe(200);
+  const payload = await first.json();
+  expect(payload).toEqual({
+    reply: long.slice(0, chatRequestLimits.maxMessageChars),
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+
+  const follow = await post({
+    messages: [
+      { role: "user", content: "De garde" },
+      { role: "assistant", content: payload.reply },
+      { role: "user", content: "Merci" },
+    ],
+  });
+  expect(follow.status).toBe(200);
+});
+
 it("rejects an assistant turn longer than the content cap", async () => {
   const atCap = "a".repeat(chatRequestLimits.maxMessageChars);
   const ok = await post({
