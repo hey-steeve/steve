@@ -832,6 +832,159 @@ it("returns to the empty home state from Retour in the conversation header", asy
   expect(view.container.querySelector(".chat-thread")).toBeNull();
 });
 
+it("keeps the scroll position and shows a new-message pill when a reply arrives above the bottom", async () => {
+  const session = await pendingThread();
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    const pill = newMessagePill(session.container);
+    const dock = session.container.querySelector(".chat-column > .chat-dock");
+    expect(dock instanceof HTMLElement).toBe(true);
+    expect({
+      text: pill?.textContent ?? null,
+      label: pill?.getAttribute("aria-label") ?? null,
+      type: pill?.getAttribute("type") ?? null,
+      live: pill?.closest("[aria-live]")?.getAttribute("aria-live") ?? null,
+      scrollTop: session.scrolled.top,
+      insideThread: pill === null ? null : session.thread.contains(pill),
+      afterThread:
+        pill === null
+          ? null
+          : (session.thread.compareDocumentPosition(pill) &
+              Node.DOCUMENT_POSITION_FOLLOWING) ===
+            Node.DOCUMENT_POSITION_FOLLOWING,
+      beforeDock:
+        pill === null || !(dock instanceof HTMLElement)
+          ? null
+          : (pill.compareDocumentPosition(dock) &
+              Node.DOCUMENT_POSITION_FOLLOWING) ===
+            Node.DOCUMENT_POSITION_FOLLOWING,
+    }).toEqual({
+      text: "Nouveau message ↓",
+      label: "Nouveau message",
+      type: "button",
+      live: "polite",
+      scrollTop: 0,
+      insideThread: false,
+      afterThread: true,
+      beforeDock: true,
+    });
+  } finally {
+    session.restore();
+  }
+});
+
+it("scrolls smoothly to the bottom and hides the pill when the new-message pill is tapped", async () => {
+  const session = await pendingThread();
+  const requested: ScrollToOptions[] = [];
+  session.thread.scrollTo = ((options?: ScrollToOptions | number) => {
+    if (typeof options === "object" && options !== null) {
+      requested.push(options);
+    }
+  }) as typeof session.thread.scrollTo;
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    const pill = newMessagePill(session.container);
+    if (!(pill instanceof HTMLButtonElement)) {
+      throw new Error("missing new-message pill");
+    }
+    await act(async () => {
+      pill.click();
+    });
+    expect(requested).toEqual([
+      { top: session.thread.scrollHeight, behavior: "smooth" },
+    ]);
+    expect(session.scrolled.top).toBe(0);
+    expect(newMessagePill(session.container)).not.toBeNull();
+    await act(async () => {
+      session.scrolled.top = session.thread.scrollHeight;
+      session.thread.dispatchEvent(new Event("scroll"));
+    });
+    expect(session.scrolled.top).toBe(session.thread.scrollHeight);
+    expect(newMessagePill(session.container)).toBeNull();
+  } finally {
+    session.restore();
+  }
+});
+
+it("hides the new-message pill when the reader scrolls back to the bottom", async () => {
+  const session = await pendingThread();
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    expect(newMessagePill(session.container)).not.toBeNull();
+    await act(async () => {
+      session.scrolled.top = session.thread.scrollHeight - session.thread.clientHeight;
+      session.thread.dispatchEvent(new Event("scroll"));
+    });
+    expect(session.scrolled.top).toBe(
+      session.thread.scrollHeight - session.thread.clientHeight,
+    );
+    expect(newMessagePill(session.container)).toBeNull();
+  } finally {
+    session.restore();
+  }
+});
+
+it("follows a taller reply without a pill when the reader is already near the bottom", async () => {
+  const session = await pendingThread();
+  try {
+    Object.defineProperty(session.thread, "scrollHeight", {
+      configurable: true,
+      get: () =>
+        threadLength + session.thread.querySelectorAll(".chat-agent").length * 400,
+    });
+    session.scrolled.top = session.thread.scrollHeight - session.thread.clientHeight;
+    session.thread.dispatchEvent(new Event("scroll"));
+    const topBeforeReply = session.scrolled.top;
+    await session.release("Voici la suite.");
+    expect(session.container.textContent).toContain("Voici la suite.");
+    expect(newMessagePill(session.container)).toBeNull();
+    expect(session.scrolled.top).toBe(session.thread.scrollHeight);
+    expect(session.scrolled.top).toBeGreaterThan(topBeforeReply);
+  } finally {
+    session.restore();
+  }
+});
+
+it("scrolls instantly when the new-message pill is tapped with reduced motion", async () => {
+  const session = await pendingThread();
+  const motions: Array<ScrollBehavior | undefined> = [];
+  const restoreMotion = stubReducedMotion(true);
+  session.thread.scrollTo = ((options?: ScrollToOptions | number, y?: number) => {
+    const behavior = typeof options === "object" && options !== null ? options.behavior : "auto";
+    motions.push(behavior);
+    if (behavior === "smooth") {
+      return;
+    }
+    const top = typeof options === "object" && options !== null ? (options.top ?? 0) : (y ?? 0);
+    session.scrolled.top = top;
+    session.thread.dispatchEvent(new Event("scroll"));
+  }) as typeof session.thread.scrollTo;
+  try {
+    session.scrolled.top = 0;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    const pill = newMessagePill(session.container);
+    if (!(pill instanceof HTMLButtonElement)) {
+      throw new Error("missing new-message pill");
+    }
+    await act(async () => {
+      pill.click();
+    });
+    expect(motions).not.toContain("smooth");
+    expect(session.scrolled.top).toBe(session.thread.scrollHeight);
+    expect(newMessagePill(session.container)).toBeNull();
+  } finally {
+    restoreMotion();
+    session.restore();
+  }
+});
+
 const threadLength = 2000;
 
 function stubReply(): void {
@@ -971,6 +1124,96 @@ async function unmount(view: { root: Root }): Promise<void> {
   await act(async () => {
     view.root.unmount();
   });
+}
+
+function newMessagePill(container: ParentNode): HTMLButtonElement | null {
+  const pill = container.querySelector('button[aria-label="Nouveau message"]');
+  return pill instanceof HTMLButtonElement ? pill : null;
+}
+
+function deferFetch(): {
+  fetch: typeof fetch;
+  resolve: (response: Response) => void;
+} {
+  let resolve: (response: Response) => void = () => {
+    throw new Error("reply released before the request");
+  };
+  const fetchMock: typeof fetch = () =>
+    new Promise((done) => {
+      resolve = done;
+    });
+  return {
+    fetch: fetchMock,
+    resolve(response: Response) {
+      resolve(response);
+    },
+  };
+}
+
+function stubReducedMotion(matches: boolean): () => void {
+  const previous = window.matchMedia;
+  const queryList = (query: string): MediaQueryList =>
+    ({
+      matches: matches && query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() {
+        return false;
+      },
+    }) as MediaQueryList;
+  window.matchMedia = queryList;
+  return () => {
+    window.matchMedia = previous;
+  };
+}
+
+async function pendingThread(): Promise<{
+  container: HTMLDivElement;
+  thread: HTMLElement;
+  scrolled: { top: number };
+  release: (reply: string) => Promise<void>;
+  restore: () => void;
+}> {
+  const pending = deferFetch();
+  vi.stubGlobal("fetch", pending.fetch);
+  const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
+  try {
+    const view = await mount();
+    await flushFrame();
+    const chip = view.container.querySelector(".chat-chip");
+    if (!(chip instanceof HTMLButtonElement)) {
+      throw new Error("missing suggestion");
+    }
+    await act(async () => {
+      chip.click();
+    });
+    const thread = view.container.querySelector(".chat-scroll");
+    if (!(thread instanceof HTMLElement)) {
+      throw new Error("missing thread");
+    }
+    return {
+      container: view.container,
+      thread,
+      scrolled: trackScroll(thread, threadLength),
+      release: async (reply: string) => {
+        await act(async () => {
+          pending.resolve(
+            Response.json({ reply, mocked: true, model: "mock" }),
+          );
+        });
+      },
+      restore: () => {
+        viewport.restore();
+      },
+    };
+  } catch (error) {
+    viewport.restore();
+    throw error;
+  }
 }
 
 function trackScroll(thread: HTMLElement, height: number): { top: number } {
