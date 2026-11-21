@@ -61,15 +61,6 @@
   box-sizing: border-box;
 }
 
-.chat-page-home {
-  background: linear-gradient(
-    180deg,
-    var(--color-indigo-100) 0,
-    var(--color-indigo-50) 220px,
-    var(--color-indigo-50) 100%
-  );
-}
-
 .chat-column {
   display: flex;
   flex: 1 1 auto;
