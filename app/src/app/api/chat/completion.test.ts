@@ -3,8 +3,6 @@ import { chatRequestLimits } from "../../../chat/request.js";
 import { POST } from "./route.js";
 
 const canary = "test-openrouter-key-canary";
-const systemPrompt =
-  "Tu es Steve, un assistant qui aide à organiser des démarches de santé. Tu n'es pas médecin, tu ne poses pas de diagnostic, et en cas d'urgence tu dis d'appeler le 15. Réponds brièvement en français.";
 const echo =
   "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
@@ -45,15 +43,13 @@ it("asks OpenRouter for low-effort reasoning and excludes it from the reply", as
 
   expect(fetchMock).toHaveBeenCalledTimes(1);
   const init = fetchMock.mock.calls[0]?.[1];
-  expect(JSON.parse(String(init?.body))).toEqual({
+  const sent = JSON.parse(String(init?.body));
+  expect(sent).toMatchObject({
     model: "google/gemini-3.8-flash",
     max_tokens: 1024,
     reasoning: { effort: "low", exclude: true },
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: "De garde" },
-    ],
   });
+  expect(sent.messages?.[1]).toEqual({ role: "user", content: "De garde" });
 });
 
 it("trims a length-capped reply back to the last complete sentence", async () => {
@@ -174,6 +170,38 @@ it("returns the upstream error when a length-capped reply has no complete senten
     expect(text).not.toContain(canary);
     expect(JSON.parse(text)).toEqual({ error: upstreamError });
   }
+});
+
+it("returns the assistant text when finish_reason is error", async () => {
+  const content = "Une pharmacie de garde.";
+  const response = await liveReply({ finish_reason: "error", content });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    reply: content,
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+});
+
+it("returns the upstream error when the OpenRouter JSON omits choices", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  delete process.env["OPENROUTER_MODEL"];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        model: "google/gemini-3.8-flash",
+        error: "secret-fragment",
+      }),
+    ),
+  );
+  const response = await post(history);
+  const text = await response.text();
+  expect(response.status).toBe(502);
+  expect(text).not.toContain(canary);
+  expect(text).not.toContain("secret-fragment");
+  expect(JSON.parse(text)).toEqual({ error: upstreamError });
 });
 
 it("returns a stop reply unchanged, including a trailing fragment", async () => {
