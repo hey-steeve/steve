@@ -65,4 +65,4 @@ These files are the source. Do not edit them in place. Derive the resized copies
 
 `SHA256SUMS` contains the checksums of the approved original.
 
-`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png` and `pfp-lavender.png`. `body/lounge-call.png` is 1024 by 1024 pixels and is not a transparent pose. The eight new poses in `body/` are transparent PNGs of another size. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels.
+`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png` and `pfp-lavender.png`. `body/lounge-call.png` is 1024 by 1024 pixels and is not a transparent pose. The eight poses in `body/` that are another size are transparent PNGs. Only `bubbles.png` is new. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels.
