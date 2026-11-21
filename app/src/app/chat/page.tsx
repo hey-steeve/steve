@@ -62,6 +62,9 @@ export default function ChatPage() {
   });
   const playback = useSpeechPlayback();
   const empty = messages.length === 0;
+  const emptyRef = useRef(empty);
+  const [homeMounted, setHomeMounted] = useState(true);
+  emptyRef.current = empty;
   const control = composerControl({
     draft,
     listening: dictation.listening,
@@ -151,6 +154,7 @@ export default function ChatPage() {
     setDraft("");
     setDemo(false);
     setExchange("idle");
+    setHomeMounted(true);
   }
 
   async function post(history: readonly UiMessage[], ticket: number) {
@@ -295,8 +299,22 @@ export default function ChatPage() {
           )}
         </header>
         <div className="chat-scroll" ref={threadRef}>
-          {empty ? (
-            <div className="chat-hero">
+          {homeMounted ? (
+            <div
+              className={empty ? "chat-hero" : "chat-hero chat-hero-leave"}
+              aria-hidden={empty ? undefined : true}
+              inert={empty ? undefined : true}
+              onAnimationEnd={(event) => {
+                if (
+                  event.target !== event.currentTarget ||
+                  event.animationName !== "chat-home-out" ||
+                  emptyRef.current
+                ) {
+                  return;
+                }
+                setHomeMounted(false);
+              }}
+            >
               <img
                 className="chat-hero-mascot"
                 src={heroSrc}
@@ -305,10 +323,12 @@ export default function ChatPage() {
                 height={640}
               />
               <div className="chat-sheet">
-                <div className="chat-dock">
-                  {composer}
-                  {footnote}
-                </div>
+                {empty ? (
+                  <div className="chat-dock">
+                    {composer}
+                    {footnote}
+                  </div>
+                ) : null}
                 <div className="chat-chips" role="group" aria-label="Suggestions">
                   {suggestions.map((suggestion) => (
                     <button
@@ -325,7 +345,8 @@ export default function ChatPage() {
                 </div>
               </div>
             </div>
-          ) : (
+          ) : null}
+          {empty ? null : (
             <ol className="chat-thread" aria-live="polite">
               {messages.map((message) =>
                 message.role === "user" ? (
@@ -375,6 +396,7 @@ export default function ChatPage() {
                 <li
                   className="chat-row chat-row-agent"
                   role="status"
+                  aria-live="polite"
                   aria-label="Steve écrit"
                 >
                   <SteveAvatar />
@@ -389,7 +411,7 @@ export default function ChatPage() {
           )}
         </div>
         {empty ? null : (
-          <div className="chat-dock">
+          <div className="chat-dock chat-dock-enter">
             {composer}
             {footnote}
           </div>
@@ -405,30 +427,35 @@ function ComposerAction(props: {
   readonly onDictate: () => void;
   readonly onSend: () => void;
 }) {
-  if (props.control.kind === "send") {
-    return (
-      <button
-        type="button"
-        className="chat-action"
-        aria-label="Envoyer"
-        disabled={props.pending}
-        onClick={props.onSend}
-      >
-        <SendIcon />
-      </button>
-    );
-  }
+  const send = props.control.kind === "send";
+  const listening = props.control.kind === "dictate" && props.control.listening;
+  const supported = props.control.kind === "send" || props.control.supported;
   return (
     <button
       type="button"
-      className="chat-action"
-      aria-label={props.control.listening ? "Arrêter la dictée" : "Dicter un message"}
-      aria-pressed={props.control.listening}
-      disabled={!props.control.supported}
-      onClick={props.onDictate}
+      className={send ? "chat-action chat-action-send" : "chat-action"}
+      aria-label={
+        send ? "Envoyer" : listening ? "Arrêter la dictée" : "Dicter un message"
+      }
+      aria-pressed={send ? undefined : listening}
+      disabled={send ? props.pending : !supported}
+      onClick={send ? props.onSend : props.onDictate}
     >
-      <MicIcon />
+      <ActionIcons />
     </button>
+  );
+}
+
+function ActionIcons() {
+  return (
+    <>
+      <span className="chat-action-icon chat-action-icon-mic" aria-hidden="true">
+        <MicIcon />
+      </span>
+      <span className="chat-action-icon chat-action-icon-send" aria-hidden="true">
+        <SendIcon />
+      </span>
+    </>
   );
 }
 

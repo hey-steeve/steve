@@ -58,6 +58,43 @@ function sendButton(container: ParentNode): HTMLButtonElement {
   return button;
 }
 
+it("shows a typing indicator while the reply is pending and removes it after the reply", async () => {
+  const pending: Array<(value: Response | PromiseLike<Response>) => void> = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(
+      () =>
+        new Promise((resolve) => {
+          pending.push(resolve);
+        }),
+    ),
+  );
+  const container = await renderPage();
+
+  await act(async () => {
+    setField(fieldIn(container), "Bonjour");
+  });
+  act(() => {
+    sendButton(container).click();
+  });
+
+  const typing = container.querySelector('[aria-label="Steve écrit"]');
+  expect(typing?.getAttribute("aria-live")).toBe("polite");
+  expect(typing?.querySelectorAll(".chat-dot")).toHaveLength(3);
+  expect(container.querySelector(".chat-agent")).toBeNull();
+
+  const finish = pending[0];
+  if (finish === undefined) {
+    throw new Error("missing release");
+  }
+  await act(async () => {
+    finish(Response.json({ reply: "D'accord.", mocked: true, model: "mock" }));
+  });
+
+  expect(container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
+  expect(container.textContent).toContain("D'accord.");
+});
+
 it("disables send while the chat request is in flight", async () => {
   const pending: Array<(value: Response | PromiseLike<Response>) => void> = [];
   const fetchMock = vi.fn<typeof fetch>(

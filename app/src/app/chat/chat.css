@@ -25,6 +25,13 @@
   --composer-side: 16px;
   --card-line: 1px solid var(--color-border);
   --card-shadow: 0 2px 8px rgba(12, 10, 102, 0.04);
+  --motion-enter: 220ms;
+  --motion-scene: 240ms;
+  --motion-icon: 200ms;
+  --motion-press: 100ms;
+  --motion-dot: 1.1s;
+  --motion-float: 3.6s;
+  --motion-ease: ease-out;
 
   box-sizing: border-box;
   display: flex;
@@ -73,6 +80,7 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
+  position: relative;
   overflow-x: hidden;
   overflow-y: auto;
   display: flex;
@@ -209,6 +217,7 @@
   margin: 4px 0 -48px;
   aspect-ratio: 514 / 640;
   object-fit: contain;
+  animation: chat-float var(--motion-float) ease-in-out infinite;
   /* Body axis is 0.86px right of center at 200px. Under 2px, so no shift. */
 }
 
@@ -241,6 +250,16 @@
   padding: 0;
 }
 
+.chat-hero-leave {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  height: 100%;
+  min-height: 0;
+  pointer-events: none;
+  animation: chat-home-out var(--motion-scene) var(--motion-ease) forwards;
+}
+
 .chat-sheet {
   display: flex;
   flex: 1 0 auto;
@@ -265,6 +284,7 @@
   margin: 0 auto;
   padding: var(--safe-gap) var(--page-pad) var(--page-pad);
   list-style: none;
+  animation: chat-enter-fade var(--motion-scene) var(--motion-ease) backwards;
 }
 
 .chat-row {
@@ -277,10 +297,12 @@
 
 .chat-row-agent {
   justify-content: flex-start;
+  animation: chat-enter-left var(--motion-enter) var(--motion-ease) backwards;
 }
 
 .chat-row-user {
   justify-content: flex-end;
+  animation: chat-enter-right var(--motion-enter) var(--motion-ease) backwards;
 }
 
 .chat-avatar {
@@ -438,7 +460,7 @@
   height: 0.45rem;
   border-radius: var(--radius-pill);
   background: var(--color-primary);
-  animation: chat-pulse 1.1s infinite;
+  animation: chat-pulse var(--motion-dot) infinite;
 }
 
 .chat-dot:nth-child(2) {
@@ -510,6 +532,10 @@
   min-width: 0;
   margin: 0 auto;
   padding: 0 var(--page-pad) calc(var(--page-pad) + env(safe-area-inset-bottom));
+}
+
+.chat-dock-enter {
+  animation: chat-enter-fade var(--motion-scene) var(--motion-ease) backwards;
 }
 
 .chat-hero .chat-dock {
@@ -607,6 +633,21 @@
   cursor: pointer;
 }
 
+.chat-action-icon {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  transition:
+    opacity var(--motion-icon) var(--motion-ease),
+    transform var(--motion-icon) var(--motion-ease);
+}
+
+.chat-action:not(.chat-action-send) .chat-action-icon-send,
+.chat-action-send .chat-action-icon-mic {
+  opacity: 0;
+  transform: scale(0.86);
+}
+
 .chat-action:disabled {
   cursor: not-allowed;
   opacity: 0.45;
@@ -640,6 +681,81 @@
 .chat-plus:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+.chat-chip,
+.chat-plus,
+.chat-action,
+.chat-profile,
+.chat-back,
+.chat-speak {
+  transition: transform var(--motion-press) var(--motion-ease);
+}
+
+.chat-chip:active,
+.chat-plus:active,
+.chat-action:active,
+.chat-profile:active,
+.chat-back:active,
+.chat-speak:active {
+  transform: scale(0.96);
+}
+
+@keyframes chat-enter-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chat-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chat-enter-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes chat-home-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes chat-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px) scale(1.012);
+  }
 }
 
 @keyframes chat-pulse {
