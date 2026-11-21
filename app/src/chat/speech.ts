@@ -237,6 +237,32 @@ export function useDictation(input: {
   };
 }
 
+export function readSpeechSynthesis(host: {
+  readonly speechSynthesis?: object | null;
+}): SpeechSynthesis | null {
+  if (!("speechSynthesis" in host)) {
+    return null;
+  }
+  const value: unknown = Reflect.get(host, "speechSynthesis");
+  if (!isSpeechSynthesis(value)) {
+    return null;
+  }
+  return value;
+}
+
+function isSpeechSynthesis(value: unknown): value is SpeechSynthesis {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  return (
+    typeof Reflect.get(value, "cancel") === "function" &&
+    typeof Reflect.get(value, "getVoices") === "function" &&
+    typeof Reflect.get(value, "speak") === "function" &&
+    typeof Reflect.get(value, "addEventListener") === "function" &&
+    typeof Reflect.get(value, "removeEventListener") === "function"
+  );
+}
+
 export function useSpeechPlayback(): {
   readonly activeId: string | null;
   readonly toggle: (id: string, text: string) => void;
@@ -246,7 +272,10 @@ export function useSpeechPlayback(): {
   const activeRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const synth = window.speechSynthesis;
+    const synth = readSpeechSynthesis(window);
+    if (synth === null) {
+      return;
+    }
     const warm = () => {
       synth.getVoices();
     };
@@ -259,13 +288,16 @@ export function useSpeechPlayback(): {
   }, []);
 
   const stop = useCallback(() => {
-    window.speechSynthesis.cancel();
+    readSpeechSynthesis(window)?.cancel();
     activeRef.current = null;
     setActiveId(null);
   }, []);
 
   const toggle = useCallback((id: string, text: string) => {
-    const synth = window.speechSynthesis;
+    const synth = readSpeechSynthesis(window);
+    if (synth === null) {
+      return;
+    }
     if (activeRef.current === id) {
       synth.cancel();
       activeRef.current = null;
