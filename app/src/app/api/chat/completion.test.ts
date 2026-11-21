@@ -237,6 +237,89 @@ it("returns a stop reply unchanged, including a trailing fragment", async () => 
   });
 });
 
+it("trims a length-capped reply at an intro sentence before a list", async () => {
+  const incomplete = await liveReply({
+    finish_reason: "length",
+    content: "Appelez le médecin.\n1. La suite est cou",
+  });
+  expect(incomplete.status).toBe(200);
+  expect(await incomplete.json()).toEqual({
+    reply: "Appelez le médecin.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+
+  const completeItem = await liveReply({
+    finish_reason: "length",
+    content: "Voici les étapes.\n1. Appelle le médecin.\n2. Attends",
+  });
+  expect(completeItem.status).toBe(200);
+  expect(await completeItem.json()).toEqual({
+    reply: "Voici les étapes.\n1. Appelle le médecin.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+
+  const tabMarker = await liveReply({
+    finish_reason: "length",
+    content: "Appelez demain.\n1.\tEnsuite",
+  });
+  expect(tabMarker.status).toBe(200);
+  expect(await tabMarker.json()).toEqual({
+    reply: "Appelez demain.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+});
+
+it("treats CRLF like LF when trimming a length-capped reply", async () => {
+  const kept = await liveReply({
+    finish_reason: "length",
+    content: "Appelez demain.\r\n1. Ensuite",
+  });
+  expect(kept.status).toBe(200);
+  expect(await kept.json()).toEqual({
+    reply: "Appelez demain.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+
+  const emergency = await liveReply({
+    finish_reason: "length",
+    content: "Appelle le\r\n15.",
+  });
+  expect(emergency.status).toBe(200);
+  expect(await emergency.json()).toEqual({
+    reply: "Appelle le\r\n15.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+});
+
+it("returns the assistant text when finish_reason is missing", async () => {
+  const content =
+    "Une pharmacie est ouverte ce soir. Vous pouvez y aller avec cette souff";
+  const response = await liveReply({ content });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    reply: content,
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+});
+
+it("returns the upstream error when assistant content is blank", async () => {
+  for (const content of ["", "   ", "\n"]) {
+    for (const finish_reason of ["stop", "length"]) {
+      const response = await liveReply({ finish_reason, content });
+      const text = await response.text();
+      expect(response.status).toBe(502);
+      expect(text).not.toContain(canary);
+      expect(JSON.parse(text)).toEqual({ error: upstreamError });
+    }
+  }
+});
+
 it("keeps the mock and does not call fetch when live chat is off", async () => {
   const fetchMock = vi.fn<typeof fetch>();
   vi.stubGlobal("fetch", fetchMock);
@@ -254,7 +337,7 @@ it("keeps the mock and does not call fetch when live chat is off", async () => {
 });
 
 function liveReply(choice: {
-  readonly finish_reason: string;
+  readonly finish_reason?: string;
   readonly content: string;
 }): Promise<Response> {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
