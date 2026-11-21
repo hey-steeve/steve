@@ -428,7 +428,7 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
       transform: "",
       position: "fixed",
       disclaimer: "none",
-      scrollTop: threadLength,
+      scrollTop: thread.scrollHeight - thread.clientHeight,
       overflow: "hidden",
       overscroll: "none",
     });
@@ -475,7 +475,7 @@ it("keeps the latest reply visible when the viewport resizes at the bottom of th
     viewport.offsetTop = 12;
     await fireViewport(viewport);
     expect(page.hasAttribute("data-keyboard-open")).toBe(false);
-    expect(scrolled.top).toBe(threadLength);
+    expect(scrolled.top).toBe(thread.scrollHeight - thread.clientHeight);
   } finally {
     viewport.restore();
   }
@@ -491,7 +491,7 @@ it("keeps the latest reply visible when the keyboard opens at the bottom of the 
     viewport.offsetTop = 180;
     await fireViewport(viewport);
     expect(page.hasAttribute("data-keyboard-open")).toBe(true);
-    expect(scrolled.top).toBe(threadLength);
+    expect(scrolled.top).toBe(thread.scrollHeight - thread.clientHeight);
   } finally {
     viewport.restore();
   }
@@ -628,7 +628,7 @@ it("scrolls a mid-thread reader when a pinch with no keyboard is followed by the
   stubReply();
   const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
   try {
-    const { page, scrolled } = await scrolledThread();
+    const { page, thread, scrolled } = await scrolledThread();
     scrolled.top = 0;
     viewport.scale = 1.2;
     viewport.height = 700;
@@ -640,7 +640,7 @@ it("scrolls a mid-thread reader when a pinch with no keyboard is followed by the
     viewport.offsetTop = 180;
     await fireViewport(viewport);
     expect(page.hasAttribute("data-keyboard-open")).toBe(true);
-    expect(scrolled.top).toBe(threadLength);
+    expect(scrolled.top).toBe(thread.scrollHeight - thread.clientHeight);
   } finally {
     viewport.restore();
   }
@@ -656,7 +656,7 @@ it("scrolls a reader within 80px of the bottom and leaves a reader past that gap
     viewport.offsetTop = 16;
     await fireViewport(viewport);
     expect(page.hasAttribute("data-keyboard-open")).toBe(false);
-    expect(scrolled.top).toBe(threadLength);
+    expect(scrolled.top).toBe(thread.scrollHeight - thread.clientHeight);
     scrolled.top = threadLength - client - 81;
     viewport.offsetTop = 32;
     await fireViewport(viewport);
@@ -670,7 +670,7 @@ it("leaves the keyboard closed at a 120px gap and opens it at 121px", async () =
   stubReply();
   const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
   try {
-    const { page, scrolled } = await scrolledThread();
+    const { page, thread, scrolled } = await scrolledThread();
     scrolled.top = 0;
     viewport.height = 724;
     await fireViewport(viewport);
@@ -679,7 +679,7 @@ it("leaves the keyboard closed at a 120px gap and opens it at 121px", async () =
     viewport.height = 723;
     await fireViewport(viewport);
     expect(page.hasAttribute("data-keyboard-open")).toBe(true);
-    expect(scrolled.top).toBe(threadLength);
+    expect(scrolled.top).toBe(thread.scrollHeight - thread.clientHeight);
   } finally {
     viewport.restore();
   }
@@ -689,7 +689,7 @@ it("does not scroll at scale 1.01 and scrolls at scale 1.0099 when the keyboard 
   stubReply();
   const viewport = installViewport({ height: 1000, offsetTop: 0, innerHeight: 1000 });
   try {
-    const { page, scrolled } = await scrolledThread();
+    const { page, thread, scrolled } = await scrolledThread();
     scrolled.top = 0;
     viewport.scale = 1.01;
     viewport.height = 800;
@@ -705,7 +705,7 @@ it("does not scroll at scale 1.01 and scrolls at scale 1.0099 when the keyboard 
     viewport.height = 800;
     await fireViewport(viewport);
     expect(page.hasAttribute("data-keyboard-open")).toBe(true);
-    expect(scrolled.top).toBe(threadLength);
+    expect(scrolled.top).toBe(thread.scrollHeight - thread.clientHeight);
   } finally {
     viewport.restore();
   }
@@ -950,7 +950,9 @@ it("follows a taller reply without a pill when the reader is already near the bo
     await session.release("Voici la suite.");
     expect(session.container.textContent).toContain("Voici la suite.");
     expect(newMessagePill(session.container)).toBeNull();
-    expect(session.scrolled.top).toBe(session.thread.scrollHeight);
+    expect(session.scrolled.top).toBe(
+      session.thread.scrollHeight - session.thread.clientHeight,
+    );
     expect(session.scrolled.top).toBeGreaterThan(topBeforeReply);
   } finally {
     session.restore();
@@ -984,7 +986,9 @@ it("scrolls instantly when the new-message pill is tapped with reduced motion", 
       pill.click();
     });
     expect(motions).not.toContain("smooth");
-    expect(session.scrolled.top).toBe(session.thread.scrollHeight);
+    expect(session.scrolled.top).toBe(
+      session.thread.scrollHeight - session.thread.clientHeight,
+    );
     expect(newMessagePill(session.container)).toBeNull();
     expect(document.activeElement).toBe(newest);
     expect(newest.getAttribute("tabindex")).toBe("-1");
@@ -1002,7 +1006,9 @@ it("follows an in-flight reply when the keyboard opens without a further scroll"
     session.viewport.height = 420;
     session.viewport.offsetTop = 180;
     await fireViewport(session.viewport);
-    expect(session.scrolled.top).toBe(threadLength);
+    expect(session.scrolled.top).toBe(
+      session.thread.scrollHeight - session.thread.clientHeight,
+    );
     await session.release("Voici la suite.");
     expect(session.container.textContent).toContain("Voici la suite.");
     expect(newMessagePill(session.container)).toBeNull();
@@ -1017,16 +1023,22 @@ it("follows the next reply when a keyboard close lands inside 80px without scrol
     session.viewport.height = 420;
     session.viewport.offsetTop = 180;
     await fireViewport(session.viewport);
-    const parked = threadLength - session.thread.clientHeight - 81;
+    const closedHeight = 844;
+    const parked = threadLength - closedHeight - 40;
     session.scrolled.top = parked;
     session.thread.dispatchEvent(new Event("scroll"));
-    session.viewport.height = 844;
+    session.viewport.height = closedHeight;
     session.viewport.offsetTop = 0;
     await fireViewport(session.viewport);
+    const gap =
+      session.thread.scrollHeight - session.thread.scrollTop - session.thread.clientHeight;
+    expect(gap).toBe(40);
     expect(session.scrolled.top).toBe(parked);
     await session.release("Voici la suite.");
     expect(newMessagePill(session.container)).toBeNull();
-    expect(session.scrolled.top).toBe(threadLength);
+    expect(session.scrolled.top).toBe(
+      session.thread.scrollHeight - session.thread.clientHeight,
+    );
   } finally {
     session.restore();
   }
@@ -1103,7 +1115,9 @@ it("follows the thread and hides the pill when you send while scrolled up", asyn
     });
     await sendComposer(session.container, "Encore");
     expect(newMessagePill(session.container)).toBeNull();
-    expect(session.scrolled.top).toBe(threadLength);
+    expect(session.scrolled.top).toBe(
+      session.thread.scrollHeight - session.thread.clientHeight,
+    );
     expect(session.container.textContent).toContain("Encore");
   } finally {
     session.restore();
@@ -1425,25 +1439,33 @@ async function sendComposer(container: ParentNode, text: string): Promise<void> 
 function trackScroll(thread: HTMLElement, height: number): { top: number } {
   const scrolled = { top: 0 };
   const page = thread.closest(".chat-page");
+  const clientHeight = (): number => {
+    if (!(page instanceof HTMLElement)) {
+      return 0;
+    }
+    const inline = Number.parseFloat(page.style.height);
+    return Number.isFinite(inline) ? inline : 0;
+  };
+  const clamp = (value: number): number => {
+    const max = Math.max(0, thread.scrollHeight - clientHeight());
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+    return Math.min(Math.max(0, value), max);
+  };
   Object.defineProperty(thread, "scrollHeight", {
     configurable: true,
     get: () => height,
   });
   Object.defineProperty(thread, "clientHeight", {
     configurable: true,
-    get: () => {
-      if (!(page instanceof HTMLElement)) {
-        return 0;
-      }
-      const inline = Number.parseFloat(page.style.height);
-      return Number.isFinite(inline) ? inline : 0;
-    },
+    get: clientHeight,
   });
   Object.defineProperty(thread, "scrollTop", {
     configurable: true,
-    get: () => scrolled.top,
+    get: () => clamp(scrolled.top),
     set: (value: number) => {
-      scrolled.top = value;
+      scrolled.top = clamp(value);
     },
   });
   return scrolled;
