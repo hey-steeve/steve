@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import {
   chatHttpResult,
   chatRequestLimits,
+  clampAssistantContent,
   parseChatReply,
   toProviderMessages,
 } from "./request.js";
@@ -173,6 +174,63 @@ it("keeps the latest user turn when an error sits between two user turns", () =>
       { role: "user", content: "second" },
     ]),
   ).toEqual([{ role: "user", content: "second" }]);
+});
+
+it("keeps the safety sentence when a mock echo is longer than the reply cap", () => {
+  const asked = "a".repeat(chatRequestLimits.maxMessageChars);
+  const result = chatHttpResult({
+    messages: [{ role: "user", content: asked }],
+  });
+  expect(result.status).toBe(200);
+  if (result.status !== 200) {
+    return;
+  }
+  const { reply } = result.body;
+  expect(reply.startsWith("[Réponse simulée] Vous avez demandé : ")).toBe(true);
+  expect(
+    reply.endsWith("Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15."),
+  ).toBe(true);
+  expect(reply.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
+  expect(
+    chatHttpResult({
+      messages: [
+        { role: "user", content: asked },
+        { role: "assistant", content: reply },
+        { role: "user", content: "Merci" },
+      ],
+    }).status,
+  ).toBe(200);
+});
+
+it("does not split an emoji when a reply is cut at the cap", () => {
+  const head = "a".repeat(chatRequestLimits.maxMessageChars - 1);
+  const cut = clampAssistantContent(`${head}\u{1F600}`);
+  expect(cut).toBe(head);
+  expect(cut.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
+
+  const lead = "[Réponse simulée] Vous avez demandé : ";
+  const tail = ". Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
+  const room = chatRequestLimits.maxMessageChars - lead.length - tail.length;
+  const asked = `${"a".repeat(room - 1)}\u{1F600}`;
+  const result = chatHttpResult({
+    messages: [{ role: "user", content: asked }],
+  });
+  expect(result.status).toBe(200);
+  if (result.status !== 200) {
+    return;
+  }
+  const { reply } = result.body;
+  expect(reply.startsWith(lead)).toBe(true);
+  expect(reply.endsWith(tail)).toBe(true);
+  const echoed = reply.slice(lead.length, reply.length - tail.length);
+  expect(echoed).toBe(asked.slice(0, room - 1));
+  expect(reply.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
+});
+
+it("trims a reply that already fits under the cap", () => {
+  expect(clampAssistantContent("  De garde.  ")).toBe("De garde.");
+  const atCap = "a".repeat(chatRequestLimits.maxMessageChars);
+  expect(clampAssistantContent(`  ${atCap}  `)).toBe(atCap);
 });
 
 it("clamps an assistant turn so the next request stays under the cap", () => {
