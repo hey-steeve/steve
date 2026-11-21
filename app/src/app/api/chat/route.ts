@@ -9,6 +9,7 @@ import {
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const defaultModel = "google/gemini-3.8-flash";
 const maxCompletionTokens = 1024;
+const upstreamTimeoutMs = 30_000;
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
 const invalidJsonError = "JSON invalide.";
 const tooLargeError = "Requête trop volumineuse.";
@@ -62,6 +63,7 @@ async function completeWithOpenRouter(
         max_tokens: maxCompletionTokens,
         messages: [{ role: "system", content: systemPrompt }, ...messages],
       }),
+      signal: AbortSignal.timeout(upstreamTimeoutMs),
     });
     if (!response.ok) {
       return { status: 502, body: { error: upstreamError } };

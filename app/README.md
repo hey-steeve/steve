@@ -50,7 +50,7 @@ When the route calls OpenRouter, it sends a short French system prompt, then the
 
 `model` is the `model` field from the OpenRouter JSON. That field names the model that ran. When that field is missing, `model` is the id the route sent.
 
-A non-2xx response or a network failure returns HTTP 502 and `{ "error": "Le service de chat est indisponible. Réessayez." }`. The route does not return the upstream body. Do not print the key.
+The route aborts the OpenRouter call after 30 seconds. A non-2xx response, a network failure, or that timeout returns HTTP 502 and `{ "error": "Le service de chat est indisponible. Réessayez." }`. The route does not return the upstream body. Do not print the key.
 
 The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows the model id under each agent reply when the reply is not mocked. It shows a failed reply on an error card.
 

@@ -16,6 +16,7 @@ const history = {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 it("returns the labelled mock unless STEVE_CHAT_LIVE is 1", async () => {
@@ -156,6 +157,26 @@ it("returns 502 and drops the upstream body when OpenRouter fails", async () => 
     expect(text).not.toContain("secret-fragment");
     expect(JSON.parse(text)).toEqual({ error: upstreamError });
   }
+});
+
+it("aborts the OpenRouter call and returns the upstream error on timeout", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  const timeout = vi.spyOn(AbortSignal, "timeout");
+  const fetchMock = vi.fn<typeof fetch>(async () => {
+    throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await post(history);
+  const text = await response.text();
+  expect(response.status).toBe(502);
+  expect(text).not.toContain(canary);
+  expect(text).not.toContain("TimeoutError");
+  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+  expect(timeout).toHaveBeenCalledWith(30_000);
+  const signal: unknown = timeout.mock.results[0]?.value;
+  expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(signal);
 });
 
 it("rejects an oversized body before parsing it", async () => {
