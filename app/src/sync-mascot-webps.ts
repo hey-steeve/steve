@@ -1,12 +1,17 @@
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import { createStaging, publishStaging, removeStaleStaging } from "./stage-publish";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sourceRoot = path.resolve(appDir, "../shared/assets/mascot");
-const publicDir = path.join(appDir, "public");
-const destDir = path.join(publicDir, "mascot");
+const defaultSourceRoot = path.resolve(appDir, "../shared/assets/mascot");
+const defaultPublicDir = path.join(appDir, "public");
+
+export interface MascotSyncTarget {
+  readonly publicDir: string;
+  readonly sourceRoot: string;
+}
 
 export const mascotWebps = [
   {
@@ -48,21 +53,21 @@ export const mascotWebps = [
   },
 ] as const;
 
-function clearStaging(): void {
-  if (!existsSync(publicDir)) {
-    return;
-  }
-  for (const name of readdirSync(publicDir)) {
-    if (name.startsWith("mascot.tmp-")) {
-      rmSync(path.join(publicDir, name), { recursive: true, force: true });
+function assertMascotSources(sourceRoot: string): void {
+  for (const item of mascotWebps) {
+    const source = path.join(sourceRoot, item.source);
+    if (!existsSync(source)) {
+      throw new Error(`Missing mascot source ${source}`);
     }
   }
 }
 
-export async function syncMascotWebps(): Promise<void> {
-  clearStaging();
-  const staging = path.join(publicDir, `mascot.tmp-${process.pid}-${Date.now()}`);
-  mkdirSync(staging, { recursive: true });
+export async function syncMascotWebps(target?: MascotSyncTarget): Promise<void> {
+  const publicDir = target?.publicDir ?? defaultPublicDir;
+  const sourceRoot = target?.sourceRoot ?? defaultSourceRoot;
+  assertMascotSources(sourceRoot);
+  removeStaleStaging(publicDir, "mascot.tmp-");
+  const staging = createStaging(publicDir, "mascot.tmp-");
   try {
     await Promise.all(
       mascotWebps.map(async (item) => {
@@ -84,10 +89,8 @@ export async function syncMascotWebps(): Promise<void> {
           .toFile(path.join(staging, item.file));
       }),
     );
-  } catch (error) {
+    publishStaging(staging, path.join(publicDir, "mascot"));
+  } finally {
     rmSync(staging, { recursive: true, force: true });
-    throw error;
   }
-  rmSync(destDir, { recursive: true, force: true });
-  renameSync(staging, destDir);
 }

@@ -1,39 +1,62 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import { expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { headerAvatarSrc, heroSrc, replyAvatarSrc, steveFace } from "./chat/faces.js";
 import { mascotWebps, syncMascotWebps } from "./sync-mascot-webps.js";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoot = path.resolve(appDir, "../shared/assets/mascot");
-const publicDir = path.join(appDir, "public");
-const destDir = path.join(publicDir, "mascot");
+const dayMs = 24 * 60 * 60 * 1000;
+const temps: string[] = [];
+
+function tempPublic(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "steve-mascot-"));
+  temps.push(dir);
+  return dir;
+}
+
+afterEach(() => {
+  for (const dir of temps.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 function fileName(url: string): string {
   return url.slice("/mascot/".length);
 }
 
 it("writes the webps the chat UI names, and only those", async () => {
+  const publicDir = tempPublic();
+  const destDir = path.join(publicDir, "mascot");
   const sources = mascotWebps.map((item) => readFileSync(path.join(sourceRoot, item.source)));
-  await syncMascotWebps();
+  await syncMascotWebps({ publicDir, sourceRoot });
   const first = new Map(
     mascotWebps.map((item) => [item.file, readFileSync(path.join(destDir, item.file))]),
   );
-  await syncMascotWebps();
+  await syncMascotWebps({ publicDir, sourceRoot });
 
-  const used = [
-    heroSrc,
-    headerAvatarSrc,
-    replyAvatarSrc,
-    ...Object.values(steveFace),
-  ].map(fileName);
+  const used = [heroSrc, headerAvatarSrc, replyAvatarSrc, ...Object.values(steveFace)].map(
+    fileName,
+  );
   expect(mascotWebps.map((item) => item.file).sort()).toEqual([...new Set(used)].sort());
   expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
   expect(existsSync(path.join(destDir, "hello.webp"))).toBe(false);
   expect(existsSync(path.join(destDir, "pfp-indigo.webp"))).toBe(false);
   expect(readdirSync(publicDir).some((name) => name.startsWith("mascot.tmp-"))).toBe(false);
+  expect(publicDir.startsWith(path.join(appDir, "public"))).toBe(false);
 
   for (const item of mascotWebps) {
     const bytes = readFileSync(path.join(destDir, item.file));
@@ -57,4 +80,56 @@ it("writes the webps the chat UI names, and only those", async () => {
     expect(source).toBeDefined();
     expect(readFileSync(path.join(sourceRoot, item.source))).toEqual(source);
   }
+});
+
+it("keeps another run's fresh staging directory and the published folder", async () => {
+  const publicDir = tempPublic();
+  const destDir = path.join(publicDir, "mascot");
+  await syncMascotWebps({ publicDir, sourceRoot });
+  const folder = statSync(destDir).ino;
+  const fresh = path.join(publicDir, "mascot.tmp-other-fresh");
+  const stale = path.join(publicDir, "mascot.tmp-other-stale");
+  mkdirSync(fresh);
+  mkdirSync(stale);
+  writeFileSync(path.join(fresh, "marker.txt"), "keep");
+  writeFileSync(path.join(stale, "marker.txt"), "drop");
+  const old = new Date(Date.now() - dayMs);
+  utimesSync(stale, old, old);
+  writeFileSync(path.join(destDir, "hello.webp"), "gone");
+
+  await syncMascotWebps({ publicDir, sourceRoot });
+
+  expect(statSync(destDir).ino).toBe(folder);
+  expect(readFileSync(path.join(fresh, "marker.txt"), "utf8")).toBe("keep");
+  expect(existsSync(stale)).toBe(false);
+  expect(existsSync(path.join(destDir, "hello.webp"))).toBe(false);
+  expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
+});
+
+it("leaves a complete mascot folder when two runs overlap", async () => {
+  const publicDir = tempPublic();
+  const fresh = path.join(publicDir, "mascot.tmp-other-live");
+  mkdirSync(fresh);
+  writeFileSync(path.join(fresh, "marker.txt"), "keep");
+
+  await Promise.all([
+    syncMascotWebps({ publicDir, sourceRoot }),
+    syncMascotWebps({ publicDir, sourceRoot }),
+  ]);
+
+  const destDir = path.join(publicDir, "mascot");
+  expect(statSync(destDir).isDirectory()).toBe(true);
+  expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
+  expect(readFileSync(path.join(fresh, "marker.txt"), "utf8")).toBe("keep");
+  const leftovers = readdirSync(publicDir).filter((name) => name.startsWith("mascot.tmp-"));
+  expect(leftovers).toEqual(["mascot.tmp-other-live"]);
+});
+
+it("throws before creating a staging directory when a mascot source is missing", async () => {
+  const publicDir = tempPublic();
+  const missing = path.join(publicDir, "no-source");
+  mkdirSync(missing);
+  await expect(syncMascotWebps({ publicDir, sourceRoot: missing })).rejects.toThrow();
+  expect(readdirSync(publicDir).some((name) => name.startsWith("mascot.tmp-"))).toBe(false);
+  expect(existsSync(path.join(publicDir, "mascot"))).toBe(false);
 });
