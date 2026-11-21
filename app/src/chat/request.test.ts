@@ -227,6 +227,26 @@ it("does not split an emoji when a reply is cut at the cap", () => {
   expect(reply.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
 });
 
+it("trims a mock echo that is cut after a space", () => {
+  const lead = "[Réponse simulée] Vous avez demandé : ";
+  const tail = ". Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
+  const room = chatRequestLimits.maxMessageChars - lead.length - tail.length;
+  const asked = `${"x".repeat(room - 4)}mot ${"y".repeat(8)}`;
+  const result = chatHttpResult({
+    messages: [{ role: "user", content: asked }],
+  });
+  expect(result.status).toBe(200);
+  if (result.status !== 200) {
+    return;
+  }
+  const { reply } = result.body;
+  expect(reply.startsWith(lead)).toBe(true);
+  expect(reply.endsWith(tail)).toBe(true);
+  expect(reply).toContain("mot. Je ne pose pas de diagnostic.");
+  expect(reply).not.toContain("mot . Je ne pose");
+  expect(reply.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
+});
+
 it("trims a reply that already fits under the cap", () => {
   expect(clampAssistantContent("  De garde.  ")).toBe("De garde.");
   const atCap = "a".repeat(chatRequestLimits.maxMessageChars);
