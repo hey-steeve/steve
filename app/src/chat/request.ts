@@ -1,3 +1,9 @@
+export const chatRequestLimits = {
+  maxBodyBytes: 1_048_576,
+  maxMessages: 40,
+  maxMessageChars: 4_000,
+} as const;
+
 export interface ChatTurn {
   readonly role: "user" | "assistant";
   readonly content: string;
@@ -38,7 +44,11 @@ export function parseChatMessages(body: unknown): readonly ChatTurn[] | null {
     return null;
   }
   const messages = field(body, "messages");
-  if (!Array.isArray(messages) || messages.length === 0) {
+  if (
+    !Array.isArray(messages) ||
+    messages.length === 0 ||
+    messages.length > chatRequestLimits.maxMessages
+  ) {
     return null;
   }
   const turns: ChatTurn[] = [];
@@ -86,7 +96,10 @@ export function toProviderMessages(
       content: message.content,
     });
   }
-  return turns;
+  if (turns.length <= chatRequestLimits.maxMessages) {
+    return turns;
+  }
+  return turns.slice(turns.length - chatRequestLimits.maxMessages);
 }
 
 export function parseChatReply(body: unknown): ChatReply {
@@ -118,7 +131,7 @@ function parseTurn(item: unknown): ChatTurn | null {
     return null;
   }
   const trimmed = content.trim();
-  if (trimmed.length === 0) {
+  if (trimmed.length === 0 || trimmed.length > chatRequestLimits.maxMessageChars) {
     return null;
   }
   return { role, content: trimmed };

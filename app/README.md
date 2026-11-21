@@ -20,6 +20,10 @@ A valid request returns HTTP 200 and the canned reply below when `STEVE_CHAT_LIV
 
 An invalid body returns HTTP 400 and `{ "error": "Requête invalide." }`. A body that is not JSON returns HTTP 400 and `{ "error": "JSON invalide." }`.
 
+The route accepts at most 40 messages. Each message is at most 4000 characters after trim. A longer history or a longer message returns HTTP 400 and `{ "error": "Requête invalide." }`.
+
+The route reads at most 1048576 bytes, then parses JSON. A larger body returns HTTP 413 and `{ "error": "Requête trop volumineuse." }`. The chat page sends only the newest 40 messages, so a long chat still fits.
+
 ## OpenRouter
 
 The names are in the root `.env.example`. There is no `app/.env.example`.

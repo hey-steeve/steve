@@ -1,4 +1,5 @@
 import {
+  chatRequestLimits,
   mockChatResult,
   parseChatMessages,
   type ChatHttpResult,
@@ -8,17 +9,20 @@ import {
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const defaultModel = "openrouter/auto";
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
+const invalidJsonError = "JSON invalide.";
+const tooLargeError = "Requête trop volumineuse.";
 const systemPrompt =
   "Tu es Steve, un assistant qui aide à organiser des démarches de santé. Tu n'es pas médecin, tu ne poses pas de diagnostic, et en cas d'urgence tu dis d'appeler le 15. Réponds brièvement en français.";
 
 export async function POST(request: Request): Promise<Response> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "JSON invalide." }, { status: 400 });
+  const read = await readChatBody(request);
+  if (read.kind === "too-large") {
+    return Response.json({ error: tooLargeError }, { status: 413 });
   }
-  const messages = parseChatMessages(body);
+  if (read.kind === "invalid") {
+    return Response.json({ error: invalidJsonError }, { status: 400 });
+  }
+  const messages = parseChatMessages(read.body);
   if (messages === null) {
     return Response.json({ error: "Requête invalide." }, { status: 400 });
   }
@@ -103,6 +107,77 @@ function readCompletion(
       ? modelField
       : requested;
   return { reply: content, model };
+}
+
+type ChatBodyRead =
+  | { readonly kind: "ok"; readonly body: unknown }
+  | { readonly kind: "too-large" }
+  | { readonly kind: "invalid" };
+
+async function readChatBody(request: Request): Promise<ChatBodyRead> {
+  const bytes = await readCappedBytes(request, chatRequestLimits.maxBodyBytes);
+  if (bytes === "too-large") {
+    return { kind: "too-large" };
+  }
+  if (bytes === "invalid") {
+    return { kind: "invalid" };
+  }
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return { kind: "invalid" };
+  }
+  try {
+    return { kind: "ok", body: JSON.parse(text) };
+  } catch {
+    return { kind: "invalid" };
+  }
+}
+
+async function readCappedBytes(
+  request: Request,
+  maxBytes: number,
+): Promise<Uint8Array | "too-large" | "invalid"> {
+  const stream = request.body;
+  if (stream === null) {
+    return new Uint8Array();
+  }
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      let next: ReadableStreamReadResult<Uint8Array>;
+      try {
+        next = await reader.read();
+      } catch {
+        return "invalid";
+      }
+      if (next.done) {
+        break;
+      }
+      const value = next.value;
+      if (value === undefined || value.byteLength === 0) {
+        continue;
+      }
+      if (total + value.byteLength > maxBytes) {
+        await reader.cancel();
+        return "too-large";
+      }
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
 }
 
 function requestedModel(): string {

@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   chatHttpResult,
+  chatRequestLimits,
   parseChatReply,
   toProviderMessages,
 } from "./request.js";
@@ -66,6 +67,49 @@ it("reads a chat reply and rejects any other shape", () => {
     "invalid",
   );
   expect(parseChatReply({ error: "non" }).kind).toBe("invalid");
+});
+
+it("rejects a history longer than the message cap", () => {
+  const atCap = Array.from({ length: chatRequestLimits.maxMessages }, () => ({
+    role: "user" as const,
+    content: "De garde",
+  }));
+  expect(chatHttpResult({ messages: atCap }).status).toBe(200);
+  expect(
+    chatHttpResult({
+      messages: [...atCap, { role: "user", content: "encore" }],
+    }),
+  ).toEqual({ status: 400, body: { error: "Requête invalide." } });
+});
+
+it("rejects a message longer than the content cap", () => {
+  const atCap = "a".repeat(chatRequestLimits.maxMessageChars);
+  expect(
+    chatHttpResult({ messages: [{ role: "user", content: atCap }] }).status,
+  ).toBe(200);
+  expect(
+    chatHttpResult({
+      messages: [{ role: "user", content: `${atCap}b` }],
+    }),
+  ).toEqual({ status: 400, body: { error: "Requête invalide." } });
+  expect(
+    chatHttpResult({ messages: [{ role: "user", content: ` ${atCap} ` }] }).status,
+  ).toBe(200);
+});
+
+it("keeps the newest turns when the history is over the message cap", () => {
+  const older = Array.from({ length: chatRequestLimits.maxMessages }, (_, index) => ({
+    role: "user" as const,
+    content: `old-${index}`,
+  }));
+  const sent = toProviderMessages([
+    ...older,
+    { role: "error", content: "Le service de chat est indisponible. Réessayez." },
+    { role: "user", content: "newest" },
+  ]);
+  expect(sent).toHaveLength(chatRequestLimits.maxMessages);
+  expect(sent[0]).toEqual({ role: "user", content: "old-1" });
+  expect(sent[sent.length - 1]).toEqual({ role: "user", content: "newest" });
 });
 
 it("omits error cards from the provider history", () => {

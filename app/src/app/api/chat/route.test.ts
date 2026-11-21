@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { chatRequestLimits } from "../../../chat/request.js";
 import { POST } from "./route.js";
 
 const canary = "test-openrouter-key-canary";
@@ -153,6 +154,35 @@ it("returns 502 and drops the upstream body when OpenRouter fails", async () => 
     expect(text).not.toContain("secret-fragment");
     expect(JSON.parse(text)).toEqual({ error: upstreamError });
   }
+});
+
+it("rejects an oversized body before parsing it", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  const fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await POST(
+    new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{".repeat(chatRequestLimits.maxBodyBytes + 1),
+    }),
+  );
+  expect(response.status).toBe(413);
+  expect(await response.json()).toEqual({ error: "Requête trop volumineuse." });
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("still parses a body that is exactly at the byte cap", async () => {
+  const response = await POST(
+    new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{".repeat(chatRequestLimits.maxBodyBytes),
+    }),
+  );
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "JSON invalide." });
 });
 
 it("rejects a body that is not JSON", async () => {
