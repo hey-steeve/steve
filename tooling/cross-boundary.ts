@@ -62,13 +62,7 @@ export function parseLabelList(raw: string): readonly string[] {
   if (trimmed === "" || trimmed === "null") {
     return [];
   }
-  if (trimmed.startsWith("[")) {
-    return parseJsonLabelList(trimmed);
-  }
-  return trimmed
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+  return parseJsonLabelList(trimmed).map((label) => label.trim());
 }
 
 function parseJsonLabelList(raw: string): readonly string[] {

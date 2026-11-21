@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
+import { parseCrossBoundaryInput } from "./cross-boundary-check.ts";
 import { crossBoundaryFailure, parseLabelList } from "./cross-boundary.ts";
 
 const appFile = "app/src/page.tsx";
@@ -271,6 +272,19 @@ it("runs the NUL diff from the workflow", () => {
   expect(workflow).toContain("app-shared-boundary:");
   expect(workflow).toContain("contents: read");
   expect(workflow).not.toContain("pull-requests: read");
+});
+
+it("parses NUL-separated paths and a JSON label list", () => {
+  const odd = "app/a\"b\\c\t\u0001.ts";
+  expect(
+    parseCrossBoundaryInput(`${odd}\0\0shared/y.ts\0`, '[" cross-boundary "]'),
+  ).toEqual({
+    files: [odd, "shared/y.ts"],
+    labels: ["cross-boundary"],
+  });
+  expect(() => parseCrossBoundaryInput("app/x.ts\0", "nope")).toThrow(
+    /PR_LABELS is not a JSON array of strings/,
+  );
 });
 
 it("reads labels from a JSON array and trims each one", () => {
