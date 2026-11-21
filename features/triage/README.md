@@ -1,59 +1,59 @@
 # triage
 
-## Rôle
+## Role
 
-`triage` classe chaque tour, puis oriente vers un type de praticien et un délai.
+`triage` classifies each turn, then orients toward a practitioner type and a delay.
 
-## Fait
+## Does
 
-- Un classifieur LLM, petit et borné, tourne à chaque tour.
-- La sortie est `urgent`, `watch` ou `not urgent`.
-- Zod valide la sortie.
-- Sortie invalide, ou délai dépassé : le résultat est `watch`, avec une question de confirmation.
-- Urgence ou doute : une question de confirmation, puis renvoi vers le 15.
-- Oriente vers un type de praticien et un délai.
-- Les évaluations couvrent 50 à 100 cas piégeux. Exemple : "mon père a fait un AVC il y a 5 ans".
-- Aucune urgence manquée n'est acceptée.
-- Les jeux de données sont dans Langfuse.
+- A small, scoped LLM classifier runs on every turn.
+- The output is `urgent`, `watch`, or `not urgent`.
+- Zod validates the output.
+- If the output is invalid, or the time limit is exceeded, the result is `watch`, with a confirmation question.
+- An emergency or a doubt leads to a confirmation question, then a referral to 15.
+- Orients toward a practitioner type and a delay.
+- Evaluations cover 50 to 100 tricky cases. Example: "mon père a fait un AVC il y a 5 ans".
+- No missed emergency is accepted.
+- The datasets are in Langfuse.
 
-## Ne fait pas
+## Does not
 
-- Ne diagnostique pas.
-- Ne prescrit pas.
-- Pas de liste de mots-clés.
-- Ne réserve pas.
+- Does not diagnose.
+- Does not prescribe.
+- No keyword list.
+- Does not book.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : le tour. Le contrat est à définir.
-- Sortie : `urgent`, `watch` ou `not urgent`, validée par Zod. Le schéma est à définir.
-- Orientation : type de praticien et délai. Les contrats sont à définir.
+- The input is the turn. The contract is to be defined.
+- The output is `urgent`, `watch`, or `not urgent`, validated by Zod. The schema is to be defined.
+- The orientation is a practitioner type and a delay. The contracts are to be defined.
 
-## Dépend de
+## Depends on
 
-`@steve/shared`, pour le client LLM. Zod. Langfuse.
+`@steve/shared`, for the LLM client. Zod. Langfuse.
 
-## Règles à tenir
+## Rules
 
-- Ne jamais diagnostiquer.
-- Ne jamais prescrire.
-- Pas de liste de mots-clés.
-- Sortie invalide, ou délai dépassé : résultat `watch`, puis une question de confirmation.
-- Urgence ou doute : question de confirmation, puis renvoi vers le 15.
-- Une urgence confirmée part vers le 15, sans réservation.
+- Never diagnose.
+- Never prescribe.
+- No keyword list.
+- If the output is invalid, or the time limit is exceeded, the result is `watch`, then a confirmation question.
+- An emergency or a doubt leads to a confirmation question, then a referral to 15.
+- A confirmed emergency goes to 15, with no booking.
 
-## Démo vs prod
+## Demo and production
 
-Le classifieur est le même. Le détail des jeux Langfuse est à définir.
+The classifier is the same. The Langfuse dataset detail is to be defined.
 
-## Vérifier
+## Check
 
-Les évaluations Langfuse couvrent 50 à 100 cas piégeux, avec zéro urgence manquée. La commande d'évaluation est à définir.
+Langfuse evaluations cover 50 to 100 tricky cases, with zero missed emergencies. The evaluation command is to be defined.
 
 `pnpm --filter @steve/triage test`
 
-Les tests du package sont à définir.
+The package tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:

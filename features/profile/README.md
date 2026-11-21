@@ -1,45 +1,45 @@
 # profile
 
-## Rôle
+## Role
 
-`profile` garde la mémoire du patient, sans l'interpréter.
+`profile` stores patient memory, without interpreting it.
 
-## Fait
+## Does
 
-- Identité.
-- Antécédents déclarés.
-- Préférences.
-- Historique des appels.
+- Identity.
+- Declared history.
+- Preferences.
+- Call history.
 
-## Ne fait pas
+## Does not
 
-- N'interprète pas cette mémoire.
-- Ne diagnostique pas.
+- Does not interpret that memory.
+- Does not diagnose.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : identité, antécédents déclarés, préférences, historique des appels. Les contrats sont à définir.
-- Sortie : mémoire relue. Les contrats sont à définir.
+- The input is the identity, the declared history, the preferences, and the call history. The contracts are to be defined.
+- The output is the memory, read back. The contracts are to be defined.
 
-## Dépend de
+## Depends on
 
 `@steve/shared`.
 
-## Règles à tenir
+## Rules
 
-- Aucune interprétation.
-- Ne jamais diagnostiquer.
+- No interpretation.
+- Never diagnose.
 
-## Démo vs prod
+## Demo and production
 
-À définir.
+To be defined.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/profile test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:

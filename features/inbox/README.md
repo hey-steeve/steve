@@ -1,47 +1,47 @@
 # inbox
 
-## Rôle
+## Role
 
-`inbox` est l'adresse e-mail de Steve.
+`inbox` is Steve's email address.
 
-## Fait
+## Does
 
-- Reçoit les confirmations.
-- Reçoit les comptes rendus.
-- Classe la confirmation ou le compte rendu dans `vault` ou dans `reminders`.
-- Envoie des documents aux praticiens.
+- Receives confirmations.
+- Receives reports.
+- Files the confirmation or the report in `vault` or in `reminders`.
+- Sends documents to practitioners.
 
-## Ne fait pas
+## Does not
 
-- Ne diagnostique pas.
-- Ne réserve pas.
+- Does not diagnose.
+- Does not book.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : confirmation, ou compte rendu. Les contrats sont à définir.
-- Classement vers `vault`, ou vers `reminders`. Les contrats sont à définir.
-- Sortie : document envoyé à un praticien. Le contrat est à définir.
+- The input is a confirmation, or a report. The contracts are to be defined.
+- Filing into `vault`, or into `reminders`. The contracts are to be defined.
+- The output is a document sent to a practitioner. The contract is to be defined.
 
-## Dépend de
+## Depends on
 
-`@steve/shared`. Le lien avec `vault` et avec `reminders` passe par des contrats partagés, à définir.
+`@steve/shared`. The link with `vault` and with `reminders` goes through shared contracts, to be defined.
 
-## Règles à tenir
+## Rules
 
-- Ne jamais diagnostiquer.
-- Rien n'entre dans l'agenda sans confirmation du cabinet.
-- Les rappels ne portent que sur les rendez-vous qui sont dans l'agenda.
+- Never diagnose.
+- Nothing enters the agenda without confirmation from the practice.
+- Reminders cover only appointments that are in the agenda.
 
-## Démo vs prod
+## Demo and production
 
-À définir.
+To be defined.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/inbox test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:

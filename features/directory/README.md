@@ -1,48 +1,48 @@
 # directory
 
-## Rôle
+## Role
 
-`directory` trouve des praticiens par spécialité, par distance et par conventionnement.
+`directory` finds practitioners by specialty, by distance, and by conventionnement.
 
-## Fait
+## Does
 
-- Interroge le vrai Annuaire Santé public.
-- Sources : RPPS, annuaire.sante.fr, données ouvertes de l'ANS.
+- Queries the real public Annuaire Santé.
+- Sources: RPPS, annuaire.sante.fr, and ANS open data.
 
-## Ne fait pas
+## Does not
 
-- Ne réserve pas.
-- N'utilise pas Doctolib.
-- Un partenariat Doctolib est seulement un sujet futur.
-- Pas d'API publique de réservation Doctolib.
+- Does not book.
+- Does not use Doctolib.
+- A Doctolib partnership is only a future topic.
+- No public Doctolib booking API.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : spécialité, distance, conventionnement. Les contrats sont à définir.
-- Sortie : praticiens trouvés. Le contrat est à définir.
+- The input is the specialty, the distance, and the conventionnement. The contracts are to be defined.
+- The output is the practitioners found. The contract is to be defined.
 
-## Dépend de
+## Depends on
 
-`@steve/shared`. L'Annuaire Santé public : le RPPS, annuaire.sante.fr, et les données ouvertes de l'ANS.
+`@steve/shared`. The public Annuaire Santé: RPPS, annuaire.sante.fr, and ANS open data.
 
-## Règles à tenir
+## Rules
 
-- La source est l'Annuaire Santé public réel.
-- Le mode d'accès, API ou extraits, est à vérifier.
-- `directory` ne réserve pas.
-- Ne jamais diagnostiquer.
-- Doctolib reste un partenariat futur, sans API publique de réservation.
+- The source is the real public Annuaire Santé.
+- The access mode, API or extracts, is to be checked.
+- `directory` does not book.
+- Never diagnose.
+- Doctolib stays a future partnership, with no public booking API.
 
-## Démo vs prod
+## Demo and production
 
-La source reste l'Annuaire Santé réel. Le mode d'accès, API ou extraits, est à vérifier.
+The source stays the real Annuaire Santé. The access mode, API or extracts, is to be checked.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/directory test`
 
-Les tests sont à définir. L'accès, API ou extraits, est à vérifier.
+The tests are to be defined. Access, API or extracts, is to be checked.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:

@@ -1,47 +1,47 @@
 # conversation
 
-## Rôle
+## Role
 
-`conversation` orchestre une conversation, en voix ou en texte, avec le même flux.
+`conversation` runs one conversation, by voice or by text, with the same flow.
 
-## Fait
+## Does
 
-- Accueille le patient.
-- Comprend la demande.
-- Passe la main.
-- La voix passe par `voice`.
-- Le texte est le chat de l'app. Le SMS et l'e-mail viendront plus tard, par `inbox`.
+- Greets the patient.
+- Understands the request.
+- Hands off.
+- Voice goes through `voice`.
+- Text is the app chat. SMS and email come later, through `inbox`.
 
-## Ne fait pas
+## Does not
 
-- Ne fait pas le triage.
-- Ne réserve pas.
+- Does not triage.
+- Does not book.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : un tour en voix, ou un tour en texte. Les contrats sont à définir.
-- Sortie : passage de main. Les contrats sont à définir.
+- The input is a voice turn, or a text turn. The contracts are to be defined.
+- The output is a handoff. The contracts are to be defined.
 
-## Dépend de
+## Depends on
 
-`@steve/shared` seulement. Le lien avec `voice` et avec `inbox` passe par des contrats partagés, à définir.
+`@steve/shared` only. The link with `voice` and with `inbox` goes through shared contracts, to be defined.
 
-## Règles à tenir
+## Rules
 
-- Ne jamais diagnostiquer.
-- Une urgence confirmée part vers le 15, sans réservation.
-- Chaque conversation se termine avec le patient informé.
+- Never diagnose.
+- A confirmed emergency goes to 15, with no booking.
+- Every conversation ends with the patient informed.
 
-## Démo vs prod
+## Demo and production
 
-Le flux est le même en voix et en texte. La différence entre la démo et la prod est à définir.
+The flow is the same by voice and by text. The difference between the demo and production is to be defined.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/conversation test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:
