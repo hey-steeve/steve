@@ -1032,6 +1032,31 @@ it("follows the next reply when a keyboard close lands inside 80px without scrol
   }
 });
 
+it("hides the pill when a keyboard close re-pins a reader 480px up", async () => {
+  const session = await pendingThread();
+  try {
+    session.viewport.height = 420;
+    session.viewport.offsetTop = 180;
+    await fireViewport(session.viewport);
+    const parked = threadLength - session.thread.clientHeight - 480;
+    session.scrolled.top = parked;
+    session.thread.dispatchEvent(new Event("scroll"));
+    await session.release("Voici la suite.");
+    expect(newMessagePill(session.container)).not.toBeNull();
+    session.viewport.height = 844;
+    session.viewport.offsetTop = 0;
+    await fireViewport(session.viewport);
+    const gap =
+      session.thread.scrollHeight - session.thread.scrollTop - session.thread.clientHeight;
+    expect(gap).toBeGreaterThan(0);
+    expect(gap).toBeLessThanOrEqual(80);
+    expect(session.scrolled.top).toBe(parked);
+    expect(newMessagePill(session.container)).toBeNull();
+  } finally {
+    session.restore();
+  }
+});
+
 it("still shows the pill when a viewport resize leaves the reader outside 80px", async () => {
   const session = await pendingThread();
   try {
