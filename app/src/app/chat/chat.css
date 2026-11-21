@@ -552,6 +552,16 @@
   outline-offset: 2px;
 }
 
+.chat-sheet .chat-chip {
+  border-color: var(--color-lavender-100);
+  background: var(--color-lavender-50);
+}
+
+.chat-sheet .chat-composer {
+  background: var(--color-lavender-50);
+  box-shadow: inset 0 0 0 1px var(--color-lavender-100), var(--card-shadow);
+}
+
 .chat-field {
   flex: 1 1 0;
   min-width: 0;
