@@ -176,11 +176,20 @@ function completeSentences(content: string): string | null {
 }
 
 function isLineStartNumberDot(text: string, dotIndex: number): boolean {
+  const next = text.charAt(dotIndex + 1);
+  if (next !== " " && next !== "\t") {
+    return false;
+  }
   let lineStart = dotIndex;
   while (lineStart > 0 && text.charAt(lineStart - 1) !== "\n") {
     lineStart -= 1;
   }
-  return /^\s*\d+$/.test(text.slice(lineStart, dotIndex));
+  const matched = /^\s*(\d+)$/.exec(text.slice(lineStart, dotIndex));
+  if (matched === null) {
+    return false;
+  }
+  const number = matched[1];
+  return number !== undefined && number !== "15" && number !== "3114";
 }
 
 function closingGuillemet(text: string, from: number): number | null {
