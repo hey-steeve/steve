@@ -11,12 +11,18 @@ type Block =
   | { readonly kind: "paragraph"; readonly lines: readonly string[] }
   | {
       readonly kind: "list";
-      readonly ordered: boolean;
+      readonly ordered: false;
+      readonly items: readonly string[];
+    }
+  | {
+      readonly kind: "list";
+      readonly ordered: true;
+      readonly start: number;
       readonly items: readonly string[];
     };
 
 const bulletPattern = /^[-*]\s+(.*)$/;
-const orderedPattern = /^\d+[.)]\s+(.*)$/;
+const orderedPattern = /^(\d+)[.)]\s+(.*)$/;
 
 export function ChatMarkdown({ text }: { readonly text: string }) {
   return parseBlocks(text).map((block, index) => renderBlock(block, index));
@@ -27,7 +33,13 @@ function renderBlock(block: Block, key: number): ReactNode {
     const items = block.items.map((item, index) =>
       createElement("li", { key: index }, renderInline(item, `${key}-${index}`)),
     );
-    return createElement(block.ordered ? "ol" : "ul", { key }, items);
+    if (!block.ordered) {
+      return createElement("ul", { key }, items);
+    }
+    if (block.start === 1) {
+      return createElement("ol", { key }, items);
+    }
+    return createElement("ol", { key, start: block.start }, items);
   }
   const children: ReactNode[] = [];
   for (let index = 0; index < block.lines.length; index += 1) {
@@ -82,7 +94,12 @@ function parseBlocks(source: string): readonly Block[] {
     }
     if (orderedPattern.test(line)) {
       const items = takeItems(lines, index, orderedPattern);
-      blocks.push({ kind: "list", ordered: true, items });
+      blocks.push({
+        kind: "list",
+        ordered: true,
+        start: orderedStart(line),
+        items,
+      });
       index += items.length;
       continue;
     }
@@ -105,6 +122,19 @@ function parseBlocks(source: string): readonly Block[] {
   return blocks;
 }
 
+function orderedStart(line: string): number {
+  const match = orderedPattern.exec(line);
+  const digits = match?.[1];
+  if (digits === undefined) {
+    return 1;
+  }
+  const start = Number.parseInt(digits, 10);
+  if (!Number.isFinite(start)) {
+    return 1;
+  }
+  return start;
+}
+
 function takeItems(
   lines: readonly string[],
   start: number,
@@ -117,7 +147,7 @@ function takeItems(
     if (match === null) {
       break;
     }
-    items.push(match[1] ?? "");
+    items.push(match[match.length - 1] ?? "");
   }
   return items;
 }
