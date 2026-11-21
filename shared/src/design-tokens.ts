@@ -1,5 +1,5 @@
 const indigo500 = "#5c59f3";
-const lavender = "#dac4e8";
+const lavender100 = "#eaddf2";
 const page = "#eff1fe";
 const profile = "#daddfe";
 const emphasis = 500;
@@ -13,7 +13,7 @@ export const designTokens = {
     indigo900: "#0c0a66",
     indigo100: "#d6dbff",
     indigo50: "#f0f3ff",
-    lavender,
+    lavender100,
     page,
     profile,
     heading: "#282830",

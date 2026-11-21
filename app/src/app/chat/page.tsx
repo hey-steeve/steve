@@ -625,7 +625,7 @@ function ProfileButton() {
 function SteveAvatar() {
   return (
     <span className="chat-avatar chat-avatar-agent" aria-hidden="true">
-      <img src={replyAvatarSrc} alt="" width={32} height={32} />
+      <img src={replyAvatarSrc} alt="" width={24} height={24} />
     </span>
   );
 }

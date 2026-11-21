@@ -249,6 +249,74 @@ it("paints the home chips and composer white, and the profile face lavender", as
   }
 });
 
+it("frames message avatars in a white circle with a lavender ring", async () => {
+  const canvas = designTokens.color.canvas;
+  const ring = designTokens.color.lavender100;
+  const style = document.createElement("style");
+  style.textContent = chatCss;
+  document.head.append(style);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+    ),
+  );
+  try {
+    const view = await mount(
+      createElement(RootLayout, null, createElement(ChatPage)),
+    );
+    const chip = view.container.querySelector(".chat-chip");
+    if (!(chip instanceof HTMLButtonElement)) {
+      throw new Error("missing suggestion");
+    }
+    await act(async () => {
+      chip.click();
+    });
+    const avatars = [
+      view.container.querySelector(".chat-row-agent .chat-avatar"),
+      view.container.querySelector(".chat-row-user .chat-avatar"),
+    ];
+    for (const avatar of avatars) {
+      if (!(avatar instanceof HTMLElement)) {
+        throw new Error("missing message avatar");
+      }
+      const computed = getComputedStyle(avatar);
+      expect({
+        background: channels(computed.backgroundColor),
+        ring: channels(computed.borderTopColor),
+        border: computed.borderTopWidth,
+        padding: computed.paddingTop,
+        boxSizing: computed.boxSizing,
+        width: computed.width,
+        height: computed.height,
+        radius: computed.borderRadius,
+      }).toEqual({
+        background: channels(canvas),
+        ring: channels(ring),
+        border: "1px",
+        padding: "3px",
+        boxSizing: "border-box",
+        width: "32px",
+        height: "32px",
+        radius: "999px",
+      });
+    }
+    const image = view.container.querySelector(".chat-avatar-agent img");
+    if (!(image instanceof HTMLImageElement)) {
+      throw new Error("missing Steve avatar");
+    }
+    expect(image.alt).toBe("");
+    expect(image.getAttribute("width")).toBe("24");
+    expect(image.getAttribute("height")).toBe("24");
+    const imageStyle = getComputedStyle(image);
+    expect(imageStyle.width).toBe("100%");
+    expect(imageStyle.height).toBe("100%");
+  } finally {
+    style.remove();
+    document.documentElement.removeAttribute("style");
+  }
+});
+
 it("shows the composer disclaimer as one line with no digits", async () => {
   const view = await mount();
   const disclaimer = view.container.querySelector(".chat-disclaimer");

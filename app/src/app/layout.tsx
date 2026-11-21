@@ -43,6 +43,7 @@ function themeCss(): string {
   return [
     `--color-primary:${color.primary}`,
     `--color-indigo-50:${color.indigo50}`,
+    `--color-lavender-100:${color.lavender100}`,
     `--color-page:${color.page}`,
     `--color-profile:${color.profile}`,
     `--color-indigo-100:${color.indigo100}`,
