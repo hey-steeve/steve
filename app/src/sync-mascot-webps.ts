@@ -20,7 +20,7 @@ export const mascotWebps = [
     width: 192,
     height: 192,
   },
-  { file: "shrug.webp", source: "body/shrug.png", height: 640 },
+  { file: "bubbles.webp", source: "body/bubbles.png", height: 640 },
   {
     file: "state-calling.webp",
     source: "states/calling.png",

@@ -90,9 +90,9 @@ it("writes the webps the chat UI names, and only those", async () => {
     }
   }
 
-  const shrug = await sharp(path.join(destDir, "shrug.webp")).metadata();
-  expect(shrug.width).toBe(514);
-  expect(shrug.height).toBe(640);
+  const bubbles = await sharp(path.join(destDir, "bubbles.webp")).metadata();
+  expect(bubbles.width).toBe(892);
+  expect(bubbles.height).toBe(640);
 
   for (const [index, item] of mascotWebps.entries()) {
     const source = sources[index];

@@ -22,7 +22,7 @@ The files in `body/`, in `duo/`, and in `avatar/` match no moment.
 
 `body/` holds the full body, with transparency.
 
-- `hello.png` is the empty-state pose. This file matches no moment. Steve waves with one hand.
+- `hello.png` is the wave pose. This file matches no moment. Steve waves with one hand.
 - `present.png` is the presentation pose. Steve holds out one hand.
 - `celebrate.png` is the celebration pose. Steve raises both arms.
 - `shrug.png` is the pose where Steve shrugs, palms up. The file is 688 by 857 pixels.
@@ -32,6 +32,7 @@ The files in `body/`, in `duo/`, and in `avatar/` match no moment.
 - `clipboard.png` is the pose where Steve holds a clipboard with checkboxes. The file is 469 by 861 pixels.
 - `sitting.png` is the pose where Steve sits with crossed legs. The file is 500 by 849 pixels.
 - `calling.png` is the pose where Steve holds the phone to one ear, with the other hand open. The file is 599 by 857 pixels. This is not the bust `states/calling.png`.
+- `bubbles.png` is the home-sheet pose. Steve lies on his belly and blows soap bubbles. The file is 992 by 712 pixels.
 - `lounge-call.png` is a square icon-style illustration, on a lavender background `#DAC4E8`. The file is 1024 by 1024 pixels. This is not a transparent pose.
 
 `duo/` holds Steve with Alan the marmot. Each file is an opaque JPEG of 1152 by 864 pixels.
@@ -64,4 +65,4 @@ These files are the source. Do not edit them in place. Derive the resized copies
 
 `SHA256SUMS` contains the checksums of the approved original.
 
-`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png` and `pfp-lavender.png`. `body/lounge-call.png` is 1024 by 1024 pixels and is not a transparent pose. The seven new poses in `body/` are transparent PNGs of another size. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels.
+`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png` and `pfp-lavender.png`. `body/lounge-call.png` is 1024 by 1024 pixels and is not a transparent pose. The eight new poses in `body/` are transparent PNGs of another size. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels.
