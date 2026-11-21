@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdtempSync,
@@ -37,6 +38,24 @@ afterEach(() => {
 function fileName(url: string): string {
   return url.slice("/mascot/".length);
 }
+
+it("registers the bubbles pose", async () => {
+  const relative = "body/bubbles.png";
+  const png = path.join(sourceRoot, relative);
+  expect(existsSync(png)).toBe(true);
+  const meta = await sharp(png).metadata();
+  expect(meta.width).toBe(992);
+  expect(meta.height).toBe(712);
+  expect(meta.hasAlpha).toBe(true);
+  const hash = createHash("sha256").update(readFileSync(png)).digest("hex");
+  const sums = readFileSync(path.join(sourceRoot, "SHA256SUMS"), "utf8");
+  expect(sums.split("\n")).toContain(`${hash}  ${relative}`);
+  expect(mascotWebps).toContainEqual({
+    file: "bubbles.webp",
+    source: relative,
+    height: 640,
+  });
+});
 
 it("writes the webps the chat UI names, and only those", async () => {
   const publicDir = tempPublic();

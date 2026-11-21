@@ -78,6 +78,21 @@ it("renders the home greeting", async () => {
   expect(view.container.querySelector('[aria-label="Retour"]')).toBeNull();
 });
 
+it("shows the bubbles pose on the empty home sheet", () => {
+  const html = renderToStaticMarkup(createElement(ChatPage));
+  const host = document.createElement("div");
+  host.innerHTML = html;
+  const img = host.querySelector(".chat-hero-mascot");
+  if (!(img instanceof HTMLImageElement)) {
+    throw new Error("missing home hero");
+  }
+  expect(img.getAttribute("src")).toBe("/mascot/bubbles.webp");
+  expect(img.alt).toBe("Steve allongé qui fait des bulles");
+  expect(img.getAttribute("width")).toBe("892");
+  expect(img.getAttribute("height")).toBe("640");
+  expect(chatCss).toContain("aspect-ratio: 892 / 640");
+});
+
 it("paints the home chips and composer with the lavender tokens", async () => {
   const fill = designTokens.color.lavender50;
   const edge = designTokens.color.lavender100;
