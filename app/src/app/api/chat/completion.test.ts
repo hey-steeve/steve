@@ -172,15 +172,14 @@ it("returns the upstream error when a length-capped reply has no complete senten
   }
 });
 
-it("returns the assistant text when finish_reason is error", async () => {
+it("returns the upstream error when finish_reason is error", async () => {
   const content = "Une pharmacie de garde.";
   const response = await liveReply({ finish_reason: "error", content });
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({
-    reply: content,
-    mocked: false,
-    model: "google/gemini-3.8-flash",
-  });
+  const text = await response.text();
+  expect(response.status).toBe(502);
+  expect(text).not.toContain(content);
+  expect(text).not.toContain(canary);
+  expect(JSON.parse(text)).toEqual({ error: upstreamError });
 });
 
 it("returns the upstream error when the OpenRouter JSON omits choices", async () => {
