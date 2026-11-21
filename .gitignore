@@ -9,3 +9,5 @@ app/next-env.d.ts
 .env.local
 app/public/icons/
 app/public/icons.tmp-*
+app/public/mascot/
+app/public/mascot.tmp-*
