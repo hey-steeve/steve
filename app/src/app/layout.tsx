@@ -34,6 +34,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
+  themeColor: designTokens.color.lavender,
 };
 
 function themeCss(): string {
@@ -42,6 +43,7 @@ function themeCss(): string {
   return [
     `--color-primary:${color.primary}`,
     `--color-indigo-50:${color.indigo50}`,
+    `--color-lavender:${color.lavender}`,
     `--color-indigo-100:${color.indigo100}`,
     `--color-indigo-700:${color.indigo700}`,
     `--color-indigo-900:${color.indigo900}`,
@@ -50,7 +52,6 @@ function themeCss(): string {
     `--color-caption:${color.caption}`,
     `--color-danger:${color.danger}`,
     `--color-canvas:${color.canvas}`,
-    `--color-surface:${color.surface}`,
     `--color-border:${color.border}`,
     `--radius-default:${designTokens.radius.default}`,
     `--shadow-faint:${designTokens.shadow.faint}`,
