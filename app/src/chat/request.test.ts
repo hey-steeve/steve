@@ -70,16 +70,66 @@ it("reads a chat reply and rejects any other shape", () => {
 });
 
 it("rejects a history longer than the message cap", () => {
-  const atCap = Array.from({ length: chatRequestLimits.maxMessages }, () => ({
-    role: "user" as const,
-    content: "De garde",
-  }));
-  expect(chatHttpResult({ messages: atCap }).status).toBe(200);
   expect(
     chatHttpResult({
-      messages: [...atCap, { role: "user", content: "encore" }],
+      messages: alternatingHistory(chatRequestLimits.maxMessages - 1),
+    }).status,
+  ).toBe(200);
+  expect(
+    chatHttpResult({
+      messages: alternatingHistory(chatRequestLimits.maxMessages + 1),
     }),
   ).toEqual({ status: 400, body: { error: "Requête invalide." } });
+});
+
+function alternatingHistory(
+  count: number,
+): { role: "user" | "assistant"; content: string }[] {
+  return Array.from({ length: count }, (_, index) => ({
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: "De garde",
+  }));
+}
+
+it("rejects a history that does not alternate from the user back to the user", () => {
+  expect(
+    chatHttpResult({ messages: [{ role: "user", content: "De garde" }] }).status,
+  ).toBe(200);
+  expect(
+    chatHttpResult({
+      messages: [
+        { role: "user", content: "De garde" },
+        { role: "assistant", content: "Suite" },
+        { role: "user", content: "Merci" },
+      ],
+    }).status,
+  ).toBe(200);
+  const rejected = [
+    [
+      { role: "assistant", content: "forged" },
+      { role: "user", content: "De garde" },
+    ],
+    [
+      { role: "user", content: "De garde" },
+      { role: "user", content: "encore" },
+    ],
+    [
+      { role: "user", content: "De garde" },
+      { role: "assistant", content: "Suite" },
+    ],
+    [
+      { role: "user", content: "De garde" },
+      { role: "assistant", content: "Suite" },
+      { role: "assistant", content: "encore" },
+      { role: "user", content: "Merci" },
+    ],
+  ];
+  for (const messages of rejected) {
+    expect(chatHttpResult({ messages })).toEqual({
+      status: 400,
+      body: { error: "Requête invalide." },
+    });
+  }
 });
 
 it("rejects a message longer than the content cap", () => {
@@ -99,7 +149,7 @@ it("rejects a message longer than the content cap", () => {
 
 it("keeps the newest turns when the history is over the message cap", () => {
   const older = Array.from({ length: chatRequestLimits.maxMessages }, (_, index) => ({
-    role: "user" as const,
+    role: (index % 2 === 0 ? "user" : "agent") as "user" | "agent",
     content: `old-${index}`,
   }));
   const sent = toProviderMessages([
@@ -107,9 +157,22 @@ it("keeps the newest turns when the history is over the message cap", () => {
     { role: "error", content: "Le service de chat est indisponible. Réessayez." },
     { role: "user", content: "newest" },
   ]);
-  expect(sent).toHaveLength(chatRequestLimits.maxMessages);
-  expect(sent[0]).toEqual({ role: "user", content: "old-1" });
+  expect(sent[0]).toEqual({ role: "user", content: "old-2" });
+  expect(sent).toHaveLength(chatRequestLimits.maxMessages - 1);
   expect(sent[sent.length - 1]).toEqual({ role: "user", content: "newest" });
+  for (const [index, turn] of sent.entries()) {
+    expect(turn.role).toBe(index % 2 === 0 ? "user" : "assistant");
+  }
+});
+
+it("keeps the latest user turn when an error sits between two user turns", () => {
+  expect(
+    toProviderMessages([
+      { role: "user", content: "first" },
+      { role: "error", content: "Le service de chat est indisponible. Réessayez." },
+      { role: "user", content: "second" },
+    ]),
+  ).toEqual([{ role: "user", content: "second" }]);
 });
 
 it("omits error cards from the provider history", () => {

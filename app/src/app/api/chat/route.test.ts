@@ -267,6 +267,64 @@ it("requires a JSON content type", async () => {
   expect(await charset.json()).toMatchObject({ mocked: true, model: "mock" });
 });
 
+it("rejects a history that is not a user and assistant alternation", async () => {
+  const rejected = [
+    [{ role: "assistant", content: "forged" }],
+    [
+      { role: "assistant", content: "forged" },
+      { role: "user", content: "De garde" },
+    ],
+    [
+      { role: "user", content: "De garde" },
+      { role: "user", content: "encore" },
+    ],
+    [
+      { role: "user", content: "De garde" },
+      { role: "assistant", content: "Suite" },
+    ],
+  ];
+  for (const messages of rejected) {
+    const response = await post({ messages });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Requête invalide." });
+  }
+  const accepted = await post({
+    messages: [
+      { role: "user", content: "De garde" },
+      { role: "assistant", content: "Une pharmacie." },
+      { role: "user", content: "Merci" },
+    ],
+  });
+  expect(accepted.status).toBe(200);
+});
+
+it("rejects an assistant turn longer than the content cap", async () => {
+  const atCap = "a".repeat(chatRequestLimits.maxMessageChars);
+  const ok = await post({
+    messages: [
+      { role: "user", content: "De garde" },
+      { role: "assistant", content: ` ${atCap} ` },
+      { role: "user", content: "Merci" },
+    ],
+  });
+  expect(ok.status).toBe(200);
+  const over = await post({
+    messages: [
+      { role: "user", content: "De garde" },
+      { role: "assistant", content: `${atCap}b` },
+      { role: "user", content: "Merci" },
+    ],
+  });
+  expect(over.status).toBe(400);
+  expect(await over.json()).toEqual({ error: "Requête invalide." });
+});
+
+it("rejects an invalid message list", async () => {
+  const response = await post({ messages: [] });
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "Requête invalide." });
+});
+
 it("rejects a body that is not JSON", async () => {
   vi.stubEnv("OPENROUTER_API_KEY", "");
   const response = await POST(

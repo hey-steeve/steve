@@ -4,7 +4,7 @@
 
 ## POST /api/chat
 
-The request body is JSON. `messages` is a non-empty array. Each item has `role` and `content`. `role` is `user` or `assistant`. `content` is a non-empty string after trim. At least one item has role `user`.
+The request body is JSON. `messages` is a non-empty array. Each item has `role` and `content`. `role` is `user` or `assistant`. `content` is a non-empty string after trim. Turns alternate between `user` and `assistant`. The first turn is `user`. The last turn is `user`.
 
 A valid request returns HTTP 200 and the canned reply below when `STEVE_CHAT_LIVE` is not `1`, and also when `STEVE_CHAT_LIVE` is `1` but `OPENROUTER_API_KEY` is missing or empty.
 
@@ -20,9 +20,9 @@ A valid request returns HTTP 200 and the canned reply below when `STEVE_CHAT_LIV
 
 An invalid body returns HTTP 400 and `{ "error": "Requête invalide." }`. A body that is not JSON returns HTTP 400 and `{ "error": "JSON invalide." }`.
 
-The route accepts at most 40 messages. Each message is at most 4000 characters after trim. A longer history or a longer message returns HTTP 400 and `{ "error": "Requête invalide." }`.
+The route accepts at most 40 messages. Each message is at most 4000 characters after trim. That limit applies to an assistant turn and to a user turn. A longer history returns HTTP 400 and `{ "error": "Requête invalide." }`. A longer message returns that same response. A history that does not alternate returns that same response.
 
-The route reads at most 1048576 bytes, then parses JSON. A larger body returns HTTP 413 and `{ "error": "Requête trop volumineuse." }`. The chat page sends only the newest 40 messages, so a long chat still fits.
+The route reads at most 1048576 bytes, then parses JSON. A larger body returns HTTP 413 and `{ "error": "Requête trop volumineuse." }`. The chat page sends only the newest 40 messages, so a long chat still fits. If that slice would start on an assistant turn, the page drops that turn. The request still starts with a user turn.
 
 A request whose `Content-Type` media type is not `application/json` returns HTTP 415 and `{ "error": "Type de contenu non pris en charge." }`. The route accepts `application/json` with parameters, such as `charset=utf-8`.
 
