@@ -8,19 +8,21 @@
 
 Chaque fichier est un PNG de 1024 pixels sur 1024.
 
-`states/` contient des bustes, tête et épaules, avec transparence. Chaque fichier correspond à un moment de `app/src/moments.ts`.
+`states/` contient des bustes, tête et épaules, avec transparence. Le nom de chaque fichier suit la pose visuelle. Il ne suit ni l'id du moment ni le `state`.
 
-- `listening.png` correspond à l'écoute, moment `listening`. Steve a les yeux ouverts.
-- `thinking.png` correspond au triage, moment `thinking`. La visière montre un anneau.
-- `calling.png` correspond à l'appel au cabinet, moment `calling`. Steve est au téléphone.
-- `done.png` correspond au créneau confirmé. L'id du moment est `happy` et son `state` est `done`. Steve est content.
-- `urgent.png` correspond à l'urgence. L'id du moment est `serious` et son `state` est `blocked`. Les yeux sont des points d'exclamation.
+Le moment `idle` dans `app/src/moments.ts` n'a pas d'image dédiée.
+
+- `listening.png` correspond au moment `listening` et au state `waiting`. Steve a les yeux ouverts.
+- `thinking.png` correspond au moment `thinking` et au state `thinking`. La visière montre un anneau.
+- `calling.png` correspond au moment `calling` et au state `working`. Steve est au téléphone.
+- `done.png` correspond au moment `happy` et au state `done`. Steve est content.
+- `urgent.png` correspond au moment `serious` et au state `blocked`. Les yeux sont des points d'exclamation.
 
 Les fichiers de `body/` et de `avatar/` ne correspondent à aucun moment.
 
 `body/` contient le corps entier, avec transparence.
 
-- `hello.png` sert à l'état vide. Steve salue de la main.
+- `hello.png` est la pose de l'état vide. Ce fichier ne correspond à aucun moment. Steve salue de la main.
 - `present.png` est la pose de présentation. Steve tend une main.
 - `celebrate.png` est la pose de célébration. Steve lève les deux bras.
 
@@ -29,6 +31,8 @@ Les fichiers de `body/` et de `avatar/` ne correspondent à aucun moment.
 - `head.png` est la tête seule, avec transparence.
 - `pfp-indigo.png` est une photo de profil carrée et opaque, sur fond indigo.
 - `pfp-lavender.png` est une photo de profil carrée et opaque, sur fond lavande.
+
+Aucune app n'utilise encore ces PNG. Ces fichiers sont séparés de la définition de la marmotte dans `shared/src/mascot`. Cette définition sera remplacée plus tard.
 
 ## Ne fait pas
 
@@ -41,6 +45,8 @@ Ces fichiers sont la source. Ne pas les éditer sur place. Dériver les copies r
 
 ## Vérifier
 
-`shasum -a 256 shared/assets/mascot/*/*.png`
+`cd shared/assets/mascot && shasum -a 256 -c SHA256SUMS`
 
-Chaque somme reste celle de l'original approuvé. Le format reste un PNG de 1024 pixels sur 1024, avec transparence, sauf `pfp-indigo.png` et `pfp-lavender.png`.
+`SHA256SUMS` contient les sommes de l'original approuvé.
+
+Le format reste un PNG de 1024 pixels sur 1024, avec transparence, sauf `pfp-indigo.png` et `pfp-lavender.png`.
