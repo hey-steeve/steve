@@ -161,6 +161,32 @@ it("keeps 15 when prose follows a list item", async () => {
   });
 });
 
+it("keeps 3114 when a length cut follows an unfinished list item", async () => {
+  const response = await liveReply({
+    finish_reason: "length",
+    content: "1. Si tu penses au suicide, appelle le\n3114. Puis parle…",
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    reply: "1. Si tu penses au suicide, appelle le\n3114.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+});
+
+it("keeps a bare 3114 after a finished list item", async () => {
+  const response = await liveReply({
+    finish_reason: "length",
+    content: "1. Parlez-en à un proche.\n3114. Ils écoutent",
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    reply: "1. Parlez-en à un proche.\n3114.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+});
+
 it("keeps an emergency number on a length-capped reply", async () => {
   const cases = [
     { content: "Appelle le\n15.", reply: "Appelle le\n15." },
