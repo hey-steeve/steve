@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 
 const globalsCss = readFileSync(
   path.join(process.cwd(), "app/src/app/globals.css"),
@@ -71,6 +71,47 @@ it("keeps the pressed speaker colors when the pointer hovers, presses, or sticks
   }
 });
 
+it("does not treat an any-hover media query as hover", () => {
+  const style = document.createElement("style");
+  style.textContent = `${globalsCss}\n${chatCss}
+@media (any-hover: hover) {
+  .chat-speak[aria-pressed="true"]:hover {
+    background: #2f33a8;
+    color: #ffffff;
+  }
+}`;
+  document.head.append(style);
+  const button = document.createElement("button");
+  button.className = "chat-speak";
+  button.type = "button";
+  button.setAttribute("aria-pressed", "true");
+  document.body.append(button);
+  const matchMedia = vi.spyOn(window, "matchMedia").mockImplementation((query) => {
+    return {
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() {
+        return false;
+      },
+    } as MediaQueryList;
+  });
+  try {
+    expect(paint(button, { hover: true, active: false, canHover: true })).toEqual({
+      background: pressedBackground,
+      color: pressedColor,
+    });
+  } finally {
+    matchMedia.mockRestore();
+    style.remove();
+    button.remove();
+  }
+});
+
 afterEach(() => {
   document.body.replaceChildren();
   document.head.querySelectorAll("style").forEach((node) => {
@@ -89,7 +130,7 @@ function paint(button: HTMLButtonElement, state: PaintState): Paint {
   const visit = (rules: CSSRuleList) => {
     for (const rule of rules) {
       if (rule.type === CSSRule.MEDIA_RULE && rule instanceof CSSMediaRule) {
-        const wantsHover = /hover\s*:\s*hover/.test(rule.conditionText);
+        const wantsHover = /(?<![\w-])hover\s*:\s*hover/.test(rule.conditionText);
         const matches = wantsHover
           ? state.canHover
           : window.matchMedia(rule.conditionText).matches;
