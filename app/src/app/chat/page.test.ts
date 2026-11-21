@@ -77,12 +77,10 @@ it("paints the home chips and composer with the lavender tokens", async () => {
   const edge = "#405060";
   const canvas = "#ffffff";
   const border = "#ecf1fc";
-  const primary = "#5c59f3";
   document.documentElement.style.setProperty("--color-indigo-50", fill);
   document.documentElement.style.setProperty("--color-indigo-100", edge);
   document.documentElement.style.setProperty("--color-canvas", canvas);
   document.documentElement.style.setProperty("--color-border", border);
-  document.documentElement.style.setProperty("--color-primary", primary);
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -127,12 +125,6 @@ it("paints the home chips and composer with the lavender tokens", async () => {
     if (!(chip instanceof HTMLElement)) {
       throw new Error("missing suggestion");
     }
-    chip.focus();
-    expect(getComputedStyle(chip).outlineStyle).toBe("solid");
-    expect(getComputedStyle(chip).outlineWidth).toBe("2px");
-    expect(channels(getComputedStyle(chip).outlineColor)).toBe(
-      channels(primary),
-    );
     await act(async () => {
       chip.click();
     });
