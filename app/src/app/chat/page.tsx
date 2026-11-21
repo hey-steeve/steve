@@ -22,6 +22,8 @@ const disclaimer =
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
 const clientTimeoutMs = 35_000;
+const homeLeaveMs = 240;
+const keyboardOpenGap = 120;
 
 type UiMessage =
   | {
@@ -50,6 +52,8 @@ export default function ChatPage() {
   const draftRef = useRef(draft);
   const busy = useRef(false);
   const conversation = useRef(0);
+  const pageRef = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const restoreFocus = useRef(false);
@@ -62,6 +66,9 @@ export default function ChatPage() {
   });
   const playback = useSpeechPlayback();
   const empty = messages.length === 0;
+  const emptyRef = useRef(empty);
+  const [homeMounted, setHomeMounted] = useState(true);
+  emptyRef.current = empty;
   const control = composerControl({
     draft,
     listening: dictation.listening,
@@ -93,11 +100,10 @@ export default function ChatPage() {
   }, [exchange]);
 
   useEffect(() => {
-    const thread = threadRef.current;
-    if (thread === null || messages.length === 0) {
+    if (messages.length === 0) {
       return;
     }
-    thread.scrollTop = thread.scrollHeight;
+    scrollThreadToBottom(threadRef.current);
   }, [messages, exchange]);
 
   useEffect(() => {
@@ -117,7 +123,101 @@ export default function ChatPage() {
     fieldRef.current?.focus();
   }, [messages]);
 
-  function send(text: string) {
+  useEffect(() => {
+    if (empty || !homeMounted) {
+      return;
+    }
+    const hero = heroRef.current;
+    const timer = window.setTimeout(() => {
+      setHomeMounted(false);
+    }, homeLeaveMs);
+    const finish = (event: globalThis.AnimationEvent) => {
+      if (
+        event.target !== hero ||
+        event.animationName !== "chat-home-out" ||
+        emptyRef.current
+      ) {
+        return;
+      }
+      setHomeMounted(false);
+    };
+    hero?.addEventListener("animationend", finish);
+    hero?.addEventListener("animationcancel", finish);
+    return () => {
+      window.clearTimeout(timer);
+      hero?.removeEventListener("animationend", finish);
+      hero?.removeEventListener("animationcancel", finish);
+    };
+  }, [empty, homeMounted]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const page = pageRef.current;
+    if (viewport == null || page === null || !Number.isFinite(viewport.height)) {
+      return;
+    }
+    const html = document.documentElement;
+    const body = document.body;
+    const previous = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      htmlOverscroll: html.style.overscrollBehavior,
+      bodyOverscroll: body.style.overscrollBehavior,
+    };
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
+    body.style.overscrollBehavior = "none";
+
+    let frame: number | null = null;
+    const apply = () => {
+      frame = null;
+      page.style.transform = "";
+      page.style.top = `${viewport.offsetTop}px`;
+      page.style.height = `${viewport.height}px`;
+      page.toggleAttribute(
+        "data-keyboard-open",
+        window.innerHeight - viewport.height > keyboardOpenGap,
+      );
+      scrollThreadToBottom(threadRef.current);
+    };
+    const pinWindow = () => {
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+    const sync = () => {
+      pinWindow();
+      if (frame !== null) {
+        return;
+      }
+      frame = window.requestAnimationFrame(apply);
+    };
+    sync();
+    viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    window.addEventListener("scroll", pinWindow);
+    page.addEventListener("focusin", pinWindow);
+    return () => {
+      viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+      window.removeEventListener("scroll", pinWindow);
+      page.removeEventListener("focusin", pinWindow);
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
+      page.style.top = "";
+      page.style.height = "";
+      page.style.transform = "";
+      page.removeAttribute("data-keyboard-open");
+      html.style.overflow = previous.htmlOverflow;
+      body.style.overflow = previous.bodyOverflow;
+      html.style.overscrollBehavior = previous.htmlOverscroll;
+      body.style.overscrollBehavior = previous.bodyOverscroll;
+    };
+  }, []);
+
+  function send(text: string, restoreComposerFocus = true) {
     const content = text.trim();
     if (
       content.length === 0 ||
@@ -128,7 +228,7 @@ export default function ChatPage() {
       return;
     }
     busy.current = true;
-    restoreFocus.current = messages.length === 0;
+    restoreFocus.current = messages.length === 0 && restoreComposerFocus;
     dictation.stop();
     playback.stop();
     const ticket = conversation.current;
@@ -151,6 +251,7 @@ export default function ChatPage() {
     setDraft("");
     setDemo(false);
     setExchange("idle");
+    setHomeMounted(true);
   }
 
   async function post(history: readonly UiMessage[], ticket: number) {
@@ -229,7 +330,7 @@ export default function ChatPage() {
         value={draft}
         rows={1}
         maxLength={chatRequestLimits.maxMessageChars}
-        placeholder="Demande n'importe quoi à Steve"
+        placeholder="Demande n'importe quoi"
         aria-label="Message pour Steve"
         onChange={(event) => {
           setDraft(event.target.value);
@@ -266,7 +367,10 @@ export default function ChatPage() {
   );
 
   return (
-    <main className={empty ? "chat-page chat-page-home" : "chat-page"}>
+    <main
+      ref={pageRef}
+      className={empty ? "chat-page chat-page-home" : "chat-page"}
+    >
       <div className="chat-column">
         <header className="chat-header">
           {empty ? (
@@ -289,14 +393,23 @@ export default function ChatPage() {
               <h1>Steve</h1>
             </div>
           )}
-          <ProfileButton />
+          {empty ? (
+            <ProfileButton />
+          ) : (
+            <span className="chat-header-spacer" aria-hidden="true" />
+          )}
           {empty || !demo ? null : (
             <p className="chat-badge">Mode démo : réponses simulées</p>
           )}
         </header>
         <div className="chat-scroll" ref={threadRef}>
-          {empty ? (
-            <div className="chat-hero">
+          {homeMounted ? (
+            <div
+              ref={heroRef}
+              className={empty ? "chat-hero" : "chat-hero chat-hero-leave"}
+              aria-hidden={empty ? undefined : true}
+              inert={empty ? undefined : true}
+            >
               <img
                 className="chat-hero-mascot"
                 src={heroSrc}
@@ -305,10 +418,12 @@ export default function ChatPage() {
                 height={640}
               />
               <div className="chat-sheet">
-                <div className="chat-dock">
-                  {composer}
-                  {footnote}
-                </div>
+                {empty ? (
+                  <div className="chat-dock">
+                    {composer}
+                    {footnote}
+                  </div>
+                ) : null}
                 <div className="chat-chips" role="group" aria-label="Suggestions">
                   {suggestions.map((suggestion) => (
                     <button
@@ -316,7 +431,7 @@ export default function ChatPage() {
                       type="button"
                       className="chat-chip"
                       onClick={() => {
-                        send(suggestion);
+                        send(suggestion, false);
                       }}
                     >
                       {suggestion}
@@ -325,7 +440,8 @@ export default function ChatPage() {
                 </div>
               </div>
             </div>
-          ) : (
+          ) : null}
+          {empty ? null : (
             <ol className="chat-thread" aria-live="polite">
               {messages.map((message) =>
                 message.role === "user" ? (
@@ -375,6 +491,7 @@ export default function ChatPage() {
                 <li
                   className="chat-row chat-row-agent"
                   role="status"
+                  aria-live="polite"
                   aria-label="Steve écrit"
                 >
                   <SteveAvatar />
@@ -389,7 +506,7 @@ export default function ChatPage() {
           )}
         </div>
         {empty ? null : (
-          <div className="chat-dock">
+          <div className="chat-dock chat-dock-enter">
             {composer}
             {footnote}
           </div>
@@ -405,30 +522,35 @@ function ComposerAction(props: {
   readonly onDictate: () => void;
   readonly onSend: () => void;
 }) {
-  if (props.control.kind === "send") {
-    return (
-      <button
-        type="button"
-        className="chat-action"
-        aria-label="Envoyer"
-        disabled={props.pending}
-        onClick={props.onSend}
-      >
-        <SendIcon />
-      </button>
-    );
-  }
+  const send = props.control.kind === "send";
+  const listening = props.control.kind === "dictate" && props.control.listening;
+  const supported = props.control.kind === "send" || props.control.supported;
   return (
     <button
       type="button"
-      className="chat-action"
-      aria-label={props.control.listening ? "Arrêter la dictée" : "Dicter un message"}
-      aria-pressed={props.control.listening}
-      disabled={!props.control.supported}
-      onClick={props.onDictate}
+      className={send ? "chat-action chat-action-send" : "chat-action"}
+      aria-label={
+        send ? "Envoyer" : listening ? "Arrêter la dictée" : "Dicter un message"
+      }
+      aria-pressed={send ? undefined : listening}
+      disabled={send ? props.pending : !supported}
+      onClick={send ? props.onSend : props.onDictate}
     >
-      <MicIcon />
+      <ActionIcons />
     </button>
+  );
+}
+
+function ActionIcons() {
+  return (
+    <>
+      <span className="chat-action-icon chat-action-icon-mic" aria-hidden="true">
+        <MicIcon />
+      </span>
+      <span className="chat-action-icon chat-action-icon-send" aria-hidden="true">
+        <SendIcon />
+      </span>
+    </>
   );
 }
 
@@ -516,6 +638,13 @@ function SpeakerIcon() {
       />
     </svg>
   );
+}
+
+function scrollThreadToBottom(thread: HTMLElement | null) {
+  if (thread === null) {
+    return;
+  }
+  thread.scrollTop = thread.scrollHeight;
 }
 
 function resizeComposerField(field: HTMLTextAreaElement): boolean {

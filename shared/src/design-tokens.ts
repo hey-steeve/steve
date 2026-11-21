@@ -38,7 +38,7 @@ export const designTokens = {
     fallback: fontFallback,
     weight: {
       body: 400,
-      heading: emphasis,
+      heading: 600,
       button: emphasis,
     },
   },
