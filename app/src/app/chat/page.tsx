@@ -51,6 +51,7 @@ export default function ChatPage() {
   const busy = useRef(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const restoreFocus = useRef(false);
   const [fieldGrown, setFieldGrown] = useState(false);
   draftRef.current = draft;
 
@@ -107,6 +108,14 @@ export default function ChatPage() {
     setFieldGrown((current) => (current === grown ? current : grown));
   }, [draft]);
 
+  useEffect(() => {
+    if (!restoreFocus.current) {
+      return;
+    }
+    restoreFocus.current = false;
+    fieldRef.current?.focus();
+  }, [messages]);
+
   function send(text: string) {
     const content = text.trim();
     if (
@@ -118,6 +127,7 @@ export default function ChatPage() {
       return;
     }
     busy.current = true;
+    restoreFocus.current = messages.length === 0;
     dictation.stop();
     playback.stop();
     const history: readonly UiMessage[] = [
