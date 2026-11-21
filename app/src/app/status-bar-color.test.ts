@@ -9,6 +9,12 @@ import { afterEach, expect, it, vi } from "vitest";
 import { viewport } from "./chat/layout.js";
 import ChatPage from "./chat/page.js";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+}));
+
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
 const pageBackground = designTokens.color.indigo50;

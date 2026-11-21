@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { composerControl, type ComposerControl } from "../../chat/composer-control";
 import type { ExchangeKind } from "../../chat/exchange";
@@ -43,7 +44,10 @@ type UiMessage =
       readonly content: string;
     };
 
+type BackExit = "idle" | "playing" | "done";
+
 export default function ChatPage() {
+  const router = useRouter();
   const [messages, setMessages] = useState<readonly UiMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
@@ -52,6 +56,7 @@ export default function ChatPage() {
   const busy = useRef(false);
   const conversation = useRef(0);
   const pageRef = useRef<HTMLElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
@@ -66,7 +71,11 @@ export default function ChatPage() {
   const empty = messages.length === 0;
   const emptyRef = useRef(empty);
   const [homeMounted, setHomeMounted] = useState(true);
+  const [leaving, setLeaving] = useState(false);
+  const backExit = useRef<BackExit>("idle");
+  const navigateHome = useRef(router.push);
   emptyRef.current = empty;
+  navigateHome.current = router.push;
   const control = composerControl({
     draft,
     listening: dictation.listening,
@@ -127,13 +136,17 @@ export default function ChatPage() {
     }
     const hero = heroRef.current;
     const timer = window.setTimeout(() => {
+      if (emptyRef.current || backExit.current !== "idle") {
+        return;
+      }
       setHomeMounted(false);
     }, homeLeaveMs);
     const finish = (event: globalThis.AnimationEvent) => {
       if (
         event.target !== hero ||
         event.animationName !== "chat-home-out" ||
-        emptyRef.current
+        emptyRef.current ||
+        backExit.current !== "idle"
       ) {
         return;
       }
@@ -147,6 +160,37 @@ export default function ChatPage() {
       hero?.removeEventListener("animationcancel", finish);
     };
   }, [empty, homeMounted]);
+
+  useEffect(() => {
+    if (!leaving) {
+      return;
+    }
+    const column = columnRef.current;
+    const finishExit = () => {
+      if (backExit.current === "done") {
+        return;
+      }
+      backExit.current = "done";
+      navigateHome.current("/");
+    };
+    const timer = window.setTimeout(finishExit, homeLeaveMs);
+    const finish = (event: globalThis.AnimationEvent) => {
+      if (
+        event.target !== column ||
+        event.animationName !== "chat-column-out"
+      ) {
+        return;
+      }
+      finishExit();
+    };
+    column?.addEventListener("animationend", finish);
+    column?.addEventListener("animationcancel", finish);
+    return () => {
+      window.clearTimeout(timer);
+      column?.removeEventListener("animationend", finish);
+      column?.removeEventListener("animationcancel", finish);
+    };
+  }, [leaving]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -227,6 +271,7 @@ export default function ChatPage() {
     if (
       content.length === 0 ||
       busy.current ||
+      backExit.current !== "idle" ||
       exchange === "awaiting" ||
       exchange === "rendering"
     ) {
@@ -246,15 +291,19 @@ export default function ChatPage() {
     void post(history, ticket);
   }
 
-  function startOver() {
+  function leaveToHome() {
+    if (backExit.current !== "idle") {
+      return;
+    }
     conversation.current += 1;
-    busy.current = false;
     dictation.stop();
-    setMessages([]);
-    setDraft("");
-    setDemo(false);
-    setExchange("idle");
-    setHomeMounted(true);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      backExit.current = "done";
+      navigateHome.current("/");
+      return;
+    }
+    backExit.current = "playing";
+    setLeaving(true);
   }
 
   async function post(history: readonly UiMessage[], ticket: number) {
@@ -374,7 +423,10 @@ export default function ChatPage() {
       ref={pageRef}
       className="chat-page"
     >
-      <div className="chat-column">
+      <div
+        ref={columnRef}
+        className={leaving ? "chat-column chat-column-leave" : "chat-column"}
+      >
         <header className="chat-header">
           {empty ? (
             <h1 className="chat-greeting">Hey</h1>
@@ -383,7 +435,7 @@ export default function ChatPage() {
               type="button"
               className="chat-back"
               aria-label="Retour"
-              onClick={startOver}
+              onClick={leaveToHome}
             >
               <span className="chat-back-face">
                 <BackIcon />

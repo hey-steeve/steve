@@ -69,7 +69,8 @@ it("keeps the profile button on the home screen only", async () => {
   });
   expect(
     view.container.querySelector('.chat-header [aria-label="Profil"]'),
-  ).not.toBeNull();
+  ).toBeNull();
+  expect(view.container.querySelector(".chat-column-leave")).not.toBeNull();
 });
 
 it("renders the home greeting", async () => {
@@ -320,11 +321,12 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
         animationName: "chat-home-out",
       } as unknown as AnimationEvent);
     });
-    expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-      "Hey",
-    );
+    expect(view.container.querySelector(".chat-greeting")).toBeNull();
     expect(view.container.querySelector(".chat-hero")).not.toBeNull();
-    expect(view.container.querySelector(".chat-field")).not.toBeNull();
+    expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+      "Prendre rendez-vous chez un généraliste",
+    );
+    expect(view.container.querySelector(".chat-column-leave")).not.toBeNull();
   } finally {
     spy.mockRestore();
   }
@@ -434,6 +436,51 @@ it("navigates home once when Retour is tapped twice", async () => {
   });
   expect(routerPush).toHaveBeenCalledTimes(1);
   expect(routerPush).toHaveBeenCalledWith("/");
+});
+
+it("keeps the keyboard pin while the column exit plays", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const viewport = installViewport({
+    height: 844,
+    offsetTop: 0,
+    innerHeight: 844,
+  });
+  try {
+    const view = await mount();
+    await flushFrame();
+    const back = await openConversation(view);
+    const page = view.container.querySelector(".chat-page");
+    if (!(page instanceof HTMLElement)) {
+      throw new Error("missing chat page");
+    }
+    viewport.height = 420;
+    viewport.offsetTop = 180;
+    await fireViewport(viewport);
+    await act(async () => {
+      back.click();
+    });
+    viewport.height = 400;
+    viewport.offsetTop = 200;
+    await fireViewport(viewport);
+    expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+      true,
+    );
+    expect({
+      top: page.style.top,
+      height: page.style.height,
+      transform: page.style.transform,
+      keyboard: page.hasAttribute("data-keyboard-open"),
+    }).toEqual({
+      top: "200px",
+      height: "400px",
+      transform: "",
+      keyboard: true,
+    });
+    expect(routerPush).not.toHaveBeenCalled();
+  } finally {
+    viewport.restore();
+  }
 });
 
 it("pins the chat page to the visual viewport when the keyboard resizes it", async () => {
@@ -869,7 +916,7 @@ it("stops following the visual viewport after the chat unmounts", async () => {
   }
 });
 
-it("returns to the empty home state from Retour in the conversation header", async () => {
+it("drops a late reply after Retour and navigates home once", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const reply = deferred<Response>();
   vi.stubGlobal(
@@ -896,22 +943,19 @@ it("returns to the empty home state from Retour in the conversation header", asy
     back?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
 
-  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Hey",
+  expect(view.container.querySelector(".chat-greeting")).toBeNull();
+  expect(view.container.querySelector(".chat-column-leave")).not.toBeNull();
+  expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+    "Prendre rendez-vous chez un généraliste",
   );
-  expect(header()?.querySelector('[aria-label="Retour"]')).toBeNull();
-  expect(view.container.querySelector(".chat-thread")).toBeNull();
+  expect(routerPush).not.toHaveBeenCalled();
 
   await act(async () => {
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(240);
   });
 
-  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Hey",
-  );
-  expect(view.container.querySelector(".chat-hero")).not.toBeNull();
-  expect(view.container.querySelector(".chat-field")).not.toBeNull();
-  expect(view.container.querySelector(".chat-thread")).toBeNull();
+  expect(routerPush).toHaveBeenCalledTimes(1);
+  expect(routerPush).toHaveBeenCalledWith("/");
 
   reply.resolve(
     new Response(
@@ -927,11 +971,11 @@ it("returns to the empty home state from Retour in the conversation header", asy
     await reply.promise;
   });
 
-  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Hey",
-  );
   expect(view.container.textContent).not.toContain("Réponse tardive.");
-  expect(view.container.querySelector(".chat-thread")).toBeNull();
+  expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+    "Prendre rendez-vous chez un généraliste",
+  );
+  expect(routerPush).toHaveBeenCalledTimes(1);
 });
 
 const threadLength = 2000;
@@ -944,7 +988,7 @@ function stubReducedMotion(): void {
         media: query,
         addEventListener() {},
         removeEventListener() {},
-      }) as MediaQueryList,
+      }) as unknown as MediaQueryList,
   );
 }
 
@@ -1184,6 +1228,7 @@ const roots: Root[] = [];
 afterEach(() => {
   routerPush.mockClear();
   vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   for (const root of roots.splice(0)) {
     act(() => {

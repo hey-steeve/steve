@@ -6,6 +6,12 @@ import { act } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import ChatPage from "./page.js";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+}));
+
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
