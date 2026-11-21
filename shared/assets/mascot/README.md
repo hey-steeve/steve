@@ -8,7 +8,7 @@
 
 Les fichiers de `avatar/` et de `states/` sont des PNG de 1024 pixels sur 1024. Dans `body/`, `hello.png`, `present.png` et `celebrate.png` le sont aussi. `lounge-call.png` fait 1024 pixels sur 1024 et n'est pas une pose. Les autres poses de `body/` ont une autre taille, écrite dans la liste. `duo/` contient des JPEG.
 
-`states/` contient des bustes, tête et épaules, avec transparence. Le nom de chaque fichier suit la pose visuelle. Il ne suit ni l'id du moment ni le `state`.
+`states/` contient des bustes, tête et épaules, avec transparence. Le nom de chaque fichier suit la pose visuelle. `listening`, `thinking` et `calling` reprennent l'id du moment. `thinking` et `done` reprennent le `state`. `urgent` ne reprend ni l'id du moment ni le `state`.
 
 Le moment `idle` dans `app/src/moments.ts` n'a pas d'image dédiée.
 
@@ -37,7 +37,7 @@ Les fichiers de `body/`, de `duo/` et de `avatar/` ne correspondent à aucun mom
 `duo/` contient Steve avec la marmotte Alan. Chaque fichier est un JPEG opaque de 1152 pixels sur 864.
 
 - `fistbump.jpg` est la scène où Steve et la marmotte Alan se tapent le poing.
-- `dad-son.jpg` est la scène où Alan pose une patte sur l'épaule de Steve. Steve est devant Alan.
+- `dad-son.jpg` est la scène où Alan pose une patte sur l'épaule de Steve. Steve est à côté d'Alan.
 
 `avatar/` contient la tête et deux photos de profil.
 

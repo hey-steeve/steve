@@ -17,7 +17,7 @@
 - `og-image.png` fait 1200 pixels sur 630. Image de partage opaque. Le mot Steve est à gauche. Steve salue à droite.
 - `site.webmanifest` est le manifeste. Il n'a pas de taille en pixels.
 
-`icon-192.png`, `icon-512.png`, `icon-1024.png` et `icon-maskable-512.png` ont un canal alpha. Chaque pixel est opaque.
+`apple-touch-icon.png` n'a pas de canal alpha. Chaque pixel y est opaque. `icon-192.png`, `icon-512.png`, `icon-1024.png` et `icon-maskable-512.png` ont un canal alpha. Chaque pixel y est opaque.
 
 Aucune app ne sert encore ces fichiers.
 
