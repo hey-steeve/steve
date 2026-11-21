@@ -19,7 +19,7 @@ const suggestions = [
 ] as const;
 
 const disclaimer =
-  "Steve n'est pas médecin et ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
+  "Steve n'est pas un médecin ni un dispositif médical.";
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
 const clientTimeoutMs = 35_000;

@@ -81,6 +81,18 @@ it("renders the home greeting", async () => {
   expect(view.container.querySelector('[aria-label="Retour"]')).toBeNull();
 });
 
+it("shows the composer disclaimer as one line with no digits", async () => {
+  const view = await mount();
+  const disclaimer = view.container.querySelector(".chat-disclaimer");
+  if (!(disclaimer instanceof HTMLElement)) {
+    throw new Error("missing disclaimer");
+  }
+  expect(disclaimer.textContent).toBe(
+    "Steve n'est pas un médecin ni un dispositif médical.",
+  );
+  expect(disclaimer.textContent).not.toMatch(/\d/);
+});
+
 it("shows the suggestion and the reply after a chip tap", async () => {
   vi.stubGlobal(
     "fetch",
