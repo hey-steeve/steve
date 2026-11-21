@@ -10,6 +10,8 @@ Feature scopes live in `features/README.md` and in each feature README. The repo
 
 `shared/` is the workspace package `@steve/shared`. A feature may import this package and no other workspace package. `shared/` holds typed contracts, the `VoiceProvider` interface, the logger, the LLM client, design tokens, and the marmot avatar definition. It holds no business logic. The `@steve/shared` entry imports its modules with a `.ts` extension so `app/` can bundle that source.
 
+Mascot images are in `shared/assets/mascot/`.
+
 The demo core is `@steve/shared`, `@steve/voice`, `@steve/conversation`, `@steve/triage`, and `@steve/booking`.
 
 Each directory under `features/` is one package. The packages, in order, are `@steve/voice`, `@steve/conversation`, `@steve/triage`, `@steve/directory`, `@steve/booking`, `@steve/agenda`, `@steve/profile`, `@steve/vault`, `@steve/reminders`, and `@steve/inbox`.
