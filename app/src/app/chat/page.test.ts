@@ -1549,7 +1549,7 @@ it("keeps the scroll position and shows a new-message pill when a reply arrives 
               Node.DOCUMENT_POSITION_FOLLOWING) ===
             Node.DOCUMENT_POSITION_FOLLOWING,
     }).toEqual({
-      text: "Nouveau message ↓",
+      text: "Nouveau message↓",
       label: "Nouveau message",
       type: "button",
       live: null,
@@ -1844,7 +1844,7 @@ it("shows the pill when an error reply arrives above the bottom", async () => {
       "Le service est indisponible.",
     );
     expect(newMessagePill(session.container)?.textContent).toBe(
-      "Nouveau message ↓",
+      "Nouveau message↓",
     );
   } finally {
     session.restore();

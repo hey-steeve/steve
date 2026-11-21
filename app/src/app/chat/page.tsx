@@ -603,7 +603,7 @@ export default function ChatPage() {
               aria-label="Nouveau message"
               onClick={showLatest}
             >
-              Nouveau message <span aria-hidden="true">↓</span>
+              Nouveau message<span aria-hidden="true">↓</span>
             </button>
           </div>
         ) : null}
