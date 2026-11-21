@@ -1,46 +1,46 @@
 # agenda
 
-## Rôle
+## Role
 
-`agenda` est le calendrier du patient. Il n'enregistre que les rendez-vous confirmés.
+`agenda` is the patient calendar. It records only confirmed appointments.
 
-## Fait
+## Does
 
-- Enregistre un rendez-vous seulement s'il est confirmé.
-- Synchronise Google Calendar.
-- Synchronise un fichier `.ics`.
-- Sert de source à `reminders`.
+- Records an appointment only if it is confirmed.
+- Syncs Google Calendar.
+- Syncs an `.ics` file.
+- Is the source for `reminders`.
 
-## Ne fait pas
+## Does not
 
-- N'enregistre rien sans confirmation du cabinet.
-- N'envoie pas les rappels.
+- Records nothing without confirmation from the practice.
+- Does not send reminders.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : rendez-vous confirmé. Le contrat `Appointment` est à définir.
-- Sortie : calendrier du patient. Le contrat est à définir.
-- `reminders` lit cette source. Le contrat est à définir.
+- The input is a confirmed appointment. The `Appointment` contract is to be defined.
+- The output is the patient calendar. The contract is to be defined.
+- `reminders` reads this source. The contract is to be defined.
 
-## Dépend de
+## Depends on
 
-`@steve/shared`. Google Calendar. Le format `.ics`.
+`@steve/shared`. Google Calendar. The `.ics` format.
 
-## Règles à tenir
+## Rules
 
-- Rien n'entre dans l'agenda sans confirmation du cabinet.
-- Ne jamais diagnostiquer.
+- Nothing enters the agenda without confirmation from the practice.
+- Never diagnose.
 
-## Démo vs prod
+## Demo and production
 
-À définir.
+To be defined.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/agenda test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:

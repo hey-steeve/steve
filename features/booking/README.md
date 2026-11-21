@@ -1,50 +1,50 @@
 # booking
 
-## Rôle
+## Role
 
-`booking` reçoit un praticien choisi, appelle le cabinet en voix, et rapporte un créneau confirmé ou refusé.
+`booking` receives a chosen practitioner, calls the practice by voice, and returns a confirmed or refused slot.
 
-## Fait
+## Does
 
-- Reçoit un praticien choisi.
-- Passe l'appel vocal sortant vers le cabinet.
-- Retourne un créneau confirmé, ou un créneau refusé.
-- Essaie au plus 2 praticiens.
+- Receives a chosen practitioner.
+- Places the outbound voice call to the practice.
+- Returns a confirmed slot, or a refused slot.
+- Tries at most 2 practitioners.
 
-## Ne fait pas
+## Does not
 
-- Pas de conseil médical.
-- Ne diagnostique pas.
-- N'enregistre pas le rendez-vous. `agenda` le fait, et seulement après confirmation du cabinet.
+- No medical advice.
+- Does not diagnose.
+- Does not record the appointment. `agenda` does that, and only after the practice confirms.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : praticien choisi. Le contrat est à définir.
-- Sortie : créneau confirmé, ou créneau refusé. Le contrat est à définir.
+- The input is a chosen practitioner. The contract is to be defined.
+- The output is a confirmed slot, or a refused slot. The contract is to be defined.
 
-## Dépend de
+## Depends on
 
-`@steve/shared`. Appel vocal sortant. Le détail du canal est à définir.
+`@steve/shared`. Outbound voice call. The channel detail is to be defined.
 
-## Règles à tenir
+## Rules
 
-- Au plus 2 praticiens.
-- Pas de conseil médical.
-- Ne jamais diagnostiquer.
-- Une urgence confirmée part vers le 15, sans réservation.
-- Rien n'entre dans l'agenda sans confirmation du cabinet.
-- En démo, ne jamais appeler un vrai cabinet.
+- At most 2 practitioners.
+- No medical advice.
+- Never diagnose.
+- A confirmed emergency goes to 15, with no booking.
+- Nothing enters the agenda without confirmation from the practice.
+- In the demo, never call a real practice.
 
-## Démo vs prod
+## Demo and production
 
-`booking` appelle le cabinet. En démo, une variable d'environnement remplace le numéro du cabinet par le numéro d'un coéquipier. La démo n'appelle pas un vrai cabinet.
+`booking` calls the practice. In the demo, an environment variable replaces the practice number with a teammate's number. The demo does not call a real practice.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/booking test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:

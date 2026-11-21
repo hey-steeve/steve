@@ -1,67 +1,67 @@
 # mascot
 
-## Rôle
+## Role
 
-`shared/assets/mascot/` est la source des images de Steve. Une app copie ces fichiers ou les sert.
+`shared/assets/mascot/` is the source of Steve's images. An app copies these files or serves them.
 
-## Fait
+## Does
 
-Les fichiers de `avatar/` et de `states/` sont des PNG de 1024 pixels sur 1024. Dans `body/`, `hello.png`, `present.png` et `celebrate.png` le sont aussi. `lounge-call.png` fait 1024 pixels sur 1024 et n'est pas une pose. Les autres poses de `body/` ont une autre taille, écrite dans la liste. `duo/` contient des JPEG.
+The files in `avatar/` and in `states/` are 1024 by 1024 pixel PNGs. In `body/`, `hello.png`, `present.png`, and `celebrate.png` are too. `lounge-call.png` is 1024 by 1024 pixels and is not a pose. The other poses in `body/` have another size, written in the list. `duo/` holds JPEGs.
 
-`states/` contient des bustes, tête et épaules, avec transparence. Le nom de chaque fichier suit la pose visuelle. `listening`, `thinking` et `calling` reprennent l'id du moment. `thinking` et `done` reprennent le `state`. `urgent` ne reprend ni l'id du moment ni le `state`.
+`states/` holds busts of the head and shoulders, with transparency. Each file name follows the visual pose. `listening`, `thinking`, and `calling` reuse the moment id. `thinking` and `done` reuse the `state`. `urgent` reuses neither the moment id nor the `state`.
 
-Le moment `idle` dans `app/src/moments.ts` n'a pas d'image dédiée.
+The `idle` moment in `app/src/moments.ts` has no dedicated image.
 
-- `listening.png` correspond au moment `listening` et au state `waiting`. Steve a les yeux ouverts.
-- `thinking.png` correspond au moment `thinking` et au state `thinking`. La visière montre un anneau.
-- `calling.png` correspond au moment `calling` et au state `working`. Steve est au téléphone.
-- `done.png` correspond au moment `happy` et au state `done`. Steve est content.
-- `urgent.png` correspond au moment `serious` et au state `blocked`. Les yeux sont des points d'exclamation.
+- `listening.png` matches the `listening` moment and the `waiting` state. Steve's eyes are open.
+- `thinking.png` matches the `thinking` moment and the `thinking` state. The visor shows a ring.
+- `calling.png` matches the `calling` moment and the `working` state. Steve is on the phone.
+- `done.png` matches the `happy` moment and the `done` state. Steve is happy.
+- `urgent.png` matches the `serious` moment and the `blocked` state. The eyes are exclamation marks.
 
-Les fichiers de `body/`, de `duo/` et de `avatar/` ne correspondent à aucun moment.
+The files in `body/`, in `duo/`, and in `avatar/` match no moment.
 
-`body/` contient le corps entier, avec transparence.
+`body/` holds the full body, with transparency.
 
-- `hello.png` est la pose de l'état vide. Ce fichier ne correspond à aucun moment. Steve salue de la main.
-- `present.png` est la pose de présentation. Steve tend une main.
-- `celebrate.png` est la pose de célébration. Steve lève les deux bras.
-- `shrug.png` est la pose où Steve hausse les épaules, paumes vers le haut. Le fichier fait 688 pixels sur 857.
-- `thumbs-up.png` est la pose où Steve lève le pouce. Le fichier fait 614 pixels sur 873.
-- `thinking.png` est la pose où Steve a un doigt sous le museau. Le fichier fait 477 pixels sur 865. Ce n'est pas le buste `states/thinking.png`.
-- `phone.png` est la pose où Steve lit un téléphone tenu à deux mains. Le fichier fait 452 pixels sur 865.
-- `clipboard.png` est la pose où Steve tient un porte-bloc à cases. Le fichier fait 469 pixels sur 861.
-- `sitting.png` est la pose où Steve est assis, les jambes croisées. Le fichier fait 500 pixels sur 849.
-- `calling.png` est la pose où Steve tient le téléphone à l'oreille, l'autre main ouverte. Le fichier fait 599 pixels sur 857. Ce n'est pas le buste `states/calling.png`.
-- `lounge-call.png` est une illustration carrée de style icône, sur fond lavande `#DAC4E8`. Le fichier fait 1024 pixels sur 1024. Ce n'est pas une pose transparente.
+- `hello.png` is the empty-state pose. This file matches no moment. Steve waves with one hand.
+- `present.png` is the presentation pose. Steve holds out one hand.
+- `celebrate.png` is the celebration pose. Steve raises both arms.
+- `shrug.png` is the pose where Steve shrugs, palms up. The file is 688 by 857 pixels.
+- `thumbs-up.png` is the pose where Steve raises a thumb. The file is 614 by 873 pixels.
+- `thinking.png` is the pose where Steve has a finger under the snout. The file is 477 by 865 pixels. This is not the bust `states/thinking.png`.
+- `phone.png` is the pose where Steve reads a phone held in both hands. The file is 452 by 865 pixels.
+- `clipboard.png` is the pose where Steve holds a clipboard with checkboxes. The file is 469 by 861 pixels.
+- `sitting.png` is the pose where Steve sits with crossed legs. The file is 500 by 849 pixels.
+- `calling.png` is the pose where Steve holds the phone to one ear, with the other hand open. The file is 599 by 857 pixels. This is not the bust `states/calling.png`.
+- `lounge-call.png` is a square icon-style illustration, on a lavender background `#DAC4E8`. The file is 1024 by 1024 pixels. This is not a transparent pose.
 
-`duo/` contient Steve avec la marmotte Alan. Chaque fichier est un JPEG opaque de 1152 pixels sur 864.
+`duo/` holds Steve with Alan the marmot. Each file is an opaque JPEG of 1152 by 864 pixels.
 
-- `fistbump.jpg` est la scène où Steve et la marmotte Alan se tapent le poing.
-- `dad-son.jpg` est la scène où Alan pose une patte sur l'épaule de Steve. Steve est à côté d'Alan.
+- `fistbump.jpg` is the scene where Steve and Alan the marmot bump fists.
+- `dad-son.jpg` is the scene where Alan puts a paw on Steve's shoulder. Steve is beside Alan.
 
-Grok Imagine a généré ces scènes à partir des visuels publics de la mascotte Alan. Spidey a décidé le 21 novembre 2026 de les garder. Aucune app ne les utilise.
+Grok Imagine generated these scenes from Alan's public mascot visuals. Spidey decided on 2026-11-21 to keep them. No app uses them yet.
 
-`avatar/` contient la tête et deux photos de profil.
+`avatar/` holds the head and two profile photos.
 
-- `head.png` est la tête seule, avec transparence.
-- `pfp-indigo.png` est une photo de profil carrée et opaque, sur fond indigo.
-- `pfp-lavender.png` est une photo de profil carrée et opaque, sur fond lavande.
+- `head.png` is the head alone, with transparency.
+- `pfp-indigo.png` is a square opaque profile photo, on an indigo background.
+- `pfp-lavender.png` is a square opaque profile photo, on a lavender background.
 
-Aucune app n'utilise encore ces fichiers. Ils sont séparés de la définition de la marmotte dans `shared/src/mascot`. Cette définition sera remplacée plus tard.
+No app uses these files yet. They are separate from the marmot definition in `shared/src/mascot`. The marmot definition will be replaced later.
 
-## Ne fait pas
+## Does not
 
-- Pas d'export dans `@steve/shared`.
-- Pas de retouche des fichiers dans ce dossier.
+- No export in `@steve/shared`.
+- No edits to the files in this folder.
 
-## Règles à tenir
+## Rules
 
-Ces fichiers sont la source. Ne pas les éditer sur place. Dériver les copies redimensionnées dans l'app.
+These files are the source. Do not edit them in place. Derive the resized copies in the app.
 
-## Vérifier
+## Check
 
 `cd shared/assets/mascot && shasum -a 256 -c SHA256SUMS`
 
-`SHA256SUMS` contient les sommes de l'original approuvé.
+`SHA256SUMS` contains the checksums of the approved original.
 
-`avatar/`, `states/`, `body/hello.png`, `body/present.png` et `body/celebrate.png` restent des PNG de 1024 pixels sur 1024, avec transparence, sauf `pfp-indigo.png` et `pfp-lavender.png`. `body/lounge-call.png` fait 1024 pixels sur 1024 et n'est pas une pose transparente. Les sept nouvelles poses de `body/` sont des PNG transparents d'une autre taille. `duo/dad-son.jpg` et `duo/fistbump.jpg` sont des JPEG opaques de 1152 pixels sur 864.
+`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png` and `pfp-lavender.png`. `body/lounge-call.png` is 1024 by 1024 pixels and is not a transparent pose. The seven new poses in `body/` are transparent PNGs of another size. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels.

@@ -1,44 +1,44 @@
 # vault
 
-## Rôle
+## Role
 
-`vault` stocke, retrouve et résume des documents, sans interprétation médicale.
+`vault` stores, retrieves, and summarizes documents, with no medical interpretation.
 
-## Fait
+## Does
 
-- Stocke un document.
-- Retrouve un document.
-- Résume un document.
+- Stores a document.
+- Retrieves a document.
+- Summarizes a document.
 
-## Ne fait pas
+## Does not
 
-- Pas d'interprétation médicale.
-- Ne diagnostique pas.
+- No medical interpretation.
+- Does not diagnose.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : document. Le contrat est à définir.
-- Sortie : document retrouvé, ou résumé. Les contrats sont à définir.
+- The input is a document. The contract is to be defined.
+- The output is a retrieved document, or a summary. The contracts are to be defined.
 
-## Dépend de
+## Depends on
 
 `@steve/shared`.
 
-## Règles à tenir
+## Rules
 
-- Pas d'interprétation médicale.
-- Ne jamais diagnostiquer.
+- No medical interpretation.
+- Never diagnose.
 
-## Démo vs prod
+## Demo and production
 
-À définir.
+To be defined.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/vault test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:
