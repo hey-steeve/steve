@@ -408,7 +408,12 @@ export default function ChatPage() {
       <ComposerAction
         control={control}
         pending={exchange === "awaiting"}
-        onDictate={dictation.toggle}
+        onDictate={() => {
+          if (backExit.current !== "idle") {
+            return;
+          }
+          dictation.toggle();
+        }}
         onSend={() => {
           send(draft);
         }}
