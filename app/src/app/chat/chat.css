@@ -50,7 +50,14 @@
   margin: 0;
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
   overflow: hidden;
-  background: var(--color-indigo-50);
+  background-color: var(--color-lavender-top);
+  background-image: linear-gradient(
+    to bottom,
+    var(--color-lavender-top),
+    var(--color-lavender-bottom)
+  );
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--color-foreground);
   font-size: var(--body);
   font-weight: var(--body-weight);
@@ -548,6 +555,16 @@
 .chat-composer:focus-within {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+.chat-sheet .chat-chip {
+  border-color: var(--color-lavender-100);
+  background: var(--color-lavender-50);
+}
+
+.chat-sheet .chat-composer {
+  background: var(--color-lavender-50);
+  box-shadow: inset 0 0 0 1px var(--color-lavender-100), var(--card-shadow);
 }
 
 .chat-field {

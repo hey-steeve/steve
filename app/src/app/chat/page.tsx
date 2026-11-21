@@ -436,7 +436,7 @@ export default function ChatPage() {
       >
         <header className="chat-header">
           {empty ? (
-            <h1 className="chat-greeting">Hey</h1>
+            <h1 className="chat-greeting">Bonjour,</h1>
           ) : (
             <button
               type="button"

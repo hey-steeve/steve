@@ -31,7 +31,8 @@
 - At most 2 practitioners.
 - No medical advice.
 - Never diagnose.
-- A confirmed emergency goes to 15, with no booking.
+- A 15 or 3114 referral uses the wording in `app/src/app/api/chat/system-prompt.ts`.
+- Steve does not book a 15 or 3114 referral.
 - Nothing enters the agenda without confirmation from the practice.
 - In the demo, never call a real practice.
 
