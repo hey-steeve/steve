@@ -6,17 +6,20 @@ import {
   type ChatHttpResult,
   type ChatTurn,
 } from "../../../chat/request";
+import { systemPrompt } from "./system-prompt";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const defaultModel = "google/gemini-3.8-flash";
 const maxCompletionTokens = 1024;
 const upstreamTimeoutMs = 30_000;
+const openRouterReasoning = {
+  effort: "low",
+  exclude: true,
+} as const;
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
 const invalidJsonError = "JSON invalide.";
 const tooLargeError = "Requête trop volumineuse.";
 const unsupportedTypeError = "Type de contenu non pris en charge.";
-const systemPrompt =
-  "Tu es Steve, un assistant qui aide à organiser des démarches de santé. Tu n'es pas médecin, tu ne poses pas de diagnostic, et en cas d'urgence tu dis d'appeler le 15. Réponds brièvement en français.";
 
 export async function POST(request: Request): Promise<Response> {
   if (!isJsonContentType(request.headers.get("content-type"))) {
@@ -62,6 +65,7 @@ async function completeWithOpenRouter(
       body: JSON.stringify({
         model,
         max_tokens: maxCompletionTokens,
+        reasoning: openRouterReasoning,
         messages: [{ role: "system", content: systemPrompt }, ...messages],
       }),
       signal: AbortSignal.timeout(upstreamTimeoutMs),
@@ -110,12 +114,92 @@ function readCompletion(
   if (typeof content !== "string" || content.trim().length === 0) {
     return null;
   }
+  const finish = field(first, "finish_reason");
+  if (finish === "content_filter" || finish === "error") {
+    return null;
+  }
+  const reply =
+    finish === "length" ? lengthReply(content) : clampAssistantContent(content);
+  if (reply === null) {
+    return null;
+  }
   const modelField = field(payload, "model");
   const model =
     typeof modelField === "string" && modelField.length > 0
       ? modelField
       : requested;
-  return { reply: clampAssistantContent(content), model };
+  return { reply, model };
+}
+
+function lengthReply(content: string): string | null {
+  const sentence = completeSentences(content);
+  if (sentence === null) {
+    return null;
+  }
+  const bounded = clampAssistantContent(sentence);
+  if (bounded === sentence) {
+    return bounded;
+  }
+  return completeSentences(bounded);
+}
+
+function completeSentences(content: string): string | null {
+  const text = content.trim();
+  let end = -1;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text.charAt(index);
+    if (char !== "." && char !== "!" && char !== "?") {
+      continue;
+    }
+    if (char === "." && isLineStartNumberDot(text, index)) {
+      continue;
+    }
+    const closer = closingGuillemet(text, index + 1);
+    if (closer !== null) {
+      end = closer;
+      continue;
+    }
+    const next = text.charAt(index + 1);
+    if (next.length === 0 || next.trim() === "") {
+      end = index + 1;
+    }
+  }
+  if (end < 0) {
+    return null;
+  }
+  const sentence = text.slice(0, end).trim();
+  if (sentence.length === 0) {
+    return null;
+  }
+  return sentence;
+}
+
+function isLineStartNumberDot(text: string, dotIndex: number): boolean {
+  const next = text.charAt(dotIndex + 1);
+  if (next !== " " && next !== "\t") {
+    return false;
+  }
+  let lineStart = dotIndex;
+  while (lineStart > 0 && text.charAt(lineStart - 1) !== "\n") {
+    lineStart -= 1;
+  }
+  const matched = /^\s*(\d+)$/.exec(text.slice(lineStart, dotIndex));
+  if (matched === null) {
+    return false;
+  }
+  const number = matched[1];
+  return number !== undefined && number !== "15" && number !== "3114";
+}
+
+function closingGuillemet(text: string, from: number): number | null {
+  let cursor = from;
+  while (cursor < text.length && text.charAt(cursor).trim() === "") {
+    cursor += 1;
+  }
+  if (text.charAt(cursor) !== "»") {
+    return null;
+  }
+  return cursor + 1;
 }
 
 type ChatBodyRead =
