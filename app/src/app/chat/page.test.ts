@@ -1,11 +1,18 @@
 // @vitest-environment happy-dom
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../chat/request.js";
 import ChatPage from "./page.js";
+
+const chatCss = readFileSync(
+  path.join(process.cwd(), "app/src/app/chat/chat.css"),
+  "utf8",
+);
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -158,6 +165,16 @@ it("drops the covering home sheet when its leave animation is cancelled", async 
 });
 
 it("pins the chat page to the visual viewport when the keyboard resizes it", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        reply: "Je peux vous aider à préparer ça.",
+        mocked: true,
+        model: "mock",
+      }),
+    ),
+  );
   const listeners = new Map<string, Array<() => void>>();
   const viewport = {
     height: 844,
@@ -176,12 +193,42 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
     },
   };
   const previous = Object.getOwnPropertyDescriptor(window, "visualViewport");
+  const previousInnerHeight = Object.getOwnPropertyDescriptor(window, "innerHeight");
   Object.defineProperty(window, "visualViewport", {
     configurable: true,
     value: viewport,
   });
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    value: 844,
+  });
+  const style = document.createElement("style");
+  style.textContent = chatCss;
+  document.head.append(style);
   try {
     const view = await mount();
+    await flushFrame();
+    const chip = view.container.querySelector(".chat-chip");
+    if (!(chip instanceof HTMLButtonElement)) {
+      throw new Error("missing suggestion");
+    }
+    await act(async () => {
+      chip.click();
+    });
+    const page = view.container.querySelector(".chat-page");
+    const thread = view.container.querySelector(".chat-scroll");
+    const disclaimer = view.container.querySelector(
+      ".chat-column > .chat-dock .chat-disclaimer",
+    );
+    if (
+      !(page instanceof HTMLElement) ||
+      !(thread instanceof HTMLElement) ||
+      !(disclaimer instanceof HTMLElement)
+    ) {
+      throw new Error("missing chat shell");
+    }
+    const scrolled = trackScroll(thread, 900, 200);
+    scrolled.top = 0;
     viewport.height = 420;
     viewport.offsetTop = 180;
     await act(async () => {
@@ -192,18 +239,40 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
         listener();
       }
     });
-    const page = view.container.querySelector(".chat-page");
-    if (!(page instanceof HTMLElement)) {
-      throw new Error("missing page");
-    }
-    expect(page.style.height).toBe("420px");
-    expect(page.style.transform).toBe("translateY(180px)");
+    await flushFrame();
+    expect({
+      top: page.style.top,
+      height: page.style.height,
+      transform: page.style.transform,
+      position: getComputedStyle(page).position,
+      keyboard: page.getAttribute("data-keyboard-open"),
+      disclaimer: getComputedStyle(disclaimer).display,
+      scrollTop: scrolled.top,
+      overflow: document.documentElement.style.overflow,
+      overscroll: document.documentElement.style.overscrollBehavior,
+    }).toEqual({
+      top: "180px",
+      height: "420px",
+      transform: "",
+      position: "fixed",
+      keyboard: "",
+      disclaimer: "none",
+      scrollTop: 900,
+      overflow: "hidden",
+      overscroll: "none",
+    });
   } finally {
     if (previous === undefined) {
       Reflect.deleteProperty(window, "visualViewport");
     } else {
       Object.defineProperty(window, "visualViewport", previous);
     }
+    if (previousInnerHeight === undefined) {
+      Reflect.deleteProperty(window, "innerHeight");
+    } else {
+      Object.defineProperty(window, "innerHeight", previousInnerHeight);
+    }
+    style.remove();
   }
 });
 
@@ -259,6 +328,40 @@ it("returns to the empty home state from Retour in the conversation header", asy
   expect(view.container.textContent).not.toContain("Réponse tardive.");
   expect(view.container.querySelector(".chat-thread")).toBeNull();
 });
+
+function trackScroll(
+  thread: HTMLElement,
+  height: number,
+  client: number,
+): { top: number } {
+  const scrolled = { top: 0 };
+  Object.defineProperty(thread, "scrollHeight", {
+    configurable: true,
+    get: () => height,
+  });
+  Object.defineProperty(thread, "clientHeight", {
+    configurable: true,
+    get: () => client,
+  });
+  Object.defineProperty(thread, "scrollTop", {
+    configurable: true,
+    get: () => scrolled.top,
+    set: (value: number) => {
+      scrolled.top = value;
+    },
+  });
+  return scrolled;
+}
+
+async function flushFrame(): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        resolve();
+      });
+    });
+  });
+}
 
 async function mount(): Promise<{ container: HTMLDivElement; root: Root }> {
   const container = document.createElement("div");
