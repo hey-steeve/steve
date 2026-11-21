@@ -193,7 +193,8 @@ function mockReply(messages: readonly ChatTurn[]): string {
   const lead = `${mockPrefix}Vous avez demandé : `;
   const tail = ". Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
   const room = chatRequestLimits.maxMessageChars - lead.length - tail.length;
-  return `${lead}${clampText(asked, room)}${tail}`;
+  const echoed = clampText(asked, room).trimEnd();
+  return `${lead}${echoed}${tail}`;
 }
 
 function clampText(text: string, maxChars: number): string {
