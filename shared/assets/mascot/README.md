@@ -6,7 +6,7 @@
 
 ## Fait
 
-Les fichiers de `avatar/` et de `states/` sont des PNG de 1024 pixels sur 1024. Dans `body/`, `hello.png`, `present.png` et `celebrate.png` le sont aussi. Les autres poses de `body/` ont une autre taille, écrite dans la liste. `duo/` contient des JPEG.
+Les fichiers de `avatar/` et de `states/` sont des PNG de 1024 pixels sur 1024. Dans `body/`, `hello.png`, `present.png` et `celebrate.png` le sont aussi. `lounge-call.png` fait 1024 pixels sur 1024 et n'est pas une pose. Les autres poses de `body/` ont une autre taille, écrite dans la liste. `duo/` contient des JPEG.
 
 `states/` contient des bustes, tête et épaules, avec transparence. Le nom de chaque fichier suit la pose visuelle. Il ne suit ni l'id du moment ni le `state`.
 
@@ -32,6 +32,7 @@ Les fichiers de `body/`, de `duo/` et de `avatar/` ne correspondent à aucun mom
 - `clipboard.png` est la pose où Steve tient un porte-bloc à cases. Le fichier fait 469 pixels sur 861.
 - `sitting.png` est la pose où Steve est assis, les jambes croisées. Le fichier fait 500 pixels sur 849.
 - `calling.png` est la pose où Steve tient le téléphone à l'oreille, l'autre main ouverte. Le fichier fait 599 pixels sur 857. Ce n'est pas le buste `states/calling.png`.
+- `lounge-call.png` est une illustration carrée de style icône, sur fond lavande `#DAC4E8`. Le fichier fait 1024 pixels sur 1024. Ce n'est pas une pose transparente.
 
 `duo/` contient Steve avec la marmotte Alan. Chaque fichier est un JPEG opaque de 1152 pixels sur 864.
 
@@ -61,4 +62,4 @@ Ces fichiers sont la source. Ne pas les éditer sur place. Dériver les copies r
 
 `SHA256SUMS` contient les sommes de l'original approuvé.
 
-`avatar/`, `states/`, `body/hello.png`, `body/present.png` et `body/celebrate.png` restent des PNG de 1024 pixels sur 1024, avec transparence, sauf `pfp-indigo.png` et `pfp-lavender.png`. Les sept nouvelles poses de `body/` sont des PNG transparents d'une autre taille. `duo/dad-son.jpg` et `duo/fistbump.jpg` sont des JPEG opaques de 1152 pixels sur 864.
+`avatar/`, `states/`, `body/hello.png`, `body/present.png` et `body/celebrate.png` restent des PNG de 1024 pixels sur 1024, avec transparence, sauf `pfp-indigo.png` et `pfp-lavender.png`. `body/lounge-call.png` fait 1024 pixels sur 1024 et n'est pas une pose transparente. Les sept nouvelles poses de `body/` sont des PNG transparents d'une autre taille. `duo/dad-son.jpg` et `duo/fistbump.jpg` sont des JPEG opaques de 1152 pixels sur 864.
