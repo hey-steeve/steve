@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { composerControl, type ComposerControl } from "../../chat/composer-control";
 import type { ExchangeKind } from "../../chat/exchange";
 import { headerAvatarSrc, heroSrc, replyAvatarSrc } from "../../chat/faces";
 import { ChatMarkdown } from "../../chat/markdown";
@@ -58,6 +59,11 @@ export default function ChatPage() {
   });
   const playback = useSpeechPlayback();
   const empty = messages.length === 0;
+  const control = composerControl({
+    draft,
+    listening: dictation.listening,
+    supported: dictation.supported,
+  });
 
   useEffect(() => {
     if (exchange !== "rendering") {
@@ -205,16 +211,13 @@ export default function ChatPage() {
           }
         }}
       />
-      <button
-        type="button"
-        className="chat-mic"
-        aria-label={dictation.listening ? "Arrêter la dictée" : "Dicter un message"}
-        aria-pressed={dictation.listening}
-        disabled={!dictation.supported}
-        onClick={dictation.toggle}
-      >
-        <MicIcon />
-      </button>
+      <ComposerAction
+        control={control}
+        onDictate={dictation.toggle}
+        onSend={() => {
+          send(draft);
+        }}
+      />
     </div>
   );
 
@@ -229,17 +232,18 @@ export default function ChatPage() {
 
   return (
     <main className="chat-page">
-      {empty ? null : (
-        <header className="chat-header">
+      <header className="chat-header">
+        {empty ? null : (
           <div className="chat-title">
             <img src={headerAvatarSrc} alt="" width={28} height={28} />
             <h1>Steve</h1>
           </div>
-          {demo ? (
-            <p className="chat-badge">Mode démo : réponses simulées</p>
-          ) : null}
-        </header>
-      )}
+        )}
+        <ProfileButton />
+        {empty || !demo ? null : (
+          <p className="chat-badge">Mode démo : réponses simulées</p>
+        )}
+      </header>
       <div className="chat-scroll" ref={threadRef}>
         {empty ? (
         <div className="chat-hero">
@@ -340,6 +344,42 @@ export default function ChatPage() {
   );
 }
 
+function ComposerAction(props: {
+  readonly control: ComposerControl;
+  readonly onDictate: () => void;
+  readonly onSend: () => void;
+}) {
+  if (props.control.kind === "send") {
+    return (
+      <button type="button" className="chat-action" aria-label="Envoyer" onClick={props.onSend}>
+        <SendIcon />
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="chat-action"
+      aria-label={props.control.listening ? "Arrêter la dictée" : "Dicter un message"}
+      aria-pressed={props.control.listening}
+      disabled={!props.control.supported}
+      onClick={props.onDictate}
+    >
+      <MicIcon />
+    </button>
+  );
+}
+
+function ProfileButton() {
+  return (
+    <button type="button" className="chat-profile" aria-label="Profil">
+      <span className="chat-profile-face">
+        <ProfileIcon />
+      </span>
+    </button>
+  );
+}
+
 function SteveAvatar() {
   return (
     <span className="chat-avatar chat-avatar-agent" aria-hidden="true">
@@ -358,6 +398,28 @@ function UserAvatar() {
         />
       </svg>
     </span>
+  );
+}
+
+function ProfileIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-6 1.8-6 4v1h12v-1c0-2.2-2.7-4-6-4z"
+      />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 4.2 5.2 11l1.4 1.4L11 8.1V20h2V8.1l4.4 4.3L18.8 11 12 4.2z"
+      />
+    </svg>
   );
 }
 
