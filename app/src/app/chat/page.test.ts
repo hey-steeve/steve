@@ -150,47 +150,72 @@ it("renders an assistant bubble without a model label, a speak button, or a foot
   });
 });
 
-it("pads an assistant bubble equally on all four sides", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof fetch>(async () =>
-      Response.json({
-        reply: "Tu peux contacter le secrétariat.",
-        mocked: true,
-        model: "mock",
-      }),
-    ),
-  );
-  const style = document.createElement("style");
-  style.textContent = chatCss;
-  document.head.append(style);
-  try {
-    const view = await mount();
-    const chip = view.container.querySelector(".chat-chip");
-    if (!(chip instanceof HTMLButtonElement)) {
-      throw new Error("missing suggestion");
+const equalBubblePad = {
+  top: "12px",
+  right: "12px",
+  bottom: "12px",
+  left: "12px",
+};
+
+it.each([
+  { className: "chat-user", outcome: "pending" },
+  { className: "chat-agent", outcome: "reply" },
+  { className: "chat-error", outcome: "error" },
+  { className: "chat-typing", outcome: "pending" },
+] as const)(
+  "pads a $className bubble equally on all four sides",
+  async ({ className, outcome }) => {
+    const view = await openThread(outcome);
+    try {
+      const bubble = view.container.querySelector(`.${className}`);
+      if (!(bubble instanceof HTMLElement)) {
+        throw new Error(`missing ${className}`);
+      }
+      const computed = getComputedStyle(bubble);
+      expect({
+        top: computed.paddingTop,
+        right: computed.paddingRight,
+        bottom: computed.paddingBottom,
+        left: computed.paddingLeft,
+      }).toEqual(equalBubblePad);
+    } finally {
+      view.style.remove();
     }
-    await act(async () => {
-      chip.click();
-    });
+  },
+);
+
+it("resets assistant markdown block margins", async () => {
+  const view = await openThread(
+    "reply",
+    `p, ul, ol { margin: 16px; }\n${chatCss}`,
+    "Bonjour.\n\n- un\n\n1. deux",
+  );
+  try {
     const bubble = view.container.querySelector(".chat-agent");
     if (!(bubble instanceof HTMLElement)) {
       throw new Error("missing assistant bubble");
     }
-    const computed = getComputedStyle(bubble);
-    expect({
-      top: computed.paddingTop,
-      right: computed.paddingRight,
-      bottom: computed.paddingBottom,
-      left: computed.paddingLeft,
-    }).toEqual({
-      top: "12px",
-      right: "12px",
-      bottom: "12px",
-      left: "12px",
-    });
+    for (const tag of ["p", "ul", "ol"]) {
+      const block = bubble.querySelector(tag);
+      if (!(block instanceof HTMLElement)) {
+        throw new Error(`missing ${tag}`);
+      }
+      const computed = getComputedStyle(block);
+      expect({
+        right: computed.marginRight,
+        bottom: computed.marginBottom,
+        left: computed.marginLeft,
+      }).toEqual({
+        right: "0px",
+        bottom: "0px",
+        left: "0px",
+      });
+      if (tag === "p") {
+        expect(computed.marginTop).toBe("0px");
+      }
+    }
   } finally {
-    style.remove();
+    view.style.remove();
   }
 });
 
@@ -1036,6 +1061,63 @@ async function flushFrame(): Promise<void> {
       });
     });
   });
+}
+
+function stubBubbleFetch(
+  outcome: "pending" | "reply" | "error",
+  reply: string,
+): void {
+  if (outcome === "pending") {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => new Promise(() => {})),
+    );
+    return;
+  }
+  if (outcome === "error") {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () =>
+        Response.json({ error: "Indisponible." }, { status: 502 }),
+      ),
+    );
+    return;
+  }
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        reply,
+        mocked: true,
+        model: "mock",
+      }),
+    ),
+  );
+}
+
+async function openThread(
+  outcome: "pending" | "reply" | "error",
+  css = chatCss,
+  reply = "Tu peux contacter le secrétariat.",
+): Promise<{ container: HTMLDivElement; style: HTMLStyleElement }> {
+  stubBubbleFetch(outcome, reply);
+  const style = document.createElement("style");
+  style.textContent = css;
+  document.head.append(style);
+  try {
+    const view = await mount();
+    const chip = view.container.querySelector(".chat-chip");
+    if (!(chip instanceof HTMLButtonElement)) {
+      throw new Error("missing suggestion");
+    }
+    await act(async () => {
+      chip.click();
+    });
+    return { container: view.container, style };
+  } catch (error) {
+    style.remove();
+    throw error;
+  }
 }
 
 async function mount(): Promise<{ container: HTMLDivElement; root: Root }> {
