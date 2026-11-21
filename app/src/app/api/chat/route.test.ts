@@ -1,10 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../../chat/request.js";
 import { POST } from "./route.js";
+import { systemPrompt } from "./system-prompt.js";
 
 const canary = "test-openrouter-key-canary";
-const systemPrompt =
-  "Tu es Steve, un assistant qui aide à organiser des démarches de santé. Tu n'es pas médecin, tu ne poses pas de diagnostic, et en cas d'urgence tu dis d'appeler le 15. Réponds brièvement en français.";
 const echo =
   "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
@@ -17,6 +16,42 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+it("tells Steve to send a medical emergency to the 15 and suicidal distress to the 3114", () => {
+  expect(systemPrompt).toContain("appeler le 15");
+  expect(systemPrompt).toContain("3114");
+  expect(systemPrompt).not.toContain("112");
+  expect(systemPrompt).not.toContain("SOS Médecins");
+});
+
+it("tells Steve to use tu and not introduce itself", () => {
+  expect(systemPrompt).toContain("Tu tutoies");
+  expect(systemPrompt).toContain("ne te présentes pas");
+  expect(systemPrompt).toContain("salutation");
+  expect(systemPrompt).toContain("Bonjour, je suis Steve");
+  expect(systemPrompt).toContain("C'est Steve");
+});
+
+it("tells Steve never to name a medication or a dose", () => {
+  expect(systemPrompt).toContain("médicament");
+  expect(systemPrompt).toContain("dose");
+  expect(systemPrompt).toContain("pharmacien");
+  expect(systemPrompt).toContain("médecin traitant");
+});
+
+it("tells Steve to answer in two to four short sentences with minimal markdown", () => {
+  expect(systemPrompt).toContain("2 à 4 phrases courtes");
+  expect(systemPrompt).toContain("courte liste");
+  expect(systemPrompt).toContain("étapes");
+  expect(systemPrompt).toContain("Pas de titre");
+  expect(systemPrompt).toContain("pas de gras");
+});
+
+it("keeps Steve on health procedures without a diagnosis", () => {
+  expect(systemPrompt).toContain("démarches de santé");
+  expect(systemPrompt).toContain("n'es pas médecin");
+  expect(systemPrompt).toContain("diagnostic");
 });
 
 it("returns the labelled mock unless STEVE_CHAT_LIVE is 1", async () => {

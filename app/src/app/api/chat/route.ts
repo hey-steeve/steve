@@ -6,6 +6,7 @@ import {
   type ChatHttpResult,
   type ChatTurn,
 } from "../../../chat/request";
+import { systemPrompt } from "./system-prompt";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const defaultModel = "google/gemini-3.8-flash";
@@ -15,8 +16,6 @@ const upstreamError = "Le service de chat est indisponible. Réessayez.";
 const invalidJsonError = "JSON invalide.";
 const tooLargeError = "Requête trop volumineuse.";
 const unsupportedTypeError = "Type de contenu non pris en charge.";
-const systemPrompt =
-  "Tu es Steve, un assistant qui aide à organiser des démarches de santé. Tu n'es pas médecin, tu ne poses pas de diagnostic, et en cas d'urgence tu dis d'appeler le 15. Réponds brièvement en français.";
 
 export async function POST(request: Request): Promise<Response> {
   if (!isJsonContentType(request.headers.get("content-type"))) {
