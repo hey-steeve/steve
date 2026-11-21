@@ -505,6 +505,33 @@ it("keeps a mid-thread reader in place when zoom returns to 1x with the keyboard
   }
 });
 
+it("does not scroll a mid-thread reader when the keyboard closes while zoomed and the user zooms out", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 420, offsetTop: 180, innerHeight: 844 });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    scrolled.top = 0;
+    viewport.scale = 1.2;
+    viewport.height = 350;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+    viewport.height = 700;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+    viewport.scale = 1;
+    viewport.height = 844;
+    viewport.offsetTop = 0;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+  } finally {
+    viewport.restore();
+  }
+});
+
 it("does not scroll a mid-thread reader when the keyboard opens while zoomed and the user zooms out", async () => {
   stubReply();
   const viewport = installViewport({
@@ -569,6 +596,51 @@ it("scrolls a reader within 80px of the bottom and leaves a reader past that gap
     viewport.offsetTop = 32;
     await fireViewport(viewport);
     expect(scrolled.top).toBe(threadLength - client - 81);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("leaves the keyboard closed at a 120px gap and opens it at 121px", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 844, offsetTop: 0, innerHeight: 844 });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    scrolled.top = 0;
+    viewport.height = 724;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+    viewport.height = 723;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    expect(scrolled.top).toBe(threadLength);
+  } finally {
+    viewport.restore();
+  }
+});
+
+it("does not scroll at scale 1.01 and scrolls at scale 1.0099 when the keyboard is open", async () => {
+  stubReply();
+  const viewport = installViewport({ height: 1000, offsetTop: 0, innerHeight: 1000 });
+  try {
+    const { page, scrolled } = await scrolledThread();
+    scrolled.top = 0;
+    viewport.scale = 1.01;
+    viewport.height = 800;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+    viewport.scale = 1;
+    viewport.height = 1000;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(false);
+    expect(scrolled.top).toBe(0);
+    viewport.scale = 1.0099;
+    viewport.height = 800;
+    await fireViewport(viewport);
+    expect(page.hasAttribute("data-keyboard-open")).toBe(true);
+    expect(scrolled.top).toBe(threadLength);
   } finally {
     viewport.restore();
   }
@@ -838,9 +910,20 @@ async function unmount(view: { root: Root }): Promise<void> {
 
 function trackScroll(thread: HTMLElement, height: number): { top: number } {
   const scrolled = { top: 0 };
+  const page = thread.closest(".chat-page");
   Object.defineProperty(thread, "scrollHeight", {
     configurable: true,
     get: () => height,
+  });
+  Object.defineProperty(thread, "clientHeight", {
+    configurable: true,
+    get: () => {
+      if (!(page instanceof HTMLElement)) {
+        return 0;
+      }
+      const inline = Number.parseFloat(page.style.height);
+      return Number.isFinite(inline) ? inline : 0;
+    },
   });
   Object.defineProperty(thread, "scrollTop", {
     configurable: true,
