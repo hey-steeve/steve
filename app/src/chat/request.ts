@@ -65,6 +65,14 @@ export function parseChatMessages(body: unknown): readonly ChatTurn[] | null {
   return turns;
 }
 
+export function clampAssistantContent(content: string): string {
+  const trimmed = content.trim();
+  if (trimmed.length <= chatRequestLimits.maxMessageChars) {
+    return content;
+  }
+  return trimmed.slice(0, chatRequestLimits.maxMessageChars);
+}
+
 export function mockChatResult(messages: readonly ChatTurn[]): ChatHttpResult {
   return {
     status: 200,
@@ -91,9 +99,13 @@ export function toProviderMessages(
     if (message.role === "error") {
       continue;
     }
+    const content =
+      message.role === "user"
+        ? message.content
+        : clampAssistantContent(message.content);
     turns.push({
       role: message.role === "user" ? "user" : "assistant",
-      content: message.content,
+      content,
     });
   }
   const capped =
@@ -182,7 +194,9 @@ function mockReply(messages: readonly ChatTurn[]): string {
       break;
     }
   }
-  return `${mockPrefix}Vous avez demandé : ${asked}. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.`;
+  return clampAssistantContent(
+    `${mockPrefix}Vous avez demandé : ${asked}. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.`,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,5 +1,6 @@
 import {
   chatRequestLimits,
+  clampAssistantContent,
   mockChatResult,
   parseChatMessages,
   type ChatHttpResult,
@@ -114,7 +115,7 @@ function readCompletion(
     typeof modelField === "string" && modelField.length > 0
       ? modelField
       : requested;
-  return { reply: content, model };
+  return { reply: clampAssistantContent(content), model };
 }
 
 type ChatBodyRead =
