@@ -1,6 +1,6 @@
 # Steve
 
-Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. For an emergency, the agent refers the caller to 15, the SAMU emergency line.
+Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. For an emergency, the agent refers the caller to 15, the SAMU emergency line. For suicidal thoughts or psychological distress, the agent refers the caller to 3114, the national suicide prevention line.
 
 The project is Alan AI Health Hack #2 on 28 Nov 2026.
 
