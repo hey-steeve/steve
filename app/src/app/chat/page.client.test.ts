@@ -58,6 +58,28 @@ function sendButton(container: ParentNode): HTMLButtonElement {
   return button;
 }
 
+it("keeps the composer focused after the first send", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+    ),
+  );
+  const container = await renderPage();
+  const field = fieldIn(container);
+  field.focus();
+  expect(document.activeElement).toBe(field);
+
+  await act(async () => {
+    setField(field, "Bonjour");
+  });
+  await act(async () => {
+    sendButton(container).click();
+  });
+
+  expect(document.activeElement).toBe(fieldIn(container));
+});
+
 it("shows the error and accepts another send when the chat fetch times out", async () => {
   const timeout = vi.spyOn(AbortSignal, "timeout");
   const fetchMock = vi.fn<typeof fetch>(async () => {
