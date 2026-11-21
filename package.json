@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "typecheck": "node tooling/typecheck.js",
     "test": "vitest run",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test"
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @steve/app build"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

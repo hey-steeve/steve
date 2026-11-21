@@ -13,6 +13,11 @@ const sharedBoundary =
 
 const noConsole = "Do not use console. Use log() from @steve/shared/logger.";
 
+const appInbound = "Features and shared must not import app.";
+
+const appOutbound =
+  "app may import @steve/shared and features only through their package public index (@steve/<feature>), never a deep path.";
+
 async function messages(code: string, relativePath: string) {
   const eslint = new ESLint({ cwd: root });
   const results = await eslint.lintText(code, {
@@ -61,6 +66,30 @@ describe("package lint rules", () => {
     expect(byPath).toEqual([featureBoundary]);
   });
 
+  it("reports a template-literal import() of a deep feature path", async () => {
+    const found = await messages(
+      "import(`../../features/x/src/y.ts`);\n",
+      "app/src/import-template.ts",
+    );
+    expect(found).toEqual([appOutbound]);
+  });
+
+  it("reports require() of a template literal that leaves the feature", async () => {
+    const found = await messages(
+      "require(`../../conversation/src/index.ts`);\n",
+      "features/voice/src/require-template.ts",
+    );
+    expect(found).toEqual([featureBoundary]);
+  });
+
+  it("ignores a template literal import() that has an expression", async () => {
+    const found = await messages(
+      "import(`../../features/${name}/src/y.ts`);\n",
+      "app/src/import-dynamic.ts",
+    );
+    expect(found).toEqual([]);
+  });
+
   it("reports shared importing a feature", async () => {
     const found = await messages(
       'import "@steve/voice";\n',
@@ -85,5 +114,69 @@ describe("package lint rules", () => {
     const shared = await messages("console.log('x');\n", "shared/src/log.ts");
     expect(feature).toEqual([noConsole]);
     expect(shared).toEqual([noConsole]);
+  });
+
+  it("allows app to import @steve/shared/logger and rejects a deep feature path", async () => {
+    const logger = await messages(
+      'import "@steve/shared/logger";\n',
+      "app/src/logger.ts",
+    );
+    const deep = await messages(
+      'import "@steve/voice/src/call.ts";\n',
+      "app/src/deep-feature.ts",
+    );
+    expect(logger).toEqual([]);
+    expect(deep).toEqual([appOutbound]);
+  });
+
+  it("allows app to import @steve/shared and a feature public index", async () => {
+    const shared = await messages(
+      'import "@steve/shared";\n',
+      "app/src/shared.ts",
+    );
+    const feature = await messages(
+      'import "@steve/voice";\n',
+      "app/src/feature.ts",
+    );
+    expect(shared).toEqual([]);
+    expect(feature).toEqual([]);
+  });
+
+  it("reports a deep feature import from app", async () => {
+    const byPackage = await messages(
+      'import "@steve/voice/src/index.ts";\n',
+      "app/src/deep-package.ts",
+    );
+    const byPath = await messages(
+      'import "../../features/voice/src/index.ts";\n',
+      "app/src/deep-path.ts",
+    );
+    expect(byPackage).toEqual([appOutbound]);
+    expect(byPath).toEqual([appOutbound]);
+  });
+
+  it("reports a feature or shared importing app", async () => {
+    const feature = await messages(
+      'import "@steve/app";\n',
+      "features/voice/src/app.ts",
+    );
+    const shared = await messages('import "@steve/app";\n', "shared/src/app.ts");
+    const relative = await messages(
+      'import "../../../app/src/page.tsx";\n',
+      "features/voice/src/to-app.ts",
+    );
+    const required = await messages(
+      'require("@steve/app");\n',
+      "features/booking/src/require-app.ts",
+    );
+    expect(feature).toEqual([appInbound]);
+    expect(shared).toEqual([appInbound]);
+    expect(relative).toEqual([appInbound]);
+    expect(required).toEqual([appInbound]);
+  });
+
+  it("reports console.log in app", async () => {
+    const found = await messages("console.log('x');\n", "app/src/log.tsx");
+    expect(found).toEqual([noConsole]);
   });
 });
