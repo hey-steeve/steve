@@ -24,25 +24,27 @@ The route accepts at most 40 messages. Each message is at most 4000 characters a
 
 The route reads at most 1048576 bytes, then parses JSON. A larger body returns HTTP 413 and `{ "error": "Requête trop volumineuse." }`. The chat page sends only the newest 40 messages, so a long chat still fits.
 
+A request whose `Content-Type` media type is not `application/json` returns HTTP 415 and `{ "error": "Type de contenu non pris en charge." }`. The route accepts `application/json` with parameters, such as `charset=utf-8`.
+
 ## OpenRouter
 
 The names are in the root `.env.example`. There is no `app/.env.example`.
 
 Next.js reads env files from `app/`, the directory that contains `next.config.ts`. Put real values in `app/.env.local`. That file stays untracked.
 
-`OPENROUTER_API_KEY` is the OpenRouter API key. The route reads it on the server.
+`OPENROUTER_API_KEY` is the OpenRouter API key. The route reads it on the server and trims it. Whitespace alone counts as empty.
 
-`OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends `openrouter/auto`.
+`OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends `google/gemini-3.8-flash`.
 
 `STEVE_CHAT_LIVE` must be `1` before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set.
 
-When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. HTTP 200 looks like this.
+When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The JSON includes `max_tokens` set to 1024. HTTP 200 looks like this.
 
 ```json
 {
   "reply": "Une pharmacie de garde.",
   "mocked": false,
-  "model": "openrouter/auto"
+  "model": "google/gemini-3.8-flash"
 }
 ```
 

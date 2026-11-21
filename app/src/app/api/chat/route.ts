@@ -7,14 +7,19 @@ import {
 } from "../../../chat/request";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
-const defaultModel = "openrouter/auto";
+const defaultModel = "google/gemini-3.8-flash";
+const maxCompletionTokens = 1024;
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
 const invalidJsonError = "JSON invalide.";
 const tooLargeError = "Requête trop volumineuse.";
+const unsupportedTypeError = "Type de contenu non pris en charge.";
 const systemPrompt =
   "Tu es Steve, un assistant qui aide à organiser des démarches de santé. Tu n'es pas médecin, tu ne poses pas de diagnostic, et en cas d'urgence tu dis d'appeler le 15. Réponds brièvement en français.";
 
 export async function POST(request: Request): Promise<Response> {
+  if (!isJsonContentType(request.headers.get("content-type"))) {
+    return Response.json({ error: unsupportedTypeError }, { status: 415 });
+  }
   const read = await readChatBody(request);
   if (read.kind === "too-large") {
     return Response.json({ error: tooLargeError }, { status: 413 });
@@ -54,6 +59,7 @@ async function completeWithOpenRouter(
       },
       body: JSON.stringify({
         model,
+        max_tokens: maxCompletionTokens,
         messages: [{ role: "system", content: systemPrompt }, ...messages],
       }),
     });
@@ -181,23 +187,30 @@ async function readCappedBytes(
 }
 
 function requestedModel(): string {
-  const value = envString("OPENROUTER_MODEL");
-  if (value === undefined) {
-    return defaultModel;
+  return envString("OPENROUTER_MODEL") ?? defaultModel;
+}
+
+function isJsonContentType(header: string | null): boolean {
+  if (header === null) {
+    return false;
   }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return defaultModel;
+  const media = header.split(";")[0];
+  if (media === undefined) {
+    return false;
   }
-  return trimmed;
+  return media.trim().toLowerCase() === "application/json";
 }
 
 function envString(name: string): string | undefined {
   const value: unknown = Reflect.get(process.env, name);
-  if (typeof value !== "string" || value.length === 0) {
+  if (typeof value !== "string") {
     return undefined;
   }
-  return value;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  return trimmed;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -90,6 +90,7 @@ it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => 
   expect(headers.get("x-title")).toBe("Steve");
   expect(JSON.parse(String(init?.body))).toEqual({
     model: "google/gemini-flash",
+    max_tokens: 1024,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: "De garde" },
@@ -97,7 +98,7 @@ it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => 
   });
 });
 
-it("defaults the model to openrouter/auto and falls back when OpenRouter omits model", async () => {
+it("defaults the model to google/gemini-3.8-flash and falls back when OpenRouter omits model", async () => {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
   vi.stubEnv("OPENROUTER_MODEL", "   ");
@@ -114,7 +115,7 @@ it("defaults the model to openrouter/auto and falls back when OpenRouter omits m
   expect(JSON.parse(blankText)).toEqual({
     reply: "D'accord.",
     mocked: false,
-    model: "openrouter/auto",
+    model: "google/gemini-3.8-flash",
   });
 
   delete process.env["OPENROUTER_MODEL"];
@@ -124,12 +125,13 @@ it("defaults the model to openrouter/auto and falls back when OpenRouter omits m
   expect(JSON.parse(missingText)).toEqual({
     reply: "D'accord.",
     mocked: false,
-    model: "openrouter/auto",
+    model: "google/gemini-3.8-flash",
   });
   expect(fetchMock.mock.calls).toHaveLength(2);
   for (const call of fetchMock.mock.calls) {
     expect(JSON.parse(String(call[1]?.body))).toMatchObject({
-      model: "openrouter/auto",
+      model: "google/gemini-3.8-flash",
+      max_tokens: 1024,
     });
   }
 });
@@ -183,6 +185,65 @@ it("still parses a body that is exactly at the byte cap", async () => {
   );
   expect(response.status).toBe(400);
   expect(await response.json()).toEqual({ error: "JSON invalide." });
+});
+
+it("trims the OpenRouter key and ignores a blank one", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", `  ${canary}  `);
+  const fetchMock = vi.fn<typeof fetch>(async () =>
+    Response.json({
+      choices: [{ message: { content: "D'accord." } }],
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await post(history);
+  expect(response.status).toBe(200);
+  const call = fetchMock.mock.calls[0];
+  expect(call).toBeDefined();
+  if (call === undefined) {
+    return;
+  }
+  const headers = new Headers(call[1]?.headers);
+  expect(headers.get("authorization")).toBe(`Bearer ${canary}`);
+
+  vi.stubEnv("OPENROUTER_API_KEY", "   ");
+  const blank = await post(history);
+  expect(blank.status).toBe(200);
+  expect(await blank.json()).toMatchObject({ mocked: true, model: "mock" });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("requires a JSON content type", async () => {
+  const missing = await POST(
+    new Request("http://localhost/api/chat", {
+      method: "POST",
+      body: JSON.stringify(history),
+    }),
+  );
+  expect(missing.status).toBe(415);
+  expect(await missing.json()).toEqual({
+    error: "Type de contenu non pris en charge.",
+  });
+
+  const plain = await POST(
+    new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: JSON.stringify(history),
+    }),
+  );
+  expect(plain.status).toBe(415);
+
+  const charset = await POST(
+    new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "Application/JSON; charset=utf-8" },
+      body: JSON.stringify(history),
+    }),
+  );
+  expect(charset.status).toBe(200);
+  expect(await charset.json()).toMatchObject({ mocked: true, model: "mock" });
 });
 
 it("rejects a body that is not JSON", async () => {
