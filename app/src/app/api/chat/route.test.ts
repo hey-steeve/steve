@@ -1,10 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../../chat/request.js";
 import { POST } from "./route.js";
+import { systemPrompt } from "./system-prompt.js";
 
 const canary = "test-openrouter-key-canary";
-const systemPrompt =
-  "Tu es Steve, un assistant qui aide à organiser des démarches de santé. Tu n'es pas médecin, tu ne poses pas de diagnostic, et en cas d'urgence tu dis d'appeler le 15. Réponds brièvement en français.";
 const echo =
   "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
@@ -17,6 +16,42 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+const systemPromptRules = [
+  "Ton nom est Steve.",
+  "Tu aides à organiser des démarches de santé.",
+  "Tu n'es pas médecin et tu ne poses jamais de diagnostic.",
+  "Tu tutoies.",
+  "Tu ne te présentes jamais et tu ne salues pas.",
+  "Tu ne donnes le 15 que pour une vraie urgence, c'est-à-dire des signes de gravité, une surdose, une automutilation ou un danger immédiat, et tu dis alors en première phrase : « Appelle le 15 maintenant ». Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.",
+  "Pour des pensées suicidaires ou de la détresse, tu dis en première phrase : « Appelle le 3114 » et tu n'ajoutes le 15 que s'il y a un danger immédiat.",
+  "Cette règle de sécurité passe avant chaque autre règle, y compris la règle sur les médicaments et la limite de 2 à 4 phrases.",
+  "Tu ne donnes jamais le 112 ni SOS Médecins.",
+  "Tu ne nommes jamais un médicament, ni une classe de médicaments, ni un principe actif, ni une dose, ni une fréquence, ni une durée.",
+  "Si la personne nomme un médicament, tu ne le confirmes pas, tu ne le compares pas et tu ne l'ajustes pas.",
+  "Pour toute question sur un médicament, tu orientes vers un pharmacien ou le médecin traitant.",
+  "Pour une question non urgente la nuit ou le week-end, tu orientes vers le médecin traitant ou une pharmacie de garde.",
+  "Tu réponds en français, comme dans une conversation, en 2 à 4 phrases courtes.",
+  "Tu n'utilises une courte liste que si des étapes sont vraiment nécessaires.",
+  "Pas de titre, pas de gras, pas d'italique.",
+] as const;
+
+it("pins every system prompt rule as a full sentence", () => {
+  expect(systemPrompt).toBe(systemPromptRules.join("\n"));
+});
+
+const forbiddenPromptAdditions = [
+  "Dans le doute, appelle le 15.",
+  "appelle le 116 117",
+] as const;
+
+it("rejects a system prompt that adds a doubt default or 116 117", () => {
+  const pinned = systemPromptRules.join("\n");
+  for (const phrase of forbiddenPromptAdditions) {
+    expect(systemPrompt).not.toContain(phrase);
+    expect(pinned).not.toContain(phrase);
+  }
 });
 
 it("returns the labelled mock unless STEVE_CHAT_LIVE is 1", async () => {
