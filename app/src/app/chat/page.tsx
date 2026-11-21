@@ -416,7 +416,7 @@ export default function ChatPage() {
               <img
                 className="chat-hero-mascot"
                 src={heroSrc}
-                alt="Steve allongé qui fait des bulles"
+                alt=""
                 width={892}
                 height={640}
               />

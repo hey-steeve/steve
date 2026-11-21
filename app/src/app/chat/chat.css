@@ -220,7 +220,8 @@
   width: min(329px, 100%);
   max-width: 100%;
   height: auto;
-  margin: -16px 0 calc(-1 * var(--mascot-overlap));
+  margin-top: 0;
+  margin-bottom: calc(-1 * var(--mascot-overlap));
   aspect-ratio: 892 / 640;
   object-fit: contain;
 }
