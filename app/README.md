@@ -66,7 +66,7 @@ The chat page shows **Mode démo : réponses simulées** after a reply with `moc
 
 ## Access
 
-Live mode stays on the tailnet only, so the route has no auth and no rate limit. It caps the request body, the message count, and each message, as `POST /api/chat` describes.
+Deploy live mode on the tailnet. The route does not enforce that placement. The route has no auth and no rate limit. In live mode, every valid request spends the OpenRouter key. Live mode sends the message text to OpenRouter. The route caps the request body, the message count, and each message, as `POST /api/chat` describes.
 
 ## Mascot WebP files
 
