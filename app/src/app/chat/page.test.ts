@@ -9,6 +9,14 @@ import { afterEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../chat/request.js";
 import ChatPage from "./page.js";
 
+const routerPush = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: routerPush,
+  }),
+}));
+
 const chatCss = readFileSync(
   path.join(process.cwd(), "app/src/app/chat/chat.css"),
   "utf8",
@@ -320,6 +328,112 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
   } finally {
     spy.mockRestore();
   }
+});
+
+it("reverses the home open motion for the column exit", () => {
+  expect(chatCss).toContain(
+    "animation: chat-column-out var(--motion-scene) var(--motion-ease) both;",
+  );
+  expect(chatCss).toContain("transform: translateY(var(--motion-shift));");
+  expect(chatCss).toContain(
+    "transform: translateY(calc(-1 * var(--motion-shift)));",
+  );
+});
+
+it("adds the exit state on Retour and navigates home when that animation ends", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const view = await mount();
+  const back = await openConversation(view);
+
+  await act(async () => {
+    back.click();
+  });
+
+  const column = columnOf(view.container);
+  expect(column.classList.contains("chat-column-leave")).toBe(true);
+  expect(view.container.querySelector(".chat-greeting")).toBeNull();
+  expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
+    "Prendre rendez-vous chez un généraliste",
+  );
+  expect(routerPush).not.toHaveBeenCalled();
+
+  await act(async () => {
+    endColumnExit(column);
+  });
+
+  expect(routerPush).toHaveBeenCalledTimes(1);
+  expect(routerPush).toHaveBeenCalledWith("/");
+});
+
+it("navigates home when the exit animation never ends", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const view = await mount();
+  const back = await openConversation(view);
+
+  await act(async () => {
+    back.click();
+  });
+
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    true,
+  );
+  expect(routerPush).not.toHaveBeenCalled();
+  await act(async () => {
+    vi.advanceTimersByTime(239);
+  });
+  expect(routerPush).not.toHaveBeenCalled();
+  await act(async () => {
+    vi.advanceTimersByTime(1);
+  });
+  expect(routerPush).toHaveBeenCalledTimes(1);
+  expect(routerPush).toHaveBeenCalledWith("/");
+
+  await act(async () => {
+    endColumnExit(columnOf(view.container));
+  });
+  expect(routerPush).toHaveBeenCalledTimes(1);
+});
+
+it("navigates home immediately when motion is reduced", async () => {
+  stubReducedMotion();
+  stubReply();
+  const view = await mount();
+  const back = await openConversation(view);
+
+  await act(async () => {
+    back.click();
+    back.click();
+  });
+
+  expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
+    false,
+  );
+  expect(routerPush).toHaveBeenCalledTimes(1);
+  expect(routerPush).toHaveBeenCalledWith("/");
+});
+
+it("navigates home once when Retour is tapped twice", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  stubReply();
+  const view = await mount();
+  const back = await openConversation(view);
+
+  await act(async () => {
+    back.click();
+    back.click();
+  });
+
+  const column = columnOf(view.container);
+  expect(column.classList.contains("chat-column-leave")).toBe(true);
+  await act(async () => {
+    endColumnExit(column);
+    endColumnExit(column);
+    vi.advanceTimersByTime(240);
+  });
+  expect(routerPush).toHaveBeenCalledTimes(1);
+  expect(routerPush).toHaveBeenCalledWith("/");
 });
 
 it("pins the chat page to the visual viewport when the keyboard resizes it", async () => {
@@ -822,6 +936,52 @@ it("returns to the empty home state from Retour in the conversation header", asy
 
 const threadLength = 2000;
 
+function stubReducedMotion(): void {
+  vi.spyOn(window, "matchMedia").mockImplementation(
+    (query: string) =>
+      ({
+        matches: query === "(prefers-reduced-motion: reduce)",
+        media: query,
+        addEventListener() {},
+        removeEventListener() {},
+      }) as MediaQueryList,
+  );
+}
+
+async function openConversation(view: {
+  container: ParentNode;
+}): Promise<HTMLButtonElement> {
+  const chip = view.container.querySelector(".chat-chip");
+  if (!(chip instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+  await act(async () => {
+    chip.click();
+  });
+  const back = view.container.querySelector('[aria-label="Retour"]');
+  if (!(back instanceof HTMLButtonElement)) {
+    throw new Error("missing back");
+  }
+  return back;
+}
+
+function columnOf(container: ParentNode): HTMLElement {
+  const column = container.querySelector(".chat-column");
+  if (!(column instanceof HTMLElement)) {
+    throw new Error("missing column");
+  }
+  return column;
+}
+
+function endColumnExit(column: HTMLElement): void {
+  column.dispatchEvent(
+    new AnimationEvent("animationend", {
+      animationName: "chat-column-out",
+      bubbles: true,
+    }),
+  );
+}
+
 function stubReply(): void {
   vi.stubGlobal(
     "fetch",
@@ -1022,6 +1182,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 const roots: Root[] = [];
 
 afterEach(() => {
+  routerPush.mockClear();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   for (const root of roots.splice(0)) {
