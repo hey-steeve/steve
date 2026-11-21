@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../../chat/request.js";
-import { POST } from "./route.js";
+import { POST, readCompletion } from "./route.js";
 
 const canary = "test-openrouter-key-canary";
 const echo =
@@ -483,6 +483,86 @@ it("keeps the mock and does not call fetch when live chat is off", async () => {
     model: "mock",
   });
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("returns null when the completion body is not a record", () => {
+  const choices = [{ finish_reason: "stop", message: { content: "secret-fragment" } }];
+  const samples: unknown[] = [
+    null,
+    Object.assign([], { choices }),
+    Object.assign(() => undefined, { choices }),
+    "text",
+    1,
+    true,
+  ];
+  for (const payload of samples) {
+    expect(readCompletion(payload, "google/gemini-3.8-flash")).toBeNull();
+  }
+});
+
+it("returns null when the first choice is not a record", () => {
+  const message = { content: "secret-fragment" };
+  const samples: unknown[] = [
+    null,
+    Object.assign([], { message }),
+    Object.assign(() => undefined, { message }),
+    "text",
+    1,
+    true,
+  ];
+  for (const first of samples) {
+    expect(readCompletion({ choices: [first] }, "google/gemini-3.8-flash")).toBeNull();
+  }
+});
+
+it("returns null when the choice message is not a record", () => {
+  const samples: unknown[] = [
+    null,
+    Object.assign([], { content: "secret-fragment" }),
+    Object.assign(() => undefined, { content: "secret-fragment" }),
+    "text",
+    1,
+    true,
+  ];
+  for (const message of samples) {
+    expect(
+      readCompletion({ choices: [{ finish_reason: "stop", message }] }, "google/gemini-3.8-flash"),
+    ).toBeNull();
+  }
+});
+
+it("returns null when assistant content is not a string", () => {
+  for (const content of [null, 1, true, ["secret-fragment"], { text: "secret-fragment" }]) {
+    expect(
+      readCompletion(
+        { choices: [{ finish_reason: "stop", message: { content } }] },
+        "google/gemini-3.8-flash",
+      ),
+    ).toBeNull();
+  }
+});
+
+it("uses the requested model when OpenRouter sends an empty model string", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  delete process.env["OPENROUTER_MODEL"];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        model: "",
+        choices: [{ finish_reason: "stop", message: { content: "D'accord." } }],
+      }),
+    ),
+  );
+  const response = await post(history);
+  const text = await response.text();
+  expect(text).not.toContain(canary);
+  expect(JSON.parse(text)).toEqual({
+    reply: "D'accord.",
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
 });
 
 function liveReply(choice: {

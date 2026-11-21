@@ -91,7 +91,7 @@ async function completeWithOpenRouter(
   }
 }
 
-function readCompletion(
+export function readCompletion(
   payload: unknown,
   requested: string,
 ): { readonly reply: string; readonly model: string } | null {
