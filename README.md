@@ -20,3 +20,7 @@ pnpm verify
 ```
 
 Les règles des agents sont dans [AGENTS.md](./AGENTS.md).
+
+## Licence
+
+[Apache-2.0](LICENSE). Copyright 2026 Steve.
