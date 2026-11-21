@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ExchangeKind } from "../../chat/exchange";
 import { headerAvatarSrc, heroSrc, replyAvatarSrc } from "../../chat/faces";
 import { ChatMarkdown } from "../../chat/markdown";
+import { newMessageId } from "../../chat/message-id";
 import { parseChatReply, toProviderMessages } from "../../chat/request";
 import { useDictation, useSpeechPlayback } from "../../chat/speech";
 import "./chat.css";
@@ -114,7 +115,7 @@ export default function ChatPage() {
     playback.stop();
     const history: readonly UiMessage[] = [
       ...messages,
-      { id: crypto.randomUUID(), role: "user", content },
+      { id: newMessageId(), role: "user", content },
     ];
     setMessages(history);
     setDraft((current) => (current.trim() === content ? "" : current));
@@ -162,14 +163,14 @@ export default function ChatPage() {
   function pushAgent(content: string, model: string, mocked: boolean) {
     setMessages((current) => [
       ...current,
-      { id: crypto.randomUUID(), role: "agent", content, model, mocked },
+      { id: newMessageId(), role: "agent", content, model, mocked },
     ]);
   }
 
   function pushError(content: string) {
     setMessages((current) => [
       ...current,
-      { id: crypto.randomUUID(), role: "error", content },
+      { id: newMessageId(), role: "error", content },
     ]);
   }
 
