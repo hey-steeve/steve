@@ -463,9 +463,7 @@ export default function ChatPage() {
                   <li key={message.id} className="chat-row chat-row-agent">
                     <SteveAvatar />
                     <div className="chat-agent">
-                      <div className="chat-agent-text">
-                        <ChatMarkdown text={message.content} />
-                      </div>
+                      <ChatMarkdown text={message.content} />
                     </div>
                   </li>
                 ),

@@ -19,8 +19,7 @@
   --caption: 14px;
   --chip-label: 14px;
   --bubble-max: 80%;
-  --bubble-pad-y: 12px;
-  --bubble-pad-x: 16px;
+  --bubble-pad: 12px;
   --composer-side: 16px;
   --page-pad-wide: 24px;
   --mascot-overlap: 48px;
@@ -347,7 +346,7 @@
 
 .chat-user {
   margin: 0;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  padding: var(--bubble-pad);
   border-radius: var(--radius-bubble);
   background: var(--color-primary);
   color: var(--color-canvas);
@@ -356,60 +355,52 @@
 }
 
 .chat-agent {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--safe-gap);
   margin: 0;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  padding: var(--bubble-pad);
   border: var(--card-line);
   border-radius: var(--radius-card);
   background: var(--color-canvas);
   color: var(--color-foreground);
   box-shadow: var(--card-shadow);
-}
-
-.chat-agent-text {
-  margin: 0;
   overflow-wrap: anywhere;
 }
 
-.chat-agent-text p,
-.chat-agent-text ul,
-.chat-agent-text ol {
+.chat-agent p,
+.chat-agent ul,
+.chat-agent ol {
   margin: 0;
 }
 
-.chat-agent-text p + p,
-.chat-agent-text p + ul,
-.chat-agent-text p + ol,
-.chat-agent-text ul + p,
-.chat-agent-text ol + p,
-.chat-agent-text ul + ol,
-.chat-agent-text ol + ul {
+.chat-agent p + p,
+.chat-agent p + ul,
+.chat-agent p + ol,
+.chat-agent ul + p,
+.chat-agent ol + p,
+.chat-agent ul + ol,
+.chat-agent ol + ul {
   margin-top: var(--card-gap);
 }
 
-.chat-agent-text ul,
-.chat-agent-text ol {
+.chat-agent ul,
+.chat-agent ol {
   padding-left: 1.2rem;
 }
 
-.chat-agent-text ul {
+.chat-agent ul {
   list-style: disc;
 }
 
-.chat-agent-text ol {
+.chat-agent ol {
   list-style: decimal;
 }
 
-.chat-agent-text li + li {
+.chat-agent li + li {
   margin-top: 0.2rem;
 }
 
 .chat-error {
   margin: 0;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  padding: var(--bubble-pad);
   border: var(--card-line);
   border-radius: var(--radius-card);
   background: var(--color-canvas);
@@ -424,7 +415,7 @@
   gap: var(--safe-gap);
   align-items: center;
   margin: 0;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  padding: var(--bubble-pad);
   border: var(--card-line);
   border-radius: var(--radius-card);
   background: var(--color-canvas);
@@ -559,8 +550,8 @@
   font-weight: var(--body-weight);
   line-height: 1.4;
   min-height: var(--control-48);
-  padding: var(--bubble-pad-y) var(--composer-side);
-  max-height: calc(1.4em * 5 + (2 * var(--bubble-pad-y)));
+  padding: var(--bubble-pad) var(--composer-side);
+  max-height: calc(1.4em * 5 + (2 * var(--bubble-pad)));
   text-indent: 0;
 }
 
