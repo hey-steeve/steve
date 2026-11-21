@@ -11,7 +11,7 @@ import ChatPage from "./chat/page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-const pageBackground = designTokens.color.indigo50;
+const pageBackground = designTokens.color.lavender;
 
 const chatCss = readFileSync(
   path.join(process.cwd(), "app/src/app/chat/chat.css"),
@@ -26,7 +26,7 @@ it("paints the home screen and the chat screen with that page background", async
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
-  document.documentElement.style.setProperty("--color-indigo-50", pageBackground);
+  document.documentElement.style.setProperty("--color-lavender", pageBackground);
   document.documentElement.style.setProperty(
     "--color-indigo-100",
     designTokens.color.indigo100,

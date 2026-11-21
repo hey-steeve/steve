@@ -50,7 +50,7 @@
   margin: 0;
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
   overflow: hidden;
-  background: var(--color-indigo-50);
+  background: var(--color-lavender);
   color: var(--color-foreground);
   font-size: var(--body);
   font-weight: var(--body-weight);

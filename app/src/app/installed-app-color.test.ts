@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { designTokens } from "@steve/shared";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
@@ -16,7 +17,7 @@ vi.mock("next/font/local", () => ({
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-const lavender = "#dac4e8";
+const lavender = designTokens.color.lavender;
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(appDir, "../../..");
