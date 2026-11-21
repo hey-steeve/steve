@@ -22,7 +22,7 @@ An invalid body returns HTTP 400 and `{ "error": "Requête invalide." }`. A body
 
 The route accepts at most 40 messages. Each message is at most 4000 characters after trim. That limit applies to an assistant turn and to a user turn. A longer history returns HTTP 400 and `{ "error": "Requête invalide." }`. A longer message returns that same response. A history that does not alternate returns that same response.
 
-The route shortens a mock reply and a live reply to 4000 characters. It keeps the start of the text. The chat page shortens an assistant turn to 4000 characters before it sends the history. A later request can include that reply.
+The route shortens a mock reply and a live reply to 4000 characters and keeps the start of the text. The chat page shortens an assistant turn to 4000 characters before it sends the history. The next request can include that shortened turn.
 
 The route reads at most 1048576 bytes, then parses JSON. A larger body returns HTTP 413 and `{ "error": "Requête trop volumineuse." }`. The chat page sends only the newest 40 messages, so a long chat still fits. If that slice would start on an assistant turn, the page drops that turn. The request still starts with a user turn.
 
@@ -40,7 +40,7 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `STEVE_CHAT_LIVE` must be exactly `1`, and `OPENROUTER_API_KEY` must be set, before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set. `true`, `0`, and ` 1 ` keep the canned reply.
 
-When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The JSON includes `max_tokens` set to 1024. HTTP 200 looks like this.
+When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The JSON includes `max_tokens` set to 1024 and `reasoning` set to `{ "effort": "low", "exclude": true }`. HTTP 200 looks like this.
 
 ```json
 {
@@ -50,7 +50,7 @@ When the route calls OpenRouter, it sends a short French system prompt, then the
 }
 ```
 
-`model` is the `model` field from the OpenRouter JSON. That field names the model that ran. When that field is missing, `model` is the id the route sent.
+The response `model` is the `model` string from the OpenRouter JSON, the id of the model that ran. When that string is missing or empty, the response `model` is the id the route sent.
 
 The route aborts the OpenRouter call after 30 seconds. Each case below returns HTTP 502 and `{ "error": "Le service de chat est indisponible. Réessayez." }`.
 
@@ -59,6 +59,12 @@ The route aborts the OpenRouter call after 30 seconds. Each case below returns H
 - The call exceeds 30 seconds and aborts.
 - The 2xx body is not JSON.
 - The JSON has no assistant text, including a missing `choices` array, an empty `choices` array, a missing `message`, or blank `content`.
+- Blank `content` is `""` or whitespace. A `stop` finish and a `length` finish both return this 502.
+- `finish_reason` is `length`, and the assistant text has no complete sentence.
+- `finish_reason` is `content_filter`.
+- `finish_reason` is `error`. The provider failed during the reply, so the route drops any partial text.
+
+A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark stays with the sentence. A `.` inside a token, such as `2.5`, is not an ending. A `.` after a number at the start of a line is not an ending when a space or a tab follows that dot, as in `1. Appelle`. `15` and `3114` stay endings. A line that starts `15. Sinon` still ends at `15.`. A line that is only `15.` or `3114.` is an ending. When `finish_reason` is `length` and a complete sentence remains, the route returns the text through the last one. The trimmed reply still ends on a sentence. The route drops any cut-off sentence after that ending. The 4000-character cap still applies. If the cap cuts off the ending, the route trims to the last sentence inside the cap. When that trim finds nothing, the route returns the 502 above. When `finish_reason` is `stop`, the route returns the assistant text after the same cap. A missing `finish_reason` does the same. Any other `finish_reason` returns the assistant text after that cap.
 
 The route does not return the upstream body. Do not print the key.
 
