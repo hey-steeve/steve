@@ -1,50 +1,50 @@
 # voice
 
-## Rôle
+## Role
 
-`voice` relie Twilio au fournisseur vocal et transporte l'audio dans les deux sens.
+`voice` connects Twilio to the voice provider and carries audio both ways.
 
-## Fait
+## Does
 
-- Relie Twilio au fournisseur vocal.
-- Grok est le premier fournisseur.
-- Une variable d'environnement remplace le fournisseur.
-- L'audio va dans les deux sens.
+- Connects Twilio to the voice provider.
+- Grok is the first provider.
+- An environment variable swaps the provider.
+- Audio goes both ways.
 
-## Ne fait pas
+## Does not
 
-- Ne décide rien.
+- Decides nothing.
 
-## Entrées / sorties
+## Inputs and outputs
 
-- Entrée : audio Twilio. Le contrat est à définir.
-- Sortie : audio vers le fournisseur, et audio en retour. Les contrats sont à définir.
-- `voice` utilise l'interface `VoiceProvider` de `@steve/shared`.
+- The input is Twilio audio. The contract is to be defined.
+- The output is audio to the provider, and audio back. The contracts are to be defined.
+- `voice` uses the `VoiceProvider` interface from `@steve/shared`.
 
-## Dépend de
+## Depends on
 
-`@steve/shared`, pour l'interface `VoiceProvider`. Twilio. Le fournisseur vocal. Grok est le premier.
+`@steve/shared`, for the `VoiceProvider` interface. Twilio. The voice provider. Grok is the first.
 
-## Règles à tenir
+## Rules
 
-- `voice` ne décide rien.
-- Ne jamais diagnostiquer.
+- `voice` decides nothing.
+- Never diagnose.
 
-## Démo vs prod
+## Demo and production
 
-Une variable d'environnement choisit le fournisseur vocal. Grok est le premier. Le reste est à définir.
+An environment variable selects the voice provider. Grok is the first. The rest is to be defined.
 
-## Ressources
+## Resources
 
 - Twilio Voice
 - Media Streams
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/voice test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:

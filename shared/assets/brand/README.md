@@ -1,40 +1,40 @@
 # brand
 
-## Rôle
+## Role
 
-`shared/assets/brand/` est la source des icônes et de l'image de partage. Une app copie ces fichiers ou les sert.
+`shared/assets/brand/` is the source of the icons and the share image. An app copies these files or serves them.
 
-## Fait
+## Does
 
-- `apple-touch-icon.png` fait 180 pixels sur 180. Icône opaque pour l'écran d'accueil Apple.
-- `favicon-16.png` fait 16 pixels sur 16. Favicon PNG, avec transparence.
-- `favicon-32.png` fait 32 pixels sur 32. Favicon PNG, avec transparence.
-- `favicon.ico` contient quatre images, de 16 pixels, 32 pixels, 48 pixels et 64 pixels de côté. `sips` rapporte 64 pixels sur 64.
-- `icon-1024.png` fait 1024 pixels sur 1024. Icône opaque. `site.webmanifest` ne la cite pas.
-- `icon-192.png` fait 192 pixels sur 192. Icône opaque citée par `site.webmanifest`.
-- `icon-512.png` fait 512 pixels sur 512. Icône opaque citée par `site.webmanifest`.
-- `icon-maskable-512.png` fait 512 pixels sur 512. Icône masquable opaque citée par `site.webmanifest`.
-- `og-image.png` fait 1200 pixels sur 630. Image de partage opaque. Le mot Steve est à gauche. Steve salue à droite.
-- `site.webmanifest` est le manifeste. Il n'a pas de taille en pixels.
+- `apple-touch-icon.png` is 180 by 180 pixels. It is an opaque icon for the Apple home screen.
+- `favicon-16.png` is 16 by 16 pixels. It is a PNG favicon, with transparency.
+- `favicon-32.png` is 32 by 32 pixels. It is a PNG favicon, with transparency.
+- `favicon.ico` holds four images, 16, 32, 48, and 64 pixels on a side. `sips` reports 64 by 64 pixels.
+- `icon-1024.png` is 1024 by 1024 pixels. It is an opaque icon. `site.webmanifest` does not list it.
+- `icon-192.png` is 192 by 192 pixels. It is an opaque icon listed by `site.webmanifest`.
+- `icon-512.png` is 512 by 512 pixels. It is an opaque icon listed by `site.webmanifest`.
+- `icon-maskable-512.png` is 512 by 512 pixels. It is an opaque maskable icon listed by `site.webmanifest`.
+- `og-image.png` is 1200 by 630 pixels. It is an opaque share image. The word Steve is on the left. Steve waves on the right.
+- `site.webmanifest` is the manifest. It has no pixel size.
 
-`apple-touch-icon.png` n'a pas de canal alpha. Chaque pixel y est opaque. `icon-192.png`, `icon-512.png`, `icon-1024.png` et `icon-maskable-512.png` ont un canal alpha. Chaque pixel y est opaque.
+`apple-touch-icon.png` has no alpha channel. Every pixel in it is opaque. `icon-192.png`, `icon-512.png`, `icon-1024.png`, and `icon-maskable-512.png` have an alpha channel. Every pixel in them is opaque.
 
-Aucune app ne sert encore ces fichiers.
+No app serves these files yet.
 
-## Ne fait pas
+## Does not
 
-- Pas d'export dans `@steve/shared`.
-- Pas de branchement dans `app/`.
-- Pas de retouche des fichiers dans ce dossier.
+- No export in `@steve/shared`.
+- No wiring in `app/`.
+- No edits to the files in this folder.
 
-## Règles à tenir
+## Rules
 
-Ces fichiers sont la source. Ne pas les éditer sur place.
+These files are the source. Do not edit them in place.
 
-`site.webmanifest` cite `/icons/icon-192.png`, `/icons/icon-512.png` et `/icons/icon-maskable-512.png`. Pour servir ce manifeste, placer les fichiers sous `/icons/`, ou changer ces chemins. Ce dossier ne branche rien dans l'app.
+`site.webmanifest` lists `/icons/icon-192.png`, `/icons/icon-512.png`, and `/icons/icon-maskable-512.png`. To serve this manifest, put the files under `/icons/`, or change these paths. This folder wires nothing into the app.
 
-## Vérifier
+## Check
 
 `cd shared/assets/brand && shasum -a 256 -c SHA256SUMS`
 
-`SHA256SUMS` contient les sommes de l'original approuvé.
+`SHA256SUMS` contains the checksums of the approved original.

@@ -8,9 +8,9 @@
   <img src="shared/assets/mascot/body/lounge-call.png" alt="Steve on the phone in an armchair" width="200">
 </p>
 
-<p align="center">Steve orients people and organizes care. He calls, books, and reschedules for you.</p>
+<p align="center">Steve guides and organizes your care pathway. He calls, books and reschedules for you.</p>
 
-Built for the [Alan x Qovery x AWS: AI Health Hack 2](https://luma.com/o1eopuwy), Paris, 28 November 2026.
+Built for [Alan x Qovery x AWS: AI Health Hack 2](https://luma.com/o1eopuwy), Paris, 28 November 2026.
 
 ## Run
 
@@ -19,16 +19,16 @@ pnpm install
 pnpm verify
 ```
 
-Agent rules are in [AGENTS.md](./AGENTS.md).
+Agent rules live in [AGENTS.md](./AGENTS.md).
 
 ## License
 
 [Apache-2.0](LICENSE). Copyright 2026 Steve.
 
-### Third parties
+### Third-party
 
-Apache-2.0 covers only Steve's own code and assets.
+Apache-2.0 covers only the code and Steve's own assets.
 
 The [SIL Open Font License 1.1](app/src/fonts/OFL.txt) covers the Alan Sans font.
 
-The Alan marmot in `shared/assets/mascot/duo/` belongs to Alan. Apache-2.0 does not cover it.
+The Alan marmot in `shared/assets/mascot/duo/` belongs to Alan and is not covered by Apache-2.0.

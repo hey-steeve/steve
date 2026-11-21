@@ -1,39 +1,39 @@
 # Features
 
-Dix features. Le détail est dans chaque README. Les contrats communs sont dans le [README de shared](../shared/README.md).
+Ten features. The detail is in each README. The common contracts are in the [shared README](../shared/README.md).
 
-- [voice](voice/README.md) relie Twilio au fournisseur vocal, transporte l'audio, et ne décide rien.
-- [conversation](conversation/README.md) orchestre la conversation, en voix ou en texte, puis passe la main.
-- [triage](triage/README.md) classe chaque tour et oriente vers un type de praticien et un délai.
-- [directory](directory/README.md) trouve des praticiens dans l'Annuaire Santé public, et ne réserve pas.
-- [booking](booking/README.md) appelle le cabinet choisi et rapporte un créneau confirmé ou refusé.
-- [agenda](agenda/README.md) enregistre seulement les rendez-vous confirmés.
-- [profile](profile/README.md) garde la mémoire du patient, sans l'interpréter.
-- [vault](vault/README.md) stocke, retrouve et résume des documents, sans interprétation médicale.
-- [reminders](reminders/README.md) rappelle un rendez-vous ou un médicament, seulement pour un rendez-vous de l'agenda.
-- [inbox](inbox/README.md) reçoit les confirmations et les comptes rendus, les classe, et envoie des documents aux praticiens.
+- [voice](voice/README.md) connects Twilio to the voice provider, carries the audio, and decides nothing.
+- [conversation](conversation/README.md) runs the conversation, by voice or by text, then hands off.
+- [triage](triage/README.md) classifies each turn and orients toward a practitioner type and a delay.
+- [directory](directory/README.md) finds practitioners in the public Annuaire Santé, and does not book.
+- [booking](booking/README.md) calls the chosen practice and returns a confirmed or refused slot.
+- [agenda](agenda/README.md) records only confirmed appointments.
+- [profile](profile/README.md) stores patient memory, without interpreting it.
+- [vault](vault/README.md) stores, retrieves, and summarizes documents, with no medical interpretation.
+- [reminders](reminders/README.md) sends a reminder for an appointment or a medication, only for an appointment in the agenda.
+- [inbox](inbox/README.md) receives confirmations and reports, files them, and sends documents to practitioners.
 
-## Règles
+## Rules
 
-- Ne jamais diagnostiquer.
-- Une urgence confirmée part vers le 15, sans réservation.
-- Rien n'entre dans l'agenda sans confirmation du cabinet.
-- Les rappels ne portent que sur les rendez-vous qui sont dans l'agenda.
-- Chaque conversation se termine avec le patient informé.
+- Never diagnose.
+- A confirmed emergency goes to 15, with no booking.
+- Nothing enters the agenda without confirmation from the practice.
+- Reminders cover only appointments that are in the agenda.
+- Every conversation ends with the patient informed.
 
 ## Statechart
 
-La couleur `voice/call` de la légende couvre maintenant `voice` et `conversation`.
+The `voice/call` legend color now covers `voice` and `conversation`.
 
 ```mermaid
 ---
-title: "Un appel à Steve"
+title: "A call to Steve"
 ---
 stateDiagram-v2
   state "Legend" as legend {
     lg0: voice/call
     lg1: triage
-    lg2: urgence
+    lg2: emergency
     lg3: directory
     lg4: booking
     lg5: agenda/reminders
@@ -46,42 +46,42 @@ stateDiagram-v2
   class lg4 orange
   class lg5 purple
   class lg6 tan
-  s0: Appel entrant
-  s1: Steve accueille et écoute
-  s2: Triage en cours
-  s3: Question de confirmation
-  s4: Recherche de praticiens
-  s5: Document ou question
-  s6: Choix du praticien
-  s7: Récapitulatif au patient
-  s8: Renvoi vers le 15
-  s9: Steve appelle le cabinet
-  s10: Appel terminé
-  s11: Créneau confirmé
-  s12: Créneau refusé
-  s13: RDV dans l'agenda
+  s0: Incoming call
+  s1: Steve greets and listens
+  s2: Triage in progress
+  s3: Confirmation question
+  s4: Practitioner search
+  s5: Document or question
+  s6: Practitioner choice
+  s7: Recap to the patient
+  s8: Referral to 15
+  s9: Steve calls the practice
+  s10: Call ended
+  s11: Slot confirmed
+  s12: Slot refused
+  s13: Appointment in the agenda
   [*] --> s0
-  s0 --> s1: Le patient appelle
-  s1 --> s2: Le patient explique sa demande
-  s2 --> s3: Urgence détectée ou doute
-  s2 --> s4: Non urgent [demande de RDV]
-  s2 --> s5: Non urgent [document ou question]
-  s3 --> s4: Le patient dément [demande de RDV]
-  s3 --> s8: Urgence confirmée ou doute persistant
-  s3 --> s5: Le patient dément [document ou question]
-  s4 --> s6: Steve propose des praticiens proches
-  s5 --> s7: Steve range ou résume le document
-  s6 --> s3: Le patient décrit un symptôme grave [triage à chaque tour]
-  s6 --> s9: Le patient choisit un praticien
-  s7 --> s10: Steve récapitule et raccroche
-  s8 --> s10: Steve dit d'appeler le 15 et raccroche
-  s9 --> s11: Le cabinet confirme le créneau
-  s9 --> s12: Le cabinet refuse
-  s11 --> s13: Steve inscrit le RDV dans l'agenda
-  s12 --> s6: Steve propose un autre praticien [moins de 2 essais]
-  s13 --> s7: Steve programme les rappels
-  s3 --> s6: Le patient dément [praticien en cours de choix]
-  s12 --> s7: Steve abandonne [2 cabinets refusés]
+  s0 --> s1: The patient calls
+  s1 --> s2: The patient explains the request
+  s2 --> s3: Emergency detected or doubt
+  s2 --> s4: Not urgent [appointment request]
+  s2 --> s5: Not urgent [document or question]
+  s3 --> s4: The patient denies the emergency [appointment request]
+  s3 --> s8: Confirmed emergency or persistent doubt
+  s3 --> s5: The patient denies the emergency [document or question]
+  s4 --> s6: Steve suggests nearby practitioners
+  s5 --> s7: Steve files or summarizes the document
+  s6 --> s3: The patient describes a serious symptom [triage on every turn]
+  s6 --> s9: The patient chooses a practitioner
+  s7 --> s10: Steve recaps and hangs up
+  s8 --> s10: Steve says to call 15 and hangs up
+  s9 --> s11: The practice confirms the slot
+  s9 --> s12: The practice refuses
+  s11 --> s13: Steve records the appointment in the agenda
+  s12 --> s6: Steve suggests another practitioner [fewer than 2 tries]
+  s13 --> s7: Steve schedules the reminders
+  s3 --> s6: The patient denies the emergency [practitioner choice in progress]
+  s12 --> s7: Steve gives up [2 practices refused]
   class s0 blue
   class s1 blue
   class s2 yellow

@@ -1,44 +1,44 @@
 # shared
 
-## Rôle
+## Role
 
-`shared` porte les contrats typés du workspace, sans logique métier.
+`shared` holds the typed contracts for the workspace, with no business logic.
 
-## Fait
+## Does
 
-- Contrats typés.
-- Interface `VoiceProvider`.
+- Typed contracts.
+- `VoiceProvider` interface.
 - Logger.
-- Client LLM.
-- Jetons de design.
-- Images de la mascotte, dans `shared/assets/mascot/`.
+- LLM client.
+- Design tokens.
+- Mascot images, in `shared/assets/mascot/`.
 
-## Ne fait pas
+## Does not
 
-- Pas de logique métier.
+- No business logic.
 
-## Entrées / sorties
+## Inputs and outputs
 
-Les features importent `@steve/shared`. Les contrats prévus sont l'interface `VoiceProvider`, le logger, le client LLM et les jetons de design. Les autres noms sont à définir.
+Features import `@steve/shared`. The planned contracts are the `VoiceProvider` interface, the logger, the LLM client, and the design tokens. The other names are to be defined.
 
-## Dépend de
+## Depends on
 
-Aucun package du workspace.
+No workspace package.
 
-## Règles à tenir
+## Rules
 
-- Ne jamais diagnostiquer. `shared` ne porte pas cette décision.
+- Never diagnose. `shared` does not hold that decision.
 
-## Démo vs prod
+## Demo and production
 
-À définir.
+To be defined.
 
-## Vérifier
+## Check
 
 `pnpm --filter @steve/shared test`
 
-Les tests sont à définir.
+The tests are to be defined.
 
-## Statut
+## Status
 
-À faire. Owner :
+To do. Owner:
