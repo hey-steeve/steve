@@ -514,6 +514,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   max-width: 100%;
   min-height: var(--chip-h);
   margin: 0;
