@@ -87,10 +87,33 @@ it("shows the bubbles pose on the empty home sheet", () => {
     throw new Error("missing home hero");
   }
   expect(img.getAttribute("src")).toBe("/mascot/bubbles.webp");
-  expect(img.alt).toBe("Steve allongé qui fait des bulles");
   expect(img.getAttribute("width")).toBe("892");
   expect(img.getAttribute("height")).toBe("640");
-  expect(chatCss).toContain("aspect-ratio: 892 / 640");
+  const heroStart = chatCss.indexOf(".chat-hero-mascot {");
+  const heroEnd = chatCss.indexOf("}", heroStart);
+  if (heroStart < 0 || heroEnd < 0) {
+    throw new Error("missing home hero rule");
+  }
+  const hero = chatCss.slice(heroStart, heroEnd);
+  expect({
+    alt: img.getAttribute("alt"),
+    overlap: chatCss.includes("--mascot-overlap: 44px;"),
+    width: hero.includes("width: min(329px, 100%);"),
+    marginTop: hero.includes("margin-top: 0;"),
+    clippedTop: hero.includes("-16px"),
+    bottomOverlap: hero.includes("calc(-1 * var(--mascot-overlap))"),
+    float: chatCss.includes("float"),
+    aspect: hero.includes("aspect-ratio: 892 / 640"),
+  }).toEqual({
+    alt: "",
+    overlap: true,
+    width: true,
+    marginTop: true,
+    clippedTop: false,
+    bottomOverlap: true,
+    float: false,
+    aspect: true,
+  });
 });
 
 it("paints the home chips and composer with the lavender tokens", async () => {
