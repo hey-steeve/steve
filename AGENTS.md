@@ -66,7 +66,7 @@ Do not call `console` in `shared/`, in a feature, or in `app/`. Call `log()` fro
 
 Use only synthetic data. Never put real health data in the repo.
 
-Use one feature per branch. Change `shared/` on its own branch.
+Use one feature per branch. Change `shared/` on its own branch. The cross-boundary check flags a pull request that changes both `app/` and `shared/`. It blocks the merge once `Cross-boundary / app-shared-boundary` is a required status check in branch protection. Add the `cross-boundary` label when that mix is intentional.
 
 Write docs, pull request text, and code comments in English. Keep user-facing strings in the app in French.
 
