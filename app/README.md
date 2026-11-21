@@ -68,7 +68,7 @@ A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark sta
 
 The route does not return the upstream body. Do not print the key.
 
-The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows the model id under each agent reply when the reply is not mocked. It shows a failed reply on an error card.
+The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows a failed reply on an error card.
 
 ## Access
 
