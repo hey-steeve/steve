@@ -31,9 +31,14 @@ export default function Page() {
     <main>
       <section className="card">
         <h1>Steve</h1>
-        <p>Marmot</p>
+        <p>Marmotte</p>
+        <p>
+          <a href="/chat" style={{ color: designTokens.color.primary }}>
+            Discussion
+          </a>
+        </p>
         <div ref={host} className="stage" />
-        <div className="moments" role="group" aria-label="Moments">
+        <div className="moments" role="group" aria-label="Instants">
           {moments.map((moment) => (
             <button
               key={moment.id}

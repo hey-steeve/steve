@@ -2,16 +2,17 @@ import type { NextConfig } from "next";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { syncBrandIcons } from "./src/sync-brand-icons";
-
-syncBrandIcons();
+import { syncMascotWebps } from "./src/sync-mascot-webps";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-const nextConfig = {
-  reactStrictMode: true,
-  transpilePackages: ["@steve/shared"],
-  outputFileTracingRoot: root,
-  agentRules: false,
-} satisfies NextConfig;
-
-export default nextConfig;
+export default async function nextConfig(): Promise<NextConfig> {
+  syncBrandIcons();
+  await syncMascotWebps();
+  return {
+    reactStrictMode: true,
+    transpilePackages: ["@steve/shared"],
+    outputFileTracingRoot: root,
+    agentRules: false,
+  };
+}
