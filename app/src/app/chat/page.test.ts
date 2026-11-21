@@ -154,6 +154,50 @@ it("renders an assistant bubble without a model label, a speak button, or a foot
   }
 });
 
+it("pads an assistant bubble equally on all four sides", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        reply: "Tu peux contacter le secrétariat.",
+        mocked: true,
+        model: "mock",
+      }),
+    ),
+  );
+  const style = document.createElement("style");
+  style.textContent = chatCss;
+  document.head.append(style);
+  try {
+    const view = await mount();
+    const chip = view.container.querySelector(".chat-chip");
+    if (!(chip instanceof HTMLButtonElement)) {
+      throw new Error("missing suggestion");
+    }
+    await act(async () => {
+      chip.click();
+    });
+    const bubble = view.container.querySelector(".chat-agent");
+    if (!(bubble instanceof HTMLElement)) {
+      throw new Error("missing assistant bubble");
+    }
+    const computed = getComputedStyle(bubble);
+    expect({
+      top: computed.paddingTop,
+      right: computed.paddingRight,
+      bottom: computed.paddingBottom,
+      left: computed.paddingLeft,
+    }).toEqual({
+      top: "12px",
+      right: "12px",
+      bottom: "12px",
+      left: "12px",
+    });
+  } finally {
+    style.remove();
+  }
+});
+
 it("shows the thread when the home leave animation never ends", async () => {
   vi.stubGlobal(
     "fetch",
