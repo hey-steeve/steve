@@ -23,6 +23,7 @@ const disclaimer =
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
 const clientTimeoutMs = 35_000;
 const homeLeaveMs = 240;
+const keyboardOpenGap = 120;
 
 type UiMessage =
   | {
@@ -99,11 +100,10 @@ export default function ChatPage() {
   }, [exchange]);
 
   useEffect(() => {
-    const thread = threadRef.current;
-    if (thread === null || messages.length === 0) {
+    if (messages.length === 0) {
       return;
     }
-    thread.scrollTop = thread.scrollHeight;
+    scrollThreadToBottom(threadRef.current);
   }, [messages, exchange]);
 
   useEffect(() => {
@@ -156,19 +156,64 @@ export default function ChatPage() {
     if (viewport == null || page === null || !Number.isFinite(viewport.height)) {
       return;
     }
-    const sync = () => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previous = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      htmlOverscroll: html.style.overscrollBehavior,
+      bodyOverscroll: body.style.overscrollBehavior,
+    };
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
+    body.style.overscrollBehavior = "none";
+
+    let frame: number | null = null;
+    const apply = () => {
+      frame = null;
+      page.style.transform = "";
+      page.style.top = `${viewport.offsetTop}px`;
       page.style.height = `${viewport.height}px`;
-      page.style.transform =
-        viewport.offsetTop === 0 ? "" : `translateY(${viewport.offsetTop}px)`;
+      page.toggleAttribute(
+        "data-keyboard-open",
+        window.innerHeight - viewport.height > keyboardOpenGap,
+      );
+      scrollThreadToBottom(threadRef.current);
+    };
+    const pinWindow = () => {
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+    const sync = () => {
+      pinWindow();
+      if (frame !== null) {
+        return;
+      }
+      frame = window.requestAnimationFrame(apply);
     };
     sync();
     viewport.addEventListener("resize", sync);
     viewport.addEventListener("scroll", sync);
+    window.addEventListener("scroll", pinWindow);
+    page.addEventListener("focusin", pinWindow);
     return () => {
       viewport.removeEventListener("resize", sync);
       viewport.removeEventListener("scroll", sync);
+      window.removeEventListener("scroll", pinWindow);
+      page.removeEventListener("focusin", pinWindow);
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
+      page.style.top = "";
       page.style.height = "";
       page.style.transform = "";
+      page.removeAttribute("data-keyboard-open");
+      html.style.overflow = previous.htmlOverflow;
+      body.style.overflow = previous.bodyOverflow;
+      html.style.overscrollBehavior = previous.htmlOverscroll;
+      body.style.overscrollBehavior = previous.bodyOverscroll;
     };
   }, []);
 
@@ -593,6 +638,13 @@ function SpeakerIcon() {
       />
     </svg>
   );
+}
+
+function scrollThreadToBottom(thread: HTMLElement | null) {
+  if (thread === null) {
+    return;
+  }
+  thread.scrollTop = thread.scrollHeight;
 }
 
 function resizeComposerField(field: HTMLTextAreaElement): boolean {
