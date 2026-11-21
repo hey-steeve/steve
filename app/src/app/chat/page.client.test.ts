@@ -58,6 +58,113 @@ function sendButton(container: ParentNode): HTMLButtonElement {
   return button;
 }
 
+it("disables send while the chat request is in flight", async () => {
+  const pending: Array<(value: Response | PromiseLike<Response>) => void> = [];
+  const fetchMock = vi.fn<typeof fetch>(
+    () =>
+      new Promise((resolve) => {
+        pending.push(resolve);
+      }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const container = await renderPage();
+
+  await act(async () => {
+    setField(fieldIn(container), "Bonjour");
+  });
+  act(() => {
+    sendButton(container).click();
+  });
+  await act(async () => {
+    setField(fieldIn(container), "Encore");
+  });
+
+  const button = sendButton(container);
+  expect(button.disabled).toBe(true);
+  await act(async () => {
+    button.click();
+  });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+
+  const finish = pending[0];
+  if (finish === undefined) {
+    throw new Error("missing release");
+  }
+  await act(async () => {
+    finish(Response.json({ reply: "D'accord.", mocked: true, model: "mock" }));
+  });
+});
+
+it("hides playback when speech synthesis is missing and stops on an utterance error", async () => {
+  Reflect.deleteProperty(window, "speechSynthesis");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+    ),
+  );
+  const hidden = await renderPage();
+  await act(async () => {
+    setField(fieldIn(hidden), "Bonjour");
+  });
+  await act(async () => {
+    sendButton(hidden).click();
+  });
+  expect(hidden.querySelector('button[aria-label="Lire la réponse"]')).toBeNull();
+
+  const spoken: Array<{
+    onend: (() => void) | null;
+    onerror: (() => void) | null;
+  }> = [];
+  vi.stubGlobal(
+    "SpeechSynthesisUtterance",
+    class {
+      lang = "";
+      voice: SpeechSynthesisVoice | null = null;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(_text: string) {
+        spoken.push(this);
+      }
+    },
+  );
+  Object.defineProperty(window, "speechSynthesis", {
+    configurable: true,
+    value: {
+      cancel() {},
+      getVoices() {
+        return [];
+      },
+      speak() {},
+      addEventListener() {},
+      removeEventListener() {},
+    },
+  });
+  const shown = await renderPage();
+  await act(async () => {
+    setField(fieldIn(shown), "Bonjour");
+  });
+  await act(async () => {
+    sendButton(shown).click();
+  });
+  const speak = shown.querySelector('button[aria-label="Lire la réponse"]');
+  if (!(speak instanceof HTMLButtonElement)) {
+    throw new Error("missing speaker");
+  }
+  await act(async () => {
+    speak.click();
+  });
+  expect(speak.getAttribute("aria-pressed")).toBe("true");
+  const utterance = spoken[0];
+  if (utterance === undefined || utterance.onerror === null) {
+    throw new Error("missing utterance error handler");
+  }
+  await act(async () => {
+    utterance.onerror?.();
+  });
+  expect(speak.getAttribute("aria-pressed")).toBe("false");
+});
+
 it("keeps the composer focused after the first send", async () => {
   vi.stubGlobal(
     "fetch",
