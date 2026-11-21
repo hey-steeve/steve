@@ -44,6 +44,8 @@ function themeCss(): string {
     `--color-primary:${color.primary}`,
     `--color-indigo-50:${color.indigo50}`,
     `--color-lavender:${color.lavender}`,
+    `--color-lavender-100:${color.lavender100}`,
+    `--color-lavender-50:${color.lavender50}`,
     `--color-indigo-100:${color.indigo100}`,
     `--color-indigo-700:${color.indigo700}`,
     `--color-indigo-900:${color.indigo900}`,
