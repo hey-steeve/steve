@@ -205,7 +205,6 @@ it("keeps the safety sentence when a mock echo is longer than the reply cap", ()
 it("does not split an emoji when a reply is cut at the cap", () => {
   const head = "a".repeat(chatRequestLimits.maxMessageChars - 1);
   const cut = clampAssistantContent(`${head}\u{1F600}`);
-  expect(cut.isWellFormed()).toBe(true);
   expect(cut).toBe(head);
   expect(cut.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
 
@@ -224,8 +223,7 @@ it("does not split an emoji when a reply is cut at the cap", () => {
   expect(reply.startsWith(lead)).toBe(true);
   expect(reply.endsWith(tail)).toBe(true);
   const echoed = reply.slice(lead.length, reply.length - tail.length);
-  expect(asked.startsWith(echoed)).toBe(true);
-  expect(echoed.isWellFormed()).toBe(true);
+  expect(echoed).toBe(asked.slice(0, room - 1));
   expect(reply.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
 });
 

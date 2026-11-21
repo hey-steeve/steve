@@ -66,11 +66,7 @@ export function parseChatMessages(body: unknown): readonly ChatTurn[] | null {
 }
 
 export function clampAssistantContent(content: string): string {
-  const trimmed = content.trim();
-  if (trimmed.length <= chatRequestLimits.maxMessageChars) {
-    return content;
-  }
-  return trimmed.slice(0, chatRequestLimits.maxMessageChars);
+  return clampText(content.trim(), chatRequestLimits.maxMessageChars);
 }
 
 export function mockChatResult(messages: readonly ChatTurn[]): ChatHttpResult {
@@ -194,9 +190,21 @@ function mockReply(messages: readonly ChatTurn[]): string {
       break;
     }
   }
-  return clampAssistantContent(
-    `${mockPrefix}Vous avez demandé : ${asked}. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.`,
-  );
+  const lead = `${mockPrefix}Vous avez demandé : `;
+  const tail = ". Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
+  const room = chatRequestLimits.maxMessageChars - lead.length - tail.length;
+  return `${lead}${clampText(asked, room)}${tail}`;
+}
+
+function clampText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) {
+    return text;
+  }
+  const before = text.charCodeAt(maxChars - 1);
+  const after = text.charCodeAt(maxChars);
+  const splitsPair =
+    before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff;
+  return text.slice(0, splitsPair ? maxChars - 1 : maxChars);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
