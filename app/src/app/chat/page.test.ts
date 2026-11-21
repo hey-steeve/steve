@@ -101,6 +101,59 @@ it("shows the suggestion and the reply after a chip tap", async () => {
   expect(view.container.querySelector('[aria-label="Retour"]')).not.toBeNull();
 });
 
+it("renders an assistant bubble without a model label, a speak button, or a footer", async () => {
+  Object.defineProperty(window, "speechSynthesis", {
+    configurable: true,
+    value: {
+      cancel() {},
+      getVoices() {
+        return [];
+      },
+      speak() {},
+      addEventListener() {},
+      removeEventListener() {},
+    },
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        reply: "Tu peux contacter le secrétariat.",
+        mocked: false,
+        model: "google/gemini-3.8-flash",
+      }),
+    ),
+  );
+  try {
+    const view = await mount();
+    const chip = view.container.querySelector(".chat-chip");
+    if (!(chip instanceof HTMLButtonElement)) {
+      throw new Error("missing suggestion");
+    }
+    await act(async () => {
+      chip.click();
+    });
+
+    const bubble = view.container.querySelector(".chat-agent");
+    if (!(bubble instanceof HTMLElement)) {
+      throw new Error("missing assistant bubble");
+    }
+    expect({
+      text: bubble.textContent,
+      buttons: bubble.querySelectorAll("button").length,
+      footers: [...bubble.querySelectorAll("footer")].map((node) => node.innerHTML),
+      children: [...bubble.children].map((child) => child.tagName),
+    }).toEqual({
+      text: "Tu peux contacter le secrétariat.",
+      buttons: 0,
+      footers: [],
+      children: ["DIV"],
+    });
+  } finally {
+    Reflect.deleteProperty(window, "speechSynthesis");
+  }
+});
+
 it("shows the thread when the home leave animation never ends", async () => {
   vi.stubGlobal(
     "fetch",
