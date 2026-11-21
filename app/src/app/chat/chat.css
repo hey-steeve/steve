@@ -79,6 +79,11 @@
   margin-inline: auto;
 }
 
+.chat-column-leave {
+  pointer-events: none;
+  animation: chat-column-out var(--motion-scene) var(--motion-ease) both;
+}
+
 .chat-scroll {
   flex: 1;
   width: 100%;
@@ -743,6 +748,18 @@
   }
 }
 
+@keyframes chat-column-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+}
+
 @keyframes chat-float {
   0%,
   100% {
@@ -769,8 +786,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chat-dot {
+  .chat-dot,
+  .chat-column-leave {
     animation: none;
+  }
+
+  .chat-dot {
     opacity: 0.85;
   }
 }
