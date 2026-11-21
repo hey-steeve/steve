@@ -7,7 +7,7 @@ import { headerAvatarSrc, heroSrc, replyAvatarSrc } from "../../chat/faces";
 import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
 import { chatRequestLimits, parseChatReply, toProviderMessages } from "../../chat/request";
-import { useDictation, useSpeechPlayback } from "../../chat/speech";
+import { useDictation } from "../../chat/speech";
 import "./chat.css";
 
 const suggestions = [
@@ -36,8 +36,6 @@ type UiMessage =
       readonly id: string;
       readonly role: "agent";
       readonly content: string;
-      readonly model: string;
-      readonly mocked: boolean;
     }
   | {
       readonly id: string;
@@ -65,7 +63,6 @@ export default function ChatPage() {
     getDraft: () => draftRef.current,
     onTranscript: setDraft,
   });
-  const playback = useSpeechPlayback();
   const empty = messages.length === 0;
   const emptyRef = useRef(empty);
   const [homeMounted, setHomeMounted] = useState(true);
@@ -238,7 +235,6 @@ export default function ChatPage() {
     busy.current = true;
     restoreFocus.current = messages.length === 0 && restoreComposerFocus;
     dictation.stop();
-    playback.stop();
     const ticket = conversation.current;
     const history: readonly UiMessage[] = [
       ...messages,
@@ -254,7 +250,6 @@ export default function ChatPage() {
     conversation.current += 1;
     busy.current = false;
     dictation.stop();
-    playback.stop();
     setMessages([]);
     setDraft("");
     setDemo(false);
@@ -293,7 +288,7 @@ export default function ChatPage() {
         return;
       }
       setDemo(reply.mocked);
-      pushAgent(reply.reply, reply.model, reply.mocked);
+      pushAgent(reply.reply);
       setExchange("rendering");
     } catch {
       if (conversation.current !== ticket) {
@@ -308,10 +303,10 @@ export default function ChatPage() {
     }
   }
 
-  function pushAgent(content: string, model: string, mocked: boolean) {
+  function pushAgent(content: string) {
     setMessages((current) => [
       ...current,
-      { id: newMessageId(), role: "agent", content, model, mocked },
+      { id: newMessageId(), role: "agent", content },
     ]);
   }
 
@@ -377,7 +372,7 @@ export default function ChatPage() {
   return (
     <main
       ref={pageRef}
-      className={empty ? "chat-page chat-page-home" : "chat-page"}
+      className="chat-page"
     >
       <div className="chat-column">
         <header className="chat-header">
@@ -471,26 +466,6 @@ export default function ChatPage() {
                       <div className="chat-agent-text">
                         <ChatMarkdown text={message.content} />
                       </div>
-                      {message.mocked || message.model === "mock" ? null : (
-                        <p className="chat-model">{message.model}</p>
-                      )}
-                      {playback.supported ? (
-                        <button
-                          type="button"
-                          className="chat-speak"
-                          aria-label={
-                            playback.activeId === message.id
-                              ? "Arrêter la lecture"
-                              : "Lire la réponse"
-                          }
-                          aria-pressed={playback.activeId === message.id}
-                          onClick={() => {
-                            playback.toggle(message.id, message.content);
-                          }}
-                        >
-                          <SpeakerIcon />
-                        </button>
-                      ) : null}
                     </div>
                   </li>
                 ),
@@ -632,17 +607,6 @@ function MicIcon() {
       <path
         fill="currentColor"
         d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"
-      />
-    </svg>
-  );
-}
-
-function SpeakerIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M4 9v6h4l5 4V5L8 9H4zm11.5 3a3.5 3.5 0 0 0-1.5-2.9v5.8a3.5 3.5 0 0 0 1.5-2.9z"
       />
     </svg>
   );
