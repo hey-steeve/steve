@@ -921,9 +921,9 @@ it("hides the new-message pill when the reader scrolls back to the bottom", asyn
       session.scrolled.top = session.thread.scrollHeight - session.thread.clientHeight;
       session.thread.dispatchEvent(new Event("scroll"));
     });
-    expect(session.scrolled.top).toBe(
-      session.thread.scrollHeight - session.thread.clientHeight,
-    );
+    const gap =
+      session.thread.scrollHeight - session.scrolled.top - session.thread.clientHeight;
+    expect(gap).toBeLessThanOrEqual(0);
     expect(newMessagePill(session.container)).toBeNull();
   } finally {
     session.restore();
