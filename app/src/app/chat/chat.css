@@ -162,6 +162,13 @@
   box-shadow: none;
 }
 
+.chat-header-spacer {
+  grid-column: 3;
+  grid-row: 1;
+  width: var(--hit-min);
+  height: var(--hit-min);
+}
+
 .chat-profile {
   grid-column: 3;
   grid-row: 1;

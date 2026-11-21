@@ -348,7 +348,11 @@ export default function ChatPage() {
               <h1>Steve</h1>
             </div>
           )}
-          <ProfileButton />
+          {empty ? (
+            <ProfileButton />
+          ) : (
+            <span className="chat-header-spacer" aria-hidden="true" />
+          )}
           {empty || !demo ? null : (
             <p className="chat-badge">Mode démo : réponses simulées</p>
           )}

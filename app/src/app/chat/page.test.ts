@@ -19,6 +19,44 @@ it("limits the composer to the user message cap", () => {
   expect(html).toContain(`maxLength="${chatRequestLimits.maxMessageChars}"`);
 });
 
+it("keeps the profile button on the home screen only", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+    ),
+  );
+  const view = await mount();
+  expect(
+    view.container.querySelector('.chat-header [aria-label="Profil"]'),
+  ).not.toBeNull();
+
+  const chip = view.container.querySelector(".chat-chip");
+  if (!(chip instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+  await act(async () => {
+    chip.click();
+  });
+
+  const header = view.container.querySelector(".chat-header");
+  expect(header?.querySelector('[aria-label="Profil"]')).toBeNull();
+  expect(header?.querySelector('[aria-label="Retour"]')).not.toBeNull();
+  expect(header?.querySelector(".chat-title")?.textContent).toContain("Steve");
+  expect(header?.querySelector(".chat-header-spacer")).not.toBeNull();
+  expect(view.container.querySelector(".chat-avatar-user")).not.toBeNull();
+  expect(view.container.querySelector(".chat-avatar-agent")).not.toBeNull();
+
+  await act(async () => {
+    header
+      ?.querySelector('[aria-label="Retour"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  expect(
+    view.container.querySelector('.chat-header [aria-label="Profil"]'),
+  ).not.toBeNull();
+});
+
 it("renders the home greeting", async () => {
   const view = await mount();
   expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
