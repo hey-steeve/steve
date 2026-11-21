@@ -233,7 +233,7 @@ export default function ChatPage() {
         value={draft}
         rows={1}
         maxLength={chatRequestLimits.maxMessageChars}
-        placeholder="Demande n'importe quoi à Steve"
+        placeholder="Demande n'importe quoi"
         aria-label="Message pour Steve"
         onChange={(event) => {
           setDraft(event.target.value);
