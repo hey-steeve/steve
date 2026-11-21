@@ -54,6 +54,10 @@ The route aborts the OpenRouter call after 30 seconds. A non-2xx response, a net
 
 The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows the model id under each agent reply when the reply is not mocked. It shows a failed reply on an error card.
 
+## Access
+
+Live mode stays on the tailnet only, so the route has no auth and no rate limit. It caps the request body, the message count, and each message, as `POST /api/chat` describes.
+
 ## Mascot WebP files
 
 `shared/assets/mascot/` is the source. `app/src/sync-mascot-webps.ts` encodes WebP files into `app/public/mascot/`. `app/next.config.ts` calls `syncBrandIcons()` and then `syncMascotWebps()` on `next dev`, `next build`, and `next start`.
