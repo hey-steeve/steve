@@ -115,10 +115,12 @@ function readCompletion(
   if (typeof content !== "string" || content.trim().length === 0) {
     return null;
   }
+  const finish = field(first, "finish_reason");
+  if (finish === "content_filter") {
+    return null;
+  }
   const reply =
-    field(first, "finish_reason") === "length"
-      ? lengthReply(content)
-      : clampAssistantContent(content);
+    finish === "length" ? lengthReply(content) : clampAssistantContent(content);
   if (reply === null) {
     return null;
   }
@@ -150,6 +152,9 @@ function completeSentences(content: string): string | null {
     if (char !== "." && char !== "!" && char !== "?") {
       continue;
     }
+    if (char === "." && isLineStartNumberDot(text, index)) {
+      continue;
+    }
     const closer = closingGuillemet(text, index + 1);
     if (closer !== null) {
       end = closer;
@@ -168,6 +173,14 @@ function completeSentences(content: string): string | null {
     return null;
   }
   return sentence;
+}
+
+function isLineStartNumberDot(text: string, dotIndex: number): boolean {
+  let lineStart = dotIndex;
+  while (lineStart > 0 && text.charAt(lineStart - 1) !== "\n") {
+    lineStart -= 1;
+  }
+  return /^\s*\d+$/.test(text.slice(lineStart, dotIndex));
 }
 
 function closingGuillemet(text: string, from: number): number | null {
