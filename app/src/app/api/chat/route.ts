@@ -185,14 +185,20 @@ function isListMarkerDot(text: string, dotIndex: number): boolean {
 
 function isListItemAt(text: string, lineStart: number): boolean {
   let start: number | null = lineStart;
+  let expected: number | null = null;
   while (start !== null) {
     const digits = listMarkerDigits(text, start);
     if (digits === null) {
       return false;
     }
-    if (Number.parseInt(digits, 10) === 1) {
+    const value = Number.parseInt(digits, 10);
+    if (expected !== null && value !== expected) {
+      return false;
+    }
+    if (value === 1) {
       return true;
     }
+    expected = value - 1;
     start = previousNonEmptyLineStart(text, start);
   }
   return false;
