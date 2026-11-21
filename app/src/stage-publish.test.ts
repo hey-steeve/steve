@@ -19,9 +19,9 @@ it("keeps the published folder when staging is empty", () => {
   const dest = path.join(root, "mascot");
   mkdirSync(staging);
   mkdirSync(dest);
-  writeFileSync(path.join(dest, "shrug.webp"), "keep");
+  writeFileSync(path.join(dest, "marker.webp"), "keep");
 
   publishStaging(staging, dest);
 
-  expect(readdirSync(dest)).toEqual(["shrug.webp"]);
+  expect(readdirSync(dest)).toEqual(["marker.webp"]);
 });

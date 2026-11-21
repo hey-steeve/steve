@@ -20,7 +20,7 @@ export const mascotWebps = [
     width: 192,
     height: 192,
   },
-  { file: "shrug.webp", source: "body/shrug.png", height: 640 },
+  { file: "bubbles.webp", source: "body/bubbles.png", lossless: true },
   {
     file: "state-calling.webp",
     source: "states/calling.png",
@@ -71,22 +71,19 @@ export async function syncMascotWebps(target?: MascotSyncTarget): Promise<void> 
   try {
     await Promise.all(
       mascotWebps.map(async (item) => {
-        const resize =
-          "width" in item
-            ? {
-                width: item.width,
-                height: item.height,
-                fit: "cover" as const,
-              }
-            : {
-                height: item.height,
-                fit: "inside" as const,
-                withoutEnlargement: true,
-              };
-        await sharp(path.join(sourceRoot, item.source))
-          .resize(resize)
-          .webp({ quality: 80, alphaQuality: 80, effort: 4 })
-          .toFile(path.join(staging, item.file));
+        let image = sharp(path.join(sourceRoot, item.source));
+        if ("width" in item) {
+          image = image.resize({
+            width: item.width,
+            height: item.height,
+            fit: "cover",
+          });
+        }
+        const webp =
+          "lossless" in item
+            ? { lossless: true as const }
+            : { quality: 80, alphaQuality: 80, effort: 4 };
+        await image.webp(webp).toFile(path.join(staging, item.file));
       }),
     );
     publishStaging(staging, path.join(publicDir, "mascot"));

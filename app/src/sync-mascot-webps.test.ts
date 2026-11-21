@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdtempSync,
@@ -38,6 +39,71 @@ function fileName(url: string): string {
   return url.slice("/mascot/".length);
 }
 
+it("registers the bubbles pose", async () => {
+  const relative = "body/bubbles.png";
+  const png = path.join(sourceRoot, relative);
+  expect(existsSync(png)).toBe(true);
+  const meta = await sharp(png).metadata();
+  expect(meta.width).toBe(992);
+  expect(meta.height).toBe(712);
+  expect(meta.hasAlpha).toBe(true);
+  const hash = createHash("sha256").update(readFileSync(png)).digest("hex");
+  const sums = readFileSync(path.join(sourceRoot, "SHA256SUMS"), "utf8");
+  expect(sums.split("\n")).toContain(`${hash}  ${relative}`);
+  expect(mascotWebps).toContainEqual({
+    file: "bubbles.webp",
+    source: relative,
+    lossless: true,
+  });
+});
+
+it("serves the bubbles pose at the full source size", async () => {
+  const cssWidth = 329;
+  const publicDir = tempPublic();
+  const pngPath = path.join(sourceRoot, "body/bubbles.png");
+  await syncMascotWebps({ publicDir, sourceRoot });
+  const bytes = readFileSync(path.join(publicDir, "mascot", "bubbles.webp"));
+  const sourceMeta = await sharp(pngPath).metadata();
+  const meta = await sharp(bytes).metadata();
+  const sourceWidth = sourceMeta.width ?? 0;
+  const sourceHeight = sourceMeta.height ?? 0;
+  const neededWidth = Math.min(sourceWidth, cssWidth * 3);
+  const neededHeight = Math.min(sourceHeight, Math.ceil((cssWidth * sourceHeight) / sourceWidth * 3));
+  expect({
+    width: meta.width,
+    height: meta.height,
+    coversDpr3: (meta.width ?? 0) >= neededWidth && (meta.height ?? 0) >= neededHeight,
+    lossless: bytes.subarray(12, 16).toString("ascii"),
+  }).toEqual({
+    width: sourceWidth,
+    height: sourceHeight,
+    coversDpr3: true,
+    lossless: "VP8L",
+  });
+
+  const source = await sharp(pngPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const decoded = await sharp(bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  expect(decoded.info.width).toBe(source.info.width);
+  expect(decoded.info.height).toBe(source.info.height);
+  let mismatches = 0;
+  const pixels = source.info.width * source.info.height;
+  for (let i = 0; i < pixels; i++) {
+    const offset = i * 4;
+    if (source.data[offset + 3] === 0) {
+      continue;
+    }
+    if (
+      source.data[offset] !== decoded.data[offset] ||
+      source.data[offset + 1] !== decoded.data[offset + 1] ||
+      source.data[offset + 2] !== decoded.data[offset + 2] ||
+      source.data[offset + 3] !== decoded.data[offset + 3]
+    ) {
+      mismatches += 1;
+    }
+  }
+  expect(mismatches).toBe(0);
+});
+
 it("writes the webps the chat UI names, and only those", async () => {
   const publicDir = tempPublic();
   const destDir = path.join(publicDir, "mascot");
@@ -65,15 +131,15 @@ it("writes the webps the chat UI names, and only those", async () => {
     expect(bytes.subarray(8, 12).toString("ascii")).toBe("WEBP");
     const meta = await sharp(bytes).metadata();
     expect(meta.format).toBe("webp");
-    expect(meta.height).toBe(item.height);
-    if ("width" in item) {
+    if ("width" in item && "height" in item) {
       expect(meta.width).toBe(item.width);
+      expect(meta.height).toBe(item.height);
     }
   }
 
-  const shrug = await sharp(path.join(destDir, "shrug.webp")).metadata();
-  expect(shrug.width).toBe(514);
-  expect(shrug.height).toBe(640);
+  const bubbles = await sharp(path.join(destDir, "bubbles.webp")).metadata();
+  expect(bubbles.width).toBe(992);
+  expect(bubbles.height).toBe(712);
 
   for (const [index, item] of mascotWebps.entries()) {
     const source = sources[index];
