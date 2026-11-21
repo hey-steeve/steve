@@ -11,22 +11,24 @@ import ChatPage from "./chat/page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-const pageBackground = designTokens.color.lavender;
+const lavenderTop = designTokens.color.lavenderTop;
+const lavenderBottom = designTokens.color.lavenderBottom;
 
 const chatCss = readFileSync(
   path.join(process.cwd(), "app/src/app/chat/chat.css"),
   "utf8",
 );
 
-it("pins theme-color to the chat page background", () => {
-  expect(viewport.themeColor).toBe(pageBackground);
+it("pins theme-color to the top of the page gradient", () => {
+  expect(viewport.themeColor).toBe(lavenderTop);
 });
 
 it("paints the home screen and the chat screen with that page background", async () => {
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
-  document.documentElement.style.setProperty("--color-lavender", pageBackground);
+  document.documentElement.style.setProperty("--color-lavender-top", lavenderTop);
+  document.documentElement.style.setProperty("--color-lavender-bottom", lavenderBottom);
   document.documentElement.style.setProperty(
     "--color-indigo-100",
     designTokens.color.indigo100,
@@ -42,8 +44,8 @@ it("paints the home screen and the chat screen with that page background", async
   const view = await mount();
   const home = pageOf(view.container);
   expect(paint(home)).toEqual({
-    backgroundColor: channels(pageBackground),
-    backgroundImage: "none",
+    backgroundColor: channels(lavenderTop),
+    backgroundImage: `linear-gradient(to bottom, ${lavenderTop}, ${lavenderBottom})`,
   });
 
   const chip = view.container.querySelector(".chat-chip");
@@ -56,8 +58,8 @@ it("paints the home screen and the chat screen with that page background", async
 
   const chat = pageOf(view.container);
   expect(paint(chat)).toEqual({
-    backgroundColor: channels(pageBackground),
-    backgroundImage: "none",
+    backgroundColor: channels(lavenderTop),
+    backgroundImage: `linear-gradient(to bottom, ${lavenderTop}, ${lavenderBottom})`,
   });
 });
 
