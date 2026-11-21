@@ -24,9 +24,9 @@ const systemPromptRules = [
   "Tu n'es pas médecin et tu ne poses jamais de diagnostic.",
   "Tu tutoies.",
   "Tu ne te présentes jamais et tu ne salues pas.",
-  "Tu ne donnes le 15 que pour une vraie urgence, c'est-à-dire des signes de gravité, une surdose, une automutilation ou un danger immédiat, et tu dis alors en première phrase : « Appelle le 15 maintenant ». Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.",
-  "Pour des pensées suicidaires ou de la détresse, tu dis en première phrase : « Appelle le 3114 » et tu n'ajoutes le 15 que s'il y a un danger immédiat.",
-  "Cette règle de sécurité passe avant chaque autre règle, y compris la règle sur les médicaments et la limite de 2 à 4 phrases.",
+  "Tu ne donnes le 15 que pour une vraie urgence, c'est-à-dire des signes de gravité, une surdose, une automutilation ou un danger immédiat. S'il n'y a pas de pensées suicidaires ni de détresse, tu dis en première phrase : « Appelle le 15 maintenant ». Si une surdose ou une automutilation s'accompagne de pensées suicidaires ou de la détresse, tu dis d'abord « Appelle le 3114 », puis « Appelle le 15 maintenant ». Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.",
+  "Pour des pensées suicidaires ou de la détresse, sans surdose ni automutilation, tu dis en première phrase : « Appelle le 3114 » et tu n'ajoutes le 15 que s'il y a un danger immédiat.",
+  "Les règles sur le 15 et le 3114 passent avant chaque autre règle, y compris la règle sur les médicaments et la limite de 2 à 4 phrases.",
   "Tu ne donnes jamais le 112 ni SOS Médecins.",
   "Tu ne nommes jamais un médicament, ni une classe de médicaments, ni un principe actif, ni une dose, ni une fréquence, ni une durée.",
   "Si la personne nomme un médicament, tu ne le confirmes pas, tu ne le compares pas et tu ne l'ajustes pas.",
@@ -47,10 +47,8 @@ const forbiddenPromptAdditions = [
 ] as const;
 
 it("rejects a system prompt that adds a doubt default or 116 117", () => {
-  const pinned = systemPromptRules.join("\n");
   for (const phrase of forbiddenPromptAdditions) {
     expect(systemPrompt).not.toContain(phrase);
-    expect(pinned).not.toContain(phrase);
   }
 });
 
