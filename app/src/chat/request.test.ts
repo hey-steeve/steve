@@ -175,6 +175,24 @@ it("keeps the latest user turn when an error sits between two user turns", () =>
   ).toEqual([{ role: "user", content: "second" }]);
 });
 
+it("clamps an assistant turn so the next request stays under the cap", () => {
+  const long = "c".repeat(chatRequestLimits.maxMessageChars + 25);
+  const sent = toProviderMessages([
+    { role: "user", content: "De garde" },
+    { role: "agent", content: `  ${long}  ` },
+    { role: "user", content: "Merci" },
+  ]);
+  expect(sent).toEqual([
+    { role: "user", content: "De garde" },
+    {
+      role: "assistant",
+      content: long.slice(0, chatRequestLimits.maxMessageChars),
+    },
+    { role: "user", content: "Merci" },
+  ]);
+  expect(chatHttpResult({ messages: sent }).status).toBe(200);
+});
+
 it("omits error cards from the provider history", () => {
   expect(
     toProviderMessages([

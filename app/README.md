@@ -22,6 +22,8 @@ An invalid body returns HTTP 400 and `{ "error": "Requête invalide." }`. A body
 
 The route accepts at most 40 messages. Each message is at most 4000 characters after trim. That limit applies to an assistant turn and to a user turn. A longer history returns HTTP 400 and `{ "error": "Requête invalide." }`. A longer message returns that same response. A history that does not alternate returns that same response.
 
+The route shortens a mock reply and a live reply to 4000 characters. It keeps the start of the text. The chat page shortens an assistant turn to 4000 characters before it sends the history. A later request can include that reply.
+
 The route reads at most 1048576 bytes, then parses JSON. A larger body returns HTTP 413 and `{ "error": "Requête trop volumineuse." }`. The chat page sends only the newest 40 messages, so a long chat still fits. If that slice would start on an assistant turn, the page drops that turn. The request still starts with a user turn.
 
 A request whose `Content-Type` media type is not `application/json` returns HTTP 415 and `{ "error": "Type de contenu non pris en charge." }`. The route accepts `application/json` with parameters, such as `charset=utf-8`.
@@ -64,7 +66,7 @@ The chat page shows **Mode démo : réponses simulées** after a reply with `moc
 
 ## Access
 
-Live mode stays on the tailnet only, so the route has no auth and no rate limit. It caps the request body, the message count, and each message, as `POST /api/chat` describes.
+Deploy live mode on the tailnet. The route does not enforce that placement. The route has no auth and no rate limit. In live mode, every valid request spends the OpenRouter key. Live mode sends the message text to OpenRouter. The route caps the request body, the message count, and each message, as `POST /api/chat` describes.
 
 ## Mascot WebP files
 

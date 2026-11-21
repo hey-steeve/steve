@@ -6,7 +6,7 @@ import type { ExchangeKind } from "../../chat/exchange";
 import { headerAvatarSrc, heroSrc, replyAvatarSrc } from "../../chat/faces";
 import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
-import { parseChatReply, toProviderMessages } from "../../chat/request";
+import { chatRequestLimits, parseChatReply, toProviderMessages } from "../../chat/request";
 import { useDictation, useSpeechPlayback } from "../../chat/speech";
 import "./chat.css";
 
@@ -21,6 +21,7 @@ const disclaimer =
   "Steve n'est pas médecin et ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
+const clientTimeoutMs = 35_000;
 
 type UiMessage =
   | {
@@ -51,6 +52,7 @@ export default function ChatPage() {
   const conversation = useRef(0);
   const threadRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const restoreFocus = useRef(false);
   const [fieldGrown, setFieldGrown] = useState(false);
   draftRef.current = draft;
 
@@ -107,6 +109,14 @@ export default function ChatPage() {
     setFieldGrown((current) => (current === grown ? current : grown));
   }, [draft]);
 
+  useEffect(() => {
+    if (!restoreFocus.current) {
+      return;
+    }
+    restoreFocus.current = false;
+    fieldRef.current?.focus();
+  }, [messages]);
+
   function send(text: string) {
     const content = text.trim();
     if (
@@ -118,6 +128,7 @@ export default function ChatPage() {
       return;
     }
     busy.current = true;
+    restoreFocus.current = messages.length === 0;
     dictation.stop();
     playback.stop();
     const ticket = conversation.current;
@@ -150,6 +161,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           messages: toProviderMessages(history),
         }),
+        signal: AbortSignal.timeout(clientTimeoutMs),
       });
       let payload: unknown = null;
       try {
@@ -216,6 +228,7 @@ export default function ChatPage() {
         className="chat-field"
         value={draft}
         rows={1}
+        maxLength={chatRequestLimits.maxMessageChars}
         placeholder="Demande n'importe quoi à Steve"
         aria-label="Message pour Steve"
         onChange={(event) => {
@@ -234,6 +247,7 @@ export default function ChatPage() {
       />
       <ComposerAction
         control={control}
+        pending={exchange === "awaiting"}
         onDictate={dictation.toggle}
         onSend={() => {
           send(draft);
@@ -336,21 +350,23 @@ export default function ChatPage() {
                       {message.mocked || message.model === "mock" ? null : (
                         <p className="chat-model">{message.model}</p>
                       )}
-                      <button
-                        type="button"
-                        className="chat-speak"
-                        aria-label={
-                          playback.activeId === message.id
-                            ? "Arrêter la lecture"
-                            : "Lire la réponse"
-                        }
-                        aria-pressed={playback.activeId === message.id}
-                        onClick={() => {
-                          playback.toggle(message.id, message.content);
-                        }}
-                      >
-                        <SpeakerIcon />
-                      </button>
+                      {playback.supported ? (
+                        <button
+                          type="button"
+                          className="chat-speak"
+                          aria-label={
+                            playback.activeId === message.id
+                              ? "Arrêter la lecture"
+                              : "Lire la réponse"
+                          }
+                          aria-pressed={playback.activeId === message.id}
+                          onClick={() => {
+                            playback.toggle(message.id, message.content);
+                          }}
+                        >
+                          <SpeakerIcon />
+                        </button>
+                      ) : null}
                     </div>
                   </li>
                 ),
@@ -385,12 +401,19 @@ export default function ChatPage() {
 
 function ComposerAction(props: {
   readonly control: ComposerControl;
+  readonly pending: boolean;
   readonly onDictate: () => void;
   readonly onSend: () => void;
 }) {
   if (props.control.kind === "send") {
     return (
-      <button type="button" className="chat-action" aria-label="Envoyer" onClick={props.onSend}>
+      <button
+        type="button"
+        className="chat-action"
+        aria-label="Envoyer"
+        disabled={props.pending}
+        onClick={props.onSend}
+      >
         <SendIcon />
       </button>
     );

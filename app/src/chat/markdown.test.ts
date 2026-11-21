@@ -33,6 +33,10 @@ it("renders emphasis, lists, paragraphs, and line breaks without raw html", () =
   expect(render("1. un\n2. *deux*")).toBe(
     "<ol><li>un</li><li><em>deux</em></li></ol>",
   );
+  expect(render("3. un\n4. deux")).toBe(
+    '<ol start="3"><li>un</li><li>deux</li></ol>',
+  );
+  expect(render("10) dix")).toBe('<ol start="10"><li>dix</li></ol>');
   expect(render("<script>alert(1)</script>")).toBe(
     "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>",
   );

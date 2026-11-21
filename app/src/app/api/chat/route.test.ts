@@ -253,14 +253,14 @@ it("trims the OpenRouter key and ignores a blank one", async () => {
 });
 
 it("requires a JSON content type", async () => {
-  const missing = await POST(
-    new Request("http://localhost/api/chat", {
-      method: "POST",
-      body: JSON.stringify(history),
-    }),
-  );
-  expect(missing.status).toBe(415);
-  expect(await missing.json()).toEqual({
+  const missing = new Request("http://localhost/api/chat", {
+    method: "POST",
+    body: new TextEncoder().encode(JSON.stringify(history)),
+  });
+  expect(missing.headers.get("content-type")).toBeNull();
+  const missingResponse = await POST(missing);
+  expect(missingResponse.status).toBe(415);
+  expect(await missingResponse.json()).toEqual({
     error: "Type de contenu non pris en charge.",
   });
 
@@ -282,6 +282,31 @@ it("requires a JSON content type", async () => {
   );
   expect(charset.status).toBe(200);
   expect(await charset.json()).toMatchObject({ mocked: true, model: "mock" });
+});
+
+it("reads a JSON body that arrives in several chunks", async () => {
+  const bytes = new TextEncoder().encode(JSON.stringify(history));
+  const mid = Math.max(1, Math.floor(bytes.length / 2));
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes.subarray(0, mid));
+      controller.enqueue(bytes.subarray(mid));
+      controller.close();
+    },
+  });
+  const init = {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: stream,
+    duplex: "half",
+  };
+  const response = await POST(new Request("http://localhost/api/chat", init));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    reply: echo,
+    mocked: true,
+    model: "mock",
+  });
 });
 
 it("rejects a history that is not a user and assistant alternation", async () => {
@@ -313,6 +338,59 @@ it("rejects a history that is not a user and assistant alternation", async () =>
     ],
   });
   expect(accepted.status).toBe(200);
+});
+
+it("caps a long mock reply and accepts that reply on the next turn", async () => {
+  const asked = "a".repeat(chatRequestLimits.maxMessageChars);
+  const first = await post({ messages: [{ role: "user", content: asked }] });
+  expect(first.status).toBe(200);
+  const payload = await first.json();
+  expect(payload).toMatchObject({ mocked: true, model: "mock" });
+  expect(payload.reply.startsWith("[Réponse simulée] ")).toBe(true);
+  expect(payload.reply).toHaveLength(chatRequestLimits.maxMessageChars);
+
+  const follow = await post({
+    messages: [
+      { role: "user", content: asked },
+      { role: "assistant", content: payload.reply },
+      { role: "user", content: "Merci" },
+    ],
+  });
+  expect(follow.status).toBe(200);
+  expect(await follow.json()).toMatchObject({ mocked: true, model: "mock" });
+});
+
+it("caps a live reply at the message cap", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  const long = "b".repeat(chatRequestLimits.maxMessageChars + 80);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({
+        model: "google/gemini-3.8-flash",
+        choices: [{ message: { content: `  ${long}  ` } }],
+      }),
+    ),
+  );
+
+  const first = await post(history);
+  expect(first.status).toBe(200);
+  const payload = await first.json();
+  expect(payload).toEqual({
+    reply: long.slice(0, chatRequestLimits.maxMessageChars),
+    mocked: false,
+    model: "google/gemini-3.8-flash",
+  });
+
+  const follow = await post({
+    messages: [
+      { role: "user", content: "De garde" },
+      { role: "assistant", content: payload.reply },
+      { role: "user", content: "Merci" },
+    ],
+  });
+  expect(follow.status).toBe(200);
 });
 
 it("rejects an assistant turn longer than the content cap", async () => {
