@@ -53,7 +53,7 @@ it("registers the bubbles pose", async () => {
   expect(mascotWebps).toContainEqual({
     file: "bubbles.webp",
     source: relative,
-    height: 640,
+    lossless: true,
   });
 });
 
@@ -131,15 +131,15 @@ it("writes the webps the chat UI names, and only those", async () => {
     expect(bytes.subarray(8, 12).toString("ascii")).toBe("WEBP");
     const meta = await sharp(bytes).metadata();
     expect(meta.format).toBe("webp");
-    expect(meta.height).toBe(item.height);
-    if ("width" in item) {
+    if ("width" in item && "height" in item) {
       expect(meta.width).toBe(item.width);
+      expect(meta.height).toBe(item.height);
     }
   }
 
   const bubbles = await sharp(path.join(destDir, "bubbles.webp")).metadata();
-  expect(bubbles.width).toBe(892);
-  expect(bubbles.height).toBe(640);
+  expect(bubbles.width).toBe(992);
+  expect(bubbles.height).toBe(712);
 
   for (const [index, item] of mascotWebps.entries()) {
     const source = sources[index];

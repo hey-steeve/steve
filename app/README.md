@@ -89,11 +89,11 @@ Deploy live mode on the tailnet. The route does not enforce that placement. The 
 
 A later run replaces the files inside `app/public/mascot/` and leaves that folder in place. `app/public/icons/` works the same way. The run deletes its own staging directory. It also deletes a staging directory whose age is at least 15 minutes.
 
-The encoder is sharp 0.35.5, a dependency of `@steve/app`. Next.js lists the same version as an optional dependency. The script resizes each PNG, then encodes WebP at quality 80 and alpha quality 80.
+The encoder is sharp 0.35.5, a dependency of `@steve/app`. Next.js lists the same version as an optional dependency. The script resizes each sized PNG, then encodes WebP at quality 80 and alpha quality 80. `bubbles.webp` is not resized. It is a lossless WebP at the PNG size.
 
 The chat page loads two files.
 
-- `bubbles.webp` comes from `body/bubbles.png`, scaled to a height of 640. The current PNG becomes 892 by 640, which matches the `width` and `height` on the hero image.
+- `bubbles.webp` comes from `body/bubbles.png` with no resize. The file stays 992 by 712, which matches the `width` and `height` on the hero image. The hero draws it at `min(329px, 100%)`.
 - `pfp-lavender.webp` comes from `avatar/pfp-lavender.png`, scaled to 192 by 192.
 
 `app/src/chat/faces.ts` names five more files for `faceFor`. The chat page does not call `faceFor`. The generator still writes them so those URLs resolve.

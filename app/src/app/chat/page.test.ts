@@ -87,8 +87,8 @@ it("shows the bubbles pose on the empty home sheet", () => {
     throw new Error("missing home hero");
   }
   expect(img.getAttribute("src")).toBe("/mascot/bubbles.webp");
-  expect(img.getAttribute("width")).toBe("892");
-  expect(img.getAttribute("height")).toBe("640");
+  expect(img.getAttribute("width")).toBe("992");
+  expect(img.getAttribute("height")).toBe("712");
   const heroStart = chatCss.indexOf(".chat-hero-mascot {");
   const heroEnd = chatCss.indexOf("}", heroStart);
   if (heroStart < 0 || heroEnd < 0) {
@@ -103,7 +103,7 @@ it("shows the bubbles pose on the empty home sheet", () => {
     clippedTop: hero.includes("-16px"),
     bottomOverlap: hero.includes("calc(-1 * var(--mascot-overlap))"),
     float: chatCss.includes("float"),
-    aspect: hero.includes("aspect-ratio: 892 / 640"),
+    aspect: hero.includes("aspect-ratio: 992 / 712"),
   }).toEqual({
     alt: "",
     overlap: true,

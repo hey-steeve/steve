@@ -417,8 +417,8 @@ export default function ChatPage() {
                 className="chat-hero-mascot"
                 src={heroSrc}
                 alt=""
-                width={892}
-                height={640}
+                width={992}
+                height={712}
               />
               <div className="chat-sheet">
                 {empty ? (

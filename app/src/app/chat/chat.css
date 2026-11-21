@@ -222,7 +222,7 @@
   height: auto;
   margin-top: 0;
   margin-bottom: calc(-1 * var(--mascot-overlap));
-  aspect-ratio: 892 / 640;
+  aspect-ratio: 992 / 712;
   object-fit: contain;
 }
 
@@ -277,7 +277,12 @@
   padding: calc(var(--mascot-overlap) + var(--safe-gap)) var(--page-pad)
     calc(var(--page-pad) + env(safe-area-inset-bottom));
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  background: var(--color-canvas);
+  background-color: var(--color-canvas);
+  background-image: radial-gradient(
+    ellipse 78% 18px at 50% calc(var(--mascot-overlap) - 6px),
+    color-mix(in srgb, var(--color-indigo-900) 20%, transparent),
+    transparent 70%
+  );
 }
 
 .chat-thread {
