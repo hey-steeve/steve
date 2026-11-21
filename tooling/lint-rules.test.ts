@@ -179,4 +179,9 @@ describe("package lint rules", () => {
     const found = await messages("console.log('x');\n", "app/src/log.tsx");
     expect(found).toEqual([noConsole]);
   });
+
+  it("reports console.log in tooling", async () => {
+    const found = await messages("console.log('x');\n", "tooling/log.ts");
+    expect(found).toEqual([noConsole]);
+  });
 });
