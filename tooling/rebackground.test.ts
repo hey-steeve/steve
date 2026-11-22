@@ -5,17 +5,20 @@ import { expect, it } from "vitest";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-it("keeps non-background pixels equal to the original, within 2 levels only on the outline", () => {
+it("keeps body pixels exact and recomposites the edge off the lavender matte", () => {
   const result = spawnSync(process.execPath, ["tooling/rebackground.mjs", "--check"], {
     cwd: root,
     encoding: "utf8",
   });
   const output = result.stdout ?? "";
-  const lines = output.split("\n").filter((line) => line.includes("changed non-bg"));
-  expect(output).toContain("outline tolerance 2");
+  const lines = output.split("\n").filter((line) => line.includes(" body "));
+  expect(output).toContain("edge tolerance 1");
   expect(result.status, output || result.stderr || "").toBe(0);
   expect(lines.length).toBeGreaterThan(10);
   for (const line of lines) {
-    expect(line).toContain("changed non-bg 0");
+    expect(line).toContain(" body 0");
+    expect(line).toContain(" edge 0");
+    expect(line).toContain(" fringe 0");
+    expect(line).toContain(" field 0");
   }
 });

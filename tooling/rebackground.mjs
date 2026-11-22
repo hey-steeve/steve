@@ -33,6 +33,17 @@ const steps = [
   [0, -1],
 ];
 
+const neighbors = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+];
+
 function distance(red, green, blue) {
   return Math.hypot(red - oldLavender[0], green - oldLavender[1], blue - oldLavender[2]);
 }
@@ -63,7 +74,7 @@ const fieldRedGreen = 16;
 const fieldBlueGreen = 24;
 const fieldBlueRedMin = 6;
 const fieldBlueRedMax = 24;
-const outlineTolerance = 2;
+const edgeTolerance = 1;
 
 function channelGap(red, green, blue) {
   return Math.max(
@@ -126,50 +137,115 @@ function hex(red, green, blue) {
   return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function longestRuns(mask, width, height) {
-  let vertical = null;
-  let horizontal = null;
-  for (let x = 0; x < width; x++) {
-    let run = 0;
-    let y0 = 0;
-    for (let y = 0; y <= height; y++) {
-      const on = y < height && mask[y * width + x] === 1;
-      if (on) {
-        if (run === 0) y0 = y;
-        run++;
-      } else if (run > 0) {
-        if (!vertical || run > vertical.len) vertical = { x, y0, y1: y - 1, len: run };
-        run = 0;
-      }
-    }
-  }
-  for (let y = 0; y < height; y++) {
-    let run = 0;
-    let x0 = 0;
-    for (let x = 0; x <= width; x++) {
-      const on = x < width && mask[y * width + x] === 1;
-      if (on) {
-        if (run === 0) x0 = x;
-        run++;
-      } else if (run > 0) {
-        if (!horizontal || run > horizontal.len) {
-          horizontal = { y, x0, x1: x - 1, len: run };
-        }
-        run = 0;
-      }
-    }
-  }
-  return { vertical, horizontal };
-}
-
-function touchesField(backdrop, width, height, x, y) {
-  for (const [dx, dy] of steps) {
+function touches(mask, width, height, x, y) {
+  for (const [dx, dy] of neighbors) {
     const nextX = x + dx;
     const nextY = y + dy;
     if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) continue;
-    if (backdrop[nextY * width + nextX]) return true;
+    if (mask[nextY * width + nextX]) return true;
   }
   return false;
+}
+
+function edgeMap(backdrop, width, height) {
+  const count = width * height;
+  const edge = new Uint8Array(count);
+  const interior = new Uint8Array(count);
+  const body = new Uint8Array(count);
+  for (let index = 0; index < count; index++) body[index] = backdrop[index] ? 0 : 1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = y * width + x;
+      if (!backdrop[index] && touches(backdrop, width, height, x, y)) edge[index] = 1;
+      else if (backdrop[index] && touches(body, width, height, x, y)) edge[index] = 1;
+      else if (!backdrop[index]) interior[index] = 1;
+    }
+  }
+  return { edge, interior };
+}
+
+function nearestBody(src, interior, width, height, x, y) {
+  let best = Number.POSITIVE_INFINITY;
+  let found = null;
+  for (let radius = 1; radius < width + height; radius++) {
+    if (radius * radius > best) break;
+    for (let dy = -radius; dy <= radius; dy++) {
+      const nextY = y + dy;
+      if (nextY < 0 || nextY >= height) continue;
+      const along = Math.abs(dy) === radius;
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (!along && Math.abs(dx) !== radius) continue;
+        const nextX = x + dx;
+        if (nextX < 0 || nextX >= width) continue;
+        if (!interior[nextY * width + nextX]) continue;
+        const distance2 = dx * dx + dy * dy;
+        if (distance2 > best) continue;
+        if (
+          distance2 === best &&
+          found &&
+          (nextY > found.y || (nextY === found.y && nextX >= found.x))
+        ) {
+          continue;
+        }
+        best = distance2;
+        const offset = (nextY * width + nextX) * 4;
+        found = {
+          x: nextX,
+          y: nextY,
+          red: src[offset],
+          green: src[offset + 1],
+          blue: src[offset + 2],
+        };
+      }
+    }
+  }
+  return found;
+}
+
+function coverage(colour, foreground, backdrop) {
+  const body = [foreground.red, foreground.green, foreground.blue];
+  let dot = 0;
+  let length = 0;
+  for (let channel = 0; channel < 3; channel++) {
+    const span = body[channel] - backdrop[channel];
+    dot += (colour[channel] - backdrop[channel]) * span;
+    length += span * span;
+  }
+  if (length === 0) return 0;
+  return Math.min(1, Math.max(0, dot / length));
+}
+
+function composite(alpha, foreground, backdrop) {
+  const body = [foreground.red, foreground.green, foreground.blue];
+  return body.map((channel, index) => Math.round(alpha * channel + (1 - alpha) * backdrop[index]));
+}
+
+function paintEdge(src, offset, foreground, background) {
+  if (!foreground) return [background[0], background[1], background[2]];
+  const colour = [src[offset], src[offset + 1], src[offset + 2]];
+  return composite(coverage(colour, foreground, oldLavender), foreground, background);
+}
+
+function mixError(colour, foreground, backdrop) {
+  if (!foreground) {
+    return Math.max(
+      Math.abs(colour[0] - backdrop[0]),
+      Math.abs(colour[1] - backdrop[1]),
+      Math.abs(colour[2] - backdrop[2]),
+    );
+  }
+  const mixed = composite(coverage(colour, foreground, backdrop), foreground, backdrop);
+  return Math.max(
+    Math.abs(colour[0] - mixed[0]),
+    Math.abs(colour[1] - mixed[1]),
+    Math.abs(colour[2] - mixed[2]),
+  );
+}
+
+function residualFringe(colour, foreground, background) {
+  const lavenderError = mixError(colour, foreground, oldLavender);
+  const backgroundError = mixError(colour, foreground, background);
+  return lavenderError + edgeTolerance < backgroundError;
 }
 
 function channelDelta(src, dst, offset) {
@@ -181,54 +257,94 @@ function channelDelta(src, dst, offset) {
   );
 }
 
-function clipReport(name, src, dst, width, height) {
+function clipReport(name, src, dst, width, height, background) {
   const backdrop = floodBackdrop(src, width, height);
-  const bad = new Uint8Array(width * height);
-  let count = 0;
+  const { edge, interior } = edgeMap(backdrop, width, height);
   let body = 0;
-  let outline = 0;
-  let left = null;
-  let right = null;
+  let edgeMiss = 0;
+  let fringe = 0;
+  let field = 0;
+  let sample = null;
+  const note = (kind, x, y, from, to) => {
+    if (sample) return;
+    sample = `${kind} ${x},${y} ${from} -> ${to}`;
+  };
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const index = y * width + x;
-      if (backdrop[index]) continue;
       const offset = index * 4;
-      const delta = channelDelta(src, dst, offset);
-      if (delta === 0) continue;
-      const onOutline = touchesField(backdrop, width, height, x, y);
-      if (onOutline && delta <= outlineTolerance) continue;
-      bad[index] = 1;
-      count++;
-      if (onOutline) outline++;
-      else body++;
-      const sample = {
-        x,
-        y,
-        from: hex(src[offset], src[offset + 1], src[offset + 2]),
-        to: hex(dst[offset], dst[offset + 1], dst[offset + 2]),
-      };
-      if (!left || x < left.x || (x === left.x && y < left.y)) left = sample;
-      if (!right || x > right.x || (x === right.x && y < right.y)) right = sample;
+      const alpha = src[offset + 3];
+      if (alpha === 0 || interior[index]) {
+        if (channelDelta(src, dst, offset) !== 0) {
+          body++;
+          note(
+            "body",
+            x,
+            y,
+            hex(src[offset], src[offset + 1], src[offset + 2]),
+            hex(dst[offset], dst[offset + 1], dst[offset + 2]),
+          );
+        }
+        continue;
+      }
+      if (edge[index]) {
+        const foreground = nearestBody(src, interior, width, height, x, y);
+        const expected = paintEdge(src, offset, foreground, background);
+        const delta = Math.max(
+          Math.abs(dst[offset] - expected[0]),
+          Math.abs(dst[offset + 1] - expected[1]),
+          Math.abs(dst[offset + 2] - expected[2]),
+          Math.abs(dst[offset + 3] - alpha),
+        );
+        if (delta > edgeTolerance) {
+          edgeMiss++;
+          note(
+            "edge",
+            x,
+            y,
+            hex(expected[0], expected[1], expected[2]),
+            hex(dst[offset], dst[offset + 1], dst[offset + 2]),
+          );
+        }
+        const colour = [dst[offset], dst[offset + 1], dst[offset + 2]];
+        if (residualFringe(colour, foreground, background)) {
+          fringe++;
+          note(
+            "fringe",
+            x,
+            y,
+            hex(oldLavender[0], oldLavender[1], oldLavender[2]),
+            hex(colour[0], colour[1], colour[2]),
+          );
+        }
+        continue;
+      }
+      const flat =
+        dst[offset] === background[0] &&
+        dst[offset + 1] === background[1] &&
+        dst[offset + 2] === background[2] &&
+        dst[offset + 3] === alpha;
+      if (!flat) {
+        field++;
+        note(
+          "field",
+          x,
+          y,
+          hex(background[0], background[1], background[2]),
+          hex(dst[offset], dst[offset + 1], dst[offset + 2]),
+        );
+      }
     }
   }
-  const runs = longestRuns(bad, width, height);
-  const lines = [`${name} changed non-bg ${count}`];
-  if (count > 0) {
-    lines.push(`  body ${body}`);
-    lines.push(`  outline ${outline}`);
-    if (runs.vertical) {
-      const at = runs.vertical;
-      lines.push(`  vertical ${at.x},${at.y0}-${at.y1} len ${at.len}`);
-    }
-    if (runs.horizontal) {
-      const at = runs.horizontal;
-      lines.push(`  horizontal ${at.y}:${at.x0}-${at.x1} len ${at.len}`);
-    }
-    if (left) lines.push(`  left ${left.x},${left.y} ${left.from} -> ${left.to}`);
-    if (right) lines.push(`  right ${right.x},${right.y} ${right.from} -> ${right.to}`);
-  }
-  return { count, text: `${lines.join("\n")}\n` };
+  const lines = [`${name} body ${body} edge ${edgeMiss} fringe ${fringe} field ${field}`];
+  if (sample) lines.push(`  ${sample}`);
+  return {
+    body,
+    edge: edgeMiss,
+    fringe,
+    field,
+    text: `${lines.join("\n")}\n`,
+  };
 }
 
 function ringReport(data, width, height, next) {
@@ -352,14 +468,14 @@ if (!checkOnly) {
   writeFileSync(path.join(repo, icoTo), writeIco(paintedIco));
 }
 
-let clips = 0;
-process.stdout.write(`outline tolerance ${outlineTolerance}\n`);
-for (const [from, to] of jobs) {
+let failed = 0;
+process.stdout.write(`edge tolerance ${edgeTolerance}\n`);
+for (const [from, to, background] of jobs) {
   const source = await decodedRaw(path.join(repo, from));
   const derived = await decodedRaw(path.join(repo, to));
   if (source.width !== derived.width || source.height !== derived.height) {
-    process.stdout.write(`${path.basename(to)} changed non-bg size\n`);
-    clips++;
+    process.stdout.write(`${path.basename(to)} size\n`);
+    failed++;
     continue;
   }
   const report = clipReport(
@@ -368,8 +484,9 @@ for (const [from, to] of jobs) {
     derived.data,
     source.width,
     source.height,
+    background,
   );
-  clips += report.count;
+  failed += report.body + report.edge + report.fringe + report.field;
   process.stdout.write(report.text);
 }
 
@@ -377,15 +494,15 @@ const [icoFrom] = icoJob;
 const sourceIco = readIco(readFileSync(path.join(repo, icoFrom)));
 const derivedIco = readIco(readFileSync(path.join(repo, icoJob[1])));
 if (sourceIco.length !== derivedIco.length) {
-  process.stdout.write(`favicon-page.ico changed non-bg size\n`);
-  clips++;
+  process.stdout.write(`favicon-page.ico size\n`);
+  failed++;
 }
 for (let index = 0; index < Math.min(sourceIco.length, derivedIco.length); index++) {
   const source = await decodedRaw(sourceIco[index]);
   const derived = await decodedRaw(derivedIco[index]);
   if (source.width !== derived.width || source.height !== derived.height) {
-    process.stdout.write(`favicon-page.ico ${source.width} changed non-bg size\n`);
-    clips++;
+    process.stdout.write(`favicon-page.ico ${source.width} size\n`);
+    failed++;
     continue;
   }
   const report = clipReport(
@@ -394,8 +511,9 @@ for (let index = 0; index < Math.min(sourceIco.length, derivedIco.length); index
     derived.data,
     source.width,
     source.height,
+    icoJob[2],
   );
-  clips += report.count;
+  failed += report.body + report.edge + report.fringe + report.field;
   process.stdout.write(report.text);
 }
-if (clips > 0) process.exitCode = 1;
+if (failed > 0) process.exitCode = 1;
