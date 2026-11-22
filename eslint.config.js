@@ -6,7 +6,14 @@ export default [
     ignores: ["**/dist/**", "**/coverage/**", "**/.next/**"],
   },
   {
-    files: ["shared/**/*.ts", "features/**/*.ts", "app/**/*.ts", "app/**/*.tsx"],
+    files: [
+      "shared/**/*.ts",
+      "features/**/*.ts",
+      "app/**/*.ts",
+      "app/**/*.tsx",
+      "tooling/**/*.ts",
+      "tooling/**/*.js",
+    ],
     languageOptions: {
       parser: tseslint.parser,
       sourceType: "module",
