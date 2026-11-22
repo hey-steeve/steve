@@ -9,6 +9,7 @@
     "test": "pnpm --dir .. exec vitest run --passWithNoTests app"
   },
   "dependencies": {
+    "@steve/profile": "workspace:*",
     "@steve/shared": "workspace:*",
     "next": "^16.4.6",
     "open-bot-avatar": "^0.3.0",

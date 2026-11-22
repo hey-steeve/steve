@@ -15,26 +15,26 @@ export const metadata: Metadata = {
   title: "Steve",
   icons: {
     icon: [
-      { url: "/icons/favicon.ico" },
-      { url: "/icons/favicon-16.png", sizes: "16x16", type: "image/png" },
-      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/favicon-page.ico" },
+      { url: "/icons/favicon-16-page.png", sizes: "16x16", type: "image/png" },
+      { url: "/icons/favicon-32-page.png", sizes: "32x32", type: "image/png" },
     ],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+    apple: [{ url: "/icons/apple-touch-icon-page.png", sizes: "180x180" }],
   },
   manifest: "/icons/site.webmanifest",
   openGraph: {
-    images: [{ url: "/icons/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/icons/og-image-page.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    images: ["/icons/og-image.png"],
+    images: ["/icons/og-image-page.png"],
   },
 };
 
 export const viewport: Viewport = {
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
-  themeColor: designTokens.color.lavenderTop,
+  themeColor: designTokens.color.page,
 };
 
 function themeCss(): string {
@@ -44,9 +44,8 @@ function themeCss(): string {
     `--color-primary:${color.primary}`,
     `--color-indigo-50:${color.indigo50}`,
     `--color-lavender-100:${color.lavender100}`,
-    `--color-lavender-50:${color.lavender50}`,
-    `--color-lavender-top:${color.lavenderTop}`,
-    `--color-lavender-bottom:${color.lavenderBottom}`,
+    `--color-page:${color.page}`,
+    `--color-profile:${color.profile}`,
     `--color-indigo-100:${color.indigo100}`,
     `--color-indigo-700:${color.indigo700}`,
     `--color-indigo-900:${color.indigo900}`,
@@ -56,7 +55,11 @@ function themeCss(): string {
     `--color-danger:${color.danger}`,
     `--color-canvas:${color.canvas}`,
     `--color-border:${color.border}`,
+    `--radius-sm:${designTokens.radius.sm}`,
+    `--radius-md:${designTokens.radius.md}`,
+    `--radius-lg:${designTokens.radius.lg}`,
     `--radius-default:${designTokens.radius.default}`,
+    `--space-3:${designTokens.space[3]}`,
     `--shadow-faint:${designTokens.shadow.faint}`,
     `--font-fallback:"${designTokens.font.family}", ${designTokens.font.fallback.join(", ")}`,
     `--font-weight-body:${weight.body}`,

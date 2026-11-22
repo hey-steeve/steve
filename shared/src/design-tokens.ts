@@ -1,9 +1,7 @@
 const indigo500 = "#5c59f3";
-const lavender = "#dac4e8";
 const lavender100 = "#eaddf2";
-const lavender50 = "#f7f2fa";
-const lavenderTop = "#f1e9f7";
-const lavenderBottom = "#fbf8fd";
+const page = "#eff1fe";
+const profile = "#daddfe";
 const emphasis = 500;
 const fontFallback = ["Helvetica", "Arial", "sans-serif"] as const;
 
@@ -15,11 +13,9 @@ export const designTokens = {
     indigo900: "#0c0a66",
     indigo100: "#d6dbff",
     indigo50: "#f0f3ff",
-    lavender,
     lavender100,
-    lavender50,
-    lavenderTop,
-    lavenderBottom,
+    page,
+    profile,
     heading: "#282830",
     foreground: "#464754",
     caption: "#656779",
@@ -37,7 +33,13 @@ export const designTokens = {
     success: "#7fca6c",
   },
   radius: {
+    sm: "8px",
+    md: "12px",
+    lg: "16px",
     default: "16px",
+  },
+  space: {
+    3: "12px",
   },
   shadow: {
     faint:

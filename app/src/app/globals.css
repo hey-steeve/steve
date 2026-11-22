@@ -3,14 +3,7 @@ body {
   margin: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  background-color: var(--color-lavender-top);
-  background-image: linear-gradient(
-    to bottom,
-    var(--color-lavender-top),
-    var(--color-lavender-bottom)
-  );
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+  background-color: var(--color-page);
   color: var(--color-foreground);
   font-family: var(--font-alan-sans), var(--font-fallback);
   font-weight: var(--font-weight-body);
@@ -23,14 +16,6 @@ main {
   padding: 2rem 1.25rem 3rem;
 }
 
-.card {
-  background: var(--color-canvas);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-default);
-  box-shadow: var(--shadow-faint);
-  padding: 1.5rem;
-}
-
 h1 {
   margin: 0;
   color: var(--color-heading);
@@ -40,18 +25,6 @@ h1 {
 
 p {
   margin: 0.25rem 0 0;
-}
-
-.stage {
-  width: 16rem;
-  height: 16rem;
-  margin: 1.25rem auto;
-}
-
-.moments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }
 
 button {

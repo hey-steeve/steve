@@ -36,9 +36,9 @@ Each directory under `features/` is one package. The packages, in order, are `@s
 
 `@steve/inbox` handles email in and email out. Each user gets a Steve email address. Inbox ingests appointment confirmations and lab or practice reports into reminders and the vault. Documents to practitioners go out from inbox.
 
-`app/` is the workspace package `@steve/app`. It is the user app, the front. For now the only page is `/`, the marmot demo. `app/` may import `@steve/shared`. It may import a feature only as `@steve/<feature>`, the package public index. It must not import a path into `features/*/src`. A feature must not import `app/`. `shared/` must not import `app/`.
+`app/` is the workspace package `@steve/app`. It is the user app, the front. `/` redirects to `/chat`, the home. `app/` may import `@steve/shared`. It may import a feature only as `@steve/<feature>`, the package public index. It must not import a path into `features/*/src`. A feature must not import `app/`. `shared/` must not import `app/`.
 
-Design tokens live in `shared/src/design-tokens.ts`. The set is Soft Companion, grouped into color, radius, shadow, and font. The primary color is `designTokens.color.primary`, `#5c59f3`. The marmot definition is `shared/src/mascot/marmot.json`, exported as `marmot` from `@steve/shared`. Its color is the primary token.
+Design tokens live in `shared/src/design-tokens.ts`. The set is Soft Companion, grouped into color, radius, space, shadow, and font. The primary color is `designTokens.color.primary`, `#5c59f3`. The marmot definition is `shared/src/mascot/marmot.json`, exported as `marmot` from `@steve/shared`. Its color is the primary token.
 
 ## Commands
 

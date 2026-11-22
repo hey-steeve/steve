@@ -8,7 +8,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { viewport as chatViewport } from "./chat/layout.js";
-import ChatPage from "./chat/page.js";
+import ChatPage from "./chat/chat-page.js";
 import RootLayout, { viewport } from "./layout.js";
 
 vi.mock("next/font/local", () => ({
@@ -17,22 +17,22 @@ vi.mock("next/font/local", () => ({
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-const lavenderTop = designTokens.color.lavenderTop;
-const lavenderBottom = designTokens.color.lavenderBottom;
+const page = "#eff1fe";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(appDir, "../../..");
 const manifestPath = path.join(repoRoot, "shared/assets/brand/site.webmanifest");
 
-it("matches the installed app to the top of the page gradient", async () => {
+it("matches the installed app to the flat page background", async () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
     theme_color: string;
     background_color: string;
   };
-  expect(manifest.theme_color).toBe(lavenderTop);
-  expect(manifest.background_color).toBe(lavenderTop);
-  expect(viewport.themeColor).toBe(lavenderTop);
-  expect(chatViewport.themeColor).toBe(lavenderTop);
+  expect(designTokens.color.page).toBe(page);
+  expect(manifest.theme_color).toBe(page);
+  expect(manifest.background_color).toBe(page);
+  expect(viewport.themeColor).toBe(page);
+  expect(chatViewport.themeColor).toBe(page);
 
   const style = document.createElement("style");
   style.textContent = [
@@ -50,66 +50,30 @@ it("matches the installed app to the top of the page gradient", async () => {
 
   await mount(createElement(RootLayout, null, createElement(ChatPage)));
 
-  const page = document.querySelector(".chat-page");
-  if (!(page instanceof HTMLElement)) {
+  const screen = document.querySelector(".chat-page");
+  if (!(screen instanceof HTMLElement)) {
     throw new Error("missing chat page");
   }
   const painted = {
-    top: channels(lavenderTop),
-    bottom: channels(lavenderBottom),
+    backgroundColor: channels(page),
+    backgroundImage: "none",
   };
-  expect(verticalStops(getComputedStyle(document.documentElement).backgroundImage)).toEqual(
-    painted,
-  );
-  expect(verticalStops(getComputedStyle(document.body).backgroundImage)).toEqual(painted);
-  expect(verticalStops(getComputedStyle(page).backgroundImage)).toEqual(painted);
+  expect(flat(document.documentElement)).toEqual(painted);
+  expect(flat(document.body)).toEqual(painted);
+  expect(flat(screen)).toEqual(painted);
 });
 
-function verticalStops(image: string): { top: string; bottom: string } {
-  const match = /^linear-gradient\(\s*to bottom\s*,\s*([\s\S]*)\)$/i.exec(image.trim());
-  if (match === null) {
-    return { top: image, bottom: image };
-  }
-  const stops = splitStops(match[1] ?? "");
-  const first = stops[0] ?? "";
-  const last = stops[stops.length - 1] ?? "";
-  return { top: channels(stopColor(first)), bottom: channels(stopColor(last)) };
-}
-
-function splitStops(value: string): string[] {
-  const stops: string[] = [];
-  let current = "";
-  let depth = 0;
-  for (const char of value) {
-    if (char === "(") {
-      depth += 1;
-    } else if (char === ")") {
-      depth -= 1;
-    }
-    if (char === "," && depth === 0) {
-      stops.push(current);
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  if (current.trim() !== "") {
-    stops.push(current);
-  }
-  return stops;
-}
-
-function stopColor(stop: string): string {
-  const trimmed = stop.trim();
-  const rgb = /^(rgba?\([^)]*\))/i.exec(trimmed);
-  if (rgb !== null) {
-    return rgb[1] ?? trimmed;
-  }
-  const hex = /^(#[0-9a-f]{3,8})/i.exec(trimmed);
-  if (hex !== null) {
-    return hex[1] ?? trimmed;
-  }
-  return trimmed.split(/\s+/)[0] ?? trimmed;
+function flat(element: Element): { backgroundColor: string; backgroundImage: string } {
+  const style = getComputedStyle(element);
+  return {
+    backgroundColor: channels(style.backgroundColor),
+    backgroundImage:
+      style.backgroundImage === "" ||
+      style.backgroundImage === "none" ||
+      style.backgroundImage === "initial"
+        ? "none"
+        : style.backgroundImage,
+  };
 }
 
 function channels(color: string): string {

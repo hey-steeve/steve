@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../chat/request.js";
 import RootLayout from "../layout.js";
-import ChatPage from "./page.js";
+import ChatPage from "./chat-page.js";
 
 vi.mock("next/font/local", () => ({
   default: () => ({ variable: "alan-sans" }),
@@ -61,6 +61,12 @@ it("keeps the profile button on the home screen only", async () => {
   expect(header?.querySelector('[aria-label="Profil"]')).toBeNull();
   expect(header?.querySelector('[aria-label="Retour"]')).not.toBeNull();
   expect(header?.querySelector(".chat-title")?.textContent).toContain("Steve");
+  expect(header?.querySelector(".chat-title img")?.getAttribute("src")).toBe(
+    "/mascot/pfp-lavender-profile.webp",
+  );
+  expect(
+    view.container.querySelector(".chat-avatar-agent img")?.getAttribute("src"),
+  ).toBe("/mascot/pfp-lavender-profile.webp");
   expect(header?.querySelector(".chat-header-spacer")).not.toBeNull();
   expect(view.container.querySelector(".chat-avatar-user")).not.toBeNull();
   expect(view.container.querySelector(".chat-avatar-agent")).not.toBeNull();
@@ -78,9 +84,7 @@ it("keeps the profile button on the home screen only", async () => {
 
 it("renders the home greeting", async () => {
   const view = await mount();
-  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Bonjour,",
-  );
+  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe("Bonjour,");
   expect(view.container.querySelector('[aria-label="Retour"]')).toBeNull();
 });
 
@@ -93,8 +97,8 @@ it("shows the bubbles pose on the empty home sheet", () => {
     throw new Error("missing home hero");
   }
   expect(img.getAttribute("src")).toBe("/mascot/bubbles.webp");
-  expect(img.getAttribute("width")).toBe("992");
-  expect(img.getAttribute("height")).toBe("712");
+  expect(img.getAttribute("width")).toBe("1137");
+  expect(img.getAttribute("height")).toBe("840");
   const heroStart = chatCss.indexOf(".chat-hero-mascot {");
   const heroEnd = chatCss.indexOf("}", heroStart);
   if (heroStart < 0 || heroEnd < 0) {
@@ -103,26 +107,34 @@ it("shows the bubbles pose on the empty home sheet", () => {
   const hero = chatCss.slice(heroStart, heroEnd);
   expect({
     alt: img.getAttribute("alt"),
-    overlap: chatCss.includes("--mascot-overlap: 44px;"),
-    width: hero.includes("width: min(329px, 100%);"),
-    marginTop: hero.includes("margin-top: 0;"),
+    overlap: chatCss.includes("--mascot-overlap"),
+    width: hero.includes("width: 284px;"),
+    left: hero.includes("margin-left: 29px;"),
+    top: hero.includes("margin-top: -5px;"),
+    align: hero.includes("align-self: flex-start;"),
+    fit: hero.includes("object-fit: contain;"),
     clippedTop: hero.includes("-16px"),
-    bottomOverlap: hero.includes("calc(-1 * var(--mascot-overlap))"),
+    sheet: hero.includes("calc(284px * (718 - 840) / 1137)"),
     float: chatCss.includes("float"),
-    aspect: hero.includes("aspect-ratio: 992 / 712"),
+    aspect: hero.includes("aspect-ratio: 1137 / 840"),
+    shadow: hero.includes("filter:") || hero.includes("box-shadow"),
   }).toEqual({
     alt: "",
-    overlap: true,
+    overlap: false,
     width: true,
-    marginTop: true,
+    left: true,
+    top: true,
+    align: true,
+    fit: true,
     clippedTop: false,
-    bottomOverlap: true,
+    sheet: true,
     float: false,
     aspect: true,
+    shadow: false,
   });
 });
 
-it("grounds the bubbles pose with a contact shadow", () => {
+it("rests the bubbles pose on the top edge of the sheet", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
   const host = document.createElement("div");
   host.innerHTML = html;
@@ -139,33 +151,60 @@ it("grounds the bubbles pose with a contact shadow", () => {
   }
   const hero = chatCss.slice(heroStart, heroEnd);
   const sheet = chatCss.slice(sheetStart, sheetEnd);
+  const pull = /margin-bottom:\s*calc\((\d+)px \* \((\d+) - (\d+)\) \/ (\d+)\)/.exec(hero);
+  if (pull === null) {
+    throw new Error("missing sheet alignment");
+  }
+  const cssWidth = Number(pull[1]);
+  const sheetRow = Number(pull[2]);
+  const assetHeight = Number(pull[3]);
+  const assetWidth = Number(pull[4]);
+  const fromTop = (cssWidth * sheetRow) / assetWidth;
   expect({
     width: img.getAttribute("width"),
     height: img.getAttribute("height"),
-    aspect: hero.includes("aspect-ratio: 992 / 712"),
+    aspect: hero.includes("aspect-ratio: 1137 / 840"),
     filtered: hero.includes("filter:") || hero.includes("blur("),
-    shadow: sheet.includes("radial-gradient(") && sheet.includes("var(--color-indigo-900)"),
-    overlap: chatCss.includes("--mascot-overlap: 44px;"),
-    marginTop: hero.includes("margin-top: 0;"),
+    shadow: sheet.includes("radial-gradient("),
+    overlap: chatCss.includes("--mascot-overlap"),
+    left: hero.includes("margin-left: 29px;"),
+    top: hero.includes("margin-top: -5px;"),
     clippedTop: hero.includes("-16px"),
+    insetLeft: sheet.includes("margin-left: 10px;"),
+    insetRight: sheet.includes("margin-right: 8px;"),
+    radius: chatCss.includes("--radius-sheet: 34px;"),
+    cssWidth,
+    sheetRow,
+    assetWidth,
+    assetHeight,
+    fromTop,
   }).toEqual({
-    width: "992",
-    height: "712",
+    width: "1137",
+    height: "840",
     aspect: true,
     filtered: false,
-    shadow: true,
-    overlap: true,
-    marginTop: true,
+    shadow: false,
+    overlap: false,
+    left: true,
+    top: true,
     clippedTop: false,
+    insetLeft: true,
+    insetRight: true,
+    radius: true,
+    cssWidth: 284,
+    sheetRow: 718,
+    assetWidth: 1137,
+    assetHeight: 840,
+    fromTop: (284 * 718) / 1137,
   });
+  expect(fromTop).toBeCloseTo(179.34, 2);
 });
 
-it("paints the home chips and composer with the lavender tokens", async () => {
-  const fill = designTokens.color.lavender50;
-  const edge = designTokens.color.lavender100;
+it("paints the home chips and composer white, and the profile face lavender", async () => {
+  const fill = designTokens.color.canvas;
+  const edge = designTokens.color.border;
   const canvas = designTokens.color.canvas;
-  expect(fill).not.toBe(designTokens.color.indigo50);
-  expect(edge).not.toBe(designTokens.color.indigo100);
+  expect(designTokens.color.profile).toBe("#daddfe");
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -188,6 +227,22 @@ it("paints the home chips and composer with the lavender tokens", async () => {
       throw new Error("missing home sheet");
     }
     expect(chips).toHaveLength(4);
+    const chipList = view.container.querySelector(".chat-chips");
+    if (!(chipList instanceof HTMLElement)) {
+      throw new Error("missing suggestions");
+    }
+    expect(getComputedStyle(chipList).flexDirection).toBe("column");
+    expect(getComputedStyle(chipList).alignItems).toBe("center");
+    const face = view.container.querySelector(".chat-profile-face");
+    if (!(face instanceof HTMLElement)) {
+      throw new Error("missing profile");
+    }
+    expect(channels(getComputedStyle(face).backgroundColor)).toBe(
+      channels(designTokens.color.profile),
+    );
+    expect(channels(getComputedStyle(face).color)).toBe(
+      channels(designTokens.color.primary),
+    );
     expect(channels(getComputedStyle(sheet).backgroundColor)).toBe(
       channels(canvas),
     );
@@ -202,12 +257,17 @@ it("paints the home chips and composer with the lavender tokens", async () => {
         channels(edge),
       );
     }
-    expect(channels(getComputedStyle(composer).backgroundColor)).toBe(
+    const homeField = composer.querySelector(".chat-field");
+    if (!(homeField instanceof HTMLElement)) {
+      throw new Error("missing composer field");
+    }
+    expect(channels(getComputedStyle(homeField).backgroundColor)).toBe(
       channels(fill),
     );
-    expect(
-      containsColor(getComputedStyle(composer).boxShadow, edge),
-    ).toBe(true);
+    expect(channels(getComputedStyle(homeField).borderTopColor)).toBe(
+      channels(edge),
+    );
+    expect(getComputedStyle(homeField).borderTopWidth).toBe("1px");
     const chip = chips[0];
     if (!(chip instanceof HTMLElement)) {
       throw new Error("missing suggestion");
@@ -216,7 +276,7 @@ it("paints the home chips and composer with the lavender tokens", async () => {
       chip.click();
     });
     const dock = view.container.querySelector(
-      ".chat-column > .chat-dock .chat-composer",
+      ".chat-column > .chat-dock .chat-composer .chat-field",
     );
     if (!(dock instanceof HTMLElement)) {
       throw new Error("missing chat composer");
@@ -224,15 +284,16 @@ it("paints the home chips and composer with the lavender tokens", async () => {
     expect(channels(getComputedStyle(dock).backgroundColor)).toBe(
       channels(canvas),
     );
+    expect(channels(getComputedStyle(dock).borderTopColor)).toBe(
+      channels(edge),
+    );
   } finally {
     style.remove();
     document.documentElement.removeAttribute("style");
   }
 });
 
-it("frames message avatars in a white circle with a lavender ring", async () => {
-  const canvas = designTokens.color.canvas;
-  const ring = designTokens.color.lavender100;
+it("fills each message avatar with its photo and drops the white frame", async () => {
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -261,37 +322,24 @@ it("frames message avatars in a white circle with a lavender ring", async () => 
       if (!(avatar instanceof HTMLElement)) {
         throw new Error("missing message avatar");
       }
-      const computed = getComputedStyle(avatar);
-      expect({
-        background: channels(computed.backgroundColor),
-        ring: channels(computed.borderTopColor),
-        border: computed.borderTopWidth,
-        padding: computed.paddingTop,
-        boxSizing: computed.boxSizing,
-        width: computed.width,
-        height: computed.height,
-        radius: computed.borderRadius,
-      }).toEqual({
-        background: channels(canvas),
-        ring: channels(ring),
-        border: "1px",
-        padding: "3px",
-        boxSizing: "border-box",
-        width: "32px",
-        height: "32px",
-        radius: "999px",
+      const image = avatar.querySelector("img");
+      if (!(image instanceof HTMLImageElement)) {
+        throw new Error("missing avatar photo");
+      }
+      expect(image.alt).toBe("");
+      const frame = getComputedStyle(avatar);
+      const photo = getComputedStyle(image);
+      expect(photo.objectFit).toBe("cover");
+      expect(photo.borderRadius).toBe(designTokens.radius.sm);
+      expect(frame.boxSizing).toBe("border-box");
+      expect(frame.width).toBe("32px");
+      expect(frame.height).toBe("32px");
+      expect(filledImageBox(frame, photo)).toEqual({
+        width: side(frame.width),
+        height: side(frame.height),
       });
+      expect(clear(frame.backgroundColor)).toBe(true);
     }
-    const image = view.container.querySelector(".chat-avatar-agent img");
-    if (!(image instanceof HTMLImageElement)) {
-      throw new Error("missing Steve avatar");
-    }
-    expect(image.alt).toBe("");
-    expect(image.getAttribute("width")).toBe("24");
-    expect(image.getAttribute("height")).toBe("24");
-    const imageStyle = getComputedStyle(image);
-    expect(imageStyle.width).toBe("100%");
-    expect(imageStyle.height).toBe("100%");
   } finally {
     style.remove();
     document.documentElement.removeAttribute("style");
@@ -2449,6 +2497,60 @@ function trackScroll(thread: HTMLElement, height: number): { top: number } {
   return scrolled;
 }
 
+function filledImageBox(
+  frame: CSSStyleDeclaration,
+  photo: CSSStyleDeclaration,
+): { readonly width: number; readonly height: number } {
+  if (photo.width !== "100%" || photo.height !== "100%") {
+    throw new Error(
+      `avatar image does not fill the frame: ${photo.width} ${photo.height}`,
+    );
+  }
+  const margin = [
+    photo.marginTop,
+    photo.marginRight,
+    photo.marginBottom,
+    photo.marginLeft,
+  ];
+  if (margin.some((value) => side(value) !== 0)) {
+    throw new Error("avatar image has margin");
+  }
+  return {
+    width:
+      side(frame.width) -
+      side(frame.paddingLeft) -
+      side(frame.paddingRight) -
+      side(frame.borderLeftWidth) -
+      side(frame.borderRightWidth),
+    height:
+      side(frame.height) -
+      side(frame.paddingTop) -
+      side(frame.paddingBottom) -
+      side(frame.borderTopWidth) -
+      side(frame.borderBottomWidth),
+  };
+}
+
+function side(value: string): number {
+  if (value.trim() === "") {
+    return 0;
+  }
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`not a length: ${value}`);
+  }
+  return parsed;
+}
+
+function clear(color: string): boolean {
+  if (color.trim() === "transparent") {
+    return true;
+  }
+  const match =
+    /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([\d.]+)\s*\)$/.exec(color.trim());
+  return match !== null && Number(match[1]) === 0;
+}
+
 function channels(color: string): string {
   const hex = /^#([0-9a-f]{6})$/i.exec(color.trim());
   if (hex !== null) {
@@ -2471,20 +2573,6 @@ function channels(color: string): string {
 
 function rgb(red: number, green: number, blue: number): string {
   return `rgb(${red}, ${green}, ${blue})`;
-}
-
-function containsColor(value: string, color: string): boolean {
-  const compact = value.toLowerCase().replaceAll(" ", "");
-  if (compact.includes(color.toLowerCase())) {
-    return true;
-  }
-  const parts = /^rgb\((\d+),(\d+),(\d+)\)$/.exec(
-    channels(color).replaceAll(" ", ""),
-  );
-  if (parts === null) {
-    return false;
-  }
-  return compact.includes(`${parts[1]},${parts[2]},${parts[3]}`);
 }
 
 async function flushFrame(): Promise<void> {

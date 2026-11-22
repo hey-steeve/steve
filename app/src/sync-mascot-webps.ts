@@ -15,8 +15,8 @@ export interface MascotSyncTarget {
 
 export const mascotWebps = [
   {
-    file: "pfp-lavender.webp",
-    source: "avatar/pfp-lavender.png",
+    file: "pfp-lavender-profile.webp",
+    source: "avatar/pfp-lavender-profile.png",
     width: 192,
     height: 192,
   },
