@@ -516,6 +516,48 @@
   transform: translateY(-50%);
 }
 
+.chat-new-message-row {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  padding: var(--page-pad) var(--page-pad) var(--safe-gap);
+}
+
+.chat-new-message {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+  min-height: var(--chip-h);
+  margin: 0;
+  padding: 0 var(--card-pad);
+  border: var(--card-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-canvas);
+  color: var(--color-heading);
+  box-shadow: var(--card-shadow);
+  font: inherit;
+  font-size: var(--chip-label);
+  font-weight: var(--font-weight-button);
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chat-new-message::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 100%;
+  top: 50%;
+  height: var(--hit-min);
+  transform: translateY(-50%);
+}
+
 .chat-dock {
   flex: none;
   width: 100%;

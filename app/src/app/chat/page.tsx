@@ -57,6 +57,8 @@ export default function ChatPage() {
   const columnRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  const pinned = useRef(true);
+  const [unseenReply, setUnseenReply] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const restoreFocus = useRef(false);
   const [fieldGrown, setFieldGrown] = useState(false);
@@ -103,11 +105,34 @@ export default function ChatPage() {
   }, [exchange]);
 
   useEffect(() => {
-    if (messages.length === 0) {
+    const thread = threadRef.current;
+    if (thread === null) {
       return;
     }
-    scrollThreadToBottom(threadRef.current);
-  }, [messages, exchange]);
+    const onScroll = () => {
+      pinned.current = threadNearBottom(thread);
+      if (!pinned.current) {
+        return;
+      }
+      setUnseenReply((current) => (current ? false : current));
+    };
+    thread.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      thread.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    const thread = threadRef.current;
+    if (thread === null || !pinned.current) {
+      return;
+    }
+    if (messages.length === 0) {
+      thread.scrollTop = 0;
+      return;
+    }
+    scrollThreadToBottom(thread);
+  }, [messages]);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -164,6 +189,8 @@ export default function ChatPage() {
     backExit.current = "done";
     busy.current = false;
     setLeaving(false);
+    pinned.current = true;
+    setUnseenReply(false);
     setMessages([]);
     setDraft("");
     setDemo(false);
@@ -236,6 +263,11 @@ export default function ChatPage() {
       page.toggleAttribute("data-keyboard-open", keyboardNow && !zoomed);
       if (keepBottom || keyboardOpened) {
         scrollThreadToBottom(thread);
+        pinned.current = true;
+        setUnseenReply((current) => (current ? false : current));
+      } else if (threadNearBottom(thread)) {
+        pinned.current = true;
+        setUnseenReply((current) => (current ? false : current));
       }
     };
     const pinWindow = () => {
@@ -287,6 +319,8 @@ export default function ChatPage() {
     }
     busy.current = true;
     restoreFocus.current = messages.length === 0 && restoreComposerFocus;
+    pinned.current = true;
+    setUnseenReply(false);
     dictation.stop();
     const ticket = conversation.current;
     const history: readonly UiMessage[] = [
@@ -310,6 +344,7 @@ export default function ChatPage() {
       finishExit();
       return;
     }
+    setUnseenReply(false);
     setLeaving(true);
   }
 
@@ -333,24 +368,24 @@ export default function ChatPage() {
         return;
       }
       if (!response.ok) {
-        pushError(errorText(payload));
+        pushReply("error", errorText(payload));
         setExchange("failed");
         return;
       }
       const reply = parseChatReply(payload);
       if (reply.kind === "invalid") {
-        pushError(fallbackReply);
+        pushReply("error", fallbackReply);
         setExchange("failed");
         return;
       }
       setDemo(reply.mocked);
-      pushAgent(reply.reply);
+      pushReply("agent", reply.reply);
       setExchange("rendering");
     } catch {
       if (conversation.current !== ticket) {
         return;
       }
-      pushError(fallbackReply);
+      pushReply("error", fallbackReply);
       setExchange("failed");
     } finally {
       if (conversation.current === ticket) {
@@ -359,18 +394,11 @@ export default function ChatPage() {
     }
   }
 
-  function pushAgent(content: string) {
-    setMessages((current) => [
-      ...current,
-      { id: newMessageId(), role: "agent", content },
-    ]);
-  }
-
-  function pushError(content: string) {
-    setMessages((current) => [
-      ...current,
-      { id: newMessageId(), role: "error", content },
-    ]);
+  function pushReply(role: "agent" | "error", content: string) {
+    if (!pinned.current) {
+      setUnseenReply(true);
+    }
+    setMessages((current) => [...current, { id: newMessageId(), role, content }]);
   }
 
   const composer = (
@@ -429,6 +457,21 @@ export default function ChatPage() {
       )}
     </>
   );
+
+  function showLatest() {
+    const thread = threadRef.current;
+    if (thread === null) {
+      return;
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      scrollThreadToBottom(thread);
+    } else {
+      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
+    }
+    pinned.current = true;
+    setUnseenReply(false);
+    focusNewestReply(thread);
+  }
 
   return (
     <main
@@ -517,14 +560,14 @@ export default function ChatPage() {
                     <UserAvatar />
                   </li>
                 ) : message.role === "error" ? (
-                  <li key={message.id} className="chat-row chat-row-agent">
+                  <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
                     <div className="chat-error" role="alert">
                       {message.content}
                     </div>
                   </li>
                 ) : (
-                  <li key={message.id} className="chat-row chat-row-agent">
+                  <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
                     <div className="chat-agent">
                       <div className="chat-agent-text">
@@ -552,6 +595,18 @@ export default function ChatPage() {
             </ol>
           )}
         </div>
+        {unseenReply ? (
+          <div className="chat-new-message-row">
+            <button
+              type="button"
+              className="chat-new-message"
+              aria-label="Nouveau message"
+              onClick={showLatest}
+            >
+              Nouveau message<span aria-hidden="true">↓</span>
+            </button>
+          </div>
+        ) : null}
         {empty ? null : (
           <div className="chat-dock chat-dock-enter">
             {composer}
@@ -674,6 +729,14 @@ function MicIcon() {
       />
     </svg>
   );
+}
+
+function focusNewestReply(thread: HTMLElement): void {
+  const newest = thread.querySelector(".chat-thread > li:last-child");
+  if (!(newest instanceof HTMLElement)) {
+    return;
+  }
+  newest.focus({ preventScroll: true });
 }
 
 function scrollThreadToBottom(thread: HTMLElement | null) {
