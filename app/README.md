@@ -1,6 +1,6 @@
 # App
 
-`app/` is the Next.js front. `/` shows the marmot. `/chat` is the chat page.
+`app/` is the Next.js front. `/` redirects to `/chat`, the home.
 
 ## POST /api/chat
 
