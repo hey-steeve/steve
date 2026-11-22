@@ -44,7 +44,7 @@ Design tokens live in `shared/src/design-tokens.ts`. The set is Soft Companion, 
 
 Run `pnpm install` to install dependencies.
 
-Run `pnpm verify` to lint, typecheck, and test. The command fails when any step fails.
+Run `pnpm verify` to lint, typecheck, test, and build. The command fails when any step fails.
 
 Run `pnpm --filter @steve/voice test` to test one package. Put the package you changed in place of `@steve/voice`.
 
@@ -78,7 +78,11 @@ Do not rebase.
 
 From your branch, run `git fetch origin` and then `git merge origin/main`. Keep the merge commit.
 
-Spidey's reviewer agent must approve the exact head commit. CI must be green on that commit. Merge the pull request only after the approval and the green CI.
+On a contributor pull request, Spidey's reviewer agent must approve the exact head commit. That approval adds to the CODEOWNERS review by @spideystreet. `.github/CODEOWNERS` names @spideystreet.
+
+The reviewer agent approval does not replace the CODEOWNERS review.
+
+Merge only after both approvals and green CI on that commit.
 
 ## Stack
 
