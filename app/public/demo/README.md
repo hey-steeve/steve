@@ -4,9 +4,9 @@
 
 `demoUserAvatarSrc` in `app/src/chat/demo-user-avatar.ts` names this file. Set that constant to `undefined` to show the profile glyph.
 
-The source stays outside the repo at `~/Developer/git/steve-shots/peter-pp-source.png`. Do not commit it, and do not copy it into `shared/assets/mascot`. The file is 1200 by 1500 pixels.
+The source stays outside the repo at `~/Developer/git/steve-shots/peter-pp-source-v2.webp`. Do not commit it, and do not copy it into `shared/assets/mascot`. The file is 1920 by 1080 pixels.
 
-The face detector box is x 44, y 373, 766 by 766. That box cuts the hair. The committed crop is left 40, top 200, 920 by 920, so the hair and the chin stay inside the frame. The WebP quality is 80.
+The committed crop is left 537, top 354, 520 by 520. The square is centred on the face. The top edge keeps a strip of the red mask. The WebP quality is 80.
 
 Regenerate it from the repo root. This uses the sharp install in `@steve/app`, and the working directory is that package:
 
@@ -19,8 +19,8 @@ const require = createRequire(path.join(process.cwd(), "package.json"));
 const sharp = require("sharp");
 const destDir = path.join(process.cwd(), "public/demo");
 mkdirSync(destDir, { recursive: true });
-await sharp(path.join(process.env.HOME, "Developer/git/steve-shots/peter-pp-source.png"))
-  .extract({ left: 40, top: 200, width: 920, height: 920 })
+await sharp(path.join(process.env.HOME, "Developer/git/steve-shots/peter-pp-source-v2.webp"))
+  .extract({ left: 537, top: 354, width: 520, height: 520 })
   .resize(192, 192)
   .webp({ quality: 80, alphaQuality: 80 })
   .toFile(path.join(destDir, "user-avatar.webp"));
