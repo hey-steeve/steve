@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -117,8 +119,64 @@ it("names the first five files in each tree", () => {
 
 const repoRoot = join(import.meta.dirname, "..");
 const checkScript = join(repoRoot, "tooling/cross-boundary-check.ts");
-const diffCommand =
-  'git -c core.quotePath=false diff -z --no-renames --name-only "$BASE_SHA...$HEAD_SHA"';
+const workflowPath = join(repoRoot, ".github/workflows/cross-boundary.yml");
+
+function workflowRunScript(): string {
+  const lines = readFileSync(workflowPath, "utf8").split("\n");
+  const step = lines.findIndex((line) =>
+    line.includes("name: Check app and shared"),
+  );
+  if (step < 0) {
+    throw new Error("cross-boundary.yml has no Check app and shared step.");
+  }
+  let header = -1;
+  for (let index = step + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (/^\s*run:\s*\|-?\s*$/.test(line)) {
+      header = index;
+      break;
+    }
+    if (/^\s*- name:/.test(line)) {
+      break;
+    }
+  }
+  if (header < 0) {
+    throw new Error("cross-boundary.yml check step has no run: block.");
+  }
+  const body: string[] = [];
+  let indent: number | undefined;
+  for (const line of lines.slice(header + 1)) {
+    if (line.trim() === "") {
+      if (indent !== undefined) {
+        body.push("");
+      }
+      continue;
+    }
+    const leading = /^ */.exec(line)?.[0].length ?? 0;
+    if (indent === undefined) {
+      indent = leading;
+    }
+    if (leading < indent) {
+      break;
+    }
+    body.push(line.slice(indent));
+  }
+  const script = body.join("\n").trimEnd();
+  if (script === "") {
+    throw new Error("cross-boundary.yml run block is empty.");
+  }
+  return script;
+}
+
+function installChecker(cwd: string): void {
+  const toolingDir = join(cwd, "tooling");
+  mkdirSync(toolingDir);
+  copyFileSync(checkScript, join(toolingDir, "cross-boundary-check.ts"));
+  copyFileSync(
+    join(repoRoot, "tooling/cross-boundary.ts"),
+    join(toolingDir, "cross-boundary.ts"),
+  );
+}
 
 const gitEnv: NodeJS.ProcessEnv = {
   ...process.env,
@@ -180,15 +238,12 @@ function runWorkflowDiff(
   head: string,
   labels: string,
 ): { status: number | null; stderr: string } {
-  const result = spawnSync(
-    "bash",
-    ["-c", `set -o pipefail; ${diffCommand} | node ${JSON.stringify(checkScript)}`],
-    {
-      cwd,
-      encoding: "utf8",
-      env: { ...gitEnv, BASE_SHA: base, HEAD_SHA: head, PR_LABELS: labels },
-    },
-  );
+  installChecker(cwd);
+  const result = spawnSync("bash", ["-c", workflowRunScript()], {
+    cwd,
+    encoding: "utf8",
+    env: { ...gitEnv, BASE_SHA: base, HEAD_SHA: head, PR_LABELS: labels },
+  });
   return { status: result.status, stderr: result.stderr };
 }
 
@@ -204,6 +259,24 @@ it("exits 1 when stdin names both trees", () => {
   expect(result.stderr).toContain("shared/src/design-tokens.ts");
 });
 
+it("runs when invoked through a symlink", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cross-boundary-link-"));
+  const link = join(dir, "cross-boundary-check.ts");
+  try {
+    symlinkSync(checkScript, link);
+    const result = spawnSync(process.execPath, [link], {
+      input: bothPaths,
+      encoding: "utf8",
+      env: { ...process.env, PR_LABELS: "[]" },
+    });
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain("app/src/page.tsx");
+    expect(result.stderr).toContain("shared/src/design-tokens.ts");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 it("exits 0 when PR_LABELS includes cross-boundary", () => {
   const result = runCli(bothPaths, '["cross-boundary"]');
   expect(result.status, result.stderr).toBe(0);
@@ -214,6 +287,26 @@ it("exits non-zero when PR_LABELS is not JSON", () => {
   const result = runCli(bothPaths, "bug\ncross-boundary");
   expect(result.status, result.stderr).not.toBe(0);
   expect(result.stderr).toContain("PR_LABELS is not a JSON array of strings.");
+});
+
+it("fails a rename whose path contains a space and a quote", () => {
+  const from = 'app/foo "bar.ts';
+  const to = 'shared/foo "bar.ts';
+  withRepo((dir) => {
+    git(dir, ["init", "-q"]);
+    mkdirSync(join(dir, "app"));
+    writeFileSync(join(dir, from), "export const x = 1;\n");
+    git(dir, ["add", "-A"]);
+    git(dir, ["commit", "-q", "-m", "add"]);
+    const base = gitHead(dir);
+    mkdirSync(join(dir, "shared"));
+    git(dir, ["mv", from, to]);
+    git(dir, ["commit", "-q", "-m", "move"]);
+    const result = runWorkflowDiff(dir, base, gitHead(dir), "");
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain(from);
+    expect(result.stderr).toContain(to);
+  });
 });
 
 it("fails a move from app/ to shared/", () => {
@@ -262,16 +355,40 @@ it("fails when git diff fails", () => {
   });
 });
 
+it("exits 0 when the diff is empty", () => {
+  withRepo((dir) => {
+    git(dir, ["init", "-q"]);
+    git(dir, ["commit", "-q", "--allow-empty", "-m", "empty"]);
+    const head = gitHead(dir);
+    const result = runWorkflowDiff(dir, head, head, "[]");
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+});
+
 it("runs the NUL diff from the workflow", () => {
-  const workflow = readFileSync(
-    join(repoRoot, ".github/workflows/cross-boundary.yml"),
-    "utf8",
-  );
-  expect(workflow).toContain(diffCommand);
-  expect(workflow).toContain("set -o pipefail");
+  const workflow = readFileSync(workflowPath, "utf8");
   expect(workflow).toContain("app-shared-boundary:");
   expect(workflow).toContain("contents: read");
   expect(workflow).not.toContain("pull-requests: read");
+  withRepo((dir) => {
+    git(dir, ["init", "-q"]);
+    git(dir, ["commit", "-q", "--allow-empty", "-m", "empty"]);
+    const base = gitHead(dir);
+    mkdirSync(join(dir, "app"));
+    mkdirSync(join(dir, "shared"));
+    writeFileSync(join(dir, "app/x.ts"), "export const x = 1;\n");
+    writeFileSync(join(dir, "shared/y.ts"), "export const y = 1;\n");
+    git(dir, ["add", "-A"]);
+    git(dir, ["commit", "-q", "-m", "add"]);
+    const result = runWorkflowDiff(dir, base, gitHead(dir), "[]");
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain(
+      "This pull request changes both app/ and shared/.",
+    );
+    expect(result.stderr).toContain("app/x.ts");
+    expect(result.stderr).toContain("shared/y.ts");
+  });
 });
 
 it("parses NUL-separated paths and a JSON label list", () => {

@@ -12,12 +12,32 @@
 
 Built for [Alan x Qovery x AWS: AI Health Hack 2](https://luma.com/o1eopuwy), Paris, 28 November 2026.
 
-## Run
+## Run the app locally
+
+Use Node 24 or newer. `.nvmrc` pins `24`. `engines.node` is `>=24`.
+
+Install pnpm 10.33.0. `package.json` sets `packageManager` to `pnpm@10.33.0`.
+
+The dev server starts with no env file.
+
+From the repo root, run:
 
 ```bash
 pnpm install
-pnpm verify
+pnpm --filter @steve/app dev
 ```
+
+Open http://localhost:3000. `/` redirects to `/chat`.
+
+Port 3000 is the Next.js default. To use another port, pass `-p` with the new port number.
+
+```bash
+pnpm --filter @steve/app dev -p 3001
+```
+
+The root `package.json` has no `dev` script. `app/package.json` sets `dev` to `next dev`.
+
+Run `pnpm verify` to lint, typecheck, test, and build.
 
 Agent rules live in [AGENTS.md](./AGENTS.md).
 

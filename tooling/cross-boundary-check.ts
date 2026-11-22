@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   crossBoundaryFailure,
   parseLabelList,
@@ -53,7 +53,7 @@ function isCliEntry(): boolean {
   if (entry === undefined) {
     return false;
   }
-  return import.meta.url === pathToFileURL(entry).href;
+  return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
 }
 
 if (isCliEntry()) {
