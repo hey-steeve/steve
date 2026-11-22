@@ -19,7 +19,6 @@
   --chip-label: 11px;
   --bubble-max: 80%;
   --bubble-pad-y: 12px;
-  --bubble-pad-x: 16px;
   --composer-side: 16px;
   --page-pad-wide: 24px;
   --motion-shift: 12px;
@@ -368,7 +367,7 @@
 
 .chat-user {
   margin: 0;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  padding: var(--space-3);
   border-radius: var(--radius-bubble);
   background: var(--color-primary);
   color: var(--color-canvas);
@@ -382,7 +381,7 @@
   align-items: flex-start;
   gap: var(--safe-gap);
   margin: 0;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  padding: var(--space-3);
   border: var(--card-line);
   border-radius: var(--radius-card);
   background: var(--color-canvas);
@@ -430,7 +429,7 @@
 
 .chat-error {
   margin: 0;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  padding: var(--space-3);
   border: var(--card-line);
   border-radius: var(--radius-card);
   background: var(--color-canvas);
@@ -445,7 +444,7 @@
   gap: var(--safe-gap);
   align-items: center;
   margin: 0;
-  padding: var(--bubble-pad-y) var(--bubble-pad-x);
+  padding: var(--space-3);
   border: var(--card-line);
   border-radius: var(--radius-card);
   background: var(--color-canvas);
