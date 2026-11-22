@@ -37,15 +37,6 @@ function distance(red, green, blue) {
   return Math.hypot(red - oldLavender[0], green - oldLavender[1], blue - oldLavender[2]);
 }
 
-function isBackdrop(red, green, blue) {
-  const blueCast = blue - red;
-  if (blueCast > 22) return false;
-  const gap = distance(red, green, blue);
-  if (gap <= 22 && red + 2 >= green) return true;
-  const chroma = Math.max(red, green, blue) - Math.min(red, green, blue);
-  return gap <= 36 && chroma >= 20 && blueCast >= 4 && red >= green && blue >= green + 8;
-}
-
 function linear(channel) {
   const value = channel / 255;
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
@@ -71,22 +62,69 @@ function coverage(color, backdrop) {
   return Math.min(1, Math.max(0, limit));
 }
 
-function rebackground(src, width, height, next) {
-  const candidate = new Uint8Array(width * height);
+function rebackground(src, width, height, background) {
+  const backdrop = floodBackdrop(src, width, height);
+  const band = edgeBand(backdrop, width, height);
+  const out = Buffer.alloc(width * height * 4);
   for (let index = 0; index < width * height; index++) {
     const offset = index * 4;
-    if (src[offset + 3] === 0 || isBackdrop(src[offset], src[offset + 1], src[offset + 2])) {
-      candidate[index] = 1;
+    const alpha = src[offset + 3];
+    if (alpha === 0) {
+      out[offset + 3] = 0;
+      continue;
     }
+    if (backdrop[index]) {
+      out[offset] = background[0];
+      out[offset + 1] = background[1];
+      out[offset + 2] = background[2];
+      out[offset + 3] = alpha;
+      continue;
+    }
+    const cleaned = band[index] ? decontaminate(src, offset, background) : null;
+    if (cleaned) {
+      out[offset] = cleaned[0];
+      out[offset + 1] = cleaned[1];
+      out[offset + 2] = cleaned[2];
+      out[offset + 3] = alpha;
+      continue;
+    }
+    out[offset] = src[offset];
+    out[offset + 1] = src[offset + 1];
+    out[offset + 2] = src[offset + 2];
+    out[offset + 3] = alpha;
   }
-  const backdrop = new Uint8Array(width * height);
-  const queueX = new Int32Array(width * height);
-  const queueY = new Int32Array(width * height);
+  return out;
+}
+
+const edgeTolerance = 16;
+const bandReach = 2;
+const matteCoverage = 0.35;
+
+function channelGap(red, green, blue) {
+  return Math.max(
+    Math.abs(red - oldLavender[0]),
+    Math.abs(green - oldLavender[1]),
+    Math.abs(blue - oldLavender[2]),
+  );
+}
+
+function floodBackdrop(src, width, height) {
+  const count = width * height;
+  const backdrop = new Uint8Array(count);
+  const queueX = new Int32Array(count);
+  const queueY = new Int32Array(count);
   let head = 0;
   let tail = 0;
   const push = (x, y) => {
     const index = y * width + x;
-    if (!candidate[index] || backdrop[index]) return;
+    if (backdrop[index]) return;
+    const offset = index * 4;
+    if (
+      src[offset + 3] !== 0 &&
+      channelGap(src[offset], src[offset + 1], src[offset + 2]) > edgeTolerance
+    ) {
+      return;
+    }
     backdrop[index] = 1;
     queueX[tail] = x;
     queueY[tail] = y;
@@ -111,61 +149,12 @@ function rebackground(src, width, height, next) {
       push(nextX, nextY);
     }
   }
-  const seenHole = new Uint8Array(width * height);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const start = y * width + x;
-      if (!candidate[start] || backdrop[start] || seenHole[start]) continue;
-      const stack = [start];
-      const component = [];
-      seenHole[start] = 1;
-      let nearest = 999;
-      while (stack.length > 0) {
-        const index = stack.pop();
-        component.push(index);
-        const offset = index * 4;
-        if (src[offset + 3] !== 0) {
-          nearest = Math.min(nearest, distance(src[offset], src[offset + 1], src[offset + 2]));
-        }
-        const cellX = index % width;
-        const cellY = (index / width) | 0;
-        for (const [dx, dy] of steps) {
-          const nextX = cellX + dx;
-          const nextY = cellY + dy;
-          if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) continue;
-          const neighbor = nextY * width + nextX;
-          if (!candidate[neighbor] || backdrop[neighbor] || seenHole[neighbor]) continue;
-          seenHole[neighbor] = 1;
-          stack.push(neighbor);
-        }
-      }
-      if (nearest > 4) continue;
-      for (const index of component) backdrop[index] = 1;
-    }
-  }
+  return backdrop;
+}
 
-  const nearR = new Int16Array(width * height);
-  const nearG = new Int16Array(width * height);
-  const nearB = new Int16Array(width * height);
-  const seen = new Uint8Array(width * height);
-  const fringeX = new Int32Array(width * height);
-  const fringeY = new Int32Array(width * height);
-  let fringeHead = 0;
-  let fringeTail = 0;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const index = y * width + x;
-      if (!backdrop[index] || src[index * 4 + 3] === 0) continue;
-      seen[index] = 1;
-      nearR[index] = src[index * 4];
-      nearG[index] = src[index * 4 + 1];
-      nearB[index] = src[index * 4 + 2];
-      fringeX[fringeTail] = x;
-      fringeY[fringeTail] = y;
-      fringeTail++;
-    }
-  }
-  const fringe = new Uint8Array(width * height);
+function edgeBand(backdrop, width, height) {
+  const count = width * height;
+  const band = new Uint8Array(count);
   const neighbors = [
     [1, 0],
     [-1, 0],
@@ -176,62 +165,146 @@ function rebackground(src, width, height, next) {
     [-1, 1],
     [-1, -1],
   ];
-  while (fringeHead < fringeTail) {
-    const x = fringeX[fringeHead];
-    const y = fringeY[fringeHead];
+  const queueX = new Int32Array(count);
+  const queueY = new Int32Array(count);
+  let head = 0;
+  let tail = 0;
+  for (let index = 0; index < count; index++) {
+    if (!backdrop[index]) continue;
+    queueX[tail] = index % width;
+    queueY[tail] = (index / width) | 0;
+    tail++;
+  }
+  while (head < tail) {
+    const x = queueX[head];
+    const y = queueY[head];
     const index = y * width + x;
-    fringeHead++;
-    if (fringe[index] >= 2) continue;
+    head++;
+    const depth = backdrop[index] ? 0 : band[index];
+    if (depth >= bandReach) continue;
     for (const [dx, dy] of neighbors) {
       const nextX = x + dx;
       const nextY = y + dy;
       if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) continue;
       const neighbor = nextY * width + nextX;
-      if (seen[neighbor]) continue;
-      seen[neighbor] = 1;
-      fringe[neighbor] = fringe[index] + 1;
-      nearR[neighbor] = nearR[index];
-      nearG[neighbor] = nearG[index];
-      nearB[neighbor] = nearB[index];
-      fringeX[fringeTail] = nextX;
-      fringeY[fringeTail] = nextY;
-      fringeTail++;
+      if (backdrop[neighbor] || band[neighbor]) continue;
+      band[neighbor] = depth + 1;
+      queueX[tail] = nextX;
+      queueY[tail] = nextY;
+      tail++;
     }
   }
+  return band;
+}
 
-  const out = Buffer.alloc(width * height * 4);
-  for (let index = 0; index < width * height; index++) {
-    const offset = index * 4;
-    const alpha = src[offset + 3];
-    if (alpha === 0 || backdrop[index]) {
-      if (alpha === 0) {
-        out[offset + 3] = 0;
-      } else {
-        out[offset] = next[0];
-        out[offset + 1] = next[1];
-        out[offset + 2] = next[2];
-        out[offset + 3] = alpha;
+function decontaminate(src, offset, background) {
+  const color = [linear(src[offset]), linear(src[offset + 1]), linear(src[offset + 2])];
+  const matte = [linear(oldLavender[0]), linear(oldLavender[1]), linear(oldLavender[2])];
+  const amount = coverage(color, matte);
+  if (amount < matteCoverage) return null;
+  const painted = [0, 0, 0];
+  for (let channel = 0; channel < 3; channel++) {
+    painted[channel] = srgb(
+      color[channel] + amount * (linear(background[channel]) - matte[channel]),
+    );
+  }
+  return painted;
+}
+
+function hex(red, green, blue) {
+  return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function longestRuns(mask, width, height) {
+  let vertical = null;
+  let horizontal = null;
+  for (let x = 0; x < width; x++) {
+    let run = 0;
+    let y0 = 0;
+    for (let y = 0; y <= height; y++) {
+      const on = y < height && mask[y * width + x] === 1;
+      if (on) {
+        if (run === 0) y0 = y;
+        run++;
+      } else if (run > 0) {
+        if (!vertical || run > vertical.len) vertical = { x, y0, y1: y - 1, len: run };
+        run = 0;
       }
-      continue;
     }
-    if (fringe[index] > 0 && fringe[index] <= 2) {
-      const matte = [linear(nearR[index]), linear(nearG[index]), linear(nearB[index])];
-      const color = [linear(src[offset]), linear(src[offset + 1]), linear(src[offset + 2])];
-      const amount = coverage(color, matte);
-      if ((fringe[index] === 1 || amount >= 0.35) && amount > 0.02) {
-        for (let channel = 0; channel < 3; channel++) {
-          out[offset + channel] = srgb(color[channel] + amount * (linear(next[channel]) - matte[channel]));
+  }
+  for (let y = 0; y < height; y++) {
+    let run = 0;
+    let x0 = 0;
+    for (let x = 0; x <= width; x++) {
+      const on = x < width && mask[y * width + x] === 1;
+      if (on) {
+        if (run === 0) x0 = x;
+        run++;
+      } else if (run > 0) {
+        if (!horizontal || run > horizontal.len) {
+          horizontal = { y, x0, x1: x - 1, len: run };
         }
-        out[offset + 3] = alpha;
+        run = 0;
+      }
+    }
+  }
+  return { vertical, horizontal };
+}
+
+function clipReport(name, src, dst, width, height, background) {
+  const backdrop = floodBackdrop(src, width, height);
+  const band = edgeBand(backdrop, width, height);
+  const bad = new Uint8Array(width * height);
+  let count = 0;
+  let left = null;
+  let right = null;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = y * width + x;
+      if (backdrop[index]) continue;
+      const offset = index * 4;
+      if (src[offset + 3] === 0) {
+        if (dst[offset + 3] !== 0) {
+          bad[index] = 1;
+          count++;
+        }
         continue;
       }
+      const cleaned = band[index] ? decontaminate(src, offset, background) : null;
+      const expected = cleaned ?? [src[offset], src[offset + 1], src[offset + 2]];
+      const same =
+        dst[offset] === expected[0] &&
+        dst[offset + 1] === expected[1] &&
+        dst[offset + 2] === expected[2] &&
+        dst[offset + 3] === src[offset + 3];
+      if (same) continue;
+      bad[index] = 1;
+      count++;
+      const sample = {
+        x,
+        y,
+        from: hex(src[offset], src[offset + 1], src[offset + 2]),
+        to: hex(dst[offset], dst[offset + 1], dst[offset + 2]),
+      };
+      if (!left || x < left.x || (x === left.x && y < left.y)) left = sample;
+      if (!right || x > right.x || (x === right.x && y < right.y)) right = sample;
     }
-    out[offset] = src[offset];
-    out[offset + 1] = src[offset + 1];
-    out[offset + 2] = src[offset + 2];
-    out[offset + 3] = alpha;
   }
-  return out;
+  const runs = longestRuns(bad, width, height);
+  const lines = [`${name} clips ${count}`];
+  if (count > 0) {
+    if (runs.vertical) {
+      const at = runs.vertical;
+      lines.push(`  vertical ${at.x},${at.y0}-${at.y1} len ${at.len}`);
+    }
+    if (runs.horizontal) {
+      const at = runs.horizontal;
+      lines.push(`  horizontal ${at.y}:${at.x0}-${at.x1} len ${at.len}`);
+    }
+    if (left) lines.push(`  left ${left.x},${left.y} ${left.from} -> ${left.to}`);
+    if (right) lines.push(`  right ${right.x},${right.y} ${right.from} -> ${right.to}`);
+  }
+  return { count, text: `${lines.join("\n")}\n` };
 }
 
 function ringReport(data, width, height, next) {
@@ -322,26 +395,74 @@ function printReport(name, report) {
   if (report.outer === 0 || report.outerClose > 0) process.exitCode = 1;
 }
 
-for (const [from, to, background] of jobs) {
-  const painted = await paintPng(from, to, background);
-  await painted.image.png({ compressionLevel: 9 }).toFile(path.join(repo, to));
-  printReport(painted.name, painted.report);
+async function decodedRaw(file) {
+  const decoded = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { data: decoded.data, width: decoded.info.width, height: decoded.info.height };
 }
 
-const [icoFrom, icoTo, icoBackground] = icoJob;
-const icoImages = readIco(readFileSync(path.join(repo, icoFrom)));
-const paintedIco = [];
-for (const png of icoImages) {
-  const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const painted = rebackground(decoded.data, decoded.info.width, decoded.info.height, icoBackground);
-  const report = ringReport(painted, decoded.info.width, decoded.info.height, icoBackground);
-  printReport(`favicon-page.ico ${decoded.info.width}`, report);
-  paintedIco.push(
-    await sharp(painted, {
-      raw: { width: decoded.info.width, height: decoded.info.height, channels: 4 },
-    })
-      .png({ compressionLevel: 9 })
-      .toBuffer(),
-  );
+const checkOnly = process.argv.includes("--check");
+
+if (!checkOnly) {
+  for (const [from, to, background] of jobs) {
+    const painted = await paintPng(from, to, background);
+    await painted.image.png({ compressionLevel: 9 }).toFile(path.join(repo, to));
+    printReport(painted.name, painted.report);
+  }
+
+  const [icoFrom, icoTo, icoBackground] = icoJob;
+  const icoImages = readIco(readFileSync(path.join(repo, icoFrom)));
+  const paintedIco = [];
+  for (const png of icoImages) {
+    const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const painted = rebackground(decoded.data, decoded.info.width, decoded.info.height, icoBackground);
+    const report = ringReport(painted, decoded.info.width, decoded.info.height, icoBackground);
+    printReport(`favicon-page.ico ${decoded.info.width}`, report);
+    paintedIco.push(
+      await sharp(painted, {
+        raw: { width: decoded.info.width, height: decoded.info.height, channels: 4 },
+      })
+        .png({ compressionLevel: 9 })
+        .toBuffer(),
+    );
+  }
+  writeFileSync(path.join(repo, icoTo), writeIco(paintedIco));
 }
-writeFileSync(path.join(repo, icoTo), writeIco(paintedIco));
+
+let clips = 0;
+for (const [from, to, background] of jobs) {
+  const source = await decodedRaw(path.join(repo, from));
+  const derived = await decodedRaw(path.join(repo, to));
+  const report = clipReport(
+    path.basename(to),
+    source.data,
+    derived.data,
+    source.width,
+    source.height,
+    background,
+  );
+  clips += report.count;
+  process.stdout.write(report.text);
+}
+
+const [icoFrom, , icoBackground] = icoJob;
+const sourceIco = readIco(readFileSync(path.join(repo, icoFrom)));
+const derivedIco = readIco(readFileSync(path.join(repo, icoJob[1])));
+if (sourceIco.length !== derivedIco.length) {
+  process.stdout.write(`favicon-page.ico clips size mismatch\n`);
+  clips++;
+}
+for (let index = 0; index < Math.min(sourceIco.length, derivedIco.length); index++) {
+  const source = await decodedRaw(sourceIco[index]);
+  const derived = await decodedRaw(derivedIco[index]);
+  const report = clipReport(
+    `favicon-page.ico ${source.width}`,
+    source.data,
+    derived.data,
+    source.width,
+    source.height,
+    icoBackground,
+  );
+  clips += report.count;
+  process.stdout.write(report.text);
+}
+if (clips > 0) process.exitCode = 1;
