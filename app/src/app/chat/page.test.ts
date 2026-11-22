@@ -1973,7 +1973,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
     expect(newMessagePill(session.container)).toBeNull();
     expect(session.scrolled.top).toBe(0);
     expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
-      "Bonjour,",
+      "Hey",
     );
     expectNoHistoryChange();
 
@@ -2000,7 +2000,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
       expect(newMessagePill(session.container)).toBeNull();
       expect(session.scrolled.top).toBe(0);
       expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
-        "Bonjour,",
+        "Hey",
       );
       expectNoHistoryChange();
     } finally {
