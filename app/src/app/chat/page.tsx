@@ -524,8 +524,8 @@ export default function ChatPage() {
                 className="chat-hero-mascot"
                 src={heroSrc}
                 alt=""
-                width={992}
-                height={712}
+                width={1137}
+                height={840}
               />
               <div className="chat-sheet">
                 {empty ? (

@@ -44,8 +44,8 @@ it("registers the bubbles pose", async () => {
   const png = path.join(sourceRoot, relative);
   expect(existsSync(png)).toBe(true);
   const meta = await sharp(png).metadata();
-  expect(meta.width).toBe(992);
-  expect(meta.height).toBe(712);
+  expect(meta.width).toBe(1137);
+  expect(meta.height).toBe(840);
   expect(meta.hasAlpha).toBe(true);
   const hash = createHash("sha256").update(readFileSync(png)).digest("hex");
   const sums = readFileSync(path.join(sourceRoot, "SHA256SUMS"), "utf8");
@@ -58,7 +58,7 @@ it("registers the bubbles pose", async () => {
 });
 
 it("serves the bubbles pose at the full source size", async () => {
-  const cssWidth = 329;
+  const cssWidth = 284;
   const publicDir = tempPublic();
   const pngPath = path.join(sourceRoot, "body/bubbles.png");
   await syncMascotWebps({ publicDir, sourceRoot });
@@ -68,6 +68,7 @@ it("serves the bubbles pose at the full source size", async () => {
   const sourceWidth = sourceMeta.width ?? 0;
   const sourceHeight = sourceMeta.height ?? 0;
   const neededWidth = Math.min(sourceWidth, cssWidth * 3);
+  expect(sourceWidth).toBeGreaterThanOrEqual(cssWidth * 3);
   const neededHeight = Math.min(sourceHeight, Math.ceil((cssWidth * sourceHeight) / sourceWidth * 3));
   expect({
     width: meta.width,
@@ -138,8 +139,8 @@ it("writes the webps the chat UI names, and only those", async () => {
   }
 
   const bubbles = await sharp(path.join(destDir, "bubbles.webp")).metadata();
-  expect(bubbles.width).toBe(992);
-  expect(bubbles.height).toBe(712);
+  expect(bubbles.width).toBe(1137);
+  expect(bubbles.height).toBe(840);
 
   for (const [index, item] of mascotWebps.entries()) {
     const source = sources[index];

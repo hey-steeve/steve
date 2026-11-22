@@ -91,8 +91,8 @@ it("shows the bubbles pose on the empty home sheet", () => {
     throw new Error("missing home hero");
   }
   expect(img.getAttribute("src")).toBe("/mascot/bubbles.webp");
-  expect(img.getAttribute("width")).toBe("992");
-  expect(img.getAttribute("height")).toBe("712");
+  expect(img.getAttribute("width")).toBe("1137");
+  expect(img.getAttribute("height")).toBe("840");
   const heroStart = chatCss.indexOf(".chat-hero-mascot {");
   const heroEnd = chatCss.indexOf("}", heroStart);
   if (heroStart < 0 || heroEnd < 0) {
@@ -101,22 +101,30 @@ it("shows the bubbles pose on the empty home sheet", () => {
   const hero = chatCss.slice(heroStart, heroEnd);
   expect({
     alt: img.getAttribute("alt"),
-    overlap: chatCss.includes("--mascot-overlap: 26px;"),
-    width: hero.includes("width: min(280px, 100%);"),
-    marginTop: hero.includes("margin-top: 0;"),
+    overlap: chatCss.includes("--mascot-overlap"),
+    width: hero.includes("width: 284px;"),
+    left: hero.includes("margin-left: 29px;"),
+    top: hero.includes("margin-top: -5px;"),
+    align: hero.includes("align-self: flex-start;"),
+    fit: hero.includes("object-fit: contain;"),
     clippedTop: hero.includes("-16px"),
-    bottomOverlap: hero.includes("calc(-1 * var(--mascot-overlap))"),
+    sheet: hero.includes("calc(284px * (718 - 840) / 1137)"),
     float: chatCss.includes("float"),
-    aspect: hero.includes("aspect-ratio: 992 / 712"),
+    aspect: hero.includes("aspect-ratio: 1137 / 840"),
+    shadow: hero.includes("filter:") || hero.includes("box-shadow"),
   }).toEqual({
     alt: "",
-    overlap: true,
+    overlap: false,
     width: true,
-    marginTop: true,
+    left: true,
+    top: true,
+    align: true,
+    fit: true,
     clippedTop: false,
-    bottomOverlap: true,
+    sheet: true,
     float: false,
     aspect: true,
+    shadow: false,
   });
 });
 
@@ -137,31 +145,53 @@ it("rests the bubbles pose on the top edge of the sheet", () => {
   }
   const hero = chatCss.slice(heroStart, heroEnd);
   const sheet = chatCss.slice(sheetStart, sheetEnd);
+  const pull = /margin-bottom:\s*calc\((\d+)px \* \((\d+) - (\d+)\) \/ (\d+)\)/.exec(hero);
+  if (pull === null) {
+    throw new Error("missing sheet alignment");
+  }
+  const cssWidth = Number(pull[1]);
+  const sheetRow = Number(pull[2]);
+  const assetHeight = Number(pull[3]);
+  const assetWidth = Number(pull[4]);
+  const fromTop = (cssWidth * sheetRow) / assetWidth;
   expect({
     width: img.getAttribute("width"),
     height: img.getAttribute("height"),
-    aspect: hero.includes("aspect-ratio: 992 / 712"),
+    aspect: hero.includes("aspect-ratio: 1137 / 840"),
     filtered: hero.includes("filter:") || hero.includes("blur("),
     shadow: sheet.includes("radial-gradient("),
-    overlap: chatCss.includes("--mascot-overlap: 26px;"),
-    marginTop: hero.includes("margin-top: 0;"),
+    overlap: chatCss.includes("--mascot-overlap"),
+    left: hero.includes("margin-left: 29px;"),
+    top: hero.includes("margin-top: -5px;"),
     clippedTop: hero.includes("-16px"),
     insetLeft: sheet.includes("margin-left: 10px;"),
     insetRight: sheet.includes("margin-right: 8px;"),
     radius: chatCss.includes("--radius-sheet: 34px;"),
+    cssWidth,
+    sheetRow,
+    assetWidth,
+    assetHeight,
+    fromTop,
   }).toEqual({
-    width: "992",
-    height: "712",
+    width: "1137",
+    height: "840",
     aspect: true,
     filtered: false,
     shadow: false,
-    overlap: true,
-    marginTop: true,
+    overlap: false,
+    left: true,
+    top: true,
     clippedTop: false,
     insetLeft: true,
     insetRight: true,
     radius: true,
+    cssWidth: 284,
+    sheetRow: 718,
+    assetWidth: 1137,
+    assetHeight: 840,
+    fromTop: (284 * 718) / 1137,
   });
+  expect(fromTop).toBeCloseTo(179.34, 2);
 });
 
 it("paints the home chips and composer white, and the profile face lavender", async () => {

@@ -93,7 +93,7 @@ The encoder is sharp 0.35.5, a dependency of `@steve/app`. Next.js lists the sam
 
 The chat page loads two files.
 
-- `bubbles.webp` comes from `body/bubbles.png` with no resize. The file stays 992 by 712, which matches the `width` and `height` on the hero image. The hero draws it at `min(280px, 100%)`.
+- `bubbles.webp` comes from `body/bubbles.png` with no resize. The file stays 1137 by 840, which matches the `width` and `height` on the hero image. The encode is lossless. The hero draws it at 284px.
 - `pfp-lavender.webp` comes from `avatar/pfp-lavender.png`, scaled to 192 by 192.
 
 `app/src/chat/faces.ts` names five more files for `faceFor`. The chat page does not call `faceFor`. The generator still writes them so those URLs resolve.

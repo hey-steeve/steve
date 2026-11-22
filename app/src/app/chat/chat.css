@@ -22,7 +22,6 @@
   --bubble-pad-x: 16px;
   --composer-side: 16px;
   --page-pad-wide: 24px;
-  --mascot-overlap: 26px;
   --motion-shift: 12px;
   --card-line: 1px solid var(--color-border);
   --card-shadow: 0 2px 8px rgba(12, 10, 102, 0.04);
@@ -221,12 +220,13 @@
 .chat-hero-mascot {
   position: relative;
   z-index: 1;
-  width: min(280px, 100%);
-  max-width: 100%;
+  align-self: flex-start;
+  width: 284px;
   height: auto;
-  margin-top: 0;
-  margin-bottom: calc(-1 * var(--mascot-overlap));
-  aspect-ratio: 992 / 712;
+  margin-top: -5px;
+  margin-left: 29px;
+  margin-bottom: calc(284px * (718 - 840) / 1137);
+  aspect-ratio: 1137 / 840;
   object-fit: contain;
 }
 
