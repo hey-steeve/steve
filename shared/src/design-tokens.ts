@@ -38,6 +38,9 @@ export const designTokens = {
     lg: "16px",
     default: "16px",
   },
+  space: {
+    3: "12px",
+  },
   shadow: {
     faint:
       "0 1px 2px rgba(12,10,102,0.06), 0 4px 16px rgba(12,10,102,0.06)",

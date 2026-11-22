@@ -59,6 +59,7 @@ function themeCss(): string {
     `--radius-md:${designTokens.radius.md}`,
     `--radius-lg:${designTokens.radius.lg}`,
     `--radius-default:${designTokens.radius.default}`,
+    `--space-3:${designTokens.space[3]}`,
     `--shadow-faint:${designTokens.shadow.faint}`,
     `--font-fallback:"${designTokens.font.family}", ${designTokens.font.fallback.join(", ")}`,
     `--font-weight-body:${weight.body}`,
