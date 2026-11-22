@@ -8,7 +8,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { viewport as chatViewport } from "./chat/layout.js";
-import ChatPage from "./chat/page.js";
+import ChatPage from "./chat/chat-page.js";
 import RootLayout, { viewport } from "./layout.js";
 
 vi.mock("next/font/local", () => ({

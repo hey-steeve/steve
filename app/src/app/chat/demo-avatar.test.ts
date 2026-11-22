@@ -8,7 +8,7 @@ import { createRoot, type Root } from "react-dom/client";
 import sharp from "sharp";
 import { afterEach, expect, it } from "vitest";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar.js";
-import ChatPage from "./page.js";
+import ChatPage from "./chat-page.js";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const avatarPath = path.join(appDir, "public/demo/user-avatar.webp");

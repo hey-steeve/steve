@@ -8,7 +8,7 @@ vi.mock("../../chat/demo-user-avatar.js", () => ({
   demoUserAvatarSrc: undefined,
 }));
 
-import ChatPage from "./page.js";
+import ChatPage from "./chat-page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 

@@ -5,7 +5,7 @@ import path from "node:path";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it } from "vitest";
-import ChatPage from "./page.js";
+import ChatPage from "./chat-page.js";
 
 const chatCss = readFileSync(
   path.join(process.cwd(), "app/src/app/chat/chat.css"),

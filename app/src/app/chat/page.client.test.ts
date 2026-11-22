@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import ChatPage from "./page.js";
+import ChatPage from "./chat-page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 

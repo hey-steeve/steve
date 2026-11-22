@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../chat/request.js";
 import RootLayout from "../layout.js";
-import ChatPage from "./page.js";
+import ChatPage from "./chat-page.js";
 
 vi.mock("next/font/local", () => ({
   default: () => ({ variable: "alan-sans" }),
