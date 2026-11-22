@@ -285,7 +285,7 @@ it("paints the home chips and composer white, and the profile face lavender", as
   }
 });
 
-it("frames message avatars in a white circle with a lavender ring", async () => {
+it("frames message avatars in a white rounded rectangle with a lavender ring", async () => {
   const canvas = designTokens.color.canvas;
   const ring = designTokens.color.lavender100;
   const style = document.createElement("style");
@@ -334,7 +334,7 @@ it("frames message avatars in a white circle with a lavender ring", async () => 
         boxSizing: "border-box",
         width: "32px",
         height: "32px",
-        radius: "999px",
+        radius: "8px",
       });
     }
     const image = view.container.querySelector(".chat-avatar-agent img");

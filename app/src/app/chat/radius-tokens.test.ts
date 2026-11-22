@@ -41,6 +41,15 @@ it("rounds buttons, chips, the back button, and the profile frame with tokens", 
   );
 });
 
+it("rounds message avatars with the profile frame radius", () => {
+  expect(declaration(chatCss, ".chat-avatar", "border-radius")).toBe(
+    "var(--radius-sm)",
+  );
+  expect(declaration(chatCss, ".chat-avatar img", "border-radius")).toBe(
+    "var(--radius-sm)",
+  );
+});
+
 it("rejects a raw border-radius length in chat and home styles", () => {
   const offenders = [...rawBorderRadius(chatCss), ...rawBorderRadius(homeCss)];
   expect(offenders).toEqual([]);
