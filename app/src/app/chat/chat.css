@@ -350,10 +350,8 @@
   flex: none;
   width: 32px;
   height: 32px;
-  padding: 3px;
-  border: 1px solid var(--color-lavender-100);
   border-radius: var(--radius-sm);
-  background: var(--color-canvas);
+  background: transparent;
   overflow: hidden;
   line-height: 0;
 }
@@ -620,6 +618,7 @@
 .chat-sheet .chat-field {
   min-height: 40px;
   padding: 8px 4px;
+  padding-left: var(--composer-side);
 }
 
 .chat-sheet .chat-plus,
