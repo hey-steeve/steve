@@ -59,9 +59,12 @@ it("places the greeting in a left row beside the profile avatar", async () => {
     expect(row.alignItems).toBe("center");
     expect(row.justifyContent).toBe("flex-start");
     expect(["", "static"]).toContain(getComputedStyle(greeting).position);
-    expect(getComputedStyle(greeting).fontWeight).toBe(
+    const greetingStyle = getComputedStyle(greeting);
+    expect(greetingStyle.fontWeight).toBe(
       String(designTokens.font.weight.heading),
     );
+    expect(greetingStyle.fontSize).toBe("22px");
+    expect(greetingStyle.textOverflow).toBe("ellipsis");
     expect(designTokens.space[3]).toBe("12px");
     const published = getComputedStyle(document.documentElement)
       .getPropertyValue("--space-3")

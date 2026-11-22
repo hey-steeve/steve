@@ -118,10 +118,11 @@
   margin: 0;
   overflow: hidden;
   color: var(--color-heading);
-  font-size: 22px;
+  font-size: var(--section-title);
   font-weight: var(--font-weight-heading);
   line-height: 1.15;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .chat-back {
@@ -177,14 +178,7 @@
   height: var(--hit-min);
 }
 
-.chat-header-home .chat-profile {
-  justify-self: start;
-}
-
 .chat-profile {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: end;
   display: grid;
   place-items: center;
   width: var(--hit-min);

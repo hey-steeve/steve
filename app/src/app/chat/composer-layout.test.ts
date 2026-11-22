@@ -109,21 +109,18 @@ it("rounds the composer field with the large radius token", () => {
 
 it("keeps the composer controls from overlapping at 320", () => {
   for (const place of ["home", "chat"] as const) {
-    for (const grown of [false, true]) {
-      const frame = composerFrame({
-        css: chatCss,
-        viewport: 320,
-        place,
-        grown,
-      });
-      expect(frame.overlaps).toBe(false);
-      expect(frame.overflows).toBe(false);
-      expect(frame.plus.right).toBeLessThanOrEqual(frame.field.left);
-      expect(frame.field.right).toBeLessThanOrEqual(frame.action.left);
-      expect(frame.field.right).toBeGreaterThan(frame.field.left);
-      expect(centerY(frame.plus)).toBe(centerY(frame.field));
-      expect(centerY(frame.action)).toBe(centerY(frame.field));
-    }
+    const frame = composerFrame({
+      css: chatCss,
+      viewport: 320,
+      place,
+    });
+    expect(frame.overlaps).toBe(false);
+    expect(frame.overflows).toBe(false);
+    expect(frame.plus.right).toBeLessThanOrEqual(frame.field.left);
+    expect(frame.field.right).toBeLessThanOrEqual(frame.action.left);
+    expect(frame.field.right).toBeGreaterThan(frame.field.left);
+    expect(centerY(frame.plus)).toBe(centerY(frame.field));
+    expect(centerY(frame.action)).toBe(centerY(frame.field));
   }
 });
 
@@ -214,7 +211,6 @@ function composerFrame(input: {
   readonly css: string;
   readonly viewport: number;
   readonly place: "home" | "chat";
-  readonly grown: boolean;
 }): {
   readonly plus: Rect;
   readonly field: Rect;
@@ -228,11 +224,11 @@ function composerFrame(input: {
   const actionSize = controlSize(input.css, tokens, input.place, "action");
   const fieldHeight = controlSize(input.css, tokens, input.place, "field").height;
   const padding = horizontal(
-    paddingValue(input.css, input.grown),
+    declaration(input.css, ".chat-composer", "padding"),
     tokens,
   );
   const gap = resolve(declaration(input.css, ".chat-composer", "gap"), tokens);
-  const align = alignValue(input.css, input.grown);
+  const align = declaration(input.css, ".chat-composer", "align-items");
   const innerLeft = row.left + padding.left;
   const innerWidth = row.width - padding.left - padding.right;
   const fieldWidth = innerWidth - plusSize.width - actionSize.width - gap * 2;
@@ -247,7 +243,7 @@ function composerFrame(input: {
     rowHeight,
     align,
   );
-  const field = rowPaints(input.css, input.grown)
+  const field = paints(input.css, ".chat-composer")
     ? rect(row.left, row.width, rowHeight, rowHeight, "flex-start")
     : between;
   const boxes = [plus, field, action];
@@ -262,13 +258,6 @@ function composerFrame(input: {
   };
 }
 
-function rowPaints(css: string, grown: boolean): boolean {
-  if (paints(css, ".chat-composer")) {
-    return true;
-  }
-  return grown && paints(css, ".chat-composer-grown");
-}
-
 function paints(css: string, selector: string): boolean {
   const radius = optionalDeclaration(css, selector, "border-radius");
   const background = optionalDeclaration(css, selector, "background");
@@ -280,26 +269,6 @@ function paints(css: string, selector: string): boolean {
     (shadow !== null && shadow !== "none") ||
     (border !== null && border !== "0" && border !== "none")
   );
-}
-
-function alignValue(css: string, grown: boolean): string {
-  if (grown) {
-    return (
-      optionalDeclaration(css, ".chat-composer-grown", "align-items") ??
-      declaration(css, ".chat-composer", "align-items")
-    );
-  }
-  return declaration(css, ".chat-composer", "align-items");
-}
-
-function paddingValue(css: string, grown: boolean): string {
-  if (grown) {
-    return (
-      optionalDeclaration(css, ".chat-composer-grown", "padding") ??
-      declaration(css, ".chat-composer", "padding")
-    );
-  }
-  return declaration(css, ".chat-composer", "padding");
 }
 
 function rowBox(
