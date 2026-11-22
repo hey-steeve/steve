@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { composerControl, type ComposerControl } from "../../chat/composer-control";
+import { demoUserAvatarSrc } from "../../chat/demo-user-avatar";
 import type { ExchangeKind } from "../../chat/exchange";
 import { headerAvatarSrc, heroSrc, replyAvatarSrc } from "../../chat/faces";
+import { homeGreeting } from "../../chat/home-greeting";
 import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
 import { chatRequestLimits, parseChatReply, toProviderMessages } from "../../chat/request";
@@ -45,7 +47,9 @@ type UiMessage =
 
 type BackExit = "idle" | "playing" | "done";
 
-export default function ChatPage() {
+export default function ChatPage(props: {
+  readonly patientFirstName?: string;
+}) {
   const [messages, setMessages] = useState<readonly UiMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
@@ -484,7 +488,7 @@ export default function ChatPage() {
       >
         <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <h1 className="chat-greeting">Bonjour,</h1>
+            <ProfileButton />
           ) : (
             <button
               type="button"
@@ -497,15 +501,15 @@ export default function ChatPage() {
               </span>
             </button>
           )}
-          {empty ? null : (
+          {empty ? (
+            <h1 className="chat-greeting">{homeGreeting(props.patientFirstName)}</h1>
+          ) : (
             <div className="chat-title">
               <img src={headerAvatarSrc} alt="" width={40} height={40} />
               <h1>Steve</h1>
             </div>
           )}
-          {empty ? (
-            <ProfileButton />
-          ) : (
+          {empty ? null : (
             <span className="chat-header-spacer" aria-hidden="true" />
           )}
           {empty || !demo ? null : (
@@ -671,7 +675,17 @@ function ProfileButton() {
   return (
     <button type="button" className="chat-profile" aria-label="Profil">
       <span className="chat-profile-face">
-        <ProfileIcon />
+        {demoUserAvatarSrc === undefined ? (
+          <ProfileIcon />
+        ) : (
+          <img
+            className="chat-profile-photo"
+            src={demoUserAvatarSrc}
+            alt=""
+            width={192}
+            height={192}
+          />
+        )}
       </span>
     </button>
   );
