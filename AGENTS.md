@@ -76,7 +76,7 @@ Do not force-push.
 
 Do not rebase.
 
-From your branch, run `git merge main`. Keep the merge commit.
+From your branch, run `git fetch origin` and then `git merge origin/main`. Keep the merge commit.
 
 Spidey's reviewer agent must approve the exact head commit. CI must be green on that commit. Merge the pull request only after the approval and the green CI.
 
