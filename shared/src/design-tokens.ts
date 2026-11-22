@@ -33,6 +33,9 @@ export const designTokens = {
     success: "#7fca6c",
   },
   radius: {
+    sm: "8px",
+    md: "12px",
+    lg: "16px",
     default: "16px",
   },
   shadow: {

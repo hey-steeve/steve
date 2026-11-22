@@ -26,7 +26,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("shows the demo photo in the profile circle and keeps the glyph's tap target", async () => {
+it("shows the demo photo in the profile frame and keeps the glyph's tap target", async () => {
   expect(demoUserAvatarSrc).toBe("/demo/user-avatar.webp");
   const view = await mount();
   const button = view.container.querySelector(".chat-header-home .chat-profile");
@@ -43,6 +43,8 @@ it("shows the demo photo in the profile circle and keeps the glyph's tap target"
   expect(rule(chatCss, ".chat-profile-face")).toContain("width: 32px;");
   expect(rule(chatCss, ".chat-profile-face")).toContain("height: 32px;");
   expect(rule(chatCss, ".chat-profile-face")).toContain("background: var(--color-profile);");
+  expect(rule(chatCss, ".chat-profile-face")).toContain("border-radius: var(--radius-sm);");
+  expect(rule(chatCss, ".chat-profile-photo")).toContain("border-radius: var(--radius-sm);");
   expect(rule(chatCss, ".chat-profile-photo")).toContain("object-fit: cover;");
 
   const meta = await sharp(readFileSync(avatarPath)).metadata();
