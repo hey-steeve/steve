@@ -293,9 +293,7 @@ it("paints the home chips and composer white, and the profile face lavender", as
   }
 });
 
-it("frames message avatars in a white rounded rectangle with a lavender ring", async () => {
-  const canvas = designTokens.color.canvas;
-  const ring = designTokens.color.lavender100;
+it("fills each message avatar with its photo and drops the white frame", async () => {
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -324,37 +322,24 @@ it("frames message avatars in a white rounded rectangle with a lavender ring", a
       if (!(avatar instanceof HTMLElement)) {
         throw new Error("missing message avatar");
       }
-      const computed = getComputedStyle(avatar);
-      expect({
-        background: channels(computed.backgroundColor),
-        ring: channels(computed.borderTopColor),
-        border: computed.borderTopWidth,
-        padding: computed.paddingTop,
-        boxSizing: computed.boxSizing,
-        width: computed.width,
-        height: computed.height,
-        radius: computed.borderRadius,
-      }).toEqual({
-        background: channels(canvas),
-        ring: channels(ring),
-        border: "1px",
-        padding: "3px",
-        boxSizing: "border-box",
-        width: "32px",
-        height: "32px",
-        radius: "8px",
+      const image = avatar.querySelector("img");
+      if (!(image instanceof HTMLImageElement)) {
+        throw new Error("missing avatar photo");
+      }
+      expect(image.alt).toBe("");
+      const frame = getComputedStyle(avatar);
+      const photo = getComputedStyle(image);
+      expect(photo.objectFit).toBe("cover");
+      expect(photo.borderRadius).toBe(designTokens.radius.sm);
+      expect(frame.boxSizing).toBe("border-box");
+      expect(frame.width).toBe("32px");
+      expect(frame.height).toBe("32px");
+      expect(filledImageBox(frame, photo)).toEqual({
+        width: side(frame.width),
+        height: side(frame.height),
       });
+      expect(clear(frame.backgroundColor)).toBe(true);
     }
-    const image = view.container.querySelector(".chat-avatar-agent img");
-    if (!(image instanceof HTMLImageElement)) {
-      throw new Error("missing Steve avatar");
-    }
-    expect(image.alt).toBe("");
-    expect(image.getAttribute("width")).toBe("24");
-    expect(image.getAttribute("height")).toBe("24");
-    const imageStyle = getComputedStyle(image);
-    expect(imageStyle.width).toBe("100%");
-    expect(imageStyle.height).toBe("100%");
   } finally {
     style.remove();
     document.documentElement.removeAttribute("style");
@@ -2510,6 +2495,60 @@ function trackScroll(thread: HTMLElement, height: number): { top: number } {
     },
   });
   return scrolled;
+}
+
+function filledImageBox(
+  frame: CSSStyleDeclaration,
+  photo: CSSStyleDeclaration,
+): { readonly width: number; readonly height: number } {
+  if (photo.width !== "100%" || photo.height !== "100%") {
+    throw new Error(
+      `avatar image does not fill the frame: ${photo.width} ${photo.height}`,
+    );
+  }
+  const margin = [
+    photo.marginTop,
+    photo.marginRight,
+    photo.marginBottom,
+    photo.marginLeft,
+  ];
+  if (margin.some((value) => side(value) !== 0)) {
+    throw new Error("avatar image has margin");
+  }
+  return {
+    width:
+      side(frame.width) -
+      side(frame.paddingLeft) -
+      side(frame.paddingRight) -
+      side(frame.borderLeftWidth) -
+      side(frame.borderRightWidth),
+    height:
+      side(frame.height) -
+      side(frame.paddingTop) -
+      side(frame.paddingBottom) -
+      side(frame.borderTopWidth) -
+      side(frame.borderBottomWidth),
+  };
+}
+
+function side(value: string): number {
+  if (value.trim() === "") {
+    return 0;
+  }
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`not a length: ${value}`);
+  }
+  return parsed;
+}
+
+function clear(color: string): boolean {
+  if (color.trim() === "transparent") {
+    return true;
+  }
+  const match =
+    /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([\d.]+)\s*\)$/.exec(color.trim());
+  return match !== null && Number(match[1]) === 0;
 }
 
 function channels(color: string): string {

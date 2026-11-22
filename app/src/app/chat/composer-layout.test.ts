@@ -61,6 +61,45 @@ it("keeps attach and mic as siblings outside the bordered field", async () => {
   }
 });
 
+it("matches the home field text inset to the chat field", async () => {
+  const style = document.createElement("style");
+  style.textContent = chatCss;
+  document.head.append(style);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+    ),
+  );
+  try {
+    const view = await mount(
+      createElement(RootLayout, null, createElement(ChatPage)),
+    );
+    const homeField = view.container.querySelector(".chat-sheet .chat-field");
+    if (!(homeField instanceof HTMLTextAreaElement)) {
+      throw new Error("missing home field");
+    }
+    const homeInset = textInset(homeField);
+    const chip = view.container.querySelector(".chat-chip");
+    if (!(chip instanceof HTMLButtonElement)) {
+      throw new Error("missing suggestion");
+    }
+    await act(async () => {
+      chip.click();
+    });
+    const chatField = view.container.querySelector(
+      ".chat-column > .chat-dock .chat-field",
+    );
+    if (!(chatField instanceof HTMLTextAreaElement)) {
+      throw new Error("missing chat field");
+    }
+    expect(homeInset).toEqual(textInset(chatField));
+  } finally {
+    style.remove();
+    document.documentElement.removeAttribute("style");
+  }
+});
+
 it("rounds the composer field with the large radius token", () => {
   expect(declaration(chatCss, ".chat-field", "border-radius")).toBe(
     "var(--radius-lg)",
@@ -87,6 +126,32 @@ it("keeps the composer controls from overlapping at 320", () => {
     }
   }
 });
+
+function textInset(field: HTMLElement): {
+  readonly paddingLeft: number;
+  readonly borderLeft: number;
+  readonly indent: number;
+  readonly inset: number;
+} {
+  const style = getComputedStyle(field);
+  const paddingLeft = side(style.paddingLeft);
+  const borderLeft = side(style.borderLeftWidth);
+  const indent = side(style.textIndent);
+  return {
+    paddingLeft,
+    borderLeft,
+    indent,
+    inset: paddingLeft + borderLeft + indent,
+  };
+}
+
+function side(value: string): number {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`not a length: ${value}`);
+  }
+  return parsed;
+}
 
 function expectOutside(composer: Element | null): void {
   if (!(composer instanceof HTMLElement)) {
