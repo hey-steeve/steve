@@ -50,21 +50,31 @@ function distance(red, green, blue) {
 
 function rebackground(src, width, height, background) {
   const backdrop = floodBackdrop(src, width, height);
+  const { edge, interior } = edgeMap(backdrop, width, height);
   const out = Buffer.alloc(width * height * 4);
   for (let index = 0; index < width * height; index++) {
     const offset = index * 4;
     const alpha = src[offset + 3];
-    if (!backdrop[index] || alpha === 0) {
+    out[offset + 3] = alpha;
+    if (alpha === 0 || (!backdrop[index] && !edge[index])) {
       out[offset] = src[offset];
       out[offset + 1] = src[offset + 1];
       out[offset + 2] = src[offset + 2];
-      out[offset + 3] = alpha;
       continue;
     }
-    out[offset] = background[0];
-    out[offset + 1] = background[1];
-    out[offset + 2] = background[2];
-    out[offset + 3] = alpha;
+    if (!edge[index]) {
+      out[offset] = background[0];
+      out[offset + 1] = background[1];
+      out[offset + 2] = background[2];
+      continue;
+    }
+    const x = index % width;
+    const y = (index / width) | 0;
+    const foreground = nearestBody(src, interior, width, height, x, y);
+    const painted = paintEdge(src, offset, foreground, background);
+    out[offset] = painted[0];
+    out[offset + 1] = painted[1];
+    out[offset + 2] = painted[2];
   }
   return out;
 }
