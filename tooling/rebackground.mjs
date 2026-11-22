@@ -1,5 +1,4 @@
 import { createRequire } from "node:module";
-import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,17 +13,8 @@ const profile = [218, 221, 254];
 const jobs = [
   ["shared/assets/mascot/avatar/pfp-lavender.png", "shared/assets/mascot/avatar/pfp-lavender-profile.png", profile],
   ["shared/assets/mascot/body/lounge-call.png", "shared/assets/mascot/body/lounge-call-page.png", page],
-  ["shared/assets/brand/icon-1024.png", "shared/assets/brand/icon-1024-page.png", page],
-  ["shared/assets/brand/icon-512.png", "shared/assets/brand/icon-512-page.png", page],
-  ["shared/assets/brand/icon-maskable-512.png", "shared/assets/brand/icon-maskable-512-page.png", page],
-  ["shared/assets/brand/icon-192.png", "shared/assets/brand/icon-192-page.png", page],
-  ["shared/assets/brand/apple-touch-icon.png", "shared/assets/brand/apple-touch-icon-page.png", page],
-  ["shared/assets/brand/favicon-32.png", "shared/assets/brand/favicon-32-page.png", page],
-  ["shared/assets/brand/favicon-16.png", "shared/assets/brand/favicon-16-page.png", page],
   ["shared/assets/brand/og-image.png", "shared/assets/brand/og-image-page.png", page],
 ];
-
-const icoJob = ["shared/assets/brand/favicon.ico", "shared/assets/brand/favicon-page.ico", page];
 
 const steps = [
   [1, 0],
@@ -402,41 +392,6 @@ async function paintPng(from, to, background) {
   return { image, report, name: path.basename(to) };
 }
 
-function readIco(bytes) {
-  const count = bytes.readUInt16LE(4);
-  const images = [];
-  for (let index = 0; index < count; index++) {
-    const entry = 6 + index * 16;
-    const size = bytes.readUInt32LE(entry + 8);
-    const offset = bytes.readUInt32LE(entry + 12);
-    images.push(bytes.subarray(offset, offset + size));
-  }
-  return images;
-}
-
-function writeIco(pngs) {
-  const count = pngs.length;
-  let offset = 6 + count * 16;
-  const header = Buffer.alloc(offset);
-  header.writeUInt16LE(0, 0);
-  header.writeUInt16LE(1, 2);
-  header.writeUInt16LE(count, 4);
-  const parts = [header];
-  pngs.forEach((png, index) => {
-    const entry = 6 + index * 16;
-    const width = png.readUInt32BE(16);
-    const height = png.readUInt32BE(20);
-    header[entry] = width >= 256 ? 0 : width;
-    header[entry + 1] = height >= 256 ? 0 : height;
-    header.writeUInt16LE(32, entry + 6);
-    header.writeUInt32LE(png.length, entry + 8);
-    header.writeUInt32LE(offset, entry + 12);
-    parts.push(png);
-    offset += png.length;
-  });
-  return Buffer.concat(parts);
-}
-
 function printReport(name, report) {
   const min = Number.isFinite(report.outerMin) ? report.outerMin.toFixed(1) : "none";
   process.stdout.write(
@@ -458,24 +413,6 @@ if (!checkOnly) {
     await painted.image.png({ compressionLevel: 9 }).toFile(path.join(repo, to));
     printReport(painted.name, painted.report);
   }
-
-  const [icoFrom, icoTo, icoBackground] = icoJob;
-  const icoImages = readIco(readFileSync(path.join(repo, icoFrom)));
-  const paintedIco = [];
-  for (const png of icoImages) {
-    const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const painted = rebackground(decoded.data, decoded.info.width, decoded.info.height, icoBackground);
-    const report = ringReport(painted, decoded.info.width, decoded.info.height, icoBackground);
-    printReport(`favicon-page.ico ${decoded.info.width}`, report);
-    paintedIco.push(
-      await sharp(painted, {
-        raw: { width: decoded.info.width, height: decoded.info.height, channels: 4 },
-      })
-        .png({ compressionLevel: 9 })
-        .toBuffer(),
-    );
-  }
-  writeFileSync(path.join(repo, icoTo), writeIco(paintedIco));
 }
 
 let failed = 0;
@@ -495,33 +432,6 @@ for (const [from, to, background] of jobs) {
     source.width,
     source.height,
     background,
-  );
-  failed += report.body + report.edge + report.fringe + report.field;
-  process.stdout.write(report.text);
-}
-
-const [icoFrom] = icoJob;
-const sourceIco = readIco(readFileSync(path.join(repo, icoFrom)));
-const derivedIco = readIco(readFileSync(path.join(repo, icoJob[1])));
-if (sourceIco.length !== derivedIco.length) {
-  process.stdout.write(`favicon-page.ico size\n`);
-  failed++;
-}
-for (let index = 0; index < Math.min(sourceIco.length, derivedIco.length); index++) {
-  const source = await decodedRaw(sourceIco[index]);
-  const derived = await decodedRaw(derivedIco[index]);
-  if (source.width !== derived.width || source.height !== derived.height) {
-    process.stdout.write(`favicon-page.ico ${source.width} size\n`);
-    failed++;
-    continue;
-  }
-  const report = clipReport(
-    `favicon-page.ico ${source.width}`,
-    source.data,
-    derived.data,
-    source.width,
-    source.height,
-    icoJob[2],
   );
   failed += report.body + report.edge + report.fringe + report.field;
   process.stdout.write(report.text);

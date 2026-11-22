@@ -14,7 +14,13 @@ it("keeps body pixels exact and recomposites the edge off the lavender matte", (
   const lines = output.split("\n").filter((line) => line.includes(" body "));
   expect(output).toContain("edge tolerance 1");
   expect(result.status, output || result.stderr || "").toBe(0);
-  expect(lines.length).toBeGreaterThan(10);
+  expect(lines.map((line) => line.split(" ")[0])).toEqual([
+    "pfp-lavender-profile.png",
+    "lounge-call-page.png",
+    "og-image-page.png",
+  ]);
+  expect(output).not.toContain("icon-1024-page.png");
+  expect(output).not.toContain("favicon-page.ico");
   for (const line of lines) {
     expect(line).toContain(" body 0");
     expect(line).toContain(" edge 0");
