@@ -65,7 +65,6 @@ export default function ChatPage(props: {
   const [unseenReply, setUnseenReply] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const restoreFocus = useRef(false);
-  const [fieldGrown, setFieldGrown] = useState(false);
   draftRef.current = draft;
 
   const dictation = useDictation({
@@ -143,8 +142,7 @@ export default function ChatPage(props: {
     if (field === null) {
       return;
     }
-    const grown = resizeComposerField(field);
-    setFieldGrown((current) => (current === grown ? current : grown));
+    resizeComposerField(field);
   }, [draft]);
 
   useEffect(() => {
@@ -406,7 +404,7 @@ export default function ChatPage(props: {
   }
 
   const composer = (
-    <div className={fieldGrown ? "chat-composer chat-composer-grown" : "chat-composer"}>
+    <div className="chat-composer">
       <button
         type="button"
         className="chat-plus"
@@ -776,12 +774,12 @@ function threadNearBottom(thread: HTMLElement | null): boolean {
   return thread.scrollHeight - thread.scrollTop - thread.clientHeight <= nearBottomGap;
 }
 
-function resizeComposerField(field: HTMLTextAreaElement): boolean {
+function resizeComposerField(field: HTMLTextAreaElement): void {
   field.style.height = "auto";
   const style = getComputedStyle(field);
   const lineHeight = Number.parseFloat(style.lineHeight);
   if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
-    return false;
+    return;
   }
   const padding =
     Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
@@ -792,7 +790,6 @@ function resizeComposerField(field: HTMLTextAreaElement): boolean {
   const needed = field.scrollHeight;
   field.style.height = `${Math.min(needed, limit)}px`;
   field.style.overflowY = needed > limit ? "auto" : "hidden";
-  return needed > lineHeight + padding + border + 1;
 }
 
 function errorText(body: unknown): string {

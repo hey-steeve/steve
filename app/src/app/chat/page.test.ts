@@ -257,12 +257,17 @@ it("paints the home chips and composer white, and the profile face lavender", as
         channels(edge),
       );
     }
-    expect(channels(getComputedStyle(composer).backgroundColor)).toBe(
+    const homeField = composer.querySelector(".chat-field");
+    if (!(homeField instanceof HTMLElement)) {
+      throw new Error("missing composer field");
+    }
+    expect(channels(getComputedStyle(homeField).backgroundColor)).toBe(
       channels(fill),
     );
-    expect(
-      containsColor(getComputedStyle(composer).boxShadow, edge),
-    ).toBe(true);
+    expect(channels(getComputedStyle(homeField).borderTopColor)).toBe(
+      channels(edge),
+    );
+    expect(getComputedStyle(homeField).borderTopWidth).toBe("1px");
     const chip = chips[0];
     if (!(chip instanceof HTMLElement)) {
       throw new Error("missing suggestion");
@@ -271,13 +276,16 @@ it("paints the home chips and composer white, and the profile face lavender", as
       chip.click();
     });
     const dock = view.container.querySelector(
-      ".chat-column > .chat-dock .chat-composer",
+      ".chat-column > .chat-dock .chat-composer .chat-field",
     );
     if (!(dock instanceof HTMLElement)) {
       throw new Error("missing chat composer");
     }
     expect(channels(getComputedStyle(dock).backgroundColor)).toBe(
       channels(canvas),
+    );
+    expect(channels(getComputedStyle(dock).borderTopColor)).toBe(
+      channels(edge),
     );
   } finally {
     style.remove();
@@ -2526,20 +2534,6 @@ function channels(color: string): string {
 
 function rgb(red: number, green: number, blue: number): string {
   return `rgb(${red}, ${green}, ${blue})`;
-}
-
-function containsColor(value: string, color: string): boolean {
-  const compact = value.toLowerCase().replaceAll(" ", "");
-  if (compact.includes(color.toLowerCase())) {
-    return true;
-  }
-  const parts = /^rgb\((\d+),(\d+),(\d+)\)$/.exec(
-    channels(color).replaceAll(" ", ""),
-  );
-  if (parts === null) {
-    return false;
-  }
-  return compact.includes(`${parts[1]},${parts[2]},${parts[3]}`);
 }
 
 async function flushFrame(): Promise<void> {
