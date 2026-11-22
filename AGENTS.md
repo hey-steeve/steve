@@ -70,6 +70,16 @@ Use one feature per branch. Change `shared/` on its own branch. The cross-bounda
 
 Write docs, pull request text, and code comments in English. Keep user-facing strings in the app in French.
 
+## Git rules
+
+Do not force-push.
+
+Do not rebase.
+
+From your branch, run `git merge main`. Keep the merge commit.
+
+Spidey's reviewer agent must approve the exact head commit. CI must be green on that commit. Merge the pull request only after the approval and the green CI.
+
 ## Stack
 
 The skeleton uses TypeScript, pnpm, ESLint, and Vitest. The user app in `app/` uses Next.js. Node with Fastify, Zod, Postgres with Prisma, Twilio, and Langfuse are chosen and are not installed yet.
