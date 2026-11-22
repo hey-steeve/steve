@@ -7,30 +7,27 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { viewport } from "./chat/layout.js";
-import ChatPage from "./chat/page.js";
+import ChatPage from "./chat/chat-page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-const pageBackground = designTokens.color.indigo50;
+const page = "#eff1fe";
 
 const chatCss = readFileSync(
   path.join(process.cwd(), "app/src/app/chat/chat.css"),
   "utf8",
 );
 
-it("pins theme-color to the chat page background", () => {
-  expect(viewport.themeColor).toBe(pageBackground);
+it("pins theme-color to the flat page background", () => {
+  expect(designTokens.color.page).toBe(page);
+  expect(viewport.themeColor).toBe(page);
 });
 
-it("paints the home screen and the chat screen with that page background", async () => {
+it("paints the home screen and the chat screen with that flat page background", async () => {
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
-  document.documentElement.style.setProperty("--color-indigo-50", pageBackground);
-  document.documentElement.style.setProperty(
-    "--color-indigo-100",
-    designTokens.color.indigo100,
-  );
+  document.documentElement.style.setProperty("--color-page", page);
 
   vi.stubGlobal(
     "fetch",
@@ -42,7 +39,7 @@ it("paints the home screen and the chat screen with that page background", async
   const view = await mount();
   const home = pageOf(view.container);
   expect(paint(home)).toEqual({
-    backgroundColor: channels(pageBackground),
+    backgroundColor: channels(page),
     backgroundImage: "none",
   });
 
@@ -56,7 +53,7 @@ it("paints the home screen and the chat screen with that page background", async
 
   const chat = pageOf(view.container);
   expect(paint(chat)).toEqual({
-    backgroundColor: channels(pageBackground),
+    backgroundColor: channels(page),
     backgroundImage: "none",
   });
 });
@@ -76,9 +73,15 @@ function paint(page: HTMLElement): {
   const style = getComputedStyle(page);
   return {
     backgroundColor: channels(style.backgroundColor),
-    backgroundImage:
-      style.backgroundImage === "initial" ? "none" : style.backgroundImage,
+    backgroundImage: image(style.backgroundImage),
   };
+}
+
+function image(value: string): string {
+  if (value === "" || value === "none" || value === "initial") {
+    return "none";
+  }
+  return value;
 }
 
 function channels(color: string): string {

@@ -11,3 +11,4 @@ app/public/icons/
 app/public/icons.tmp-*
 app/public/mascot/
 app/public/mascot.tmp-*
+app/public/demo/*.png

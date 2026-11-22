@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="shared/assets/mascot/body/lounge-call.png" alt="Steve on the phone in an armchair" width="200">
+  <img src="shared/assets/mascot/body/lounge-call-page.png" alt="Steve on the phone in an armchair" width="200">
 </p>
 
 <p align="center">Steve guides and organizes your care pathway. He calls, books and reschedules for you.</p>
