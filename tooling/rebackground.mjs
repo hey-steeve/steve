@@ -12,7 +12,6 @@ const profile = [218, 221, 254];
 
 const jobs = [
   ["shared/assets/mascot/avatar/pfp-lavender.png", "shared/assets/mascot/avatar/pfp-lavender-profile.png", profile],
-  ["shared/assets/mascot/body/lounge-call.png", "shared/assets/mascot/body/lounge-call-page.png", page],
   ["shared/assets/brand/og-image.png", "shared/assets/brand/og-image-page.png", page],
 ];
 

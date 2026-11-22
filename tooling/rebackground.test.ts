@@ -16,7 +16,6 @@ it("keeps body pixels exact and recomposites the edge off the lavender matte", (
   expect(result.status, output || result.stderr || "").toBe(0);
   expect(lines.map((line) => line.split(" ")[0])).toEqual([
     "pfp-lavender-profile.png",
-    "lounge-call-page.png",
     "og-image-page.png",
   ]);
   expect(output).not.toContain("icon-1024-page.png");

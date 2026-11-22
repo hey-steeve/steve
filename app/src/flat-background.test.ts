@@ -178,14 +178,14 @@ it("paints the header avatar on the profile token", async () => {
   expect(hash).toBe("85fc28f9b160233f8851abf9a0e15f0ae9e07c356972047c0e197a85429c0570");
 });
 
-it("paints lounge-call on the page token without editing the original", async () => {
+it("keeps lounge-call-page on the page token and leaves the lavender file unchanged", async () => {
   expect(designTokens.color.page).toBe("#eff1fe");
   const root = path.join(repoRoot, "shared/assets/mascot");
   await expectFlat(path.join(root, "body/lounge-call-page.png"), page);
   const original = await pixels(path.join(root, "body/lounge-call.png"));
   expect(at(original.data, original.width, 0, 0)[3]).toBe(0);
   const pageFile = await pixels(path.join(root, "body/lounge-call-page.png"));
-  expect(at(pageFile.data, pageFile.width, 0, 0)[3]).toBe(0);
+  expect(at(pageFile.data, pageFile.width, 0, 0)[3]).toBe(255);
   const sums = readFileSync(path.join(root, "SHA256SUMS"), "utf8");
   const hash = createHash("sha256")
     .update(readFileSync(path.join(root, "body/lounge-call.png")))
