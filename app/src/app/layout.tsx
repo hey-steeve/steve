@@ -15,19 +15,19 @@ export const metadata: Metadata = {
   title: "Steve",
   icons: {
     icon: [
-      { url: "/icons/favicon.ico" },
-      { url: "/icons/favicon-16.png", sizes: "16x16", type: "image/png" },
-      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/favicon-page.ico" },
+      { url: "/icons/favicon-16-page.png", sizes: "16x16", type: "image/png" },
+      { url: "/icons/favicon-32-page.png", sizes: "32x32", type: "image/png" },
     ],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+    apple: [{ url: "/icons/apple-touch-icon-page.png", sizes: "180x180" }],
   },
   manifest: "/icons/site.webmanifest",
   openGraph: {
-    images: [{ url: "/icons/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/icons/og-image-page.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    images: ["/icons/og-image.png"],
+    images: ["/icons/og-image-page.png"],
   },
 };
 

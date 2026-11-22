@@ -61,6 +61,12 @@ it("keeps the profile button on the home screen only", async () => {
   expect(header?.querySelector('[aria-label="Profil"]')).toBeNull();
   expect(header?.querySelector('[aria-label="Retour"]')).not.toBeNull();
   expect(header?.querySelector(".chat-title")?.textContent).toContain("Steve");
+  expect(header?.querySelector(".chat-title img")?.getAttribute("src")).toBe(
+    "/mascot/pfp-lavender-profile.webp",
+  );
+  expect(
+    view.container.querySelector(".chat-avatar-agent img")?.getAttribute("src"),
+  ).toBe("/mascot/pfp-lavender-profile.webp");
   expect(header?.querySelector(".chat-header-spacer")).not.toBeNull();
   expect(view.container.querySelector(".chat-avatar-user")).not.toBeNull();
   expect(view.container.querySelector(".chat-avatar-agent")).not.toBeNull();

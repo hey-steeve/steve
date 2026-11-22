@@ -30,7 +30,7 @@ const faceByState = {
 
 export const heroSrc = "/mascot/bubbles.webp";
 
-export const headerAvatarSrc = "/mascot/pfp-lavender.webp";
+export const headerAvatarSrc = "/mascot/pfp-lavender-profile.webp";
 
 export const replyAvatarSrc = headerAvatarSrc;
 

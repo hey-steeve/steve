@@ -33,7 +33,8 @@ The files in `body/`, in `duo/`, and in `avatar/` match no moment.
 - `sitting.png` is the pose where Steve sits with crossed legs. The file is 500 by 849 pixels.
 - `calling.png` is the pose where Steve holds the phone to one ear, with the other hand open. The file is 599 by 857 pixels. This is not the bust `states/calling.png`.
 - `bubbles.png` is the home-sheet pose. Steve lies on his belly and blows soap bubbles. The file is 1137 by 840 pixels and includes the contact shadow.
-- `lounge-call.png` is a square icon-style illustration, on a lavender background `#DAC4E8`. The file is 1024 by 1024 pixels. This is not a transparent pose.
+- `lounge-call.png` is a square icon-style illustration, on a lavender background `#DAC4E8`. The file is 1024 by 1024 pixels. This is not a transparent pose. The corner pixels are transparent.
+- `lounge-call-page.png` is that same illustration on the page background `#eff1fe`. The corner alpha is unchanged. `node tooling/rebackground.mjs` writes this file from `lounge-call.png`.
 
 `duo/` holds Steve with Alan the marmot. Each file is an opaque JPEG of 1152 by 864 pixels.
 
@@ -42,13 +43,14 @@ The files in `body/`, in `duo/`, and in `avatar/` match no moment.
 
 Grok Imagine generated these scenes from Alan's public mascot visuals. Spidey decided on 2026-11-21 to keep them. No app uses them yet.
 
-`avatar/` holds the head and two profile photos.
+`avatar/` holds the head and the profile photos.
 
 - `head.png` is the head alone, with transparency.
 - `pfp-indigo.png` is a square opaque profile photo, on an indigo background.
 - `pfp-lavender.png` is a square opaque profile photo, on a lavender background.
+- `pfp-lavender-profile.png` is that same photo on the profile background `#daddfe`. The header avatar uses this file. `node tooling/rebackground.mjs` writes it from `pfp-lavender.png`.
 
-No app uses these files yet. They are separate from the marmot definition in `shared/src/mascot`. The marmot definition will be replaced later.
+The app encodes `pfp-lavender-profile.png` as the header avatar. The other files in `avatar/` are unused. They are separate from the marmot definition in `shared/src/mascot`. The marmot definition will be replaced later.
 
 ## Does not
 
@@ -65,4 +67,4 @@ These files are the source. Do not edit them in place. Derive the resized copies
 
 `SHA256SUMS` contains the checksums of the approved original.
 
-`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png` and `pfp-lavender.png`. `body/lounge-call.png` is 1024 by 1024 pixels and is not a transparent pose. The eight poses in `body/` that are another size are transparent PNGs. Only `bubbles.png` is new. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels.
+`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png`, `pfp-lavender.png`, and `pfp-lavender-profile.png`. `body/lounge-call.png` and `body/lounge-call-page.png` are 1024 by 1024 pixels and are not transparent poses. The eight poses in `body/` that are another size are transparent PNGs. `bubbles.png` is the home pose. `pfp-lavender-profile.png` and `lounge-call-page.png` are the flat-background originals. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels. A `-page` file uses `#eff1fe`. A `-profile` file uses `#daddfe`. Do not edit the unsuffixed file.
