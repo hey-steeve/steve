@@ -78,7 +78,7 @@ it("keeps the profile button on the home screen only", async () => {
 
 it("renders the home greeting", async () => {
   const view = await mount();
-  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe("Hey");
+  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe("Bonjour,");
   expect(view.container.querySelector('[aria-label="Retour"]')).toBeNull();
 });
 
@@ -1973,7 +1973,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
     expect(newMessagePill(session.container)).toBeNull();
     expect(session.scrolled.top).toBe(0);
     expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
-      "Hey",
+      "Bonjour,",
     );
     expectNoHistoryChange();
 
@@ -2000,7 +2000,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
       expect(newMessagePill(session.container)).toBeNull();
       expect(session.scrolled.top).toBe(0);
       expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
-        "Hey",
+        "Bonjour,",
       );
       expectNoHistoryChange();
     } finally {
@@ -2074,7 +2074,7 @@ function expectEmptyHome(container: ParentNode): void {
       HTMLElement,
     badge: container.querySelector(".chat-badge"),
   }).toEqual({
-    greeting: "Hey",
+    greeting: "Bonjour,",
     back: null,
     thread: null,
     hero: true,
