@@ -33,6 +33,29 @@ it("keeps the profile glyph when no demo avatar is set", async () => {
   expect(face.querySelector("svg")).not.toBeNull();
 });
 
+it("keeps the message glyph when no demo avatar is set", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+    ),
+  );
+  const view = await mount();
+  const chip = view.container.querySelector(".chat-chip");
+  if (!(chip instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+  await act(async () => {
+    chip.click();
+  });
+  const avatar = view.container.querySelector(".chat-row-user .chat-avatar-user");
+  if (!(avatar instanceof HTMLElement)) {
+    throw new Error("missing user avatar");
+  }
+  expect(avatar.querySelector("img")).toBeNull();
+  expect(avatar.querySelector("svg")).not.toBeNull();
+});
+
 async function mount(): Promise<{ container: HTMLDivElement }> {
   const container = document.createElement("div");
   document.body.appendChild(container);

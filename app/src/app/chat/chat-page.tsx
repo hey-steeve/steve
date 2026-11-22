@@ -702,12 +702,21 @@ function SteveAvatar() {
 function UserAvatar() {
   return (
     <span className="chat-avatar chat-avatar-user" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 24 24">
-        <path
-          fill="currentColor"
-          d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-6 1.8-6 4v1h12v-1c0-2.2-2.7-4-6-4z"
+      {demoUserAvatarSrc === undefined ? (
+        <svg width="18" height="18" viewBox="0 0 24 24">
+          <path
+            fill="currentColor"
+            d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-6 1.8-6 4v1h12v-1c0-2.2-2.7-4-6-4z"
+          />
+        </svg>
+      ) : (
+        <img
+          src={demoUserAvatarSrc}
+          alt=""
+          width={192}
+          height={192}
         />
-      </svg>
+      )}
     </span>
   );
 }

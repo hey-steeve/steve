@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import sharp from "sharp";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar.js";
 import ChatPage from "./chat-page.js";
 
@@ -53,6 +53,32 @@ it("shows the demo photo in the profile frame and keeps the glyph's tap target",
   expect(meta.width).toBeGreaterThanOrEqual(circlePx * 3);
   expect(photo.getAttribute("width")).toBe(String(meta.width));
   expect(photo.getAttribute("height")).toBe(String(meta.height));
+});
+
+it("shows the demo photo on the user message avatar", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+    ),
+  );
+  const view = await mount();
+  const chip = view.container.querySelector(".chat-chip");
+  if (!(chip instanceof HTMLButtonElement)) {
+    throw new Error("missing suggestion");
+  }
+  await act(async () => {
+    chip.click();
+  });
+  const avatar = view.container.querySelector(".chat-row-user .chat-avatar-user");
+  const photo = avatar?.querySelector("img");
+  if (!(avatar instanceof HTMLElement) || !(photo instanceof HTMLImageElement)) {
+    throw new Error("missing user avatar photo");
+  }
+  expect(photo.getAttribute("src")).toBe(demoUserAvatarSrc);
+  expect(photo.getAttribute("alt")).toBe("");
+  expect(avatar.querySelector("svg")).toBeNull();
+  expect(rule(chatCss, ".chat-avatar img")).toContain("object-fit: cover;");
 });
 
 function rule(css: string, selector: string): string {
