@@ -37,68 +37,33 @@ function distance(red, green, blue) {
   return Math.hypot(red - oldLavender[0], green - oldLavender[1], blue - oldLavender[2]);
 }
 
-function linear(channel) {
-  const value = channel / 255;
-  return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-}
-
-function srgb(channel) {
-  const value = Math.min(1, Math.max(0, channel));
-  const encoded = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055;
-  return Math.round(Math.min(255, Math.max(0, encoded * 255)));
-}
-
-function coverage(color, backdrop) {
-  let limit = 1;
-  for (let channel = 0; channel < 3; channel++) {
-    const pixel = color[channel];
-    const matte = backdrop[channel];
-    let cap = 1;
-    if (matte > 1e-8) cap = Math.min(cap, pixel / matte);
-    if (matte < 1 - 1e-8) cap = Math.min(cap, (1 - pixel) / (1 - matte));
-    limit = Math.min(limit, cap);
-  }
-  if (!Number.isFinite(limit)) return 0;
-  return Math.min(1, Math.max(0, limit));
-}
-
 function rebackground(src, width, height, background) {
   const backdrop = floodBackdrop(src, width, height);
-  const band = edgeBand(backdrop, width, height);
   const out = Buffer.alloc(width * height * 4);
   for (let index = 0; index < width * height; index++) {
     const offset = index * 4;
     const alpha = src[offset + 3];
-    if (alpha === 0) {
-      out[offset + 3] = 0;
-      continue;
-    }
-    if (backdrop[index]) {
-      out[offset] = background[0];
-      out[offset + 1] = background[1];
-      out[offset + 2] = background[2];
+    if (!backdrop[index] || alpha === 0) {
+      out[offset] = src[offset];
+      out[offset + 1] = src[offset + 1];
+      out[offset + 2] = src[offset + 2];
       out[offset + 3] = alpha;
       continue;
     }
-    const cleaned = band[index] ? decontaminate(src, offset, background) : null;
-    if (cleaned) {
-      out[offset] = cleaned[0];
-      out[offset + 1] = cleaned[1];
-      out[offset + 2] = cleaned[2];
-      out[offset + 3] = alpha;
-      continue;
-    }
-    out[offset] = src[offset];
-    out[offset + 1] = src[offset + 1];
-    out[offset + 2] = src[offset + 2];
+    out[offset] = background[0];
+    out[offset + 1] = background[1];
+    out[offset + 2] = background[2];
     out[offset + 3] = alpha;
   }
   return out;
 }
 
-const edgeTolerance = 16;
-const bandReach = 2;
-const matteCoverage = 0.35;
+const fieldGap = 32;
+const fieldRedGreen = 16;
+const fieldBlueGreen = 24;
+const fieldBlueRedMin = 6;
+const fieldBlueRedMax = 24;
+const outlineTolerance = 2;
 
 function channelGap(red, green, blue) {
   return Math.max(
@@ -106,6 +71,16 @@ function channelGap(red, green, blue) {
     Math.abs(green - oldLavender[1]),
     Math.abs(blue - oldLavender[2]),
   );
+}
+
+function isField(red, green, blue, alpha) {
+  if (alpha === 0) return true;
+  const redGreen = red - green;
+  const blueGreen = blue - green;
+  const blueRed = blue - red;
+  if (redGreen < fieldRedGreen || blueGreen < fieldBlueGreen) return false;
+  if (blueRed < fieldBlueRedMin || blueRed > fieldBlueRedMax) return false;
+  return channelGap(red, green, blue) <= fieldGap;
 }
 
 function floodBackdrop(src, width, height) {
@@ -119,12 +94,7 @@ function floodBackdrop(src, width, height) {
     const index = y * width + x;
     if (backdrop[index]) return;
     const offset = index * 4;
-    if (
-      src[offset + 3] !== 0 &&
-      channelGap(src[offset], src[offset + 1], src[offset + 2]) > edgeTolerance
-    ) {
-      return;
-    }
+    if (!isField(src[offset], src[offset + 1], src[offset + 2], src[offset + 3])) return;
     backdrop[index] = 1;
     queueX[tail] = x;
     queueY[tail] = y;
@@ -150,65 +120,6 @@ function floodBackdrop(src, width, height) {
     }
   }
   return backdrop;
-}
-
-function edgeBand(backdrop, width, height) {
-  const count = width * height;
-  const band = new Uint8Array(count);
-  const neighbors = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-    [1, 1],
-    [1, -1],
-    [-1, 1],
-    [-1, -1],
-  ];
-  const queueX = new Int32Array(count);
-  const queueY = new Int32Array(count);
-  let head = 0;
-  let tail = 0;
-  for (let index = 0; index < count; index++) {
-    if (!backdrop[index]) continue;
-    queueX[tail] = index % width;
-    queueY[tail] = (index / width) | 0;
-    tail++;
-  }
-  while (head < tail) {
-    const x = queueX[head];
-    const y = queueY[head];
-    const index = y * width + x;
-    head++;
-    const depth = backdrop[index] ? 0 : band[index];
-    if (depth >= bandReach) continue;
-    for (const [dx, dy] of neighbors) {
-      const nextX = x + dx;
-      const nextY = y + dy;
-      if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) continue;
-      const neighbor = nextY * width + nextX;
-      if (backdrop[neighbor] || band[neighbor]) continue;
-      band[neighbor] = depth + 1;
-      queueX[tail] = nextX;
-      queueY[tail] = nextY;
-      tail++;
-    }
-  }
-  return band;
-}
-
-function decontaminate(src, offset, background) {
-  const color = [linear(src[offset]), linear(src[offset + 1]), linear(src[offset + 2])];
-  const matte = [linear(oldLavender[0]), linear(oldLavender[1]), linear(oldLavender[2])];
-  const amount = coverage(color, matte);
-  if (amount < matteCoverage) return null;
-  const painted = [0, 0, 0];
-  for (let channel = 0; channel < 3; channel++) {
-    painted[channel] = srgb(
-      color[channel] + amount * (linear(background[channel]) - matte[channel]),
-    );
-  }
-  return painted;
 }
 
 function hex(red, green, blue) {
@@ -251,11 +162,31 @@ function longestRuns(mask, width, height) {
   return { vertical, horizontal };
 }
 
-function clipReport(name, src, dst, width, height, background) {
+function touchesField(backdrop, width, height, x, y) {
+  for (const [dx, dy] of steps) {
+    const nextX = x + dx;
+    const nextY = y + dy;
+    if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) continue;
+    if (backdrop[nextY * width + nextX]) return true;
+  }
+  return false;
+}
+
+function channelDelta(src, dst, offset) {
+  return Math.max(
+    Math.abs(src[offset] - dst[offset]),
+    Math.abs(src[offset + 1] - dst[offset + 1]),
+    Math.abs(src[offset + 2] - dst[offset + 2]),
+    Math.abs(src[offset + 3] - dst[offset + 3]),
+  );
+}
+
+function clipReport(name, src, dst, width, height) {
   const backdrop = floodBackdrop(src, width, height);
-  const band = edgeBand(backdrop, width, height);
   const bad = new Uint8Array(width * height);
   let count = 0;
+  let body = 0;
+  let outline = 0;
   let left = null;
   let right = null;
   for (let y = 0; y < height; y++) {
@@ -263,23 +194,14 @@ function clipReport(name, src, dst, width, height, background) {
       const index = y * width + x;
       if (backdrop[index]) continue;
       const offset = index * 4;
-      if (src[offset + 3] === 0) {
-        if (dst[offset + 3] !== 0) {
-          bad[index] = 1;
-          count++;
-        }
-        continue;
-      }
-      const cleaned = band[index] ? decontaminate(src, offset, background) : null;
-      const expected = cleaned ?? [src[offset], src[offset + 1], src[offset + 2]];
-      const same =
-        dst[offset] === expected[0] &&
-        dst[offset + 1] === expected[1] &&
-        dst[offset + 2] === expected[2] &&
-        dst[offset + 3] === src[offset + 3];
-      if (same) continue;
+      const delta = channelDelta(src, dst, offset);
+      if (delta === 0) continue;
+      const onOutline = touchesField(backdrop, width, height, x, y);
+      if (onOutline && delta <= outlineTolerance) continue;
       bad[index] = 1;
       count++;
+      if (onOutline) outline++;
+      else body++;
       const sample = {
         x,
         y,
@@ -291,8 +213,10 @@ function clipReport(name, src, dst, width, height, background) {
     }
   }
   const runs = longestRuns(bad, width, height);
-  const lines = [`${name} clips ${count}`];
+  const lines = [`${name} changed non-bg ${count}`];
   if (count > 0) {
+    lines.push(`  body ${body}`);
+    lines.push(`  outline ${outline}`);
     if (runs.vertical) {
       const at = runs.vertical;
       lines.push(`  vertical ${at.x},${at.y0}-${at.y1} len ${at.len}`);
@@ -429,38 +353,47 @@ if (!checkOnly) {
 }
 
 let clips = 0;
-for (const [from, to, background] of jobs) {
+process.stdout.write(`outline tolerance ${outlineTolerance}\n`);
+for (const [from, to] of jobs) {
   const source = await decodedRaw(path.join(repo, from));
   const derived = await decodedRaw(path.join(repo, to));
+  if (source.width !== derived.width || source.height !== derived.height) {
+    process.stdout.write(`${path.basename(to)} changed non-bg size\n`);
+    clips++;
+    continue;
+  }
   const report = clipReport(
     path.basename(to),
     source.data,
     derived.data,
     source.width,
     source.height,
-    background,
   );
   clips += report.count;
   process.stdout.write(report.text);
 }
 
-const [icoFrom, , icoBackground] = icoJob;
+const [icoFrom] = icoJob;
 const sourceIco = readIco(readFileSync(path.join(repo, icoFrom)));
 const derivedIco = readIco(readFileSync(path.join(repo, icoJob[1])));
 if (sourceIco.length !== derivedIco.length) {
-  process.stdout.write(`favicon-page.ico clips size mismatch\n`);
+  process.stdout.write(`favicon-page.ico changed non-bg size\n`);
   clips++;
 }
 for (let index = 0; index < Math.min(sourceIco.length, derivedIco.length); index++) {
   const source = await decodedRaw(sourceIco[index]);
   const derived = await decodedRaw(derivedIco[index]);
+  if (source.width !== derived.width || source.height !== derived.height) {
+    process.stdout.write(`favicon-page.ico ${source.width} changed non-bg size\n`);
+    clips++;
+    continue;
+  }
   const report = clipReport(
     `favicon-page.ico ${source.width}`,
     source.data,
     derived.data,
     source.width,
     source.height,
-    icoBackground,
   );
   clips += report.count;
   process.stdout.write(report.text);
