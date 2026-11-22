@@ -1,6 +1,6 @@
 import {
   type DeclaredEntry,
-  demoPatientMemorySeed,
+  createDemoPatientMemorySeed,
   loadDemoPatientMemory,
   parsePatientMemory,
   PatientMemoryParseError,
@@ -203,7 +203,7 @@ function walk(
 
 it("loads the demo memory for Peter Parker", () => {
   expect(loadDemoPatientMemory()).toEqual(expected);
-  expect(parsePatientMemory(demoPatientMemorySeed)).toEqual(expected);
+  expect(parsePatientMemory(createDemoPatientMemorySeed())).toEqual(expected);
 });
 
 it("records ages and past waits as declared facts", () => {
@@ -302,12 +302,12 @@ it("rejects a record that is not demo or that looks real", () => {
     }),
   ).toThrow(PatientMemoryParseError);
   const history = expected.declaredHistory.map((entry) => {
-    if (entry.kind !== "visit") {
+    if (entry.kind !== "visit" || entry.specialty !== "radiologue") {
       return entry;
     }
     return {
       ...entry,
-      practitioner: { ...entry.practitioner, identifier: "10100229821" },
+      practitioner: { ...entry.practitioner, identifier: "10000000001" },
     };
   });
   expect(() =>
@@ -371,4 +371,10 @@ it("reads a declared call back unchanged", () => {
 it("returns a fresh memory on each load", () => {
   expect(loadDemoPatientMemory()).toEqual(loadDemoPatientMemory());
   expect(loadDemoPatientMemory()).not.toBe(loadDemoPatientMemory());
+});
+
+it("keeps a load free of an earlier seed mutation", () => {
+  const seed = createDemoPatientMemorySeed();
+  seed.identity.givenName = "Wade";
+  expect(loadDemoPatientMemory().identity.givenName).toBe("Peter");
 });

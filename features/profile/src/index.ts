@@ -1,5 +1,5 @@
 export {
-  demoPatientMemorySeed,
+  createDemoPatientMemorySeed,
   loadDemoPatientMemory,
 } from "./demo-user.ts";
 export {
