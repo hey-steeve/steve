@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import ChatPage from "./page.js";
+import ChatPage from "./chat-page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -130,76 +130,6 @@ it("disables send while the chat request is in flight", async () => {
   await act(async () => {
     finish(Response.json({ reply: "D'accord.", mocked: true, model: "mock" }));
   });
-});
-
-it("hides playback when speech synthesis is missing and stops on an utterance error", async () => {
-  Reflect.deleteProperty(window, "speechSynthesis");
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof fetch>(async () =>
-      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
-    ),
-  );
-  const hidden = await renderPage();
-  await act(async () => {
-    setField(fieldIn(hidden), "Bonjour");
-  });
-  await act(async () => {
-    sendButton(hidden).click();
-  });
-  expect(hidden.querySelector('button[aria-label="Lire la réponse"]')).toBeNull();
-
-  const spoken: Array<{
-    onend: (() => void) | null;
-    onerror: (() => void) | null;
-  }> = [];
-  vi.stubGlobal(
-    "SpeechSynthesisUtterance",
-    class {
-      lang = "";
-      voice: SpeechSynthesisVoice | null = null;
-      onend: (() => void) | null = null;
-      onerror: (() => void) | null = null;
-      constructor(_text: string) {
-        spoken.push(this);
-      }
-    },
-  );
-  Object.defineProperty(window, "speechSynthesis", {
-    configurable: true,
-    value: {
-      cancel() {},
-      getVoices() {
-        return [];
-      },
-      speak() {},
-      addEventListener() {},
-      removeEventListener() {},
-    },
-  });
-  const shown = await renderPage();
-  await act(async () => {
-    setField(fieldIn(shown), "Bonjour");
-  });
-  await act(async () => {
-    sendButton(shown).click();
-  });
-  const speak = shown.querySelector('button[aria-label="Lire la réponse"]');
-  if (!(speak instanceof HTMLButtonElement)) {
-    throw new Error("missing speaker");
-  }
-  await act(async () => {
-    speak.click();
-  });
-  expect(speak.getAttribute("aria-pressed")).toBe("true");
-  const utterance = spoken[0];
-  if (utterance === undefined || utterance.onerror === null) {
-    throw new Error("missing utterance error handler");
-  }
-  await act(async () => {
-    utterance.onerror?.();
-  });
-  expect(speak.getAttribute("aria-pressed")).toBe("false");
 });
 
 it("does not focus the composer when a suggestion chip is tapped", async () => {

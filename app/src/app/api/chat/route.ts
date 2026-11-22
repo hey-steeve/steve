@@ -1,6 +1,6 @@
+import { readCompletion } from "../../../chat/completion";
 import {
   chatRequestLimits,
-  clampAssistantContent,
   mockChatResult,
   parseChatMessages,
   type ChatHttpResult,
@@ -89,117 +89,6 @@ async function completeWithOpenRouter(
   } catch {
     return { status: 502, body: { error: upstreamError } };
   }
-}
-
-function readCompletion(
-  payload: unknown,
-  requested: string,
-): { readonly reply: string; readonly model: string } | null {
-  if (!isRecord(payload)) {
-    return null;
-  }
-  const choices = field(payload, "choices");
-  if (!Array.isArray(choices)) {
-    return null;
-  }
-  const first: unknown = choices[0];
-  if (!isRecord(first)) {
-    return null;
-  }
-  const message = field(first, "message");
-  if (!isRecord(message)) {
-    return null;
-  }
-  const content = field(message, "content");
-  if (typeof content !== "string" || content.trim().length === 0) {
-    return null;
-  }
-  const finish = field(first, "finish_reason");
-  if (finish === "content_filter" || finish === "error") {
-    return null;
-  }
-  const reply =
-    finish === "length" ? lengthReply(content) : clampAssistantContent(content);
-  if (reply === null) {
-    return null;
-  }
-  const modelField = field(payload, "model");
-  const model =
-    typeof modelField === "string" && modelField.length > 0
-      ? modelField
-      : requested;
-  return { reply, model };
-}
-
-function lengthReply(content: string): string | null {
-  const sentence = completeSentences(content);
-  if (sentence === null) {
-    return null;
-  }
-  const bounded = clampAssistantContent(sentence);
-  if (bounded === sentence) {
-    return bounded;
-  }
-  return completeSentences(bounded);
-}
-
-function completeSentences(content: string): string | null {
-  const text = content.trim();
-  let end = -1;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text.charAt(index);
-    if (char !== "." && char !== "!" && char !== "?") {
-      continue;
-    }
-    if (char === "." && isLineStartNumberDot(text, index)) {
-      continue;
-    }
-    const closer = closingGuillemet(text, index + 1);
-    if (closer !== null) {
-      end = closer;
-      continue;
-    }
-    const next = text.charAt(index + 1);
-    if (next.length === 0 || next.trim() === "") {
-      end = index + 1;
-    }
-  }
-  if (end < 0) {
-    return null;
-  }
-  const sentence = text.slice(0, end).trim();
-  if (sentence.length === 0) {
-    return null;
-  }
-  return sentence;
-}
-
-function isLineStartNumberDot(text: string, dotIndex: number): boolean {
-  const next = text.charAt(dotIndex + 1);
-  if (next !== " " && next !== "\t") {
-    return false;
-  }
-  let lineStart = dotIndex;
-  while (lineStart > 0 && text.charAt(lineStart - 1) !== "\n") {
-    lineStart -= 1;
-  }
-  const matched = /^\s*(\d+)$/.exec(text.slice(lineStart, dotIndex));
-  if (matched === null) {
-    return false;
-  }
-  const number = matched[1];
-  return number !== undefined && number !== "15" && number !== "3114";
-}
-
-function closingGuillemet(text: string, from: number): number | null {
-  let cursor = from;
-  while (cursor < text.length && text.charAt(cursor).trim() === "") {
-    cursor += 1;
-  }
-  if (text.charAt(cursor) !== "»") {
-    return null;
-  }
-  return cursor + 1;
 }
 
 type ChatBodyRead =
@@ -303,15 +192,4 @@ function envString(name: string): string | undefined {
     return undefined;
   }
   return trimmed;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function field(record: Record<string, unknown>, key: string): unknown {
-  if (!Object.hasOwn(record, key)) {
-    return undefined;
-  }
-  return Reflect.get(record, key);
 }

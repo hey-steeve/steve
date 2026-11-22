@@ -28,9 +28,9 @@ const faceByState = {
   blocked: steveFace.urgent,
 } as const satisfies Record<AvatarState, SteveFace>;
 
-export const heroSrc = "/mascot/shrug.webp";
+export const heroSrc = "/mascot/bubbles.webp";
 
-export const headerAvatarSrc = "/mascot/pfp-lavender.webp";
+export const headerAvatarSrc = "/mascot/pfp-lavender-profile.webp";
 
 export const replyAvatarSrc = headerAvatarSrc;
 

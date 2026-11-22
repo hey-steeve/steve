@@ -1,6 +1,6 @@
 # App
 
-`app/` is the Next.js front. `/` shows the marmot. `/chat` is the chat page.
+`app/` is the Next.js front. `/` redirects to `/chat`, the home.
 
 ## POST /api/chat
 
@@ -40,7 +40,7 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `STEVE_CHAT_LIVE` must be exactly `1`, and `OPENROUTER_API_KEY` must be set, before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set. `true`, `0`, and ` 1 ` keep the canned reply.
 
-When the route calls OpenRouter, it sends a short French system prompt, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The JSON includes `max_tokens` set to 1024 and `reasoning` set to `{ "effort": "low", "exclude": true }`. HTTP 200 looks like this.
+When the route calls OpenRouter, it sends the French system prompt in `system-prompt.ts`, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The prompt states the 15 and 3114 rules, the medication ban, and the reply limits. The JSON includes `max_tokens` set to 1024 and `reasoning` set to `{ "effort": "low", "exclude": true }`. HTTP 200 looks like this.
 
 ```json
 {
@@ -64,11 +64,18 @@ The route aborts the OpenRouter call after 30 seconds. Each case below returns H
 - `finish_reason` is `content_filter`.
 - `finish_reason` is `error`. The provider failed during the reply, so the route drops any partial text.
 
-A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark stays with the sentence. A `.` inside a token, such as `2.5`, is not an ending. A `.` after a number at the start of a line is not an ending when a space or a tab follows that dot, as in `1. Appelle`. `15` and `3114` stay endings. A line that starts `15. Sinon` still ends at `15.`. A line that is only `15.` or `3114.` is an ending. When `finish_reason` is `length` and a complete sentence remains, the route returns the text through the last one. The trimmed reply still ends on a sentence. The route drops any cut-off sentence after that ending. The 4000-character cap still applies. If the cap cuts off the ending, the route trims to the last sentence inside the cap. When that trim finds nothing, the route returns the 502 above. When `finish_reason` is `stop`, the route returns the assistant text after the same cap. A missing `finish_reason` does the same. Any other `finish_reason` returns the assistant text after that cap.
+A complete sentence ends in `.`, `!`, or `?`. A closing `»` after that mark stays with the sentence. A `.` inside a token, such as `2.5`, is not an ending. A `.` after a number at the start of a line is not an ending when that line is a list item. A list item has no leading space. It starts with `N.` and then non-newline whitespace. That whitespace includes a space, a tab, and a no-break space. `N` is 1, or one greater than the number on the previous list item. The previous item is the previous non-empty line. Any other line-start `N.` is an ending, including `15.` and `3114.`. A line that starts `15. Sinon` outside a list still ends at `15.`. A line that is only `15.` or `3114.` is an ending. A cut inside a later list item drops that marker when the items are consecutive and the list starts at 1. A cut can leave a dangling marker in these cases.
+
+- The list starts at 3.
+- A bullet comes before `2.`.
+- The markers mix `1)` and `2.`.
+- The marker is indented, as in `  10.`.
+
+When `finish_reason` is `length` and a complete sentence remains, the route returns the text through the last one. The trimmed reply still ends on a sentence. The route drops any cut-off sentence after that ending. The 4000-character cap still applies. If the cap cuts off the ending, the route trims to the last sentence inside the cap. When that trim finds nothing, the route returns the 502 above. When `finish_reason` is `stop`, the route returns the assistant text after the same cap. A missing `finish_reason` does the same. Any other `finish_reason` returns the assistant text after that cap.
 
 The route does not return the upstream body. Do not print the key.
 
-The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows the model id under each agent reply when the reply is not mocked. It shows a failed reply on an error card.
+The chat page shows **Mode démo : réponses simulées** after a reply with `mocked` set to `true`. It shows a failed reply on an error card.
 
 ## Access
 
@@ -82,12 +89,12 @@ Deploy live mode on the tailnet. The route does not enforce that placement. The 
 
 A later run replaces the files inside `app/public/mascot/` and leaves that folder in place. `app/public/icons/` works the same way. The run deletes its own staging directory. It also deletes a staging directory whose age is at least 15 minutes.
 
-The encoder is sharp 0.35.5, a dependency of `@steve/app`. Next.js lists the same version as an optional dependency. The script resizes each PNG, then encodes WebP at quality 80 and alpha quality 80.
+The encoder is sharp 0.35.5, a dependency of `@steve/app`. Next.js lists the same version as an optional dependency. The script resizes each sized PNG, then encodes WebP at quality 80 and alpha quality 80. `bubbles.webp` is not resized. It is a lossless WebP at the PNG size.
 
 The chat page loads two files.
 
-- `shrug.webp` comes from `body/shrug.png`, scaled to a height of 640. The current PNG becomes 514 by 640, which matches the `width` and `height` on the hero image.
-- `pfp-lavender.webp` comes from `avatar/pfp-lavender.png`, scaled to 192 by 192.
+- `bubbles.webp` comes from `body/bubbles.png` with no resize. The file stays 1137 by 840, which matches the `width` and `height` on the hero image. The encode is lossless. The hero draws it at 284px.
+- `pfp-lavender-profile.webp` comes from `avatar/pfp-lavender-profile.png`, scaled to 192 by 192. The source background is `#daddfe`. The WebP encode stays at quality 80.
 
 `app/src/chat/faces.ts` names five more files for `faceFor`. The chat page does not call `faceFor`. The generator still writes them so those URLs resolve.
 
