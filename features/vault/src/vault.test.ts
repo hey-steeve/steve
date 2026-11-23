@@ -189,6 +189,55 @@ describe("Vault document lifecycle", () => {
 });
 
 describe("dependency failures", () => {
+  test("contains hostile input getters and proxies", async () => {
+    const hostileGetter = Object.defineProperty(documentInput(), "id", {
+      get() {
+        throw new Error("hostile input getter");
+      },
+    });
+    const hostileProxy = new Proxy(documentInput(), {
+      ownKeys() {
+        throw new Error("hostile input proxy");
+      },
+    });
+    const service = createVault(dependencies());
+
+    const getterResult = await service.store(hostileGetter);
+    const proxyResult = await service.store(hostileProxy);
+
+    expect(getterResult).toEqual({
+      ok: false,
+      error: { code: "INVALID_DOCUMENT", message: "Document input is invalid." },
+    });
+    expect(proxyResult).toEqual({
+      ok: false,
+      error: { code: "INVALID_DOCUMENT", message: "Document input is invalid." },
+    });
+  });
+
+  test("contains hostile records returned by storage", async () => {
+    const hostileRecord = new Proxy({} as StoredDocument, {
+      ownKeys() {
+        throw new Error("hostile storage record");
+      },
+    });
+    const storage: DocumentStorage = {
+      create: vi.fn(async () => "created" as const),
+      get: vi.fn(async () => hostileRecord),
+    };
+    const service = createVault(dependencies({ storage }));
+
+    const result = await service.get("doc_generated");
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "STORAGE_FAILURE",
+        message: "Document storage returned invalid data.",
+      },
+    });
+  });
+
   test("maps storage exceptions without leaking document content", async () => {
     const storage: DocumentStorage = {
       create: vi.fn(async () => {
@@ -281,6 +330,52 @@ describe("dependency failures", () => {
 });
 
 describe("untrusted summary output", () => {
+  test("contains hostile summary objects, properties, and arrays", async () => {
+    const hostileObject = new Proxy({}, {
+      ownKeys() {
+        throw new Error("hostile summary object");
+      },
+    });
+    const hostileProperty = Object.defineProperty({}, "summary", {
+      enumerable: true,
+      get() {
+        throw new Error("hostile summary property");
+      },
+    });
+    Object.defineProperty(hostileProperty, "evidence", {
+      enumerable: true,
+      value: [evidence],
+    });
+    const hostileEvidence = new Proxy([evidence], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error("hostile summary array");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const outputs = [
+      hostileObject,
+      hostileProperty,
+      { summary: "Fact.", evidence: hostileEvidence },
+    ];
+
+    for (const output of outputs) {
+      const service = createVault(dependencies({ summarizer: provider(output) }));
+      await service.store(documentInput());
+
+      const result = await service.summarize("doc_generated");
+
+      expect(result).toEqual({
+        ok: false,
+        error: {
+          code: "INVALID_SUMMARY",
+          message: "Summary provider returned an invalid result.",
+        },
+      });
+    }
+  });
+
   test.each([
     ["null", null],
     ["unknown field", { summary: "Fact.", evidence: [evidence], extra: true }],

@@ -33,6 +33,17 @@ function timestamp(now: () => Date): string | null {
   }
 }
 
+function needsGeneratedId(input: unknown): boolean | null {
+  try {
+    if (input === null || typeof input !== "object" || Array.isArray(input)) {
+      return true;
+    }
+    return Reflect.get(input, "id") === undefined;
+  } catch {
+    return null;
+  }
+}
+
 export function createVault(dependencies: VaultDependencies): Vault {
   const storage = dependencies.storage;
   const summarizer = dependencies.summarizer;
@@ -56,7 +67,12 @@ export function createVault(dependencies: VaultDependencies): Vault {
     if (stored === null) {
       return failure("DOCUMENT_NOT_FOUND", "Document was not found.");
     }
-    const validated = validateStoredDocument(stored);
+    let validated: ReturnType<typeof validateStoredDocument>;
+    try {
+      validated = validateStoredDocument(stored);
+    } catch {
+      return failure("STORAGE_FAILURE", "Document storage returned invalid data.");
+    }
     if (!validated.ok) {
       return failure("STORAGE_FAILURE", "Document storage returned invalid data.");
     }
@@ -66,8 +82,11 @@ export function createVault(dependencies: VaultDependencies): Vault {
   return {
     async store(input: VaultDocumentInput): Promise<VaultResult<StoredDocument>> {
       let generatedId = "";
-      const inputId = (input as VaultDocumentInput | null)?.id;
-      if (inputId === undefined) {
+      const generateDocumentId = needsGeneratedId(input);
+      if (generateDocumentId === null) {
+        return failure("INVALID_DOCUMENT", "Document input is invalid.");
+      }
+      if (generateDocumentId) {
         try {
           generatedId = generateId();
         } catch {
@@ -78,7 +97,12 @@ export function createVault(dependencies: VaultDependencies): Vault {
       if (storedAt === null) {
         return failure("DEPENDENCY_FAILURE", "Document clock failed.");
       }
-      const validated = validateDocumentInput(input, generatedId, storedAt);
+      let validated: ReturnType<typeof validateDocumentInput>;
+      try {
+        validated = validateDocumentInput(input, generatedId, storedAt);
+      } catch {
+        return failure("INVALID_DOCUMENT", "Document input is invalid.");
+      }
       if (!validated.ok) {
         return validated;
       }
@@ -131,7 +155,15 @@ export function createVault(dependencies: VaultDependencies): Vault {
       } catch {
         return failure("SUMMARIZATION_FAILURE", "Document summarization failed.");
       }
-      const validated = validateSummaryOutput(output, result.value.text);
+      let validated: ReturnType<typeof validateSummaryOutput>;
+      try {
+        validated = validateSummaryOutput(output, result.value.text);
+      } catch {
+        return failure(
+          "INVALID_SUMMARY",
+          "Summary provider returned an invalid result.",
+        );
+      }
       if (!validated.ok) {
         return validated;
       }
