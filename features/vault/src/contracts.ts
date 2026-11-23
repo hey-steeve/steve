@@ -1,12 +1,12 @@
-export const supportedDocumentMimeTypes = [
+export const supportedDocumentMimeTypes = Object.freeze([
   "text/plain",
   "text/markdown",
-] as const;
+] as const);
 
 export type SupportedDocumentMimeType =
   (typeof supportedDocumentMimeTypes)[number];
 
-export const vaultLimits = {
+export const vaultLimits = Object.freeze({
   documentIdCharacters: 64,
   fileNameCharacters: 255,
   contentBytes: 1_048_576,
@@ -15,7 +15,7 @@ export const vaultLimits = {
   summaryCharacters: 2_000,
   evidenceItems: 8,
   evidenceCharacters: 500,
-} as const;
+} as const);
 
 export type VaultDocumentMetadataInput = {
   readonly title?: string;
@@ -54,12 +54,12 @@ export interface DocumentStorage {
   get(id: string): Promise<StoredDocument | null>;
 }
 
-export const factualSummaryRules = {
+export const factualSummaryRules = Object.freeze({
   factsOnly: true,
   noMedicalInterpretation: true,
   noDiagnosis: true,
   noPrescription: true,
-} as const;
+} as const);
 
 export type FactualSummaryRequest = {
   readonly document: {

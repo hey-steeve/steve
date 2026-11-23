@@ -34,6 +34,8 @@ function timestamp(now: () => Date): string | null {
 }
 
 export function createVault(dependencies: VaultDependencies): Vault {
+  const storage = dependencies.storage;
+  const summarizer = dependencies.summarizer;
   const generateId = dependencies.generateId ?? (() => `doc_${randomUUID()}`);
   const now = dependencies.now ?? (() => new Date());
 
@@ -47,7 +49,7 @@ export function createVault(dependencies: VaultDependencies): Vault {
 
     let stored: StoredDocument | null;
     try {
-      stored = await dependencies.storage.get(validId.value);
+      stored = await storage.get(validId.value);
     } catch {
       return failure("STORAGE_FAILURE", "Document storage failed.");
     }
@@ -83,7 +85,7 @@ export function createVault(dependencies: VaultDependencies): Vault {
 
       let outcome: "created" | "duplicate";
       try {
-        outcome = await dependencies.storage.create(
+        outcome = await storage.create(
           copyDocument(validated.value.document),
         );
       } catch {
@@ -117,7 +119,7 @@ export function createVault(dependencies: VaultDependencies): Vault {
 
       let output: unknown;
       try {
-        output = await dependencies.summarizer.summarize({
+        output = await summarizer.summarize({
           document: {
             id: result.value.document.id,
             fileName: result.value.document.fileName,

@@ -3,6 +3,7 @@ import {
   InMemoryDocumentStorage,
   createVault,
   factualSummaryRules,
+  supportedDocumentMimeTypes,
   vaultLimits,
   type DocumentStorage,
   type FactualSummaryProvider,
@@ -52,6 +53,12 @@ function dependencies(
 }
 
 describe("Vault document lifecycle", () => {
+  test("keeps exported safety policy and validation limits immutable", () => {
+    expect(Object.isFrozen(factualSummaryRules)).toBe(true);
+    expect(Object.isFrozen(supportedDocumentMimeTypes)).toBe(true);
+    expect(Object.isFrozen(vaultLimits)).toBe(true);
+  });
+
   test("stores, retrieves, and factually summarizes a document", async () => {
     const summarizer = provider();
     const service = createVault(dependencies({ summarizer }));
