@@ -175,8 +175,10 @@ export function createVault(dependencies: VaultDependencies): Vault {
         ok: true,
         value: {
           documentId: result.value.document.id,
-          summary: validated.value.summary,
-          evidence: [...validated.value.evidence],
+          assertions: validated.value.assertions.map((assertion) => ({
+            text: assertion.text,
+            evidence: [...assertion.evidence],
+          })),
           generatedAt,
         },
       };

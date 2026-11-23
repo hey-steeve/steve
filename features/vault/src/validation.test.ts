@@ -11,8 +11,10 @@ const encoder = new TextEncoder();
 
 const summarizer: FactualSummaryProvider = {
   summarize: vi.fn(async () => ({
-    summary: "The document states a follow-up date.",
-    evidence: ["Follow-up on 20 November."],
+    assertions: [{
+      text: "The document states a follow-up date.",
+      evidence: ["Follow-up on 20 November."],
+    }],
   })),
 };
 

@@ -1,6 +1,7 @@
 import {
   supportedDocumentMimeTypes,
   vaultLimits,
+  type FactualAssertion,
   type StoredDocument,
   type SupportedDocumentMimeType,
   type VaultDocumentInput,
@@ -19,8 +20,7 @@ type ValidatedDocument = {
 };
 
 type ValidatedSummary = {
-  readonly summary: string;
-  readonly evidence: readonly string[];
+  readonly assertions: readonly FactualAssertion[];
 };
 
 function failure(
@@ -333,11 +333,10 @@ export function validateSummaryOutput(
 ): VaultResult<ValidatedSummary> {
   if (
     !isRecord(output) ||
-    !hasOnlyKeys(output, ["summary", "evidence"]) ||
-    !validBoundedText(output["summary"], vaultLimits.summaryCharacters) ||
-    !Array.isArray(output["evidence"]) ||
-    output["evidence"].length === 0 ||
-    output["evidence"].length > vaultLimits.evidenceItems
+    !hasOnlyKeys(output, ["assertions"]) ||
+    !Array.isArray(output["assertions"]) ||
+    output["assertions"].length === 0 ||
+    output["assertions"].length > vaultLimits.summaryAssertions
   ) {
     return failure(
       "INVALID_SUMMARY",
@@ -345,22 +344,44 @@ export function validateSummaryOutput(
     );
   }
 
-  const evidence: string[] = [];
-  for (const item of output["evidence"]) {
+  const assertions: FactualAssertion[] = [];
+  const assertionTexts = new Set<string>();
+  const allEvidence = new Set<string>();
+  for (const item of output["assertions"]) {
     if (
-      !validBoundedText(item, vaultLimits.evidenceCharacters) ||
-      !sourceText.includes(item) ||
-      evidence.includes(item)
+      !isRecord(item) ||
+      !hasOnlyKeys(item, ["text", "evidence"]) ||
+      !validBoundedText(item["text"], vaultLimits.assertionCharacters) ||
+      assertionTexts.has(item["text"]) ||
+      !Array.isArray(item["evidence"]) ||
+      item["evidence"].length === 0 ||
+      item["evidence"].length > vaultLimits.evidencePerAssertion
     ) {
       return failure(
         "INVALID_SUMMARY",
         "Summary provider returned an invalid result.",
       );
     }
-    evidence.push(item);
+    const evidence: string[] = [];
+    for (const excerpt of item["evidence"]) {
+      if (
+        !validBoundedText(excerpt, vaultLimits.evidenceCharacters) ||
+        !sourceText.includes(excerpt) ||
+        allEvidence.has(excerpt)
+      ) {
+        return failure(
+          "INVALID_SUMMARY",
+          "Summary provider returned an invalid result.",
+        );
+      }
+      evidence.push(excerpt);
+      allEvidence.add(excerpt);
+    }
+    assertionTexts.add(item["text"]);
+    assertions.push({ text: item["text"], evidence });
   }
   return {
     ok: true,
-    value: { summary: output["summary"], evidence },
+    value: { assertions },
   };
 }

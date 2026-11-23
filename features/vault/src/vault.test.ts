@@ -34,8 +34,10 @@ function documentInput(
 }
 
 function provider(output: unknown = {
-  summary: "The note requests a blood test before the next appointment.",
-  evidence: [evidence],
+  assertions: [{
+    text: "The note requests a blood test before the next appointment.",
+    evidence: [evidence],
+  }],
 }): FactualSummaryProvider {
   return { summarize: vi.fn(async () => output) };
 }
@@ -88,8 +90,10 @@ describe("Vault document lifecycle", () => {
       ok: true,
       value: {
         documentId: "doc_generated",
-        summary: "The note requests a blood test before the next appointment.",
-        evidence: [evidence],
+        assertions: [{
+          text: "The note requests a blood test before the next appointment.",
+          evidence: [evidence],
+        }],
         generatedAt: "2026-11-23T20:00:00.000Z",
       },
     });
@@ -101,6 +105,36 @@ describe("Vault document lifecycle", () => {
         text,
       },
       rules: factualSummaryRules,
+    });
+  });
+
+  test("returns multiple assertions with their own source evidence", async () => {
+    const firstEvidence = "Consultation on 12 November.";
+    const summarizer = provider({
+      assertions: [
+        { text: "The consultation is dated 12 November.", evidence: [firstEvidence] },
+        {
+          text: "The note requests a blood test before the next appointment.",
+          evidence: [evidence],
+        },
+      ],
+    });
+    const service = createVault(dependencies({ summarizer }));
+    await service.store(documentInput());
+
+    const result = await service.summarize("doc_generated");
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        assertions: [
+          { text: "The consultation is dated 12 November.", evidence: [firstEvidence] },
+          {
+            text: "The note requests a blood test before the next appointment.",
+            evidence: [evidence],
+          },
+        ],
+      },
     });
   });
 
@@ -336,17 +370,16 @@ describe("untrusted summary output", () => {
         throw new Error("hostile summary object");
       },
     });
-    const hostileProperty = Object.defineProperty({}, "summary", {
+    const hostileProperty = Object.defineProperty({}, "assertions", {
       enumerable: true,
       get() {
         throw new Error("hostile summary property");
       },
     });
-    Object.defineProperty(hostileProperty, "evidence", {
-      enumerable: true,
-      value: [evidence],
-    });
-    const hostileEvidence = new Proxy([evidence], {
+    const hostileAssertions = new Proxy([{
+      text: "Fact.",
+      evidence: [evidence],
+    }], {
       get(target, property, receiver) {
         if (property === Symbol.iterator) {
           throw new Error("hostile summary array");
@@ -357,7 +390,7 @@ describe("untrusted summary output", () => {
     const outputs = [
       hostileObject,
       hostileProperty,
-      { summary: "Fact.", evidence: hostileEvidence },
+      { assertions: hostileAssertions },
     ];
 
     for (const output of outputs) {
@@ -378,15 +411,37 @@ describe("untrusted summary output", () => {
 
   test.each([
     ["null", null],
-    ["unknown field", { summary: "Fact.", evidence: [evidence], extra: true }],
-    ["blank summary", { summary: " ", evidence: [evidence] }],
+    ["unknown field", {
+      assertions: [{ text: "Fact.", evidence: [evidence] }],
+      extra: true,
+    }],
+    ["blank assertion", { assertions: [{ text: " ", evidence: [evidence] }] }],
     [
-      "long summary",
-      { summary: "s".repeat(vaultLimits.summaryCharacters + 1), evidence: [evidence] },
+      "long assertion",
+      {
+        assertions: [{
+          text: "s".repeat(vaultLimits.assertionCharacters + 1),
+          evidence: [evidence],
+        }],
+      },
     ],
-    ["no evidence", { summary: "Fact.", evidence: [] }],
-    ["invented evidence", { summary: "Fact.", evidence: ["Not in the source."] }],
-    ["duplicate evidence", { summary: "Fact.", evidence: [evidence, evidence] }],
+    ["no assertions", { assertions: [] }],
+    ["no evidence", { assertions: [{ text: "Fact.", evidence: [] }] }],
+    ["invented evidence", {
+      assertions: [{ text: "Fact.", evidence: ["Not in the source."] }],
+    }],
+    ["duplicate evidence", {
+      assertions: [{ text: "Fact.", evidence: [evidence, evidence] }],
+    }],
+    ["evidence reused by another assertion", {
+      assertions: [
+        { text: "First fact.", evidence: [evidence] },
+        { text: "Second fact.", evidence: [evidence] },
+      ],
+    }],
+    ["unknown assertion field", {
+      assertions: [{ text: "Fact.", evidence: [evidence], confidence: 1 }],
+    }],
   ])("rejects %s", async (_name, output) => {
     const service = createVault(dependencies({ summarizer: provider(output) }));
     await service.store(documentInput());

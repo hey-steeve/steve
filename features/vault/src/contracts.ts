@@ -12,8 +12,9 @@ export const vaultLimits = Object.freeze({
   contentBytes: 1_048_576,
   metadataTitleCharacters: 200,
   metadataSourceCharacters: 100,
-  summaryCharacters: 2_000,
-  evidenceItems: 8,
+  summaryAssertions: 8,
+  assertionCharacters: 500,
+  evidencePerAssertion: 4,
   evidenceCharacters: 500,
 } as const);
 
@@ -75,10 +76,18 @@ export interface FactualSummaryProvider {
   summarize(request: FactualSummaryRequest): Promise<unknown>;
 }
 
+export type FactualAssertion = {
+  readonly text: string;
+  readonly evidence: readonly string[];
+};
+
+export type FactualSummaryCandidate = {
+  readonly assertions: readonly FactualAssertion[];
+};
+
 export type DocumentSummary = {
   readonly documentId: string;
-  readonly summary: string;
-  readonly evidence: readonly string[];
+  readonly assertions: readonly FactualAssertion[];
   readonly generatedAt: string;
 };
 

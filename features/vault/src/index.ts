@@ -9,6 +9,8 @@ export type {
   DocumentStorage,
   DocumentStorageCreateResult,
   DocumentSummary,
+  FactualAssertion,
+  FactualSummaryCandidate,
   FactualSummaryProvider,
   FactualSummaryRequest,
   StoredDocument,
