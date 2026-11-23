@@ -97,18 +97,73 @@ describe("document validation", () => {
   });
 
   test("enforces the byte limit", async () => {
-    const result = await vault().store(
+    const exact = await vault().store(
+      input({ content: new Uint8Array(vaultLimits.contentBytes).fill(65) }),
+    );
+    const over = await vault().store(
       input({ content: new Uint8Array(vaultLimits.contentBytes + 1).fill(65) }),
     );
 
-    expect(result).toMatchObject({
+    expect(exact).toMatchObject({
+      ok: true,
+      value: { sizeBytes: vaultLimits.contentBytes },
+    });
+    expect(over).toMatchObject({
       ok: false,
       error: { code: "CONTENT_TOO_LARGE", field: "content" },
     });
   });
 
+  test("accepts exact identifier and filename limits and rejects one over", async () => {
+    const exactId = "a".repeat(vaultLimits.documentIdCharacters);
+    const exactFileName = `${"f".repeat(vaultLimits.fileNameCharacters - 4)}.txt`;
+    const accepted = await vault().store(
+      input({ id: exactId, fileName: exactFileName }),
+    );
+    const longId = await vault().store(
+      input({ id: "a".repeat(vaultLimits.documentIdCharacters + 1) }),
+    );
+    const longFileName = await vault().store(
+      input({
+        fileName: `${"f".repeat(vaultLimits.fileNameCharacters - 3)}.txt`,
+      }),
+    );
+
+    expect(accepted).toMatchObject({
+      ok: true,
+      value: { id: exactId, fileName: exactFileName },
+    });
+    expect(longId).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_DOCUMENT", field: "id" },
+    });
+    expect(longFileName).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_DOCUMENT", field: "fileName" },
+    });
+  });
+
+  test("accepts exact metadata limits and a valid leap date", async () => {
+    const title = "t".repeat(vaultLimits.metadataTitleCharacters);
+    const source = "s".repeat(vaultLimits.metadataSourceCharacters);
+
+    const result = await vault().store(
+      input({ metadata: { title, source, documentDate: "2024-02-29" } }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { metadata: { title, source, documentDate: "2024-02-29" } },
+    });
+  });
+
   test.each([
     ["blank title", { title: " " }, "metadata.title"],
+    [
+      "long title",
+      { title: "t".repeat(vaultLimits.metadataTitleCharacters + 1) },
+      "metadata.title",
+    ],
     [
       "long source",
       { source: "s".repeat(vaultLimits.metadataSourceCharacters + 1) },

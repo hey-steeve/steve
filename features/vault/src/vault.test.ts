@@ -363,6 +363,94 @@ describe("dependency failures", () => {
   });
 });
 
+describe("summary validation boundaries", () => {
+  async function summarizeOutput(source: string, output: unknown) {
+    const service = createVault(dependencies({ summarizer: provider(output) }));
+    await service.store(documentInput({ content: encoder.encode(source) }));
+    return service.summarize("doc_generated");
+  }
+
+  test("accepts the maximum assertion and evidence counts", async () => {
+    const excerpts = Array.from(
+      { length: vaultLimits.summaryAssertions },
+      (_, assertionIndex) => Array.from(
+        { length: vaultLimits.evidencePerAssertion },
+        (_, evidenceIndex) => `Evidence ${assertionIndex}-${evidenceIndex}.`,
+      ),
+    );
+    const assertions = excerpts.map((items, index) => ({
+      text: `Assertion ${index}.`,
+      evidence: items,
+    }));
+
+    const result = await summarizeOutput(excerpts.flat().join(" "), { assertions });
+
+    expect(result).toMatchObject({ ok: true, value: { assertions } });
+  });
+
+  test("rejects one assertion or evidence item over the limits", async () => {
+    const tooManyAssertions = Array.from(
+      { length: vaultLimits.summaryAssertions + 1 },
+      (_, index) => ({ text: `Assertion ${index}.`, evidence: [evidence] }),
+    );
+    const evidenceItems = Array.from(
+      { length: vaultLimits.evidencePerAssertion + 1 },
+      (_, index) => `Evidence item ${index}.`,
+    );
+
+    const assertionResult = await summarizeOutput(text, {
+      assertions: tooManyAssertions,
+    });
+    const evidenceResult = await summarizeOutput(evidenceItems.join(" "), {
+      assertions: [{ text: "Fact.", evidence: evidenceItems }],
+    });
+
+    expect(assertionResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SUMMARY" },
+    });
+    expect(evidenceResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SUMMARY" },
+    });
+  });
+
+  test("accepts exact assertion and evidence lengths", async () => {
+    const assertion = "a".repeat(vaultLimits.assertionCharacters);
+    const excerpt = "e".repeat(vaultLimits.evidenceCharacters);
+
+    const result = await summarizeOutput(excerpt, {
+      assertions: [{ text: assertion, evidence: [excerpt] }],
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { assertions: [{ text: assertion, evidence: [excerpt] }] },
+    });
+  });
+
+  test("rejects assertion and evidence lengths one over the limits", async () => {
+    const longAssertion = "a".repeat(vaultLimits.assertionCharacters + 1);
+    const longEvidence = "e".repeat(vaultLimits.evidenceCharacters + 1);
+
+    const assertionResult = await summarizeOutput(evidence, {
+      assertions: [{ text: longAssertion, evidence: [evidence] }],
+    });
+    const evidenceResult = await summarizeOutput(longEvidence, {
+      assertions: [{ text: "Fact.", evidence: [longEvidence] }],
+    });
+
+    expect(assertionResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SUMMARY" },
+    });
+    expect(evidenceResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SUMMARY" },
+    });
+  });
+});
+
 describe("untrusted summary output", () => {
   test("contains hostile summary objects, properties, and arrays", async () => {
     const hostileObject = new Proxy({}, {
