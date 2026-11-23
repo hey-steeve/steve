@@ -4,6 +4,7 @@ export {
   vaultLimits,
 } from "./contracts.ts";
 export { InMemoryDocumentStorage } from "./in-memory-storage.ts";
+export { createVault } from "./vault.ts";
 export type {
   DocumentStorage,
   DocumentStorageCreateResult,
