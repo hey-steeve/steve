@@ -6,9 +6,9 @@ it("formats a home greeting with the patient's first name", () => {
   expect(homeGreeting(" Peter ")).toBe("Bonjour Peter,");
 });
 
-it("falls back to Bonjour, when the first name is missing", () => {
-  expect(homeGreeting(undefined)).toBe("Bonjour,");
-  expect(homeGreeting("")).toBe("Bonjour,");
-  expect(homeGreeting("   ")).toBe("Bonjour,");
-  expect(homeGreeting("\n\t")).toBe("Bonjour,");
+it("falls back to Bonjour when the first name is missing", () => {
+  expect(homeGreeting(undefined)).toBe("Bonjour");
+  expect(homeGreeting("")).toBe("Bonjour");
+  expect(homeGreeting("   ")).toBe("Bonjour");
+  expect(homeGreeting("\n\t")).toBe("Bonjour");
 });

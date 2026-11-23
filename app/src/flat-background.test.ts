@@ -110,8 +110,22 @@ function iconUrls(): string[] {
     readFileSync(path.join(repoRoot, "shared/assets/brand/site.webmanifest"), "utf8"),
   ) as { icons: { src: string }[] };
   for (const icon of manifest.icons) urls.push(icon.src);
-  return urls;
+  return urls.filter((url) => url.startsWith("/icons/"));
 }
+
+it("uses the rounded Steve avatar for the browser and Apple home-screen icons", () => {
+  const icons = metadata.icons;
+  if (icons === null || typeof icons !== "object" || Array.isArray(icons)) {
+    throw new Error("missing icon metadata");
+  }
+  const browserIcons = "icon" in icons ? listedUrls(icons.icon) : [];
+  const appleIcons = "apple" in icons ? listedUrls(icons.apple) : [];
+  expect(browserIcons).toEqual([
+    "/app-icons/favicon-16.png",
+    "/app-icons/favicon-32.png",
+  ]);
+  expect(appleIcons).toEqual(["/app-icons/apple-touch-icon.png"]);
+});
 
 function icoPngs(file: string): Buffer[] {
   const bytes = readFileSync(file);

@@ -61,7 +61,7 @@ function rawBorderRadius(css: string): string[] {
     const value = match[1] ?? "";
     for (const part of value.trim().split(/\s+/)) {
       // 0 is the sheet's flat bottom corners. Every other length must be a radius token.
-      if (/^var\(--radius-[a-z0-9-]+\)$/.test(part) || part === "0") {
+      if (/^var\(--radius-[a-z0-9-]+\)$/.test(part) || part === "0" || part === "50%") {
         continue;
       }
       offenders.push(value.trim());

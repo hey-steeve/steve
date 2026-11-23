@@ -12,13 +12,6 @@ import { chatRequestLimits, parseChatReply, toProviderMessages } from "../../cha
 import { useDictation } from "../../chat/speech";
 import "./chat.css";
 
-const suggestions = [
-  "Prendre rendez-vous chez un généraliste",
-  "Trouver une pharmacie de garde",
-  "Me rappeler mon rendez-vous",
-  "Préparer ma consultation",
-] as const;
-
 const disclaimer =
   "Steve n'est pas un médecin ni un dispositif médical.";
 
@@ -54,6 +47,7 @@ export default function ChatPage(props: {
   const [draft, setDraft] = useState("");
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
   const [demo, setDemo] = useState(false);
+  const [voicePreview, setVoicePreview] = useState(false);
   const draftRef = useRef(draft);
   const busy = useRef(false);
   const conversation = useRef(0);
@@ -196,6 +190,7 @@ export default function ChatPage(props: {
     setMessages([]);
     setDraft("");
     setDemo(false);
+    setVoicePreview(false);
     setExchange("idle");
     setHomeMounted(true);
     queueMicrotask(() => {
@@ -405,14 +400,16 @@ export default function ChatPage(props: {
 
   const composer = (
     <div className="chat-composer">
-      <button
-        type="button"
-        className="chat-plus"
-        aria-label="Ajouter une pièce jointe"
-        disabled
-      >
-        +
-      </button>
+      {empty ? null : (
+        <button
+          type="button"
+          className="chat-plus"
+          aria-label="Ajouter une pièce jointe"
+          disabled
+        >
+          +
+        </button>
+      )}
       <textarea
         ref={fieldRef}
         className="chat-field"
@@ -442,6 +439,10 @@ export default function ChatPage(props: {
           if (backExit.current !== "idle") {
             return;
           }
+          if (!dictation.supported) {
+            fieldRef.current?.focus();
+            return;
+          }
           dictation.toggle();
         }}
         onSend={() => {
@@ -454,7 +455,7 @@ export default function ChatPage(props: {
   const footnote = (
     <>
       <p className="chat-disclaimer">{disclaimer}</p>
-      {dictation.notice === null ? null : (
+      {dictation.notice === null || dictation.notice.includes("HTTPS") ? null : (
         <p className="chat-notice">{dictation.notice}</p>
       )}
     </>
@@ -486,7 +487,18 @@ export default function ChatPage(props: {
       >
         <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <ProfileButton />
+            <>
+              <div className="chat-home-brand">
+                <div className="chat-home-brand-copy">
+                  <h1 className="chat-greeting">
+                    {homeGreeting(props.patientFirstName)}
+                  </h1>
+                  <p className="chat-home-subtitle">
+                    Je vais t'aider à organiser tes soins.
+                  </p>
+                </div>
+              </div>
+            </>
           ) : (
             <button
               type="button"
@@ -499,9 +511,7 @@ export default function ChatPage(props: {
               </span>
             </button>
           )}
-          {empty ? (
-            <h1 className="chat-greeting">{homeGreeting(props.patientFirstName)}</h1>
-          ) : (
+          {empty ? null : (
             <div className="chat-title">
               <img src={headerAvatarSrc} alt="" width={40} height={40} />
               <h1>Steve</h1>
@@ -514,6 +524,9 @@ export default function ChatPage(props: {
             <p className="chat-badge">Mode démo : réponses simulées</p>
           )}
         </header>
+        {voicePreview && !empty ? (
+          <AgentCallBar onEnd={() => setVoicePreview(false)} />
+        ) : null}
         <div className="chat-scroll" ref={threadRef}>
           {homeMounted ? (
             <div
@@ -529,28 +542,44 @@ export default function ChatPage(props: {
                 width={1137}
                 height={840}
               />
-              <div className="chat-sheet">
-                {empty ? (
-                  <div className="chat-dock">
-                    {composer}
-                    {footnote}
+              {empty ? (
+                <div className="chat-home-actions">
+                  <div className="chat-home-prompt">
+                    <p className="chat-home-prompt-title">Comment puis-je t’aider ?</p>
+                    <p className="chat-home-prompt-copy">
+                      Écris-moi ici ou appelle-moi, comme tu préfères.
+                    </p>
                   </div>
-                ) : null}
-                <div className="chat-chips" role="group" aria-label="Suggestions">
-                  {suggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      className="chat-chip"
-                      onClick={() => {
-                        send(suggestion, false);
-                      }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
+                  <button
+                    className="chat-call-cta"
+                    type="button"
+                    onClick={() => {
+                      setVoicePreview(true);
+                      setMessages([
+                        {
+                          id: newMessageId(),
+                          role: "agent",
+                          content: "Je suis là, Peter. Qu’est-ce que je peux faire pour toi ?",
+                        },
+                      ]);
+                    }}
+                  >
+                    <span className="chat-call-cta-icon" aria-hidden="true">
+                      <span className="chat-call-cta-glyph">
+                        <PhoneIcon />
+                      </span>
+                    </span>
+                    <span className="chat-call-cta-copy">
+                      <span className="chat-call-cta-title">On s’appelle ?</span>
+                      <span className="chat-call-cta-label">Appeler Steve</span>
+                    </span>
+                    <span className="chat-call-cta-arrow" aria-hidden="true">›</span>
+                  </button>
+                  <p className="chat-disclaimer chat-home-disclaimer">
+                    Steve n’est pas médecin et ne pose pas de diagnostic.
+                  </p>
                 </div>
-              </div>
+              ) : null}
             </div>
           ) : null}
           {empty ? null : (
@@ -597,6 +626,9 @@ export default function ChatPage(props: {
             </ol>
           )}
         </div>
+        {empty ? (
+          <div className="chat-dock chat-home-dock">{composer}</div>
+        ) : null}
         {unseenReply ? (
           <div className="chat-new-message-row">
             <button
@@ -620,6 +652,39 @@ export default function ChatPage(props: {
   );
 }
 
+function AgentCallBar(props: { readonly onEnd: () => void }) {
+  return (
+    <div className="chat-call-bar" role="status" aria-live="polite">
+      <span className="chat-call-bar-icon" aria-hidden="true">
+        <PhoneIcon />
+      </span>
+      <span className="chat-call-bar-copy">
+        <span className="chat-call-bar-title">Steve est en ligne</span>
+        <span className="chat-call-bar-subtitle">Appel vocal en cours · 00:34</span>
+      </span>
+      <button
+        type="button"
+        className="chat-call-end"
+        aria-label="Terminer l’appel"
+        onClick={props.onEnd}
+      >
+        <PhoneIcon />
+      </button>
+    </div>
+  );
+}
+
+function PhoneIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1.1-.24 11.4 11.4 0 0 0 3.5.56 1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 5a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .56 3.5 1 1 0 0 1-.25 1.1z"
+      />
+    </svg>
+  );
+}
+
 function ComposerAction(props: {
   readonly control: ComposerControl;
   readonly pending: boolean;
@@ -634,27 +699,28 @@ function ComposerAction(props: {
       type="button"
       className={send ? "chat-action chat-action-send" : "chat-action"}
       aria-label={
-        send ? "Envoyer" : listening ? "Arrêter la dictée" : "Dicter un message"
+        send
+          ? "Envoyer"
+          : listening
+            ? "Arrêter la dictée"
+            : supported
+              ? "Dicter un message"
+              : "Saisir un message"
       }
       aria-pressed={send ? undefined : listening}
-      disabled={send ? props.pending : !supported}
+      disabled={send && props.pending}
       onClick={send ? props.onSend : props.onDictate}
     >
-      <ActionIcons />
+      <ActionIcon send={send} />
     </button>
   );
 }
 
-function ActionIcons() {
+function ActionIcon(props: { readonly send: boolean }) {
   return (
-    <>
-      <span className="chat-action-icon chat-action-icon-mic" aria-hidden="true">
-        <MicIcon />
-      </span>
-      <span className="chat-action-icon chat-action-icon-send" aria-hidden="true">
-        <SendIcon />
-      </span>
-    </>
+    <span className="chat-action-icon" key={props.send ? "send" : "mic"} aria-hidden="true">
+      {props.send ? <SendIcon /> : <MicIcon />}
+    </span>
   );
 }
 
@@ -666,26 +732,6 @@ function BackIcon() {
         d="M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12l6.6-6.6z"
       />
     </svg>
-  );
-}
-
-function ProfileButton() {
-  return (
-    <button type="button" className="chat-profile" aria-label="Profil">
-      <span className="chat-profile-face">
-        {demoUserAvatarSrc === undefined ? (
-          <ProfileIcon />
-        ) : (
-          <img
-            className="chat-profile-photo"
-            src={demoUserAvatarSrc}
-            alt=""
-            width={192}
-            height={192}
-          />
-        )}
-      </span>
-    </button>
   );
 }
 
@@ -719,23 +765,12 @@ function UserAvatar() {
   );
 }
 
-function ProfileIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-6 1.8-6 4v1h12v-1c0-2.2-2.7-4-6-4z"
-      />
-    </svg>
-  );
-}
-
 function SendIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
       <path
         fill="currentColor"
-        d="M12 4.2 5.2 11l1.4 1.4L11 8.1V20h2V8.1l4.4 4.3L18.8 11 12 4.2z"
+        d="M12 4.2 5.2 11l1.4 1.4L11 8.1V20h2V8.1l4.4 4.3 1.4-1.4L12 4.2z"
       />
     </svg>
   );
