@@ -3,6 +3,7 @@ export {
   supportedDocumentMimeTypes,
   vaultLimits,
 } from "./contracts.ts";
+export { InMemoryDocumentStorage } from "./in-memory-storage.ts";
 export type {
   DocumentStorage,
   DocumentStorageCreateResult,
