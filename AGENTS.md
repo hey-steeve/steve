@@ -85,16 +85,14 @@ A pull request that Spidey's coding agent opens is a pull request that @spideyst
 - Roman approves the exact head commit.
 - The `verify` check is green on that commit.
 - The `app-shared-boundary` check is green on that commit.
-- Before the pull request opens, Spidey gives a local OK on the playground or on a local preview.
+- Spidey gives a local OK on the playground.
 
 A contributor pull request is any pull request that @spideystreet does not author. Merge it only after every condition below is met.
 
 - Roman approves the exact head commit.
-- @spideystreet gives the CODEOWNERS review, and `.github/CODEOWNERS:2` names @spideystreet.
+- @spideystreet gives the CODEOWNERS review, and `.github/CODEOWNERS` names @spideystreet. Roman's approval adds to the CODEOWNERS review and does not replace it.
 - The `verify` check is green on that commit.
 - The `app-shared-boundary` check is green on that commit.
-
-Roman's approval adds to the CODEOWNERS review, and Roman's approval does not replace the CODEOWNERS review.
 
 ## Stack
 
