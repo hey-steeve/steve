@@ -24,9 +24,13 @@ const summarizer: FactualSummaryProvider = {
     // A production adapter must follow request.rules. This deterministic
     // example only uses text that is explicitly present in the document.
     return {
-      summary: "The note requests a blood test before the next appointment.",
-      evidence: [
-        "A blood test is requested before the next appointment.",
+      assertions: [
+        {
+          text: "The note requests a blood test before the next appointment.",
+          evidence: [
+            "A blood test is requested before the next appointment.",
+          ],
+        },
       ],
     };
   },
@@ -66,7 +70,8 @@ for deterministic tests.
 The package entry point exports:
 
 - `createVault` and the `Vault` interface;
-- document, metadata, result, error, and summary contracts;
+- document, metadata, result, error, `FactualAssertion`,
+  `FactualSummaryCandidate`, and summary contracts;
 - `DocumentStorage` and `FactualSummaryProvider` adapter boundaries;
 - `InMemoryDocumentStorage` for tests and local integration;
 - supported MIME types, validation limits, and factual summary rules.
@@ -106,15 +111,24 @@ The summarizer receives decoded text plus these immutable rules:
 - no diagnosis;
 - no prescription.
 
-Provider output is untrusted. Vault requires an exact object containing a
-bounded, non-empty `summary` and one to eight unique evidence excerpts. Every
-evidence excerpt must occur verbatim in the source document. Invalid output is
-rejected as `INVALID_SUMMARY`.
+Provider output is untrusted. Vault requires an exact object containing one to
+eight assertions. Each assertion contains:
 
-Evidence validation gives callers an auditable source anchor. It cannot prove
-that every free-form sentence is semantically faithful. A production provider
-must enforce the factual-summary contract as well; it must not infer a
-condition, urgency, diagnosis, medication change, or treatment.
+- non-empty factual text, bounded to 500 characters;
+- one to four evidence excerpts;
+- evidence excerpts bounded to 500 characters each.
+
+Every evidence excerpt must occur verbatim in the source document. Assertions
+and evidence excerpts must be unique across the result. Invalid output is
+rejected as `INVALID_SUMMARY`. The returned `DocumentSummary` keeps every
+assertion next to its evidence and contains no separate free-form summary.
+
+Evidence-linked assertions give callers an auditable source anchor and a
+display-ready structure. Structural validation and the presence of an exact
+excerpt do not prove that an assertion is semantically supported by that
+excerpt. A production provider must enforce the factual-summary contract as
+well; it must not infer a condition, urgency, diagnosis, medication change, or
+treatment.
 
 ## Errors and content safety
 
@@ -122,6 +136,12 @@ Errors have stable codes and generic messages. Exceptions from storage, the
 summary provider, the identifier generator, and the clock are converted to
 explicit failures. Exception details and document contents are not copied into
 Vault errors.
+
+Hostile inputs and hostile values returned by storage or summary adapters are
+contained at their runtime boundaries, including throwing getters, proxies,
+properties, and iterators. They become `INVALID_DOCUMENT`, `STORAGE_FAILURE`,
+or `INVALID_SUMMARY` results. An exception thrown by the summary operation
+itself becomes `SUMMARIZATION_FAILURE`.
 
 Vault does not log document contents. The repository does not yet expose the
 planned shared logger, so this package performs no logging.
