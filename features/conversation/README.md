@@ -19,12 +19,37 @@
 
 ## Inputs and outputs
 
-- The input is a voice turn, or a text turn. The contracts are to be defined.
-- The output is a handoff. The contracts are to be defined.
+- `startSession({ channel })` creates a versioned session and returns the French
+  greeting as the first assistant turn.
+- `handleTurn({ sessionId, turnId, channel, text })` continues an existing
+  session with a normalized text, voice, or future inbox turn.
+- Every accepted turn has stable session and turn identifiers and is kept in a
+  bounded conversation history.
+- The result states whether the caller should await another turn, perform a
+  handoff, or consider the conversation complete.
+- A handoff contains correlation identifiers, the source channel and text, a
+  non-medical summary, and a general request intent. It contains no urgency
+  classification, diagnosis, practitioner result, or booking decision.
+- Every understood request is handed toward `triage`; `conversation` never
+  bypasses that safety boundary or chooses the downstream feature itself.
+- Rejected and failed turns return a short French explanation so the patient is
+  never left without an outcome.
 
 ## Depends on
 
-`@steve/shared` only. The link with `voice` and with `inbox` goes through shared contracts, to be defined.
+No workspace package today. The future link with `voice`, `triage`, and `inbox`
+must use separately reviewed contracts from `@steve/shared`.
+
+The core receives four injected dependencies:
+
+- a session store;
+- a general request-understanding provider;
+- an identifier generator;
+- a clock.
+
+The package includes an in-memory store for deterministic tests and local
+integration. A production adapter can replace every non-deterministic or
+persistent dependency without changing the conversation flow.
 
 ## Rules
 
@@ -35,14 +60,18 @@
 
 ## Demo and production
 
-The flow is the same by voice and by text. The difference between the demo and production is to be defined.
+The domain flow and public result are the same for voice and text. Tests inject
+deterministic providers and require no network. Production must inject a
+validated understanding provider and a durable store.
 
 ## Check
 
-`pnpm --filter @steve/conversation test`
+```bash
+pnpm --filter @steve/conversation test
+pnpm --filter @steve/conversation typecheck
+```
 
-The tests are to be defined.
+## Public entry point
 
-## Status
-
-To do. Owner:
+Import `createConversation`, `createInMemoryConversationStore`, and the public
+types from `@steve/conversation`. Consumers must not import files below `src/`.
