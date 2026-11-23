@@ -66,7 +66,7 @@ Do not call `console` in `shared/`, in a feature, or in `app/`. Call `log()` fro
 
 Use only synthetic data. Never put real health data in the repo.
 
-Use one feature per branch. Change `shared/` on its own branch. The cross-boundary check flags a pull request that changes both `app/` and `shared/`. It blocks the merge once `Cross-boundary / app-shared-boundary` is a required status check in branch protection. Add the `cross-boundary` label when that mix is intentional.
+Use one feature per branch. Change `shared/` on its own branch. The cross-boundary check flags a pull request that changes both `app/` and `shared/`. The `main-protection` ruleset requires the `app-shared-boundary` check. That check blocks the merge. Add the `cross-boundary` label when that mix is intentional.
 
 Write docs, pull request text, and code comments in English. Keep user-facing strings in the app in French.
 
@@ -78,11 +78,23 @@ Do not rebase.
 
 From your branch, run `git fetch origin` and then `git merge origin/main`. Keep the merge commit.
 
-On a contributor pull request, Spidey's reviewer agent must approve the exact head commit. That approval adds to the CODEOWNERS review by @spideystreet. `.github/CODEOWNERS` names @spideystreet.
+Roman is the reviewer agent.
 
-The reviewer agent approval does not replace the CODEOWNERS review.
+A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Merge a pull request that @spideystreet authors only after every condition below is met.
 
-Merge only after both approvals and green CI on that commit.
+- Roman approves the exact head commit.
+- The `verify` check is green on that commit.
+- The `app-shared-boundary` check is green on that commit.
+- Before the pull request opens, Spidey gives a local OK on the playground or on a local preview.
+
+A contributor pull request is any pull request that @spideystreet does not author. Merge it only after every condition below is met.
+
+- Roman approves the exact head commit.
+- @spideystreet gives the CODEOWNERS review, and `.github/CODEOWNERS:2` names @spideystreet.
+- The `verify` check is green on that commit.
+- The `app-shared-boundary` check is green on that commit.
+
+Roman's approval adds to the CODEOWNERS review, and Roman's approval does not replace the CODEOWNERS review.
 
 ## Stack
 
