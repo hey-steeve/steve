@@ -44,7 +44,7 @@ Design tokens live in `shared/src/design-tokens.ts`. The set is Soft Companion, 
 
 Run `pnpm install` to install dependencies.
 
-Run `pnpm verify` to lint, typecheck, and test. The command fails when any step fails.
+Run `pnpm verify` to lint, typecheck, test, and build. The command fails when any step fails.
 
 Run `pnpm --filter @steve/voice test` to test one package. Put the package you changed in place of `@steve/voice`.
 
@@ -66,7 +66,7 @@ Do not call `console` in `shared/`, in a feature, or in `app/`. Call `log()` fro
 
 Use only synthetic data. Never put real health data in the repo.
 
-Use one feature per branch. Change `shared/` on its own branch. The cross-boundary check flags a pull request that changes both `app/` and `shared/`. It blocks the merge once `Cross-boundary / app-shared-boundary` is a required status check in branch protection. Add the `cross-boundary` label when that mix is intentional.
+Use one feature per branch. Change `shared/` on its own branch. The cross-boundary check flags a pull request that changes both `app/` and `shared/`. The `main-protection` ruleset requires the `app-shared-boundary` check. That check blocks the merge. Add the `cross-boundary` label when that mix is intentional.
 
 Write docs, pull request text, and code comments in English. Keep user-facing strings in the app in French.
 
@@ -78,7 +78,21 @@ Do not rebase.
 
 From your branch, run `git fetch origin` and then `git merge origin/main`. Keep the merge commit.
 
-Spidey's reviewer agent must approve the exact head commit. CI must be green on that commit. Merge the pull request only after the approval and the green CI.
+Roman is the reviewer agent.
+
+A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Merge a pull request that @spideystreet authors only after every condition below is met.
+
+- Roman approves the exact head commit.
+- The `verify` check is green on that commit.
+- The `app-shared-boundary` check is green on that commit.
+- Spidey gives a local OK on the playground.
+
+A contributor pull request is any pull request that @spideystreet does not author. Merge it only after every condition below is met.
+
+- Roman approves the exact head commit.
+- @spideystreet gives the CODEOWNERS review, and `.github/CODEOWNERS` names @spideystreet. Roman's approval adds to the CODEOWNERS review and does not replace it.
+- The `verify` check is green on that commit.
+- The `app-shared-boundary` check is green on that commit.
 
 ## Stack
 

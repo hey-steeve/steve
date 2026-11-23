@@ -14,7 +14,7 @@ Built for [Alan x Qovery x AWS: AI Health Hack 2](https://luma.com/o1eopuwy), Pa
 
 ## Run the app locally
 
-Use Node 24 or newer. `.nvmrc` pins `24`. `engines.node` is `>=24`.
+Use Node 24, per `.nvmrc`.
 
 Install pnpm 10.33.0. `package.json` sets `packageManager` to `pnpm@10.33.0`.
 
