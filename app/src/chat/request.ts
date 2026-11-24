@@ -27,7 +27,10 @@ export type ChatHttpResult =
     }
   | {
       readonly status: 502;
-      readonly body: { readonly error: string };
+      readonly body: {
+        readonly error: string;
+        readonly calls?: EmergencyCalls;
+      };
     };
 
 export type ChatReply =

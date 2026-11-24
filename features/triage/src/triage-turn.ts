@@ -41,12 +41,12 @@ export type TriageDecision =
 
 const stateTurnLimit = 6;
 
-const needInfoGuidance = {
+export const needInfoGuidance = {
   placement: "after-system-prompt",
   text: "pose une seule question courte",
 } as const satisfies TriageGuidance;
 
-const consultGuidance = {
+export const consultGuidance = {
   placement: "after-system-prompt",
   text: "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde",
 } as const satisfies TriageGuidance;

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { JEV_TIMEOUT_MS, JEV_URL } from "@steve/triage";
-import { chatRequestLimits } from "../../../chat/request.js";
+import { consultGuidance, JEV_TIMEOUT_MS, JEV_URL, needInfoGuidance } from "@steve/triage";
+import { chatRequestLimits, parseChatReply } from "../../../chat/request.js";
+import { triageDecisionCases } from "../../../chat/triage-decision-cases.js";
 import { POST } from "./route.js";
 import { systemPrompt } from "./system-prompt.js";
 import { readTriageLog, resetTriageLog } from "./triage-log.js";
@@ -57,53 +58,147 @@ const forbiddenPromptAdditions = [
   "appelle le 116 117",
 ] as const;
 
-const discouragingEmergencyPhrases = [
+const negationWindow = 32;
+
+const approvedEmergencySentences = [
+  "Tu ne donnes le 15 que pour une vraie urgence, c'est-à-dire des signes de gravité, une surdose, une automutilation ou un danger immédiat.",
+  "Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.",
+  "Pour une crise de panique dont le seul signe physique est un essoufflement, tu ne donnes pas le 15.",
+  "Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114 comme ressource, sans l'exiger en première phrase.",
+  "Si une crise de panique n'a comme signe physique qu'un essoufflement, tu dis en première phrase : « Appelle le 3114 », pas le 15.",
+] as const;
+
+const discouragingEmergencyVariants = [
+  "evite le 15",
+  "évite le 15",
+  "évite le 3114",
+  "evite le samu",
+  "evite le\u00A015",
+  "évite le\u202F3114",
+  "n\u2019appelle pas le 15",
+  "n'appelle pas le 3114",
+  "n\u2019appelle pas le samu",
+  "ne donne pas le 15",
+  "ne donne pas le 3114",
+  "ne donne pas le samu",
+  "ne mentionne pas le 15",
+  "ne mentionne pas le 3114",
+  "ne mentionne pas le samu",
+  "sans mentionner le 15",
+  "sans mentionner le 3114",
+  "sans mentionner le samu",
+  "évite d'appeler le 15",
+  "évite d\u2019appeler le 3114",
+  "ne pas composer le 15",
+  "ne pas composer le 3114",
+  "ne pas composer le samu",
   "ne donne jamais le 15",
   "ne donne jamais le 3114",
+  "jamais le samu",
   "tu ne donnes jamais le 15 par défaut",
-  "évite le 3114",
-  "évite le 15",
   "pas le 15 par défaut",
   "pas le 3114 par défaut",
+  "pas le samu par défaut",
   "sans nommer le 15",
   "sans nommer le 3114",
+  "sans nommer le samu",
   "ne pas appeler",
+  "ne pas appeler le 15",
+  "e\u0301vite le 15",
+  "ne nomme jamais le 3114",
 ] as const;
 
-const childFeverNeverByDefault =
-  "tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.";
+function normalizeEmergencyWording(text: string): string {
+  return text
+    .normalize("NFC")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/\p{Z}/gu, " ")
+    .replace(/[\u2018\u2019\u201A\u201B\u02BC\u2032\uFF07\u00B4]/g, "'")
+    .toLocaleLowerCase("fr")
+    .replace(/ +/g, " ")
+    .trim();
+}
 
-const discouragingEmergencyPatterns = [
-  /ne donnes? jamais le (?:15|3114)/iu,
-  /évite le (?:15|3114)/iu,
-  /pas le (?:15|3114) par défaut/iu,
-  /sans nommer le (?:15|3114)/iu,
-  /ne pas appeler/iu,
-] as const;
+function emergencySentences(text: string): readonly string[] {
+  const sentences: string[] = [];
+  for (const line of text.split(/\n+/)) {
+    for (const bit of line.split(/(?<=[.!?])\s+/)) {
+      const trimmed = bit.trim();
+      if (trimmed.length > 0) {
+        sentences.push(trimmed);
+      }
+    }
+  }
+  return sentences;
+}
 
-function discouragesEmergencyByDefault(prompt: string): boolean {
-  return discouragingEmergencyPatterns.some((pattern) => pattern.test(prompt));
+function negationNearNumber(normalized: string): boolean {
+  const numbers =
+    /(?<![0-9])3114(?![0-9])|(?<![0-9])15(?![0-9])|(?<![a-z])samu(?![a-z])/g;
+  const negation = /(?<![a-z])(?:ne|pas|jamais|sans)(?![a-z])|n'|(?<![a-z])evit/;
+  for (const match of normalized.matchAll(numbers)) {
+    const at = match.index;
+    const token = match[0];
+    const start = Math.max(0, at - negationWindow);
+    const end = Math.min(normalized.length, at + token.length + negationWindow);
+    if (negation.test(normalized.slice(start, end))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function discouragesEmergencyNumber(text: string): boolean {
+  const approved = new Set(
+    approvedEmergencySentences.map((sentence) => normalizeEmergencyWording(sentence)),
+  );
+  for (const sentence of emergencySentences(text)) {
+    const normalized = normalizeEmergencyWording(sentence);
+    if (approved.has(normalized)) {
+      continue;
+    }
+    if (/(?<![a-z])ne pas appeler(?![a-z])/.test(normalized) || negationNearNumber(normalized)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 it("rejects a system prompt that adds a doubt default or 116 117", () => {
   for (const phrase of forbiddenPromptAdditions) {
     expect(systemPrompt).not.toContain(phrase);
   }
-  expect(systemPrompt).toContain(childFeverNeverByDefault);
-  expect(discouragesEmergencyByDefault(childFeverNeverByDefault)).toBe(false);
-  expect(discouragesEmergencyByDefault(systemPrompt)).toBe(false);
-  for (const phrase of discouragingEmergencyPhrases) {
-    expect(systemPrompt.toLocaleLowerCase("fr").includes(phrase)).toBe(false);
+  for (const sentence of approvedEmergencySentences) {
+    expect(systemPrompt).toContain(sentence);
+    expect(discouragesEmergencyNumber(sentence), sentence).toBe(false);
   }
+  expect(discouragesEmergencyNumber(systemPrompt)).toBe(false);
+  expect(discouragesEmergencyNumber(consultGuidance.text)).toBe(false);
+  expect(discouragesEmergencyNumber(needInfoGuidance.text)).toBe(false);
+  expect(
+    discouragesEmergencyNumber("Tu ne donnes jamais le 112 ni SOS Médecins."),
+  ).toBe(false);
 });
 
-it("flags a system prompt that discourages 15 or 3114 once that wording is injected", () => {
-  expect(discouragesEmergencyByDefault(systemPrompt)).toBe(false);
-  for (const phrase of discouragingEmergencyPhrases) {
-    const injected = `${systemPrompt}\n${phrase}`;
-    expect(injected).toContain(childFeverNeverByDefault);
-    expect(discouragesEmergencyByDefault(injected), phrase).toBe(true);
+it("flags discouraging 15, 3114, or samu wording once that wording is injected", () => {
+  expect(discouragesEmergencyNumber(systemPrompt)).toBe(false);
+  for (const phrase of discouragingEmergencyVariants) {
+    const normalized = normalizeEmergencyWording(phrase);
+    expect(
+      approvedEmergencySentences.some(
+        (sentence) => normalizeEmergencyWording(sentence) === normalized,
+      ),
+      phrase,
+    ).toBe(false);
+    expect(discouragesEmergencyNumber(phrase), phrase).toBe(true);
+    expect(discouragesEmergencyNumber(`${systemPrompt}\n${phrase}`), phrase).toBe(true);
   }
+  const first = discouragingEmergencyVariants[0];
+  expect(discouragesEmergencyNumber(`${consultGuidance.text}\n${first}`)).toBe(true);
+  expect(discouragesEmergencyNumber(`${needInfoGuidance.text}\nne donne pas le 3114`)).toBe(
+    true,
+  );
 });
 
 it("returns the labelled mock unless STEVE_CHAT_LIVE is 1", async () => {
@@ -525,10 +620,6 @@ it("rejects a body that is not JSON", async () => {
   expect(await response.json()).toEqual({ error: "JSON invalide." });
 });
 
-const consultGuidance =
-  "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde";
-const needInfoGuidance = "pose une seule question courte";
-
 const labelNames = ["emergency", "consult", "self-care", "need-info"] as const;
 const channelNames = ["physical", "psychological", "both", "none"] as const;
 
@@ -660,50 +751,117 @@ it("takes the no-triage path when the Jev key is missing or blank", async () => 
   expect(readTriageLog()).toEqual([{ cause: "no-triage", reason: "missing-key" }]);
 });
 
-it("keeps the system prompt at index 0 for every live triage outcome", async () => {
-  const cases = [
-    {
-      name: "emergency",
-      payload: jevBody("emergency", 0.91, "psychological"),
-      guidance: undefined,
-    },
-    {
-      name: "consult",
-      payload: jevBody("consult", 0.74, "none"),
-      guidance: consultGuidance,
-    },
-    {
-      name: "need-info",
-      payload: jevBody("need-info", 0.55, "none"),
-      guidance: needInfoGuidance,
-    },
-    {
-      name: "self-care",
-      payload: jevBody("self-care", 0.7, "none"),
-      guidance: undefined,
-    },
-    {
-      name: "no-triage",
-      payload: { answers: {} },
-      guidance: undefined,
-    },
-  ] as const;
-  for (const item of cases) {
+it("keeps calls and guidance for every triage decision", async () => {
+  for (const item of triageDecisionCases) {
     resetTriageLog();
-    const fetchMock = triageFetch(() => Response.json(item.payload));
+    const fetchMock = triageFetch(() => Response.json(classifyPayload(item)));
     vi.stubGlobal("fetch", fetchMock);
     const response = await post(history);
     expect(response.status, item.name).toBe(200);
-    const messages = providerMessages(fetchMock);
-    expect(messages[0], item.name).toEqual({ role: "system", content: systemPrompt });
-    if (item.guidance === undefined) {
-      expect(messages[1], item.name).toEqual({ role: "user", content: "De garde" });
-      expect(messages, item.name).toHaveLength(2);
-    } else {
-      expect(messages[1], item.name).toEqual({ role: "system", content: item.guidance });
-      expect(messages[2], item.name).toEqual({ role: "user", content: "De garde" });
+    const payload: unknown = await response.json();
+    expectSystemMessages(providerMessages(fetchMock), item.guidance, item.name);
+    if (item.calls === undefined) {
+      expect(payload, item.name).toEqual({
+        reply: "D'accord.",
+        mocked: false,
+        model: "openai/gpt-6.1-terra",
+      });
+      expect(parseChatReply(payload), item.name).toEqual({
+        kind: "ok",
+        reply: "D'accord.",
+        mocked: false,
+        model: "openai/gpt-6.1-terra",
+      });
+      continue;
+    }
+    expect(payload, item.name).toEqual({
+      reply: "D'accord.",
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: item.calls,
+    });
+    expect(parseChatReply(payload), item.name).toEqual({
+      kind: "ok",
+      reply: "D'accord.",
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: item.calls,
+    });
+  }
+});
+
+it("keeps triage calls in order when the model fails", async () => {
+  const failures = [
+    {
+      name: "status",
+      respond: () => new Response("upstream", { status: 503 }),
+    },
+    {
+      name: "malformed",
+      respond: () => Response.json({ choices: [] }),
+    },
+    {
+      name: "thrown",
+      respond: () => {
+        throw new Error("model down");
+      },
+    },
+  ] as const;
+  for (const item of triageDecisionCases) {
+    if (item.calls === undefined) {
+      continue;
+    }
+    for (const failure of failures) {
+      const label = `${item.name} ${failure.name}`;
+      const fetchMock = vi.fn<typeof fetch>(async (input) => {
+        if (String(input) === JEV_URL) {
+          return Response.json(classifyPayload(item));
+        }
+        return failure.respond();
+      });
+      armLive();
+      vi.stubGlobal("fetch", fetchMock);
+      const response = await post(history);
+      const text = await response.text();
+      expect(response.status, label).toBe(502);
+      expect(text, label).not.toContain(canary);
+      expect(text, label).not.toContain(jevCanary);
+      const payload: unknown = JSON.parse(text);
+      const error = failureText(item.calls);
+      expect(payload, label).toEqual({ error, calls: item.calls });
+      let cursor = 0;
+      for (const call of item.calls) {
+        const sentence = `Appelle le ${call.number} maintenant.`;
+        const at = error.indexOf(sentence, cursor);
+        expect(at, label).toBeGreaterThanOrEqual(cursor);
+        cursor = at + sentence.length;
+      }
+      expect(error.indexOf(upstreamError, cursor), label).toBeGreaterThanOrEqual(cursor);
     }
   }
+});
+
+it("sends only user turns to classify", async () => {
+  const fetchMock = triageFetch(() => Response.json(jevBody("emergency", 0.91, "physical")));
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post({
+    messages: [
+      { role: "user", content: "J'ai mal à la gorge." },
+      { role: "assistant", content: "Appelle le 15 maintenant. Appelle le 3114 maintenant." },
+      { role: "user", content: "Depuis ce matin." },
+    ],
+  });
+  expect(response.status).toBe(200);
+  const payload: unknown = await response.json();
+  expect(payload).toMatchObject({
+    calls: [{ type: "call", number: "15" }],
+  });
+  const sent: unknown = JSON.parse(String(jevFetchCall(fetchMock)?.[1]?.body));
+  expect(isRecord(sent)).toBe(true);
+  if (!isRecord(sent)) {
+    return;
+  }
+  expect(sent["state"]).toBe("J'ai mal à la gorge.\nDepuis ce matin.");
 });
 
 it("passes JEV_MODEL through to the classifier request", async () => {
@@ -810,17 +968,51 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function classifyPayload(item: (typeof triageDecisionCases)[number]): unknown {
+  if (item.classify.label === "no-triage") {
+    return { answers: {} };
+  }
+  return jevBody(
+    item.classify.label,
+    item.classify.probability,
+    item.classify.channel,
+    "harm" in item.classify ? item.classify.harm : undefined,
+  );
+}
+
+function expectSystemMessages(
+  messages: readonly { role: string; content: string }[],
+  guidance: string | undefined,
+  name: string,
+): void {
+  const user = { role: "user", content: "De garde" };
+  const prompt = { role: "system", content: systemPrompt };
+  if (guidance === undefined) {
+    expect(messages, name).toEqual([prompt, user]);
+    return;
+  }
+  expect(messages, name).toEqual([prompt, { role: "system", content: guidance }, user]);
+}
+
+function failureText(calls: readonly { readonly number: string }[]): string {
+  const spoken = calls.map((call) => `Appelle le ${call.number} maintenant.`).join(" ");
+  return `${spoken} ${upstreamError}`;
+}
+
 function jevBody(
   label: (typeof labelNames)[number],
   labelP: number,
   channel: (typeof channelNames)[number],
+  harm?: "yes" | "no",
 ): unknown {
-  return {
-    answers: {
-      label: choice(label, split(labelNames, label, labelP)),
-      channel: choice(channel, split(channelNames, channel, 0.9)),
-    },
+  const answers: Record<string, unknown> = {
+    label: choice(label, split(labelNames, label, labelP)),
+    channel: choice(channel, split(channelNames, channel, 0.9)),
   };
+  if (harm !== undefined) {
+    answers["overdoseOrSelfHarm"] = choice(harm, split(["yes", "no"], harm, 0.9));
+  }
+  return { answers };
 }
 
 function choice(selected: string, probabilities: Record<string, number>): unknown {

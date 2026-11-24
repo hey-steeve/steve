@@ -11,10 +11,15 @@ export type TriageLogEntry = {
   readonly reason: TriageNoTriageReason;
 };
 
+export const triageLogLimit = 32;
+
 const entries: TriageLogEntry[] = [];
 
 export function recordTriageLog(entry: TriageLogEntry): void {
   entries.push(entry);
+  if (entries.length > triageLogLimit) {
+    entries.splice(0, entries.length - triageLogLimit);
+  }
 }
 
 export function readTriageLog(): readonly TriageLogEntry[] {

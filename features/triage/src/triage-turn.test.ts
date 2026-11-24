@@ -376,8 +376,19 @@ it("returns need-info with no guidance and does not classify when data is empty"
 
 it("fail-closes an unexpected classify result to need-info with no guidance", async () => {
   function isForgedClassifyResult(value: unknown): value is ClassifyResult {
-    return typeof value === "object" && value !== null;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return false;
+    }
+    if (!Object.hasOwn(value, "label")) {
+      return false;
+    }
+    const label: unknown = Reflect.get(value, "label");
+    return typeof label === "string" && label.length > 0;
   }
+
+  expect(isForgedClassifyResult({})).toBe(false);
+  expect(isForgedClassifyResult([])).toBe(false);
+  expect(isForgedClassifyResult({ label: 1 })).toBe(false);
 
   const forged = [{ label: "unknown" }, { label: "need-info", reason: "unknown" }] as const;
   const decisions: TriageDecision[] = [];

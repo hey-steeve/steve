@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { triageDecisionCases } from "./triage-decision-cases.js";
 import {
   chatHttpResult,
   chatRequestLimits,
@@ -68,6 +69,40 @@ it("reads a chat reply and rejects any other shape", () => {
     "invalid",
   );
   expect(parseChatReply({ error: "non" }).kind).toBe("invalid");
+});
+
+it("keeps call order for every triage decision", () => {
+  for (const item of triageDecisionCases) {
+    if (item.calls === undefined) {
+      const parsed = parseChatReply({
+        reply: "Bonjour",
+        mocked: false,
+        model: "openai/gpt-6.1-terra",
+      });
+      expect(parsed, item.name).toEqual({
+        kind: "ok",
+        reply: "Bonjour",
+        mocked: false,
+        model: "openai/gpt-6.1-terra",
+      });
+      continue;
+    }
+    expect(
+      parseChatReply({
+        reply: "Bonjour",
+        mocked: false,
+        model: "openai/gpt-6.1-terra",
+        calls: item.calls,
+      }),
+      item.name,
+    ).toEqual({
+      kind: "ok",
+      reply: "Bonjour",
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: item.calls,
+    });
+  }
 });
 
 it("keeps emergency calls on a chat reply", () => {

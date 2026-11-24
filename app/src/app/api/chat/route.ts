@@ -1,5 +1,11 @@
 import type { Handoff, Turn } from "@steve/shared";
-import { classify, triageTurn, type ClassifyResult, type EmergencyCalls } from "@steve/triage";
+import {
+  classify,
+  triageTurn,
+  type ClassifyResult,
+  type EmergencyCalls,
+  type TriageDecision,
+} from "@steve/triage";
 import { readCompletion } from "../../../chat/completion";
 import {
   chatRequestLimits,
@@ -82,26 +88,34 @@ async function triageLive(messages: readonly ChatTurn[]): Promise<LiveTriage> {
       }
     },
   });
-  if (decision.label === "emergency") {
-    return { calls: decision.calls };
+  return triageFields(decision);
+}
+
+function triageFields(decision: TriageDecision): LiveTriage {
+  const guidance = "guidance" in decision ? decision.guidance?.text : undefined;
+  const calls = decision.calls;
+  if (guidance !== undefined && calls !== undefined) {
+    return { guidance, calls };
   }
-  if (!("guidance" in decision) || decision.guidance === undefined) {
-    return {};
+  if (guidance !== undefined) {
+    return { guidance };
   }
-  return { guidance: decision.guidance.text };
+  if (calls !== undefined) {
+    return { calls };
+  }
+  return {};
 }
 
 function chatHandoff(messages: readonly ChatTurn[]): Handoff<readonly Turn[]> {
   const sessionId = "chat";
   const turns: Turn[] = [];
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index];
-    if (message === undefined) {
+  for (const message of messages) {
+    if (message.role !== "user") {
       continue;
     }
     turns.push({
       sessionId,
-      turnId: `turn-${index}`,
+      turnId: `turn-${turns.length}`,
       channel: "text",
       text: message.content,
     });
@@ -120,10 +134,7 @@ function fetchWithBearer(apiKey: string): typeof fetch {
   return (input, init) => {
     const headers = new Headers(init?.headers);
     headers.set("Authorization", `Bearer ${apiKey}`);
-    if (init === undefined || init.signal === undefined || init.signal === null) {
-      return fetch(input, { ...init, headers });
-    }
-    return fetch(input, { ...init, headers, signal: init.signal });
+    return fetch(input, { ...init, headers });
   };
 }
 
@@ -168,12 +179,12 @@ async function completeWithOpenRouter(
       signal: AbortSignal.timeout(upstreamTimeoutMs),
     });
     if (!response.ok) {
-      return { status: 502, body: { error: upstreamError } };
+      return modelFailure(triage);
     }
     const payload: unknown = await response.json();
     const completion = readCompletion(payload, model);
     if (completion === null) {
-      return { status: 502, body: { error: upstreamError } };
+      return modelFailure(triage);
     }
     const body = {
       reply: completion.reply,
@@ -185,8 +196,23 @@ async function completeWithOpenRouter(
     }
     return { status: 200, body: { ...body, calls: triage.calls } };
   } catch {
+    return modelFailure(triage);
+  }
+}
+
+function modelFailure(triage: LiveTriage): ChatHttpResult {
+  const calls = triage.calls;
+  if (calls === undefined) {
     return { status: 502, body: { error: upstreamError } };
   }
+  const spoken = calls.map((call) => `Appelle le ${call.number} maintenant.`).join(" ");
+  return {
+    status: 502,
+    body: {
+      error: `${spoken} ${upstreamError}`,
+      calls,
+    },
+  };
 }
 
 function providerMessages(messages: readonly ChatTurn[], guidance: string | undefined) {
