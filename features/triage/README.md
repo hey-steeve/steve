@@ -2,56 +2,60 @@
 
 ## Role
 
-`triage` classifies one conversation handoff. The label is `emergency`, `consult`, `self-care`, or `need-info`.
+`triage` classifies one turn as emergency, consult, self-care, or need-info, and carries 15 and 3114 as call data.
 
 ## Does
 
-- `triageTurn` takes the handoff and an injected `classify` function.
-- The output is `urgent`, `watch`, or `not urgent`.
-- Zod validates the output.
-- If the output is invalid, or the time limit is exceeded, the result is `watch`, with a confirmation question.
-- The handoff fields are `target` (`triage`), `sessionId`, `turnId`, `channel` (`text`, `voice`, or `inbox`), `intent`, `summary`, and `sourceText`.
-- `intent` is `care_request`, `document_request`, or `general_question`.
-- `classify` receives `state`. With no earlier turns, `state` is `sourceText`. With `earlierTurns`, `state` is the last 6 turns, oldest first, and the current `sourceText` is last.
-- `summary`, `sessionId`, and `turnId` stay out of `state`.
-- `emergency` carries `calls` (`EmergencyCalls` in `src/types.ts`). It has no guidance line. The chat prompt owns the 15 and 3114 wording.
+- `classify` posts one TypeSafe System One request to `https://api.typesafe.ai/v1/systemone` for model `jev-1.14.0`. The caller injects `fetch`. `classify` does not read `JEV_API_KEY` and does not send an `Authorization` header.
+- The questions are `label`, `channel`, and `overdoseOrSelfHarm`. `channel` is `physical`, `psychological`, `both`, or `none`. `overdoseOrSelfHarm` is `yes` or `no`.
+- Hand-written guards check the response. This package does not use Zod.
+- P(emergency) is applied first. When it is at least 0.8 and the channel is not `none`, the result is `emergency` with ordered call data. That result is not a confirmation question.
+- When P(emergency) is at least 0.8 and the channel is `none`, the result is `need-info` with reason `no-channel` and no calls.
+- When the chosen label is `emergency` and P(emergency) is below 0.8, the result is `need-info` with reason `below-threshold`.
+- An emergency result orders the numbers from the channel and the overdose answer.
+  - Overdose or self-harm with distress uses 3114, then 15. The channel is `both` or `psychological`, and `overdoseOrSelfHarm` is `yes`.
+  - A physical red flag with distress, and no overdose or self-harm, uses 15, then 3114. The channel is `both`, and `overdoseOrSelfHarm` is `no`.
+  - Psychological only uses 3114. The channel is `psychological`, and the overdose answer is absent or `no`.
+  - Any other emergency uses 15. The channel is `physical`. A `yes` answer does not change a `physical` channel.
+- Channel `both` on an emergency result, with the overdose answer missing, is `need-info` with reason `malformed`. `classify` does not guess the order.
+- When the result is not `emergency` and the channel is `psychological` or `both`, the result carries 3114. That includes consult, self-care, model `need-info`, and below-threshold. Reason `no-channel` has no calls. Timeout, HTTP, network, and malformed results have no calls.
+- The default timeout is 1500 ms (`JEV_TIMEOUT_MS`). A timeout, a `timeoutMs` that `AbortSignal.timeout` rejects, an HTTP error, a thrown fetch, or a malformed body is `need-info`. None of those is `emergency`.
+- The wording the patient hears stays in `app/src/app/api/chat/system-prompt.ts`. Triage carries the numbers only.
 
 ## Does not
 
 - Does not diagnose.
 - Does not prescribe.
-- No keyword list.
+- Does not use a keyword list.
 - Does not book.
+- Does not place a call. `CallAction` is the hook for a later one-tap call.
+- Does not ask a confirmation question. Confirmation belongs to that later call, not to this result.
 
 ## Inputs and outputs
 
-- `triageTurn` takes `TriageTurnRequest` from `features/triage/src/triage-turn.ts`. `handoff` is `ConversationHandoff`, or that same shape plus optional `earlierTurns`. `classify` maps `{ state }` to `ClassifyResult`.
-- The output is `urgent`, `watch`, or `not urgent`, validated by Zod. The schema is to be defined.
-- `triageTurn` returns `TriageDecision`. Only `emergency` has `calls`. Only `need-info` and `consult` have `guidance`.
+- The input is `ClassifyInput`. `state` is the conversation text. `fetch` is injected. `timeoutMs` and `model` are optional.
+- The output is `ClassifyResult`. Emergency calls use `EmergencyCalls`, derived from `CallAction` and `EmergencyNumber` (`15` and `3114`).
+- A practitioner type and a delay are not in this package yet.
 
 ## Depends on
 
-This module does not import another feature. The caller injects `classify`. A shared handoff type, when it exists, comes from `@steve/shared` on its own branch.
+The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Langfuse datasets are not in this repo yet.
 
 ## Rules
 
 - Never diagnose.
 - Never prescribe.
-- No keyword list.
-- If the output is invalid, or the time limit is exceeded, the result is `watch`, then a confirmation question.
-- A `need-info` label stays `need-info`, with the need-info guidance line, and with no `calls`.
-- Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`.
-- Doubt does not default to 15: when in doubt, ask one short question or recommend a consultation, never 15 by default.
+- Do not use a keyword list.
+- Invalid output, a timeout, an HTTP error, or a network failure is `need-info`.
+- When P(emergency) is at least 0.8 and the channel is not `none`, the result is `emergency` with ordered numbers. It is not a confirmation question.
+- The patient-facing sentences for 15 and 3114 stay in `app/src/app/api/chat/system-prompt.ts`. Never 112. Never SOS Médecins.
+- Doubt does not default to 15. Below 0.8, or channel `none`, there is no 15.
 - `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
 - Steve does not book a 15 or 3114 referral.
-- Does not read an environment variable or an API key.
-- Does not call the network. The caller injects `classify`.
-- Does not return a chat `messages` array.
-- Does not put guidance before the system prompt, or inside it.
 
 ## Demo and production
 
-Tests inject `classify` and do not call the network. A live classifier call stays in the caller, and it uses synthetic or demo text.
+The classifier is the same. Langfuse evaluation is not in this repo yet. The triage eval will log Jev latency, and the 1500 ms default may change after that.
 
 ## Check
 
@@ -59,12 +63,4 @@ Tests inject `classify` and do not call the network. A live classifier call stay
 
 ## Status
 
-`triageTurn` and the classifier client are in the package. The eval set is still to be defined.
-
-## Guidance
-
-- `need-info` carries one guidance line, `pose une seule question courte, sans nommer le 15`.
-- `consult` carries one guidance line, `recommande une consultation chez le médecin traitant, en pharmacie de garde ou en téléconsultation`.
-- Each guidance object has `placement: "after-system-prompt"`. The system prompt stays the first message of the chat call.
-- `self-care` has no guidance line.
-- The local `ConversationHandoff` copies the open PR 37 fields. When that contract is in `@steve/shared`, switch this module to the shared type. Do not import `@steve/conversation`.
+The Jev client and its unit tests are in this package. The chat route does not call `classify` yet.

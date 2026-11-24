@@ -17,13 +17,17 @@ export type CallAction = {
   readonly number: EmergencyNumber;
 };
 
+type CallFor<Number extends EmergencyNumber> = {
+  readonly [Key in keyof CallAction]: Key extends "number" ? Number : CallAction[Key];
+};
+
 export type EmergencyCalls =
-  | readonly [{ readonly type: "call"; readonly number: "15" }]
-  | readonly [{ readonly type: "call"; readonly number: "3114" }]
-  | readonly [
-      { readonly type: "call"; readonly number: "15" },
-      { readonly type: "call"; readonly number: "3114" },
-    ];
+  | readonly [CallFor<"15">]
+  | readonly [CallFor<"3114">]
+  | readonly [CallFor<"15">, CallFor<"3114">]
+  | readonly [CallFor<"3114">, CallFor<"15">];
+
+type Offer3114 = readonly [CallFor<"3114">];
 
 export type ClassifyResult =
   | {
@@ -34,16 +38,19 @@ export type ClassifyResult =
   | {
       readonly label: "consult" | "self-care";
       readonly probability: number;
+      readonly calls?: Offer3114;
     }
   | {
       readonly label: "need-info";
       readonly reason: "model";
       readonly probability: number;
+      readonly calls?: Offer3114;
     }
   | {
       readonly label: "need-info";
       readonly reason: "below-threshold";
       readonly probability: number;
+      readonly calls?: Offer3114;
     }
   | {
       readonly label: "need-info";
@@ -57,6 +64,10 @@ export type ClassifyResult =
   | {
       readonly label: "need-info";
       readonly reason: "http";
+    }
+  | {
+      readonly label: "need-info";
+      readonly reason: "network";
     }
   | {
       readonly label: "need-info";
