@@ -53,6 +53,22 @@ The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Lang
 - `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
 - Steve does not book a 15 or 3114 referral.
 
+## triageTurn
+
+`triageTurn` takes a `Handoff<readonly Turn[]>` from `@steve/shared` and an injected `classify` function.
+
+`Handoff` fields are `sessionId`, `turnId`, `target`, `intent`, and `data`. `data` is the `Turn` list. The current turn is last.
+
+`Turn` fields are `sessionId`, `turnId`, `channel`, and `text`. `channel` is `voice` or `text`.
+
+`state` is `Turn.text` for the last 6 turns, oldest first, with the current turn last. `sessionId`, `turnId`, `target`, `intent`, and `channel` stay out of `state`.
+
+Emergency copies `calls` in the order `ClassifyResult` gives. Consult, self-care, and need-info copy `calls` when that result has them. Those three decisions omit `calls` when the result has none.
+
+Consult guidance is `recommande une consultation chez le médecin traitant, en pharmacie de garde ou en téléconsultation`. Need-info guidance is `pose une seule question courte, sans nommer le 15`. Both use `placement: "after-system-prompt"`. Self-care has no guidance.
+
+A fail-closed classify result is never emergency. Reasons `timeout`, `http`, `network`, `malformed`, and `no-channel` have no `calls`.
+
 ## Demo and production
 
 The classifier is the same. Langfuse evaluation is not in this repo yet. The triage eval will log Jev latency, and the 1500 ms default may change after that.
@@ -63,4 +79,4 @@ The classifier is the same. Langfuse evaluation is not in this repo yet. The tri
 
 ## Status
 
-The Jev client and its unit tests are in this package. The chat route does not call `classify` yet.
+The Jev client and its unit tests are in this package. The chat route does not call `classify` yet. `triageTurn` reads a shared `Handoff` whose `data` is a `Turn` list. A fail-closed classify result is never emergency.

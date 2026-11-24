@@ -1,41 +1,16 @@
+import type { Handoff, Turn } from "@steve/shared";
 import type { ClassifyResult, EmergencyCalls } from "./types.ts";
 
-// TODO: switch to the ConversationHandoff contract from PR 37 when it merges, via @steve/shared.
-export type ConversationChannel = "text" | "voice" | "inbox";
-
-export type RequestIntent =
-  | "care_request"
-  | "document_request"
-  | "general_question"
-  | "unsupported"
-  | "end_conversation";
-
-export type ConversationHandoffTarget = "triage";
-
-export interface ConversationHandoff {
-  readonly target: ConversationHandoffTarget;
-  readonly sessionId: string;
-  readonly turnId: string;
-  readonly channel: ConversationChannel;
-  readonly intent: Exclude<RequestIntent, "unsupported" | "end_conversation">;
-  readonly summary: string;
-  readonly sourceText: string;
-}
-
-export type EarlierTurn = {
-  readonly sourceText: string;
-};
-
-export type TriageTurnInput = ConversationHandoff & {
-  readonly earlierTurns?: readonly EarlierTurn[];
-};
+type Offer3114 = NonNullable<
+  Extract<ClassifyResult, { label: "consult" | "self-care" }>["calls"]
+>;
 
 export type TriageClassifier = (input: {
   readonly state: string;
 }) => Promise<ClassifyResult>;
 
 export type TriageTurnRequest = {
-  readonly handoff: TriageTurnInput;
+  readonly handoff: Handoff<readonly Turn[]>;
   readonly classify: TriageClassifier;
 };
 
@@ -52,13 +27,16 @@ export type TriageDecision =
   | {
       readonly label: "consult";
       readonly guidance: TriageGuidance;
+      readonly calls?: Offer3114;
     }
   | {
       readonly label: "self-care";
+      readonly calls?: Offer3114;
     }
   | {
       readonly label: "need-info";
       readonly guidance: TriageGuidance;
+      readonly calls?: Offer3114;
     };
 
 const stateTurnLimit = 6;
@@ -73,20 +51,38 @@ const consultGuidance = {
   text: "recommande une consultation chez le médecin traitant, en pharmacie de garde ou en téléconsultation",
 } as const satisfies TriageGuidance;
 
+function offeredCalls(result: Exclude<ClassifyResult, { label: "emergency" }>): Offer3114 | undefined {
+  if (!("calls" in result)) {
+    return undefined;
+  }
+  return result.calls;
+}
+
+function withCalls<Decision extends { readonly label: "consult" | "self-care" | "need-info" }>(
+  decision: Decision,
+  calls: Offer3114 | undefined,
+): Decision | (Decision & { readonly calls: Offer3114 }) {
+  if (calls === undefined) {
+    return decision;
+  }
+  return { ...decision, calls };
+}
+
 export async function triageTurn(input: TriageTurnRequest): Promise<TriageDecision> {
-  const earlier = input.handoff.earlierTurns ?? [];
-  const prior = earlier.slice(-(stateTurnLimit - 1)).map((turn) => turn.sourceText);
-  const state = [...prior, input.handoff.sourceText].join("\n");
+  const state = input.handoff.data
+    .slice(-stateTurnLimit)
+    .map((turn) => turn.text)
+    .join("\n");
   const result = await input.classify({ state });
   switch (result.label) {
     case "emergency":
       return { label: "emergency", calls: result.calls };
     case "consult":
-      return { label: "consult", guidance: consultGuidance };
+      return withCalls({ label: "consult", guidance: consultGuidance }, offeredCalls(result));
     case "self-care":
-      return { label: "self-care" };
+      return withCalls({ label: "self-care" }, offeredCalls(result));
     case "need-info":
-      return { label: "need-info", guidance: needInfoGuidance };
+      return withCalls({ label: "need-info", guidance: needInfoGuidance }, offeredCalls(result));
     default: {
       const unreachable: never = result;
       return unreachable;

@@ -16,14 +16,8 @@ export type {
 } from "./types.ts";
 export { triageTurn } from "./triage-turn.ts";
 export type {
-  ConversationChannel,
-  ConversationHandoff,
-  ConversationHandoffTarget,
-  EarlierTurn,
-  RequestIntent,
   TriageClassifier,
   TriageDecision,
   TriageGuidance,
-  TriageTurnInput,
   TriageTurnRequest,
 } from "./triage-turn.ts";
