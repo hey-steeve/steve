@@ -148,6 +148,36 @@ it("rejects an unconditional 15 when the flag is set", () => {
   ).toBe(false);
 });
 
+it("does not count a warning stem inside another word", () => {
+  for (const reply of [
+    "Si tu vois un bleuet, appelle le 15.",
+    "Si la corespiration empire, appelle le 15.",
+    "Si tu as une ecchymose bleutée, appelle le 15.",
+    "Si c'est préconvulsif, appelle le 15.",
+  ]) {
+    expect(
+      checkEmergencyReply(reply, [], { conditional15Allowed: true }).pass,
+      reply,
+    ).toBe(false);
+  }
+});
+
+it("counts a warning stem at the start of a word", () => {
+  for (const reply of [
+    "Si ses lèvres deviennent bleues, appelle le 15.",
+    "Si sa lèvre devient bleue, appelle le 15.",
+    "Si ses lèvres deviennent bleuâtres, appelle le 15.",
+    "S'il respire mal, appelle le 15.",
+    "Si elle a du mal à respirer, appelle le 15.",
+    "Si elle convulse, appelle le 15.",
+  ]) {
+    expect(
+      checkEmergencyReply(reply, [], { conditional15Allowed: true }).pass,
+      reply,
+    ).toBe(true);
+  }
+});
+
 it("rejects a conditional 15 when the flag is unset", () => {
   expect(
     checkEmergencyReply("S'il a du mal à respirer, appelle le 15.", []).pass,

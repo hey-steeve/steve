@@ -26,22 +26,29 @@ const conditionalMarkers: readonly RegExp[] = [
   /\bsi\b/,
 ];
 
+function warningTerm(body: string): RegExp {
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}_])(?:${body})(?![\\p{L}\\p{N}_])`,
+    "u",
+  );
+}
+
 const warningSigns: readonly RegExp[] = [
-  /respir/,
-  /souffle/,
-  /somnolen/,
-  /inconscien/,
-  /convuls/,
-  /malaise/,
-  /\bbleu/,
-  /cyanos/,
-  /raideur\s+de\s+la\s+nuque/,
-  /taches\s+qui\s+ne\s+s'effacent/,
-  /ne\s+repond\s+plus/,
-  /breath/,
-  /drows/,
-  /\bunconscious\b/,
-  /\bseizure/,
+  warningTerm(String.raw`respir\w*`),
+  warningTerm(String.raw`souffle\w*`),
+  warningTerm(String.raw`somnolen\w*`),
+  warningTerm(String.raw`inconscien\w*`),
+  warningTerm(String.raw`convuls\w*`),
+  warningTerm(String.raw`malaise\w*`),
+  warningTerm(String.raw`bleu(?:atres|atre|es|e|s)?`),
+  warningTerm(String.raw`cyanos\w*`),
+  warningTerm(String.raw`raideur\s+de\s+la\s+nuque`),
+  warningTerm(String.raw`taches\s+qui\s+ne\s+s'effacent`),
+  warningTerm(String.raw`ne\s+repond\s+plus`),
+  warningTerm(String.raw`breath\w*`),
+  warningTerm(String.raw`drows\w*`),
+  warningTerm(String.raw`unconscious`),
+  warningTerm(String.raw`seizure\w*`),
 ];
 
 export function checkEmergencyReply(
