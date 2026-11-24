@@ -1,11 +1,14 @@
+import type { Handoff, Turn, TurnChannel } from "@steve/shared";
+
 export const conversationLimits = {
   maxTextChars: 4_000,
   maxSummaryChars: 500,
   maxHistoryTurns: 40,
   maxIdChars: 128,
+  understandingTimeoutMs: 30_000,
 } as const;
 
-export type ConversationChannel = "text" | "voice" | "inbox";
+export type ConversationChannel = TurnChannel;
 export type ConversationRole = "user" | "assistant";
 export type ConversationStatus = "active" | "completed";
 export type ConversationNextAction =
@@ -28,17 +31,11 @@ export interface ConversationSession {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly turns: readonly ConversationTurn[];
+  readonly seenTurnIds: readonly string[];
 }
 
 export interface StartConversationInput {
   readonly channel: ConversationChannel;
-}
-
-export interface ConversationTurnInput {
-  readonly sessionId: string;
-  readonly turnId: string;
-  readonly channel: ConversationChannel;
-  readonly text: string;
 }
 
 export type RequestIntent =
@@ -55,18 +52,19 @@ export interface RequestUnderstanding {
 
 export type ConversationHandoffTarget = "triage";
 
-export interface ConversationHandoff {
-  readonly target: ConversationHandoffTarget;
-  readonly sessionId: string;
-  readonly turnId: string;
-  readonly channel: ConversationChannel;
-  readonly intent: Exclude<
-    RequestIntent,
-    "unsupported" | "end_conversation"
-  >;
+export interface ConversationHandoffData {
+  readonly channel: TurnChannel;
   readonly summary: string;
   readonly sourceText: string;
+  readonly completeAfterTriage: boolean;
 }
+
+export type ConversationHandoff = Handoff<ConversationHandoffData> & {
+  readonly target: ConversationHandoffTarget;
+  readonly intent: RequestIntent;
+};
+
+export type ConversationTurnInput = Turn;
 
 export type StartConversationResult =
   | {
@@ -79,7 +77,7 @@ export type StartConversationResult =
       readonly outcome: "rejected";
       readonly code: "invalid_channel";
       readonly response: string;
-      readonly nextAction: "completed";
+      readonly nextAction: "awaiting_user";
     }
   | {
       readonly outcome: "failed";
@@ -99,7 +97,9 @@ export type ConversationRejectionCode =
   | "duplicate_turn";
 
 export type ConversationFailureCode =
+  | "dependency_failure"
   | "understanding_failure"
+  | "understanding_timeout"
   | "storage_failure";
 
 export type ConversationTurnResult =
@@ -108,7 +108,7 @@ export type ConversationTurnResult =
       readonly session: ConversationSession;
       readonly response: ConversationTurn;
       readonly understanding: RequestUnderstanding;
-      readonly handoff: ConversationHandoff | null;
+      readonly handoff: ConversationHandoff;
       readonly nextAction: ConversationNextAction;
     }
   | {

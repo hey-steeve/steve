@@ -6,6 +6,7 @@ export type {
   ConversationChannel,
   ConversationFailureCode,
   ConversationHandoff,
+  ConversationHandoffData,
   ConversationHandoffTarget,
   ConversationNextAction,
   ConversationRejectionCode,

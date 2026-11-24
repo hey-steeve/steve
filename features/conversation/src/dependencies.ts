@@ -4,6 +4,7 @@ export interface RequestUnderstandingInput {
   readonly sessionId: string;
   readonly turn: ConversationTurn;
   readonly history: readonly ConversationTurn[];
+  readonly signal: AbortSignal;
 }
 
 export interface RequestUnderstandingProvider {

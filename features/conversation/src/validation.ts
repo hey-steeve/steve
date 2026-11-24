@@ -5,13 +5,6 @@ import {
   type RequestUnderstanding,
 } from "./contracts.js";
 
-const intents: ReadonlySet<string> = new Set([
-  "care_request",
-  "document_request",
-  "general_question",
-  "unsupported",
-  "end_conversation",
-]);
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 export type TurnInputValidation =
@@ -62,7 +55,7 @@ export function validateTurnInput(
 export function isConversationChannel(
   value: unknown,
 ): value is ConversationTurnInput["channel"] {
-  return value === "text" || value === "voice" || value === "inbox";
+  return value === "text" || value === "voice";
 }
 
 export function normalizeGeneratedId(value: unknown): string | null {
@@ -76,8 +69,7 @@ export function parseUnderstanding(value: unknown): RequestUnderstanding | null 
   const intent = field(value, "intent");
   const summary = field(value, "summary");
   if (
-    typeof intent !== "string" ||
-    !intents.has(intent) ||
+    !isRequestIntent(intent) ||
     typeof summary !== "string"
   ) {
     return null;
@@ -90,9 +82,19 @@ export function parseUnderstanding(value: unknown): RequestUnderstanding | null 
     return null;
   }
   return {
-    intent: intent as RequestIntent,
+    intent,
     summary: normalizedSummary,
   };
+}
+
+function isRequestIntent(value: unknown): value is RequestIntent {
+  return (
+    value === "care_request" ||
+    value === "document_request" ||
+    value === "general_question" ||
+    value === "unsupported" ||
+    value === "end_conversation"
+  );
 }
 
 function normalizeId(value: unknown): string | null {

@@ -44,7 +44,7 @@ async function startSession(
       outcome: "rejected",
       code: "invalid_channel",
       response: conversationResponses.invalidChannel,
-      nextAction: "completed",
+      nextAction: "awaiting_user",
     };
   }
   let sessionId: string | null;
@@ -74,6 +74,7 @@ async function startSession(
     createdAt: now,
     updatedAt: now,
     turns: [greeting],
+    seenTurnIds: [],
   };
   try {
     await dependencies.store.save(session, null);
@@ -91,6 +92,50 @@ async function startSession(
     response: greeting,
     nextAction: "awaiting_user",
   };
+}
+
+type UnderstandingAttempt =
+  | { readonly kind: "value"; readonly value: unknown }
+  | { readonly kind: "failure" }
+  | { readonly kind: "timeout" };
+
+async function requestUnderstanding(
+  dependencies: ConversationDependencies,
+  session: ConversationSession,
+  userTurn: ConversationTurn,
+): Promise<UnderstandingAttempt> {
+  const controller = new AbortController();
+  let provider: Promise<UnderstandingAttempt>;
+  try {
+    provider = dependencies.understanding
+      .understand({
+        sessionId: session.id,
+        turn: userTurn,
+        history: session.turns,
+        signal: controller.signal,
+      })
+      .then<UnderstandingAttempt, UnderstandingAttempt>(
+        (value) => ({ kind: "value", value }),
+        () => ({ kind: "failure" }),
+      );
+  } catch {
+    return { kind: "failure" };
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<UnderstandingAttempt>((resolve) => {
+    timeoutId = setTimeout(() => {
+      controller.abort();
+      resolve({ kind: "timeout" });
+    }, conversationLimits.understandingTimeoutMs);
+  });
+  try {
+    return await Promise.race([provider, timeout]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 async function handleTurn(
@@ -124,7 +169,7 @@ async function handleTurn(
       nextAction: "completed",
     };
   }
-  if (session.turns.some((turn) => turn.id === validation.turnId)) {
+  if (session.seenTurnIds.includes(validation.turnId)) {
     return {
       outcome: "rejected",
       code: "duplicate_turn",
@@ -137,7 +182,7 @@ async function handleTurn(
   try {
     const now = dependencies.clock.now();
     if (!validTimestamp(now)) {
-      return understandingFailure(session);
+      return dependencyFailure(session);
     }
     userTurn = {
       id: validation.turnId,
@@ -147,22 +192,19 @@ async function handleTurn(
       createdAt: now,
     };
   } catch {
-    return understandingFailure(session);
+    return dependencyFailure(session);
   }
 
-  let understanding: RequestUnderstanding | null;
-  try {
-    const raw = await dependencies.understanding.understand({
-      sessionId: session.id,
-      turn: userTurn,
-      history: session.turns,
-    });
-    understanding = parseUnderstanding(raw);
-  } catch {
-    understanding = null;
+  const attempt = await requestUnderstanding(dependencies, session, userTurn);
+  if (attempt.kind === "timeout") {
+    return understandingTimeout(session);
   }
+  if (attempt.kind === "failure") {
+    return understandingFailure(session);
+  }
+  const understanding = parseUnderstanding(attempt.value);
   if (understanding === null) {
-    return persistFailureExchange(dependencies, session, userTurn);
+    return understandingFailure(session);
   }
 
   const reply = responseForUnderstanding(understanding);
@@ -174,7 +216,7 @@ async function handleTurn(
     );
     const now = dependencies.clock.now();
     if (assistantTurnId === null || !validTimestamp(now)) {
-      return understandingFailure(session);
+      return dependencyFailure(session);
     }
     responseTurn = {
       id: assistantTurnId,
@@ -186,11 +228,12 @@ async function handleTurn(
     updated = updateSession(
       session,
       [userTurn, responseTurn],
-      reply.nextAction === "completed" ? "completed" : "active",
+      "active",
       now,
+      userTurn.id,
     );
   } catch {
-    return understandingFailure(session);
+    return dependencyFailure(session);
   }
 
   try {
@@ -204,48 +247,13 @@ async function handleTurn(
     session: updated,
     response: responseTurn,
     understanding,
-    handoff: handoffFor(understanding, session.id, userTurn),
+    handoff: handoffFor(
+      understanding,
+      session.id,
+      userTurn,
+      reply.completeAfterTriage,
+    ),
     nextAction: reply.nextAction,
-  };
-}
-
-async function persistFailureExchange(
-  dependencies: ConversationDependencies,
-  session: ConversationSession,
-  userTurn: ConversationTurn,
-): Promise<ConversationTurnResult> {
-  let responseTurn: ConversationTurn;
-  let updated: ConversationSession;
-  try {
-    const assistantTurnId = normalizeGeneratedId(
-      dependencies.ids.assistantTurnId(),
-    );
-    const now = dependencies.clock.now();
-    if (assistantTurnId === null || !validTimestamp(now)) {
-      return understandingFailure(session);
-    }
-    responseTurn = {
-      id: assistantTurnId,
-      role: "assistant",
-      channel: userTurn.channel,
-      text: conversationResponses.understandingFailure,
-      createdAt: now,
-    };
-    updated = updateSession(session, [userTurn, responseTurn], "active", now);
-  } catch {
-    return understandingFailure(session);
-  }
-  try {
-    await dependencies.store.save(updated, session.version);
-  } catch {
-    return storageFailure(session);
-  }
-  return {
-    outcome: "failed",
-    code: "understanding_failure",
-    response: responseTurn.text,
-    session: updated,
-    nextAction: "awaiting_user",
   };
 }
 
@@ -254,6 +262,7 @@ function updateSession(
   turns: readonly ConversationTurn[],
   status: ConversationSession["status"],
   updatedAt: string,
+  seenTurnId: string,
 ): ConversationSession {
   const history = [...session.turns, ...turns];
   return {
@@ -262,6 +271,7 @@ function updateSession(
     version: session.version + 1,
     updatedAt,
     turns: history.slice(-conversationLimits.maxHistoryTurns),
+    seenTurnIds: [...session.seenTurnIds, seenTurnId],
   };
 }
 
@@ -269,35 +279,15 @@ function handoffFor(
   understanding: RequestUnderstanding,
   sessionId: string,
   turn: ConversationTurn,
-): ConversationHandoff | null {
-  switch (understanding.intent) {
-    case "care_request":
-      return handoff(
-        "care_request",
-        understanding.summary,
-        sessionId,
-        turn,
-      );
-    case "document_request":
-      return handoff(
-        "document_request",
-        understanding.summary,
-        sessionId,
-        turn,
-      );
-    case "general_question":
-      return handoff(
-        "general_question",
-        understanding.summary,
-        sessionId,
-        turn,
-      );
-    case "unsupported":
-    case "end_conversation":
-      return null;
-    default:
-      return exhaustiveIntent(understanding.intent);
-  }
+  completeAfterTriage: boolean,
+): ConversationHandoff {
+  return handoff(
+    understanding.intent,
+    understanding.summary,
+    sessionId,
+    turn,
+    completeAfterTriage,
+  );
 }
 
 function handoff(
@@ -305,15 +295,19 @@ function handoff(
   summary: string,
   sessionId: string,
   turn: ConversationTurn,
+  completeAfterTriage: boolean,
 ): ConversationHandoff {
   return {
     target: "triage",
     sessionId,
     turnId: turn.id,
-    channel: turn.channel,
     intent,
-    summary,
-    sourceText: turn.text,
+    data: {
+      channel: turn.channel,
+      summary,
+      sourceText: turn.text,
+      completeAfterTriage,
+    },
   };
 }
 
@@ -331,7 +325,7 @@ function rejectionFor(
         outcome: "rejected",
         code,
         response: conversationResponses.invalidChannel,
-        nextAction: "completed",
+        nextAction: "awaiting_user",
       };
     case "invalid_session_id":
       return {
@@ -387,6 +381,30 @@ function understandingFailure(
   };
 }
 
+function understandingTimeout(
+  session: ConversationSession,
+): ConversationTurnResult {
+  return {
+    outcome: "failed",
+    code: "understanding_timeout",
+    response: conversationResponses.understandingTimeout,
+    session,
+    nextAction: "awaiting_user",
+  };
+}
+
+function dependencyFailure(
+  session: ConversationSession,
+): ConversationTurnResult {
+  return {
+    outcome: "failed",
+    code: "dependency_failure",
+    response: conversationResponses.dependencyFailure,
+    session,
+    nextAction: "awaiting_user",
+  };
+}
+
 function storageFailure(
   session: ConversationSession | null,
 ): ConversationTurnResult {
@@ -405,10 +423,6 @@ function validTimestamp(value: unknown): value is string {
     value.length > 0 &&
     Number.isFinite(Date.parse(value))
   );
-}
-
-function exhaustiveIntent(value: never): never {
-  throw new Error(`Unsupported request intent: ${String(value)}`);
 }
 
 function exhaustiveRejection(value: never): never {

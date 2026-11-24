@@ -5,6 +5,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "dependencies": {
+    "@steve/shared": "workspace:*"
+  },
   "scripts": {
     "typecheck": "pnpm --dir ../.. exec tsc --noEmit -p features/conversation",
     "test": "pnpm --dir ../.. exec vitest run --passWithNoTests features/conversation"

@@ -62,7 +62,11 @@ importers:
 
   features/booking: {}
 
-  features/conversation: {}
+  features/conversation:
+    dependencies:
+      '@steve/shared':
+        specifier: workspace:*
+        version: link:../../shared
 
   features/directory: {}
 

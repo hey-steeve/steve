@@ -23,6 +23,10 @@ export const conversationResponses = {
     "Ce message a déjà été pris en compte. Tu peux poursuivre la conversation.",
   understandingFailure:
     "Je n'ai pas pu traiter ta demande pour le moment. Tu peux réessayer ou la reformuler.",
+  understandingTimeout:
+    "Le traitement de ta demande a pris trop de temps. Tu peux réessayer ou la reformuler.",
+  dependencyFailure:
+    "Je n'ai pas pu préparer la réponse pour le moment. Tu peux réessayer dans un instant.",
   storageFailure:
     "Je n'ai pas pu enregistrer la conversation. Réessaie dans un instant.",
   startFailure:
@@ -31,32 +35,41 @@ export const conversationResponses = {
 
 export function responseForUnderstanding(
   understanding: RequestUnderstanding,
-): { readonly text: string; readonly nextAction: ConversationNextAction } {
+): {
+  readonly text: string;
+  readonly nextAction: ConversationNextAction;
+  readonly completeAfterTriage: boolean;
+} {
   switch (understanding.intent) {
     case "care_request":
       return {
         text: "J'ai compris que tu veux organiser un rendez-vous ou trouver un professionnel de santé. Je transmets ta demande pour vérifier l'orientation adaptée avant toute recherche.",
         nextAction: "handoff",
+        completeAfterTriage: false,
       };
     case "document_request":
       return {
         text: "J'ai compris que ta demande concerne un document. Je transmets le contexte pour vérifier la prochaine étape sans interpréter son contenu médicalement.",
         nextAction: "handoff",
+        completeAfterTriage: false,
       };
     case "general_question":
       return {
         text: "J'ai bien reçu ta question. Je transmets le contexte pour vérifier la prochaine étape sans poser de diagnostic ni donner de prescription.",
         nextAction: "handoff",
+        completeAfterTriage: false,
       };
     case "unsupported":
       return {
         text: "Je n'ai pas encore assez d'informations pour orienter ta demande. Peux-tu préciser ce que tu veux organiser ou obtenir ?",
-        nextAction: "awaiting_user",
+        nextAction: "handoff",
+        completeAfterTriage: false,
       };
     case "end_conversation":
       return {
         text: "D'accord, la conversation est terminée. Tu peux revenir si tu as besoin d'aide pour organiser tes démarches de santé.",
-        nextAction: "completed",
+        nextAction: "handoff",
+        completeAfterTriage: true,
       };
     default:
       return exhaustiveUnderstanding(understanding.intent);
