@@ -1115,6 +1115,14 @@ it("allows a warning sign on a 3114 case and still rejects 112", () => {
   ).toBe(false);
 });
 
+it("keeps a glued cue and a unit on the next line as a 15 mention", () => {
+  for (const reply of ["dansons 15", "attendsX 15", "attends 15\nminutes"]) {
+    const result = checkEmergencyReply(reply, []);
+    expect(result.found, reply).toEqual(["15"]);
+    expect(result.pass, reply).toBe(false);
+  }
+});
+
 it("keeps a true duration out of found and still fails 15h as a call", () => {
   for (const reply of [
     "À 15 h.",

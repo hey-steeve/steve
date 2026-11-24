@@ -199,6 +199,7 @@ it("rejects a system prompt that adds a doubt default or 116 117", () => {
   }
   for (const sentence of approvedEmergencySentences) {
     expect(systemPrompt).toContain(sentence);
+    expect(emergencySentences(systemPrompt), sentence).toContain(sentence);
     expect(discouragesEmergencyNumber(sentence), sentence).toBe(false);
   }
   expect(discouragesEmergencyNumber(systemPrompt)).toBe(false);
@@ -819,7 +820,7 @@ it("keeps calls and guidance for every triage decision", async () => {
   }
 });
 
-it("prefixes a missing, partial, or wrong-order 15 and keeps a compliant reply", async () => {
+it("fills each missing emergency call and keeps a compliant reply", async () => {
   for (const item of triageDecisionCases) {
     for (const row of item.replies) {
       const label = `${item.name} ${row.name}`;

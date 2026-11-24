@@ -54,6 +54,12 @@ const physicalReplies = [
 const psychologicalReplies = [
   modelReply("missing", "missing", rest, `${lead3114Then15} ${rest}`),
   modelReply(
+    "missing-3114",
+    "missing",
+    `${call15Now} ${rest}`,
+    `${lead3114Then15} ${rest}`,
+  ),
+  modelReply(
     "partial",
     "partial",
     `${call3114Now} ${partial15}`,
@@ -82,6 +88,12 @@ const psychologicalReplies = [
 const bothNoReplies = [
   modelReply("missing", "missing", rest, `${lead15Then3114} ${rest}`),
   modelReply(
+    "missing-3114",
+    "missing",
+    `${call15Now} ${rest}`,
+    `${lead15Then3114} ${rest}`,
+  ),
+  modelReply(
     "partial",
     "partial",
     `${partial15} ${call3114}`,
@@ -103,7 +115,7 @@ const bothNoReplies = [
     "exact-wrong-order",
     "wrong-order",
     `${call3114Now} ${call15Now}`,
-    `${call3114Now} ${call15Now}`,
+    `${call3114Now} ${call15Now} ${call3114}`,
   ),
 ] as const satisfies readonly EmergencyModelReply[];
 
