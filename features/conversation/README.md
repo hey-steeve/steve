@@ -21,7 +21,7 @@
 
 These are the planned inputs and outputs. `@steve/shared` defines them. This package does not read them yet.
 
-- The planned input is a `Turn`. `turnId` identifies the turn. `channel` is `"voice"` or `"text"`. Those two values are the members of `turnChannels`. `TurnChannel` is that union.
+- The planned input is a `Turn`. `sessionId` identifies the session. `turnId` identifies the turn. `channel` is `"voice"` or `"text"`. Those two values are the members of `turnChannels`. `TurnChannel` is that union. `text` is what the patient said.
 - The planned output is a `Handoff<Data>`. `sessionId` identifies the session. `turnId` identifies the turn. `target` and `intent` are strings. `data` is the payload. `Data` defaults to `unknown`.
 - A feature returns a `FeatureResult<Data>`. `reply` is what the patient hears. `data` is optional on success. The failure branch has no `data`. A feature with no payload returns `{ ok: true, reply }`.
 
