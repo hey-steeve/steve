@@ -50,7 +50,7 @@ it("keeps attach and mic as siblings outside the bordered field", async () => {
       throw new Error("missing home composer controls");
     }
     await act(async () => {
-      sendComposer(view.container, "Bonjour");
+      await sendComposer(view.container, "Bonjour");
     });
     expectOutside(
       view.container.querySelector(".chat-column > .chat-dock-enter .chat-composer"),
