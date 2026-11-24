@@ -1,5 +1,9 @@
 import {
+  call15Now,
+  call3114,
+  call3114Now,
   callSentences,
+  normalizeEmergencyText,
   refusal112,
   refusalSos,
   warningNegations,
@@ -26,8 +30,20 @@ export type EmergencyCheckOptions = {
 
 export type ExactMatchMode = "exact" | "includes" | "startsWith";
 
+export type DetectMode = "full" | "weak";
+
+export type OrderMode = "prefix" | "any";
+
+export type DurationSkip = (
+  text: string,
+  span: { readonly start: number; readonly end: number; readonly kind: string },
+) => boolean;
+
 export type EmergencyTestOptions = EmergencyCheckOptions & {
   readonly match?: ExactMatchMode;
+  readonly detect?: DetectMode;
+  readonly order?: OrderMode;
+  readonly durationSkip?: DurationSkip;
 };
 
 const numberReason = "numbers";
@@ -99,11 +115,31 @@ function scoreReply(
   reply: string,
   expected: readonly EmergencyNumber[],
   mode: ExactMatchMode,
-  options: EmergencyCheckOptions | undefined,
+  options: EmergencyTestOptions | undefined,
 ): EmergencyCheck {
-  const sentences = splitSentences(normalizeForMatch(reply));
-  const named = sentences.map((sentence) => detect(sentence));
-  const service = named.some((item) => item.has112 || item.hasSos);
+  const detectMode = options?.detect ?? "full";
+  const orderMode = options?.order ?? "prefix";
+  const text =
+    detectMode === "weak" ? normalizeLegacy(reply) : normalizeEmergencyText(reply);
+  const pieces = splitPieces(text);
+  const sentences = pieces.map((piece) => piece.text);
+  const skip15 = (textToScan: string, span: Span): boolean => {
+    if (options?.durationSkip !== undefined) {
+      return options.durationSkip(textToScan, span);
+    }
+    return isDuration15(textToScan, span);
+  };
+  const spans = scan(text, detectMode === "full").filter((span) => !skip15(text, span));
+  const named = pieces.map((piece) =>
+    namesFrom(spans.filter((span) => span.start >= piece.start && span.end <= piece.end)),
+  );
+  const crossing = spans.filter(
+    (span) => !pieces.some((piece) => span.start >= piece.start && span.end <= piece.end),
+  );
+  const looseOrder = mode === "exact" && orderMode === "any";
+  const service =
+    named.some((item) => item.has112 || item.hasSos) ||
+    crossing.some((span) => span.kind === "112" || span.kind === "sos");
   const found: EmergencyNumber[] = [];
   let index = 0;
   let badNumbers = false;
@@ -128,10 +164,13 @@ function scoreReply(
       badNumbers = true;
       continue;
     }
-    const call = matchCall(sentence, mode);
+    const call = matchCall(sentence, mode, skip15);
     if (call !== undefined) {
       for (const number of call) {
         found.push(number);
+        if (looseOrder) {
+          continue;
+        }
         if (expected[index] === number) {
           index += 1;
           continue;
@@ -181,14 +220,34 @@ function scoreReply(
     }
   }
 
-  if (index !== expected.length) {
+  for (const span of [...crossing].sort((left, right) => left.start - right.start)) {
+    if (span.kind === "15" || span.kind === "3114") {
+      found.push(span.kind);
+      badNumbers = true;
+    }
+    if (span.kind === "112") {
+      bad112 = true;
+    }
+    if (span.kind === "sos") {
+      badSos = true;
+    }
+  }
+
+  if (looseOrder) {
+    if (!bagOk(sentences, expected, options)) {
+      badNumbers = true;
+    }
+  } else if (index !== expected.length) {
+    badNumbers = true;
+  }
+  if (mode === "exact" && orderMode === "prefix" && !prefixOk(sentences, expected, options)) {
     badNumbers = true;
   }
   if (serviceExtra) {
-    if (named.some((item) => item.has112)) {
+    if (named.some((item) => item.has112) || crossing.some((span) => span.kind === "112")) {
       bad112 = true;
     }
-    if (named.some((item) => item.hasSos)) {
+    if (named.some((item) => item.hasSos) || crossing.some((span) => span.kind === "sos")) {
       badSos = true;
     }
   }
@@ -207,6 +266,75 @@ function scoreReply(
     return { pass: true, expected, found, reason: "ok" };
   }
   return { pass: false, expected, found, reason: reasons.join("; ") };
+}
+
+function bagOk(
+  sentences: readonly string[],
+  expected: readonly EmergencyNumber[],
+  options: EmergencyCheckOptions | undefined,
+): boolean {
+  const bag: EmergencyNumber[] = [];
+  for (const sentence of sentences) {
+    const call = matchCall(sentence, "exact");
+    if (call !== undefined) {
+      bag.push(...call);
+    }
+  }
+  for (const number of expected) {
+    const at = bag.indexOf(number);
+    if (at < 0) {
+      return false;
+    }
+    bag.splice(at, 1);
+  }
+  return bag.every((number) => optionalExtra(number, expected, expected.length, options));
+}
+
+function prefixOk(
+  sentences: readonly string[],
+  expected: readonly EmergencyNumber[],
+  options: EmergencyCheckOptions | undefined,
+): boolean {
+  const required = requiredSentences(expected, options);
+  for (let index = 0; index < required.length; index += 1) {
+    const sentence = sentences[index];
+    const allowed = required[index];
+    if (sentence === undefined || allowed === undefined || !allowed.includes(sentence)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function requiredSentences(
+  expected: readonly EmergencyNumber[],
+  options?: EmergencyCheckOptions,
+): readonly (readonly string[])[] {
+  const now15 = normalizeEmergencyText(call15Now);
+  const now3114 = normalizeEmergencyText(call3114Now);
+  const plain3114 = normalizeEmergencyText(call3114);
+  if (expected.length === 1 && expected[0] === "15") {
+    return [[now15]];
+  }
+  if (expected.length === 1 && expected[0] === "3114") {
+    if (options?.optional15Allowed === true) {
+      return [[now3114]];
+    }
+    if (options?.conditional15Allowed === true) {
+      return [[plain3114]];
+    }
+    return [[plain3114, now3114]];
+  }
+  if (expected.length === 2 && expected[0] === "3114" && expected[1] === "15") {
+    return [[now3114], [now15]];
+  }
+  if (expected.length === 2 && expected[0] === "15" && expected[1] === "3114") {
+    return [[now15], [plain3114]];
+  }
+  if (expected.length === 0) {
+    return [];
+  }
+  throw new Error(`unknown expected shape: ${expected.join("+")}`);
 }
 
 function optionalExtra(
@@ -235,24 +363,35 @@ function emptyNames(): Names {
 }
 
 function normalizeForMatch(text: string): string {
+  return normalizeEmergencyText(text);
+}
+
+function normalizeLegacy(text: string): string {
   const stripped = text.normalize("NFC").replace(/\p{Cf}/gu, "");
   const digits = stripped.replace(/[\uFF10-\uFF19]/g, (char) =>
     String.fromCharCode(char.charCodeAt(0) - 0xff10 + 0x30),
   );
-  const folded = digits
+  return digits
     .replace(/['\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\u02B9\u00B4`\uFF07]/g, "'")
     .toLowerCase()
     .replace(/\r\n?/g, "\n")
-    .replace(/[\u2028\u2029]/g, "\n");
-  return folded.replace(/[^\S\n]+/g, " ").trim();
+    .replace(/[\u2028\u2029]/g, "\n")
+    .replace(/[^\S\n]+/g, " ")
+    .trim();
 }
 
-function splitSentences(text: string): string[] {
+type Piece = {
+  readonly text: string;
+  readonly start: number;
+  readonly end: number;
+};
+
+function splitPieces(text: string): Piece[] {
   if (text.length === 0) {
     return [];
   }
   const dots = internalDots(text);
-  const sentences: string[] = [];
+  const pieces: Piece[] = [];
   let start = 0;
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
@@ -264,17 +403,26 @@ function splitSentences(text: string): string[] {
     if (!boundary) {
       continue;
     }
-    const sentence = text.slice(start, index + 1).trim();
-    if (sentence.length > 0) {
-      sentences.push(sentence);
-    }
+    pushPiece(pieces, text, start, index + 1);
     start = index + 1;
   }
-  const tail = text.slice(start).trim();
-  if (tail.length > 0) {
-    sentences.push(tail);
+  pushPiece(pieces, text, start, text.length);
+  return pieces;
+}
+
+function pushPiece(pieces: Piece[], text: string, start: number, end: number): void {
+  const raw = text.slice(start, end);
+  const sentence = raw.trim();
+  if (sentence.length === 0) {
+    return;
   }
-  return sentences;
+  const leading = raw.length - raw.trimStart().length;
+  const contentStart = start + leading;
+  pieces.push({
+    text: sentence,
+    start: contentStart,
+    end: contentStart + sentence.length,
+  });
 }
 
 function internalDots(text: string): Set<number> {
@@ -298,50 +446,72 @@ function internalDots(text: string): Set<number> {
   return dots;
 }
 
-function detect(sentence: string): Names {
+function namesFrom(spans: readonly Span[]): Names {
+  const sorted = [...spans].sort(
+    (left, right) => left.start - right.start || right.end - left.end,
+  );
+  return {
+    spans: sorted,
+    has15: sorted.some((span) => span.kind === "15"),
+    has3114: sorted.some((span) => span.kind === "3114"),
+    has112: sorted.some((span) => span.kind === "112"),
+    hasSos: sorted.some((span) => span.kind === "sos"),
+  };
+}
+
+function scan(text: string, flexible: boolean): Span[] {
   const spans: Span[] = [];
-  collect(spans, sentence, /trois[\s-]{0,3}mille[\s-]{0,3}cent[\s-]{0,3}quatorze/gu, "3114");
-  collect(
-    spans,
-    sentence,
-    /(?<![0-9])3[\s.]{0,2}1[\s.]{0,2}1[\s.]{0,2}4(?![0-9])/gu,
-    "3114",
-  );
-  collect(spans, sentence, /cent[\s-]{0,3}douze/gu, "112");
-  collect(spans, sentence, /(?<![0-9])1[\s.]{0,2}1[\s.]{0,2}2(?![0-9])/gu, "112");
-  collect(
-    spans,
-    sentence,
-    /(?<![a-z])s(?:\s{0,2}\.?\s{0,2})o(?:\s{0,2}\.?\s{0,2})s(?:\s{0,2}\.)?[\s\u2010\u2011\u2013\u2014-]{0,3}m[eé]decins?(?![a-z])/gu,
-    "sos",
-  );
-  const masked = mask(sentence, spans);
+  if (flexible) {
+    collect(
+      spans,
+      text,
+      /(?<!\p{L})trois[^\p{L}\p{N}]*mille[^\p{L}\p{N}]*cent[^\p{L}\p{N}]*quatorze(?!\p{L})/gu,
+      "3114",
+    );
+    collect(spans, text, /(?<![0-9])3[^\p{L}\p{N}]*1[^\p{L}\p{N}]*1[^\p{L}\p{N}]*4(?![0-9])/gu, "3114");
+    collect(spans, text, /(?<!\p{L})cent[^\p{L}\p{N}]*douze(?!\p{L})/gu, "112");
+    collect(spans, text, /(?<![0-9])1[^\p{L}\p{N}]*1[^\p{L}\p{N}]*2(?![0-9])/gu, "112");
+    collect(
+      spans,
+      text,
+      /(?<!\p{L})s[^\p{L}\p{N}]*o[^\p{L}\p{N}]*s(?:[^\p{L}\p{N}]*m[eé]decins?)?(?!\p{L})/gu,
+      "sos",
+    );
+  } else {
+    collect(
+      spans,
+      text,
+      /(?<!\p{L})trois[ \t]+mille[ \t]+cent[ \t]+quatorze(?!\p{L})/gu,
+      "3114",
+    );
+    collect(spans, text, /(?<![0-9])3114(?![0-9])/gu, "3114");
+    collect(spans, text, /(?<!\p{L})cent[ \t]+douze(?!\p{L})/gu, "112");
+    collect(spans, text, /(?<![0-9])112(?![0-9])/gu, "112");
+    collect(spans, text, /(?<!\p{L})sos m[eé]decins?(?!\p{L})/gu, "sos");
+  }
+  const masked = mask(text, spans);
   const fifteen: Span[] = [];
-  collect(fifteen, masked, /(?<![0-9])1[\s.]{0,2}5(?![0-9])/gu, "15");
-  collect(fifteen, sentence, /(?<![a-z])quinze(?![a-z])/gu, "15");
-  collect(
-    fifteen,
-    sentence,
-    /(?<![a-z])s(?:\s{0,2}\.?\s{0,2})a(?:\s{0,2}\.?\s{0,2})m(?:\s{0,2}\.?\s{0,2})u(?:\s{0,2}\.)?(?![a-z])/gu,
-    "15",
-  );
+  if (flexible) {
+    collect(fifteen, masked, /(?<![0-9])1[^\p{L}\p{N}]*5(?![0-9])/gu, "15");
+    collect(fifteen, text, /(?<!\p{L})quinze(?!\p{L})/gu, "15");
+    collect(
+      fifteen,
+      text,
+      /(?<!\p{L})s[^\p{L}\p{N}]*a[^\p{L}\p{N}]*m[^\p{L}\p{N}]*u(?!\p{L})/gu,
+      "15",
+    );
+  } else {
+    collect(fifteen, masked, /(?<![0-9])15(?![0-9])/gu, "15");
+    collect(fifteen, text, /(?<!\p{L})quinze(?!\p{L})/gu, "15");
+    collect(fifteen, text, /(?<!\p{L})samu(?!\p{L})/gu, "15");
+  }
   for (const span of fifteen) {
-    if (isDuration15(sentence, span)) {
-      continue;
-    }
     if (overlaps(spans, span)) {
       continue;
     }
     spans.push(span);
   }
-  spans.sort((left, right) => left.start - right.start || right.end - left.end);
-  return {
-    spans,
-    has15: spans.some((span) => span.kind === "15"),
-    has3114: spans.some((span) => span.kind === "3114"),
-    has112: spans.some((span) => span.kind === "112"),
-    hasSos: spans.some((span) => span.kind === "sos"),
-  };
+  return spans;
 }
 
 function collect(spans: Span[], text: string, pattern: RegExp, kind: Kind): void {
@@ -363,7 +533,7 @@ function overlaps(spans: readonly Span[], span: Span): boolean {
 }
 
 function mask(text: string, spans: readonly Span[]): string {
-  const chars = [...text];
+  const chars = text.split("");
   for (const span of spans) {
     for (let index = span.start; index < span.end && index < chars.length; index += 1) {
       chars[index] = " ";
@@ -372,32 +542,48 @@ function mask(text: string, spans: readonly Span[]): string {
   return chars.join("");
 }
 
-function isDuration15(sentence: string, span: Span): boolean {
-  const token = sentence.slice(span.start, span.end);
-  if (!/^(?:15|1[\s.]{1,2}5|quinze)$/.test(token)) {
+const durationCue =
+  /(?:^|[^\p{L}])(?:attendez|attendons|attendent|attends|attend|patientons|patientent|patientez|patientes|patiente|pendant|dans|depuis)[^\S\n]*$/u;
+
+const clockCue = /(?:^|[^\p{L}])(?:à|a)[^\S\n]*$/u;
+
+const blockedArticle = /(?:^|[^\p{L}])(?:le|au|du)[^\S\n]*$/u;
+
+const durationUnit = /^[^\S\n]*(?:minutes?|mins?|mn|heures?)(?!\p{L})/u;
+
+const clockUnit = /^[^\S\n]*h(?!\p{L})/u;
+
+function isDuration15(text: string, span: Span): boolean {
+  if (!plain15(text, span)) {
     return false;
   }
-  const before = sentence.slice(0, span.start);
-  const after = sentence.slice(span.end);
-  const afterLe = /(?:^|[^a-z])le\s+$/.test(before);
-  if (afterLe && /^\s*h(?![a-z])/u.test(after)) {
+  const before = sameLineBefore(text, span.start);
+  if (blockedArticle.test(before)) {
     return false;
   }
-  if (/^\s*(?:minutes?|mins?|mn|heures?)(?![a-z])/u.test(after)) {
+  const after = text.slice(span.end);
+  if (durationCue.test(before) && durationUnit.test(after)) {
     return true;
   }
-  if (/(?:^|\s)(?:à|a)\s+$/.test(before) && /^\s*h(?![a-z])/u.test(after)) {
-    return true;
+  return clockCue.test(before) && clockUnit.test(after);
+}
+
+function sameLineBefore(text: string, index: number): string {
+  const newline = text.lastIndexOf("\n", index - 1);
+  return text.slice(newline + 1, index);
+}
+
+function plain15(text: string, span: Span): boolean {
+  if (span.kind !== "15") {
+    return false;
   }
-  if (!afterLe && /^\s*h\s*\d/u.test(after)) {
-    return true;
-  }
-  return false;
+  return /^(?:15|quinze)$/.test(text.slice(span.start, span.end));
 }
 
 function matchCall(
   sentence: string,
   mode: ExactMatchMode,
+  skip15: (text: string, span: Span) => boolean = isDuration15,
 ): readonly EmergencyNumber[] | undefined {
   let best: (typeof callSentences)[number] | undefined;
   for (const item of callSentences) {
@@ -411,7 +597,7 @@ function matchCall(
   if (best === undefined) {
     return undefined;
   }
-  if (mode !== "exact" && !looseCallFits(sentence, best.numbers)) {
+  if (mode !== "exact" && !looseCallFits(sentence, best.numbers, skip15)) {
     return undefined;
   }
   return best.numbers;
@@ -420,8 +606,9 @@ function matchCall(
 function looseCallFits(
   sentence: string,
   numbers: readonly EmergencyNumber[],
+  skip15: (text: string, span: Span) => boolean,
 ): boolean {
-  const names = detect(sentence);
+  const names = namesFrom(scan(sentence, true).filter((span) => !skip15(sentence, span)));
   if (names.has112 || names.hasSos) {
     return false;
   }
