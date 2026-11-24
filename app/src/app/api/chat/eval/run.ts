@@ -10,7 +10,6 @@ import {
 } from "./classify.ts";
 import { POST } from "../route.ts";
 
-const replyPreviewLimit = 400;
 const cannedReply =
   "Live mode is not active. The chat route returned the canned reply. Set STEVE_CHAT_LIVE=1 and load app/.env.local, then run pnpm eval:emergency. This run did not score the cases.";
 
@@ -19,11 +18,7 @@ function write(line: string): void {
 }
 
 function preview(reply: string): string {
-  const flat = reply.replace(/\s+/g, " ").trim();
-  if (flat.length <= replyPreviewLimit) {
-    return flat;
-  }
-  return `${flat.slice(0, replyPreviewLimit)}…`;
+  return reply.replace(/\s+/g, " ").trim();
 }
 
 function formatNumbers(numbers: readonly string[]): string {
