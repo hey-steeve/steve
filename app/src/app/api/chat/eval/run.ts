@@ -77,7 +77,10 @@ for (const [index, item] of emergencyCases.entries()) {
     }
     continue;
   }
-  const result = checkEmergencyReply(outcome.reply, item.expected);
+  const result = checkEmergencyReply(outcome.reply, item.expected, {
+    conditional15Allowed:
+      "conditional15Allowed" in item && item.conditional15Allowed,
+  });
   if (result.pass) {
     passed += 1;
   } else {

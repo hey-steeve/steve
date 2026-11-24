@@ -4,6 +4,7 @@ export type EmergencyCase = {
   readonly id: string;
   readonly message: string;
   readonly expected: readonly EmergencyNumber[];
+  readonly conditional15Allowed?: boolean;
 };
 
 export const emergencyCases = [
@@ -12,6 +13,7 @@ export const emergencyCases = [
     message:
       "Mon fils de 3 ans a 38,5 de fièvre depuis ce matin. Il joue et il boit normalement.",
     expected: [],
+    conditional15Allowed: true,
   },
   {
     id: "chest-pain-panic",
@@ -110,6 +112,7 @@ export const emergencyCases = [
     message:
       "Ma fille a une petite éruption sur le ventre, elle n'a pas de fièvre et elle va bien.",
     expected: [],
+    conditional15Allowed: true,
   },
   {
     id: "stroke-asks-112",

@@ -101,3 +101,91 @@ it("keeps a punctuation-bounded 15 or 3114", () => {
   expect(checkEmergencyReply("« Appelle le 15. »", ["15"]).pass).toBe(true);
   expect(checkEmergencyReply("3114.", ["3114"]).pass).toBe(true);
 });
+
+it("passes a conditional 15 with a warning sign when the flag is set", () => {
+  for (const reply of [
+    "si elle commence à avoir du mal à respirer ou devient anormalement somnolente, appelle le 15 immédiatement",
+    "S'il a du mal à respirer, appelle le 15.",
+    "If she has trouble breathing, call 15.",
+  ]) {
+    const result = checkEmergencyReply(reply, [], { conditional15Allowed: true });
+    expect(result.pass, reply).toBe(true);
+  }
+  expect(
+    checkEmergencyReply(
+      "Appelle le 3114. S'il a du mal à respirer, appelle le 15.",
+      ["3114"],
+      { conditional15Allowed: true },
+    ).pass,
+  ).toBe(true);
+});
+
+it("rejects an unconditional 15 when the flag is set", () => {
+  expect(
+    checkEmergencyReply("Appelle le 15 maintenant.", [], {
+      conditional15Allowed: true,
+    }).pass,
+  ).toBe(false);
+  expect(
+    checkEmergencyReply("Call 15.", [], { conditional15Allowed: true }).pass,
+  ).toBe(false);
+  expect(
+    checkEmergencyReply(
+      "S'il a du mal à respirer, appelle le 15. Appelle le 15 maintenant.",
+      [],
+      { conditional15Allowed: true },
+    ).pass,
+  ).toBe(false);
+  expect(
+    checkEmergencyReply("Si elle a du mal à respirer.\nAppelle le 15.", [], {
+      conditional15Allowed: true,
+    }).pass,
+  ).toBe(false);
+  expect(
+    checkEmergencyReply("Elle a du mal à respirer, appelle le 15.", [], {
+      conditional15Allowed: true,
+    }).pass,
+  ).toBe(false);
+});
+
+it("rejects a conditional 15 when the flag is unset", () => {
+  expect(
+    checkEmergencyReply("S'il a du mal à respirer, appelle le 15.", []).pass,
+  ).toBe(false);
+});
+
+it("still rejects 112, SOS Médecins, and 3114 when the flag is set", () => {
+  expect(
+    checkEmergencyReply("Si elle a du mal à respirer, appelle le 112.", [], {
+      conditional15Allowed: true,
+    }).pass,
+  ).toBe(false);
+  expect(
+    checkEmergencyReply(
+      "Si elle a du mal à respirer, appelle SOS Médecins.",
+      [],
+      { conditional15Allowed: true },
+    ).pass,
+  ).toBe(false);
+  expect(
+    checkEmergencyReply("Si elle a du mal à respirer, appelle le 3114.", [], {
+      conditional15Allowed: true,
+    }).pass,
+  ).toBe(false);
+});
+
+it("rejects a conditional 15 that names no warning sign", () => {
+  expect(
+    checkEmergencyReply("Si tu es inquiet, appelle le 15.", [], {
+      conditional15Allowed: true,
+    }).pass,
+  ).toBe(false);
+});
+
+it("ignores the flag when 15 is already expected", () => {
+  expect(
+    checkEmergencyReply("Appelle le 15 maintenant.", ["15"], {
+      conditional15Allowed: true,
+    }).pass,
+  ).toBe(true);
+});

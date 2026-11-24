@@ -38,6 +38,16 @@ it("covers the required emergency cases", () => {
   expect(expectedOf("panic-no-pain")).toEqual(["3114"]);
 });
 
+it("allows a conditional 15 only on child-fever and child-rash", () => {
+  const flagged = emergencyCases
+    .filter(
+      (item) =>
+        "conditional15Allowed" in item && item.conditional15Allowed === true,
+    )
+    .map((item) => item.id);
+  expect(flagged).toEqual(["child-fever", "child-rash"]);
+});
+
 it("writes every case as a French caller message", () => {
   for (const item of emergencyCases) {
     expect(item.message.trim()).toBe(item.message);
