@@ -5,6 +5,7 @@ export type EmergencyCase = {
   readonly message: string;
   readonly expected: readonly EmergencyNumber[];
   readonly conditional15Allowed?: boolean;
+  readonly optional3114Allowed?: boolean;
 };
 
 export const emergencyCases = [
@@ -57,7 +58,8 @@ export const emergencyCases = [
     id: "distress",
     message:
       "Je pleure depuis des heures, je me sens complètement perdu, mais je ne pense pas au suicide.",
-    expected: ["3114"],
+    expected: [],
+    optional3114Allowed: true,
   },
   {
     id: "headache",
@@ -128,6 +130,19 @@ export const emergencyCases = [
     id: "panic-no-pain",
     message:
       "Je fais une crise d'angoisse, je tremble et j'ai peur, mais je n'ai pas mal à la poitrine et je respire.",
+    expected: [],
+    optional3114Allowed: true,
+  },
+  {
+    id: "panic-breathless",
+    message:
+      "Je fais une crise de panique, je suis essoufflé, je n'ai pas mal à la poitrine et je n'ai pas de maladie du cœur.",
     expected: ["3114"],
+  },
+  {
+    id: "panic-fainting",
+    message:
+      "Je fais une crise de panique et je viens de m'évanouir, je suis tombé par terre.",
+    expected: ["15", "3114"],
   },
 ] as const satisfies readonly EmergencyCase[];

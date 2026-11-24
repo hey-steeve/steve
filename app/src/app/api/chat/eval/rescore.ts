@@ -53,8 +53,18 @@ export function parseSavedRun(text: string): readonly SavedEntry[] {
     }
     const scored = scoredLine.exec(line);
     if (scored !== null) {
-      const parsed = takeScoredEntry(scored, lines[index + 1] ?? "");
-      index += 2;
+      const mark = scored[2];
+      const next = lines[index + 1];
+      if ((mark === "PASS" || mark === "FAIL") && !isReplyLine(next)) {
+        const id = scored[1];
+        if (id !== undefined) {
+          entries.push({ kind: "error", id, detail: "missing reply" });
+        }
+        index += 1;
+        continue;
+      }
+      const parsed = takeScoredEntry(scored, next ?? "");
+      index += isReplyLine(next) ? 2 : 1;
       if (parsed !== undefined) {
         entries.push(parsed);
       }
@@ -72,6 +82,21 @@ export function parseSavedRun(text: string): readonly SavedEntry[] {
     index += 1;
   }
   return entries;
+}
+
+function isReplyLine(line: string | undefined): line is string {
+  if (line === undefined) {
+    return false;
+  }
+  const trimmed = line.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+  return (
+    !scoredLine.test(trimmed) &&
+    !routeErrorLine.test(trimmed) &&
+    !summaryLine.test(trimmed)
+  );
 }
 
 function takeScoredEntry(
@@ -126,10 +151,19 @@ export function rescoreSavedRun(text: string): RescoreReport {
       lines.push("");
       continue;
     }
+    if (entry.truncated) {
+      errors += 1;
+      lines.push(formatErrorLine(entry.id, "truncated reply"));
+      lines.push(entry.reply);
+      lines.push("");
+      continue;
+    }
     const reply = decodeSavedReply(entry.reply);
     const result = checkEmergencyReply(reply, item.expected, {
       conditional15Allowed:
         "conditional15Allowed" in item && item.conditional15Allowed,
+      optional3114Allowed:
+        "optional3114Allowed" in item && item.optional3114Allowed,
     });
     if (result.pass) {
       passed += 1;
