@@ -48,7 +48,7 @@ function contains112(reply: string): boolean {
 
 function containsSosMedecins(reply: string): boolean {
   const folded = reply.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return /sos[\s-]+medecins?(?![a-z])/.test(folded);
+  return /sos[\s\u2013\u2014-]+medecins?(?![a-z])/.test(folded);
 }
 
 function firstOccurrences(found: readonly EmergencyNumber[]): EmergencyNumber[] {

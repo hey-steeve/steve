@@ -60,6 +60,20 @@ it("rejects 112 as a whole token in every reply", () => {
   expect(checkEmergencyReply("Référence 3112.", []).pass).toBe(true);
 });
 
+it("rejects SOS Médecins when a dash separates the words", () => {
+  for (const reply of [
+    "Appelle SOS – Médecins.",
+    "Appelle SOS–Médecins.",
+    "Appelle SOS—Médecins.",
+    "Appelle SOS - Médecins.",
+    "Appelle SOS-Médecins.",
+  ]) {
+    const result = checkEmergencyReply(reply, []);
+    expect(result.pass, reply).toBe(false);
+    expect(result.reason, reply).toContain("contains SOS Médecins");
+  }
+});
+
 it("rejects SOS Médecins regardless of case or accent", () => {
   for (const reply of [
     "Appelle SOS Médecins.",
