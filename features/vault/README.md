@@ -116,19 +116,23 @@ eight assertions. Each assertion contains:
 
 - non-empty factual text, bounded to 500 characters;
 - one to four evidence excerpts;
+- evidence excerpts with at least 8 characters after trimming and at least one
+  letter or digit;
 - evidence excerpts bounded to 500 characters each.
 
 Every evidence excerpt must occur verbatim in the source document. Assertions
 and evidence excerpts must be unique across the result. Invalid output is
 rejected as `INVALID_SUMMARY`. The returned `DocumentSummary` keeps every
 assertion next to its evidence and contains no separate free-form summary.
+Evidence excerpts may span multiple lines.
 
-Evidence-linked assertions give callers an auditable source anchor and a
-display-ready structure. Structural validation and the presence of an exact
-excerpt do not prove that an assertion is semantically supported by that
-excerpt. A production provider must enforce the factual-summary contract as
-well; it must not infer a condition, urgency, diagnosis, medication change, or
-treatment.
+Summaries are anchored to source excerpts, not verified. Evidence-linked
+assertions give callers an auditable source anchor and a display-ready
+structure, but structural validation and the presence of an exact excerpt do
+not prove that an assertion is semantically supported by that excerpt. App and
+Inbox must never present these assertions as verified facts. A production
+provider must enforce the factual-summary contract as well; it must not infer a
+condition, urgency, diagnosis, medication change, or treatment.
 
 ## Errors and content safety
 
@@ -142,6 +146,11 @@ contained at their runtime boundaries, including throwing getters, proxies,
 properties, and iterators. They become `INVALID_DOCUMENT`, `STORAGE_FAILURE`,
 or `INVALID_SUMMARY` results. An exception thrown by the summary operation
 itself becomes `SUMMARIZATION_FAILURE`.
+
+Vault snapshots untrusted fields, byte arrays, assertions, and evidence once,
+then validates and returns only those snapshots. Custom iterators are ignored;
+indexed array values are copied directly. A storage adapter must return the
+same document identifier that Vault requested.
 
 Vault does not log document contents. The repository does not yet expose the
 planned shared logger, so this package performs no logging.
@@ -162,6 +171,9 @@ consumer contract.
   identity contract. A production integration must add authorization and
   tenant isolation at its owning boundary before storing real documents.
 - Summaries are generated on demand and are not cached or persisted.
+- Storage and summarizer adapters do not yet receive an abort signal. A future
+  live adapter must add real cancellation rather than a timeout that leaves an
+  operation running in the background.
 - There is no Inbox or app integration and no live LLM adapter.
 - The feature contains synthetic fixtures only and is not ready for real
   patient data.
