@@ -1,4 +1,15 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+
+vi.mock("./emergency-templates.js", async () => {
+  const actual = await vi.importActual<typeof import("./emergency-templates.js")>(
+    "./emergency-templates.js",
+  );
+  return {
+    ...actual,
+    ensureEmergencyCalls: vi.fn(actual.ensureEmergencyCalls),
+  };
+});
+
 import { consultGuidance, JEV_TIMEOUT_MS, JEV_URL, needInfoGuidance } from "@steve/triage";
 import { chatRequestLimits, parseChatReply } from "../../../chat/request.js";
 import { triageDecisionCases } from "../../../chat/triage-decision-cases.js";
@@ -7,6 +18,7 @@ import {
   call15Now,
   call3114,
   call3114Now,
+  ensureEmergencyCalls,
   refusal112,
   refusalSos,
   warningSignBecomesDrowsy,
@@ -77,9 +89,11 @@ const negationWindow = 32;
 const approvedEmergencySentences = [
   "Tu ne donnes le 15 que pour une vraie urgence, c'est-à-dire des signes de gravité, une surdose, une automutilation ou un danger immédiat.",
   "Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.",
-  "Pour une crise de panique dont le seul signe physique est un essoufflement, tu ne donnes pas le 15.",
-  "Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114 comme ressource, sans l'exiger en première phrase.",
-  "Si une crise de panique n'a comme signe physique qu'un essoufflement, tu dis en première phrase : « Appelle le 3114 », pas le 15.",
+  "Pour une crise de panique dont le seul signe physique est un essoufflement, tu ne donnes pas le 15 en première phrase.",
+  "Le 15 n'est pas exigé.",
+  "Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114, sans l'exiger en première phrase, et cette phrase est exactement « Appelle le 3114.",
+  "», pas le 15.",
+  "Tu ne mets jamais le 15 et le 3114 dans la même phrase.",
 ] as const;
 
 const discouragingEmergencyVariants = [
@@ -670,7 +684,7 @@ it("forwards the Jev bearer canary and the classify signal", async () => {
   expect(text).not.toContain(canary);
   expect(text).not.toContain(jevCanary);
   expect(JSON.parse(text)).toEqual({
-    reply: "Reste avec moi.",
+    reply: `${call3114Now} ${call15Now} Reste avec moi.`,
     mocked: false,
     model: "openai/gpt-6.1-terra",
     calls: [
@@ -686,7 +700,7 @@ it("puts emergency calls on the reply and still calls the chat model", async () 
     "Appelez le 15.",
   );
   expect(body).toEqual({
-    reply: "Appelez le 15.",
+    reply: `${call15Now} Appelez le 15.`,
     mocked: false,
     model: "openai/gpt-6.1-terra",
     calls: [{ type: "call", number: "15" }],
@@ -774,33 +788,132 @@ it("keeps calls and guidance for every triage decision", async () => {
     expect(response.status, item.name).toBe(200);
     const payload: unknown = await response.json();
     expectSystemMessages(providerMessages(fetchMock), item.guidance, item.name);
+    const reply = replyForDaccord(item.calls);
     if (item.calls === undefined) {
       expect(payload, item.name).toEqual({
-        reply: "D'accord.",
+        reply,
         mocked: false,
         model: "openai/gpt-6.1-terra",
       });
       expect(parseChatReply(payload), item.name).toEqual({
         kind: "ok",
-        reply: "D'accord.",
+        reply,
         mocked: false,
         model: "openai/gpt-6.1-terra",
       });
       continue;
     }
     expect(payload, item.name).toEqual({
-      reply: "D'accord.",
+      reply,
       mocked: false,
       model: "openai/gpt-6.1-terra",
       calls: item.calls,
     });
     expect(parseChatReply(payload), item.name).toEqual({
       kind: "ok",
-      reply: "D'accord.",
+      reply,
       mocked: false,
       model: "openai/gpt-6.1-terra",
       calls: item.calls,
     });
+  }
+});
+
+it("prefixes a missing, partial, or wrong-order 15 and keeps a compliant reply", async () => {
+  for (const item of triageDecisionCases) {
+    for (const row of item.replies) {
+      const label = `${item.name} ${row.name}`;
+      const fetchMock = triageFetch(() => Response.json(classifyPayload(item)), row.model);
+      vi.stubGlobal("fetch", fetchMock);
+      const response = await post(history);
+      expect(response.status, label).toBe(200);
+      const payload: unknown = await response.json();
+      if (item.calls === undefined) {
+        expect(payload, label).toEqual({
+          reply: row.reply,
+          mocked: false,
+          model: "openai/gpt-6.1-terra",
+        });
+        expect(parseChatReply(payload), label).toEqual({
+          kind: "ok",
+          reply: row.reply,
+          mocked: false,
+          model: "openai/gpt-6.1-terra",
+        });
+        continue;
+      }
+      expect(payload, label).toEqual({
+        reply: row.reply,
+        mocked: false,
+        model: "openai/gpt-6.1-terra",
+        calls: item.calls,
+      });
+      expect(parseChatReply(payload), label).toEqual({
+        kind: "ok",
+        reply: row.reply,
+        mocked: false,
+        model: "openai/gpt-6.1-terra",
+        calls: item.calls,
+      });
+    }
+  }
+});
+
+it("omits the exact 15 sentence when the success-path guard is disabled", async () => {
+  const item = triageDecisionCases.find((entry) => entry.name === "emergency-physical");
+  const row = item?.replies.find((entry) => entry.name === "missing");
+  if (item === undefined || row === undefined || item.calls === undefined) {
+    throw new Error("missing physical row");
+  }
+  expect(row.model.includes(call15Now)).toBe(false);
+  expect(row.reply.startsWith(call15Now)).toBe(true);
+  const mockedEnsure = vi.mocked(ensureEmergencyCalls);
+  const realEnsure = mockedEnsure.getMockImplementation();
+  if (realEnsure === undefined) {
+    throw new Error("ensureEmergencyCalls mock");
+  }
+  mockedEnsure.mockImplementation((reply) => reply);
+  try {
+    const disabledMock = triageFetch(() => Response.json(classifyPayload(item)), row.model);
+    vi.stubGlobal("fetch", disabledMock);
+    const disabled = await post(history);
+    expect(disabled.status).toBe(200);
+    const disabledBody: unknown = await disabled.json();
+    expect(disabledBody).toEqual({
+      reply: row.model,
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: item.calls,
+    });
+    expect(parseChatReply(disabledBody)).toEqual({
+      kind: "ok",
+      reply: row.model,
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: item.calls,
+    });
+
+    mockedEnsure.mockImplementation(realEnsure);
+    const enabledMock = triageFetch(() => Response.json(classifyPayload(item)), row.model);
+    vi.stubGlobal("fetch", enabledMock);
+    const enabled = await post(history);
+    expect(enabled.status).toBe(200);
+    const enabledBody: unknown = await enabled.json();
+    expect(enabledBody).toEqual({
+      reply: row.reply,
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: item.calls,
+    });
+    expect(parseChatReply(enabledBody)).toEqual({
+      kind: "ok",
+      reply: row.reply,
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: item.calls,
+    });
+  } finally {
+    mockedEnsure.mockImplementation(realEnsure);
   }
 });
 
@@ -844,8 +957,7 @@ it("keeps triage calls in order when the model fails", async () => {
       const error = failureText(item.calls);
       expect(payload, label).toEqual({ error, calls: item.calls });
       let cursor = 0;
-      for (const call of item.calls) {
-        const sentence = `Appelle le ${call.number} maintenant.`;
+      for (const sentence of failureSentences(item.calls)) {
         const at = error.indexOf(sentence, cursor);
         expect(at, label).toBeGreaterThanOrEqual(cursor);
         cursor = at + sentence.length;
@@ -1008,9 +1120,34 @@ function expectSystemMessages(
   expect(messages, name).toEqual([prompt, { role: "system", content: guidance }, user]);
 }
 
-function failureText(calls: readonly { readonly number: string }[]): string {
-  const spoken = calls.map((call) => `Appelle le ${call.number} maintenant.`).join(" ");
-  return `${spoken} ${upstreamError}`;
+function replyForDaccord(calls: (typeof triageDecisionCases)[number]["calls"]): string {
+  const model = "D'accord.";
+  if (calls === undefined || !calls.some((call) => call.number === "15")) {
+    return model;
+  }
+  return `${failureSentences(calls).join(" ")} ${model}`;
+}
+
+function failureSentences(
+  calls: readonly { readonly number: "15" | "3114" }[],
+): readonly string[] {
+  const first15 = calls.findIndex((call) => call.number === "15");
+  if (first15 < 0) {
+    return [call3114Now];
+  }
+  return calls.map((call, index) => {
+    if (call.number === "15") {
+      return call15Now;
+    }
+    if (index < first15) {
+      return call3114Now;
+    }
+    return call3114;
+  });
+}
+
+function failureText(calls: readonly { readonly number: "15" | "3114" }[]): string {
+  return `${failureSentences(calls).join(" ")} ${upstreamError}`;
 }
 
 function jevBody(

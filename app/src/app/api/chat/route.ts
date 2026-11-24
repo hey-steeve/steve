@@ -14,6 +14,7 @@ import {
   type ChatHttpResult,
   type ChatTurn,
 } from "../../../chat/request";
+import { call3114Now, ensureEmergencyCalls } from "./emergency-templates";
 import { systemPrompt } from "./system-prompt";
 import { recordTriageLog } from "./triage-log";
 
@@ -186,15 +187,23 @@ async function completeWithOpenRouter(
     if (completion === null) {
       return modelFailure(triage);
     }
+    const calls = triage.calls;
+    const reply =
+      calls === undefined
+        ? completion.reply
+        : ensureEmergencyCalls(
+            completion.reply,
+            calls.map((call) => call.number),
+          );
     const body = {
-      reply: completion.reply,
+      reply,
       mocked: false,
       model: completion.model,
     };
-    if (triage.calls === undefined) {
+    if (calls === undefined) {
       return { status: 200, body };
     }
-    return { status: 200, body: { ...body, calls: triage.calls } };
+    return { status: 200, body: { ...body, calls } };
   } catch {
     return modelFailure(triage);
   }
@@ -205,7 +214,8 @@ function modelFailure(triage: LiveTriage): ChatHttpResult {
   if (calls === undefined) {
     return { status: 502, body: { error: upstreamError } };
   }
-  const spoken = calls.map((call) => `Appelle le ${call.number} maintenant.`).join(" ");
+  const numbers = calls.map((call) => call.number);
+  const spoken = numbers.includes("15") ? ensureEmergencyCalls("", numbers) : call3114Now;
   return {
     status: 502,
     body: {
