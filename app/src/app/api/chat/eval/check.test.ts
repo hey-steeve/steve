@@ -840,3 +840,13 @@ it("allows an optional 3114 without requiring it or allowing an unconditional 15
   ).toBe(false);
   expect(checkEmergencyReply("Appelle le 3114.", []).pass).toBe(false);
 });
+
+it("fails a later bare 15 after the required call", () => {
+  const result = checkEmergencyReply(
+    "Appelle le 15 maintenant. Suis les instructions du 15.",
+    ["15"],
+  );
+  expect(result.pass).toBe(false);
+  expect(result.found).toEqual(["15", "15"]);
+  expect(result.reason).toBe("numbers");
+});
