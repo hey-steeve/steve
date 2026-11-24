@@ -1,9 +1,13 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { JEV_TIMEOUT_MS, JEV_URL } from "@steve/triage";
 import { chatRequestLimits } from "../../../chat/request.js";
 import { POST } from "./route.js";
 import { systemPrompt } from "./system-prompt.js";
+import { readTriageLog, resetTriageLog } from "./triage-log.js";
 
 const canary = "test-openrouter-key-canary";
+const jevCanary = "test-jev-key-canary";
+const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const echo =
   "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
@@ -12,10 +16,16 @@ const history = {
   messages: [{ role: "user", content: "De garde" }],
 };
 
+beforeEach(() => {
+  vi.stubEnv("JEV_API_KEY", "");
+  resetTriageLog();
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  resetTriageLog();
 });
 
 const systemPromptRules = [
@@ -35,6 +45,7 @@ const systemPromptRules = [
   "Tu réponds en français, comme dans une conversation, en 2 à 4 phrases courtes.",
   "Tu n'utilises une courte liste que si des étapes sont vraiment nécessaires.",
   "Pas de titre, pas de gras, pas d'italique.",
+  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation, et tu ne donnes jamais le 15 par défaut.",
 ] as const;
 
 it("pins every system prompt rule as a full sentence", () => {
@@ -126,13 +137,13 @@ it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => 
     model: "google/gemini-flash-001",
   });
 
-  expect(fetchMock).toHaveBeenCalledTimes(1);
-  const call = fetchMock.mock.calls[0];
+  expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([openRouterUrl]);
+  const call = openRouterCall(fetchMock);
   expect(call).toBeDefined();
   if (call === undefined) {
     return;
   }
-  expect(call[0]).toBe("https://openrouter.ai/api/v1/chat/completions");
+  expect(call[0]).toBe(openRouterUrl);
   const init = call[1];
   expect(init?.method).toBe("POST");
   const headers = new Headers(init?.headers);
@@ -179,8 +190,11 @@ it("defaults the model to openai/gpt-6.1-terra and falls back when OpenRouter om
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
-  expect(fetchMock.mock.calls).toHaveLength(2);
-  for (const call of fetchMock.mock.calls) {
+  const openRouterCalls = fetchMock.mock.calls.filter(
+    (call) => String(call[0]) === openRouterUrl,
+  );
+  expect(openRouterCalls).toHaveLength(2);
+  for (const call of openRouterCalls) {
     expect(JSON.parse(String(call[1]?.body))).toMatchObject({
       model: "openai/gpt-6.1-terra",
       max_tokens: 1024,
@@ -226,8 +240,9 @@ it("aborts the OpenRouter call and returns the upstream error on timeout", async
   expect(text).not.toContain("TimeoutError");
   expect(JSON.parse(text)).toEqual({ error: upstreamError });
   expect(timeout).toHaveBeenCalledWith(30_000);
-  const signal: unknown = timeout.mock.results[0]?.value;
-  expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(signal);
+  const timeoutIndex = timeout.mock.calls.findIndex((args) => args[0] === 30_000);
+  const signal: unknown = timeout.mock.results[timeoutIndex]?.value;
+  expect(openRouterCall(fetchMock)?.[1]?.signal).toBe(signal);
 });
 
 it("rejects an oversized body before parsing it", async () => {
@@ -271,7 +286,7 @@ it("trims the OpenRouter key and ignores a blank one", async () => {
 
   const response = await post(history);
   expect(response.status).toBe(200);
-  const call = fetchMock.mock.calls[0];
+  const call = openRouterCall(fetchMock);
   expect(call).toBeDefined();
   if (call === undefined) {
     return;
@@ -467,6 +482,216 @@ it("rejects a body that is not JSON", async () => {
   expect(await response.json()).toEqual({ error: "JSON invalide." });
 });
 
+const consultGuidance =
+  "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde";
+const needInfoGuidance = "pose une seule question courte";
+
+const labelNames = ["emergency", "consult", "self-care", "need-info"] as const;
+const channelNames = ["physical", "psychological", "both", "none"] as const;
+
+it("forwards the Jev bearer canary and the classify signal", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  vi.stubEnv("JEV_API_KEY", jevCanary);
+  const timeout = vi.spyOn(AbortSignal, "timeout");
+  const fetchMock = vi.fn<typeof fetch>(async (input) => {
+    if (String(input) === JEV_URL) {
+      return Response.json(jevBody("emergency", 0.91, "psychological"));
+    }
+    return Response.json({
+      model: "openai/gpt-6.1-terra",
+      choices: [{ message: { content: "Reste avec moi." } }],
+    });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await post(history);
+  const jevCall = jevFetchCall(fetchMock);
+  expect(jevCall).toBeDefined();
+  if (jevCall === undefined) {
+    return;
+  }
+  const headers = new Headers(jevCall[1]?.headers);
+  expect(headers.get("authorization")).toBe(`Bearer ${jevCanary}`);
+  const timeoutIndex = timeout.mock.calls.findIndex((args) => args[0] === JEV_TIMEOUT_MS);
+  expect(timeoutIndex).toBeGreaterThanOrEqual(0);
+  expect(jevCall[1]?.signal).toBe(timeout.mock.results[timeoutIndex]?.value);
+  expect(openRouterCall(fetchMock)).toBeDefined();
+
+  const text = await response.text();
+  expect(text).not.toContain(canary);
+  expect(text).not.toContain(jevCanary);
+  expect(JSON.parse(text)).toEqual({
+    reply: "Reste avec moi.",
+    mocked: false,
+    model: "openai/gpt-6.1-terra",
+    calls: [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ],
+  });
+});
+
+it("puts emergency calls on the reply and still calls the chat model", async () => {
+  const { body, fetchMock } = await liveTriage(
+    jevBody("emergency", 0.91, "physical"),
+    "Appelez le 15.",
+  );
+  expect(body).toEqual({
+    reply: "Appelez le 15.",
+    mocked: false,
+    model: "openai/gpt-6.1-terra",
+    calls: [{ type: "call", number: "15" }],
+  });
+  expect(jevFetchCall(fetchMock)).toBeDefined();
+  expect(openRouterCall(fetchMock)).toBeDefined();
+  expect(readTriageLog()).toEqual([]);
+});
+
+it("sends the plain system prompt when triage does not close", async () => {
+  const cases = [
+    {
+      reason: "http",
+      jev: () => new Response("upstream", { status: 503 }),
+    },
+    {
+      reason: "timeout",
+      jev: () => {
+        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+      },
+    },
+    {
+      reason: "network",
+      jev: () => {
+        throw new TypeError("network down");
+      },
+    },
+    {
+      reason: "malformed",
+      jev: () => Response.json({ answers: {} }),
+    },
+  ] as const;
+  for (const item of cases) {
+    resetTriageLog();
+    const fetchMock = triageFetch(item.jev);
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await post(history);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      reply: "D'accord.",
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+    });
+    expect(providerMessages(fetchMock)).toEqual([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: "De garde" },
+    ]);
+    expect(readTriageLog()).toEqual([{ cause: "no-triage", reason: item.reason }]);
+  }
+});
+
+it("takes the no-triage path when the Jev key is missing or blank", async () => {
+  for (const key of ["", "   "]) {
+    resetTriageLog();
+    const fetchMock = triageFetch(() => {
+      throw new Error("Jev must not be called");
+    });
+    vi.stubEnv("JEV_API_KEY", key);
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await post(history);
+    expect(response.status).toBe(200);
+    expect(providerMessages(fetchMock)).toEqual([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: "De garde" },
+    ]);
+    expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([openRouterUrl]);
+    expect(readTriageLog()).toEqual([{ cause: "no-triage", reason: "missing-key" }]);
+  }
+
+  resetTriageLog();
+  const fetchMock = triageFetch(() => Response.json(jevBody("consult", 0.7, "none")));
+  delete process.env["JEV_API_KEY"];
+  vi.stubGlobal("fetch", fetchMock);
+  await post(history);
+  expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([openRouterUrl]);
+  expect(readTriageLog()).toEqual([{ cause: "no-triage", reason: "missing-key" }]);
+});
+
+it("keeps the system prompt at index 0 for every live triage outcome", async () => {
+  const cases = [
+    {
+      name: "emergency",
+      payload: jevBody("emergency", 0.91, "psychological"),
+      guidance: undefined,
+    },
+    {
+      name: "consult",
+      payload: jevBody("consult", 0.74, "none"),
+      guidance: consultGuidance,
+    },
+    {
+      name: "need-info",
+      payload: jevBody("need-info", 0.55, "none"),
+      guidance: needInfoGuidance,
+    },
+    {
+      name: "self-care",
+      payload: jevBody("self-care", 0.7, "none"),
+      guidance: undefined,
+    },
+    {
+      name: "no-triage",
+      payload: { answers: {} },
+      guidance: undefined,
+    },
+  ] as const;
+  for (const item of cases) {
+    resetTriageLog();
+    const fetchMock = triageFetch(() => Response.json(item.payload));
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await post(history);
+    expect(response.status, item.name).toBe(200);
+    const messages = providerMessages(fetchMock);
+    expect(messages[0], item.name).toEqual({ role: "system", content: systemPrompt });
+    if (item.guidance === undefined) {
+      expect(messages[1], item.name).toEqual({ role: "user", content: "De garde" });
+      expect(messages, item.name).toHaveLength(2);
+    } else {
+      expect(messages[1], item.name).toEqual({ role: "system", content: item.guidance });
+      expect(messages[2], item.name).toEqual({ role: "user", content: "De garde" });
+    }
+  }
+});
+
+it("passes JEV_MODEL through to the classifier request", async () => {
+  vi.stubEnv("JEV_MODEL", "  jev-test-model  ");
+  const fetchMock = triageFetch(() => Response.json(jevBody("self-care", 0.7, "none")));
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(200);
+  const jevCall = jevFetchCall(fetchMock);
+  expect(jevCall).toBeDefined();
+  if (jevCall === undefined) {
+    return;
+  }
+  expect(JSON.parse(String(jevCall[1]?.body))).toMatchObject({ model: "jev-test-model" });
+  expect(providerMessages(fetchMock)[0]).toEqual({ role: "system", content: systemPrompt });
+  expect(readTriageLog()).toEqual([]);
+});
+
+it("does not call Jev on the mock path", async () => {
+  vi.stubEnv("JEV_API_KEY", jevCanary);
+  vi.stubEnv("STEVE_CHAT_LIVE", "");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  const fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ mocked: true, model: "mock" });
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(readTriageLog()).toEqual([]);
+});
+
 function post(body: unknown): Promise<Response> {
   return POST(
     new Request("http://localhost/api/chat", {
@@ -475,4 +700,99 @@ function post(body: unknown): Promise<Response> {
       body: JSON.stringify(body),
     }),
   );
+}
+
+type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
+
+function armLive(): void {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  vi.stubEnv("JEV_API_KEY", jevCanary);
+  delete process.env["OPENROUTER_MODEL"];
+}
+
+function triageFetch(jev: () => Response | Promise<Response>, reply = "D'accord."): FetchMock {
+  armLive();
+  return vi.fn<typeof fetch>(async (input) => {
+    if (String(input) === JEV_URL) {
+      return jev();
+    }
+    return Response.json({
+      model: "openai/gpt-6.1-terra",
+      choices: [{ message: { content: reply } }],
+    });
+  });
+}
+
+async function liveTriage(
+  payload: unknown,
+  reply: string,
+): Promise<{ readonly body: unknown; readonly fetchMock: FetchMock }> {
+  const fetchMock = triageFetch(() => Response.json(payload), reply);
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  return { body: await response.json(), fetchMock };
+}
+
+function openRouterCall(fetchMock: FetchMock) {
+  return fetchMock.mock.calls.find((call) => String(call[0]) === openRouterUrl);
+}
+
+function jevFetchCall(fetchMock: FetchMock) {
+  return fetchMock.mock.calls.find((call) => String(call[0]) === JEV_URL);
+}
+
+function providerMessages(fetchMock: FetchMock): readonly { role: string; content: string }[] {
+  const call = openRouterCall(fetchMock);
+  const sent: unknown = JSON.parse(String(call?.[1]?.body));
+  if (!isRecord(sent) || !Array.isArray(sent["messages"])) {
+    return [];
+  }
+  const messages: { role: string; content: string }[] = [];
+  for (const item of sent["messages"]) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    const role = item["role"];
+    const content = item["content"];
+    if (typeof role !== "string" || typeof content !== "string") {
+      continue;
+    }
+    messages.push({ role, content });
+  }
+  return messages;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function jevBody(
+  label: (typeof labelNames)[number],
+  labelP: number,
+  channel: (typeof channelNames)[number],
+): unknown {
+  return {
+    answers: {
+      label: choice(label, split(labelNames, label, labelP)),
+      channel: choice(channel, split(channelNames, channel, 0.9)),
+    },
+  };
+}
+
+function choice(selected: string, probabilities: Record<string, number>): unknown {
+  return { type: "choice", choice: selected, probabilities };
+}
+
+function split(
+  options: readonly string[],
+  selected: string,
+  selectedP: number,
+): Record<string, number> {
+  const rest = (1 - selectedP) / (options.length - 1);
+  const probabilities: Record<string, number> = {};
+  for (const option of options) {
+    probabilities[option] = option === selected ? selectedP : rest;
+  }
+  return probabilities;
 }

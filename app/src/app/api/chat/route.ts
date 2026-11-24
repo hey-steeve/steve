@@ -1,3 +1,5 @@
+import type { Handoff, Turn } from "@steve/shared";
+import { classify, triageTurn, type ClassifyResult, type EmergencyCalls } from "@steve/triage";
 import { readCompletion } from "../../../chat/completion";
 import {
   chatRequestLimits,
@@ -7,6 +9,7 @@ import {
   type ChatTurn,
 } from "../../../chat/request";
 import { systemPrompt } from "./system-prompt";
+import { recordTriageLog } from "./triage-log";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const defaultModel = "openai/gpt-6.1-terra";
@@ -45,14 +48,108 @@ export async function POST(request: Request): Promise<Response> {
     const result = mockChatResult(messages);
     return Response.json(result.body, { status: result.status });
   }
-  const result = await completeWithOpenRouter(messages, apiKey, requestedModel());
+  const triage = await triageLive(messages);
+  const result = await completeWithOpenRouter(messages, apiKey, requestedModel(), triage);
   return Response.json(result.body, { status: result.status });
+}
+
+type LiveTriage = {
+  readonly guidance?: string;
+  readonly calls?: EmergencyCalls;
+};
+
+async function triageLive(messages: readonly ChatTurn[]): Promise<LiveTriage> {
+  const jevKey = envString("JEV_API_KEY");
+  if (jevKey === undefined) {
+    recordTriageLog({ cause: "no-triage", reason: "missing-key" });
+    return {};
+  }
+  const jevModel = envString("JEV_MODEL");
+  const decision = await triageTurn({
+    handoff: chatHandoff(messages),
+    classify: async ({ state }) => {
+      try {
+        const result = await classify({
+          state,
+          fetch: fetchWithBearer(jevKey),
+          ...(jevModel === undefined ? {} : { model: jevModel }),
+        });
+        logClosed(result);
+        return result;
+      } catch {
+        recordTriageLog({ cause: "no-triage", reason: "throw" });
+        throw new Error("triage");
+      }
+    },
+  });
+  if (decision.label === "emergency") {
+    return { calls: decision.calls };
+  }
+  if (!("guidance" in decision) || decision.guidance === undefined) {
+    return {};
+  }
+  return { guidance: decision.guidance.text };
+}
+
+function chatHandoff(messages: readonly ChatTurn[]): Handoff<readonly Turn[]> {
+  const sessionId = "chat";
+  const turns: Turn[] = [];
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message === undefined) {
+      continue;
+    }
+    turns.push({
+      sessionId,
+      turnId: `turn-${index}`,
+      channel: "text",
+      text: message.content,
+    });
+  }
+  const current = turns[turns.length - 1];
+  return {
+    sessionId,
+    turnId: current === undefined ? "turn-empty" : current.turnId,
+    target: "triage",
+    intent: "care_request",
+    data: turns,
+  };
+}
+
+function fetchWithBearer(apiKey: string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${apiKey}`);
+    if (init === undefined || init.signal === undefined || init.signal === null) {
+      return fetch(input, { ...init, headers });
+    }
+    return fetch(input, { ...init, headers, signal: init.signal });
+  };
+}
+
+function logClosed(result: ClassifyResult): void {
+  if (result.label !== "need-info") {
+    return;
+  }
+  switch (result.reason) {
+    case "http":
+    case "timeout":
+    case "network":
+    case "malformed":
+      recordTriageLog({ cause: "no-triage", reason: result.reason });
+      return;
+    case "model":
+    case "below-threshold":
+    case "no-channel":
+      return;
+  }
 }
 
 async function completeWithOpenRouter(
   messages: readonly ChatTurn[],
   apiKey: string,
   model: string,
+  triage: LiveTriage,
 ): Promise<ChatHttpResult> {
   try {
     const response = await fetch(openRouterUrl, {
@@ -66,7 +163,7 @@ async function completeWithOpenRouter(
         model,
         max_tokens: maxCompletionTokens,
         reasoning: openRouterReasoning,
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        messages: providerMessages(messages, triage.guidance),
       }),
       signal: AbortSignal.timeout(upstreamTimeoutMs),
     });
@@ -78,17 +175,28 @@ async function completeWithOpenRouter(
     if (completion === null) {
       return { status: 502, body: { error: upstreamError } };
     }
-    return {
-      status: 200,
-      body: {
-        reply: completion.reply,
-        mocked: false,
-        model: completion.model,
-      },
+    const body = {
+      reply: completion.reply,
+      mocked: false,
+      model: completion.model,
     };
+    if (triage.calls === undefined) {
+      return { status: 200, body };
+    }
+    return { status: 200, body: { ...body, calls: triage.calls } };
   } catch {
     return { status: 502, body: { error: upstreamError } };
   }
+}
+
+function providerMessages(messages: readonly ChatTurn[], guidance: string | undefined) {
+  const head: { role: "system"; content: string }[] = [
+    { role: "system", content: systemPrompt },
+  ];
+  if (guidance !== undefined) {
+    head.push({ role: "system", content: guidance });
+  }
+  return [...head, ...messages];
 }
 
 type ChatBodyRead =

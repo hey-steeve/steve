@@ -70,6 +70,72 @@ it("reads a chat reply and rejects any other shape", () => {
   expect(parseChatReply({ error: "non" }).kind).toBe("invalid");
 });
 
+it("keeps emergency calls on a chat reply", () => {
+  expect(
+    parseChatReply({
+      reply: "Bonjour",
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: [
+        { type: "call", number: "3114" },
+        { type: "call", number: "15" },
+      ],
+    }),
+  ).toEqual({
+    kind: "ok",
+    reply: "Bonjour",
+    mocked: false,
+    model: "openai/gpt-6.1-terra",
+    calls: [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ],
+  });
+  expect(
+    parseChatReply({
+      reply: "Bonjour",
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: [{ type: "call", number: "15" }],
+    }),
+  ).toEqual({
+    kind: "ok",
+    reply: "Bonjour",
+    mocked: false,
+    model: "openai/gpt-6.1-terra",
+    calls: [{ type: "call", number: "15" }],
+  });
+  expect(
+    parseChatReply({
+      reply: "Bonjour",
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: [{ type: "call", number: "112" }],
+    }),
+  ).toEqual({
+    kind: "ok",
+    reply: "Bonjour",
+    mocked: false,
+    model: "openai/gpt-6.1-terra",
+  });
+  expect(
+    parseChatReply({
+      reply: "Bonjour",
+      mocked: false,
+      model: "openai/gpt-6.1-terra",
+      calls: [
+        { type: "call", number: "15" },
+        { type: "call", number: "15" },
+      ],
+    }),
+  ).toEqual({
+    kind: "ok",
+    reply: "Bonjour",
+    mocked: false,
+    model: "openai/gpt-6.1-terra",
+  });
+});
+
 it("rejects a history longer than the message cap", () => {
   expect(
     chatHttpResult({
