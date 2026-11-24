@@ -24,7 +24,7 @@ it("keeps a live reply and a canned reply out of the error class", () => {
     classifyRouteResponse(200, {
       reply: "Appelle le 15.",
       mocked: false,
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
     }),
   ).toEqual({
     kind: "reply",

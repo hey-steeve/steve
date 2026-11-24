@@ -150,7 +150,7 @@ it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => 
   });
 });
 
-it("defaults the model to google/gemini-3.8-flash and falls back when OpenRouter omits model", async () => {
+it("defaults the model to openai/gpt-6.1-terra and falls back when OpenRouter omits model", async () => {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
   vi.stubEnv("OPENROUTER_MODEL", "   ");
@@ -167,7 +167,7 @@ it("defaults the model to google/gemini-3.8-flash and falls back when OpenRouter
   expect(JSON.parse(blankText)).toEqual({
     reply: "D'accord.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 
   delete process.env["OPENROUTER_MODEL"];
@@ -177,12 +177,12 @@ it("defaults the model to google/gemini-3.8-flash and falls back when OpenRouter
   expect(JSON.parse(missingText)).toEqual({
     reply: "D'accord.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
   expect(fetchMock.mock.calls).toHaveLength(2);
   for (const call of fetchMock.mock.calls) {
     expect(JSON.parse(String(call[1]?.body))).toMatchObject({
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
       max_tokens: 1024,
     });
   }
@@ -402,7 +402,7 @@ it("caps a live reply at the message cap", async () => {
     "fetch",
     vi.fn<typeof fetch>(async () =>
       Response.json({
-        model: "google/gemini-3.8-flash",
+        model: "openai/gpt-6.1-terra",
         choices: [{ message: { content: `  ${long}  ` } }],
       }),
     ),
@@ -414,7 +414,7 @@ it("caps a live reply at the message cap", async () => {
   expect(payload).toEqual({
     reply: long.slice(0, chatRequestLimits.maxMessageChars),
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 
   const follow = await post({

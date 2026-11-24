@@ -9,7 +9,7 @@ import {
 import { systemPrompt } from "./system-prompt";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
-const defaultModel = "google/gemini-3.8-flash";
+const defaultModel = "openai/gpt-6.1-terra";
 const maxCompletionTokens = 1024;
 const upstreamTimeoutMs = 30_000;
 const openRouterReasoning = {

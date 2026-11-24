@@ -23,7 +23,7 @@ it("asks OpenRouter for low-effort reasoning and excludes it from the reply", as
   delete process.env["OPENROUTER_MODEL"];
   const fetchMock = vi.fn<typeof fetch>(async () =>
     Response.json({
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
       choices: [
         {
           finish_reason: "stop",
@@ -39,14 +39,14 @@ it("asks OpenRouter for low-effort reasoning and excludes it from the reply", as
   expect(await response.json()).toEqual({
     reply: "Une pharmacie de garde.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 
   expect(fetchMock).toHaveBeenCalledTimes(1);
   const init = fetchMock.mock.calls[0]?.[1];
   const sent = JSON.parse(String(init?.body));
   expect(sent).toMatchObject({
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
     max_tokens: 1024,
     reasoning: { effort: "low", exclude: true },
   });
@@ -95,7 +95,7 @@ it("trims a length-capped reply back to the last complete sentence", async () =>
     expect(await response.json()).toEqual({
       reply: item.reply,
       mocked: false,
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
     });
   }
 });
@@ -109,7 +109,7 @@ it("does not treat a line-start list number as a sentence end", async () => {
   expect(await kept.json()).toEqual({
     reply: "Première phrase.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 
   const throughItem = await liveReply({
@@ -120,7 +120,7 @@ it("does not treat a line-start list number as a sentence end", async () => {
   expect(await throughItem.json()).toEqual({
     reply: "Voici les étapes :\n1. Appelle le médecin.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 
   const onlyMarker = await liveReply({
@@ -145,7 +145,7 @@ it("drops a cut-off list item instead of leaving its marker", async () => {
   expect(await response.json()).toEqual({
     reply: ["Voici les étapes.", ...kept].join("\n"),
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -158,7 +158,7 @@ it("keeps 15 when prose follows a list item", async () => {
   expect(await response.json()).toEqual({
     reply: "1. Fait.\nPuis non.\n15.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -171,7 +171,7 @@ it("keeps 3114 when a length cut follows an unfinished list item", async () => {
   expect(await response.json()).toEqual({
     reply: "1. Si tu penses au suicide, appelle le\n3114.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -184,7 +184,7 @@ it("keeps a bare 3114 after a finished list item", async () => {
   expect(await response.json()).toEqual({
     reply: "1. Parlez-en à un proche.\n3114.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -205,7 +205,7 @@ it("keeps an emergency number on a length-capped reply", async () => {
     expect(await response.json()).toEqual({
       reply: item.reply,
       mocked: false,
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
     });
   }
 });
@@ -220,7 +220,7 @@ it("accepts any non-newline whitespace after a list marker", async () => {
     expect(await response.json()).toEqual({
       reply: "Appelez demain.",
       mocked: false,
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
     });
   }
 
@@ -232,7 +232,7 @@ it("accepts any non-newline whitespace after a list marker", async () => {
   expect(await continued.json()).toEqual({
     reply: "1. Fait.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -264,7 +264,7 @@ it("treats an indented number and dot as a sentence end", async () => {
     expect(await response.json()).toEqual({
       reply: item.reply,
       mocked: false,
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
     });
   }
 });
@@ -293,7 +293,7 @@ it("follows a list across a blank line", async () => {
     expect(await response.json()).toEqual({
       reply: item.reply,
       mocked: false,
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
     });
   }
 });
@@ -312,7 +312,7 @@ it("keeps a bare number at the end of a line", async () => {
     expect(await response.json()).toEqual({
       reply: item.reply,
       mocked: false,
-      model: "google/gemini-3.8-flash",
+      model: "openai/gpt-6.1-terra",
     });
   }
 });
@@ -363,7 +363,7 @@ it("returns the upstream error when choices is an object", async () => {
     "fetch",
     vi.fn<typeof fetch>(async () =>
       Response.json({
-        model: "google/gemini-3.8-flash",
+        model: "openai/gpt-6.1-terra",
         choices: {
           0: {
             finish_reason: "stop",
@@ -388,7 +388,7 @@ it("returns the upstream error when the OpenRouter JSON omits choices", async ()
     "fetch",
     vi.fn<typeof fetch>(async () =>
       Response.json({
-        model: "google/gemini-3.8-flash",
+        model: "openai/gpt-6.1-terra",
         error: "secret-fragment",
       }),
     ),
@@ -409,7 +409,7 @@ it("returns a stop reply unchanged, including a trailing fragment", async () => 
   expect(await response.json()).toEqual({
     reply: content,
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -422,7 +422,7 @@ it("trims a length-capped reply at an intro sentence before a list", async () =>
   expect(await incomplete.json()).toEqual({
     reply: "Appelez le médecin.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 
   const completeItem = await liveReply({
@@ -433,7 +433,7 @@ it("trims a length-capped reply at an intro sentence before a list", async () =>
   expect(await completeItem.json()).toEqual({
     reply: "Voici les étapes.\n1. Appelle le médecin.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 
   const tabMarker = await liveReply({
@@ -444,7 +444,7 @@ it("trims a length-capped reply at an intro sentence before a list", async () =>
   expect(await tabMarker.json()).toEqual({
     reply: "Appelez demain.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -457,7 +457,7 @@ it("treats CRLF like LF when trimming a length-capped reply", async () => {
   expect(await kept.json()).toEqual({
     reply: "Appelez demain.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 
   const emergency = await liveReply({
@@ -468,7 +468,7 @@ it("treats CRLF like LF when trimming a length-capped reply", async () => {
   expect(await emergency.json()).toEqual({
     reply: "Appelle le\r\n15.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -480,7 +480,7 @@ it("returns the assistant text when finish_reason is missing", async () => {
   expect(await response.json()).toEqual({
     reply: content,
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -523,7 +523,7 @@ it("returns null when the completion body is not a record", () => {
     true,
   ];
   for (const payload of samples) {
-    expect(readCompletion(payload, "google/gemini-3.8-flash")).toBeNull();
+    expect(readCompletion(payload, "openai/gpt-6.1-terra")).toBeNull();
   }
 });
 
@@ -538,7 +538,7 @@ it("returns null when the first choice is not a record", () => {
     true,
   ];
   for (const first of samples) {
-    expect(readCompletion({ choices: [first] }, "google/gemini-3.8-flash")).toBeNull();
+    expect(readCompletion({ choices: [first] }, "openai/gpt-6.1-terra")).toBeNull();
   }
 });
 
@@ -553,7 +553,7 @@ it("returns null when the choice message is not a record", () => {
   ];
   for (const message of samples) {
     expect(
-      readCompletion({ choices: [{ finish_reason: "stop", message }] }, "google/gemini-3.8-flash"),
+      readCompletion({ choices: [{ finish_reason: "stop", message }] }, "openai/gpt-6.1-terra"),
     ).toBeNull();
   }
 });
@@ -563,7 +563,7 @@ it("returns null when assistant content is not a string", () => {
     expect(
       readCompletion(
         { choices: [{ finish_reason: "stop", message: { content } }] },
-        "google/gemini-3.8-flash",
+        "openai/gpt-6.1-terra",
       ),
     ).toBeNull();
   }
@@ -588,7 +588,7 @@ it("uses the requested model when OpenRouter sends an empty model string", async
   expect(JSON.parse(text)).toEqual({
     reply: "D'accord.",
     mocked: false,
-    model: "google/gemini-3.8-flash",
+    model: "openai/gpt-6.1-terra",
   });
 });
 
@@ -603,7 +603,7 @@ function liveReply(choice: {
     "fetch",
     vi.fn<typeof fetch>(async () =>
       Response.json({
-        model: "google/gemini-3.8-flash",
+        model: "openai/gpt-6.1-terra",
         choices: [
           {
             finish_reason: choice.finish_reason,
