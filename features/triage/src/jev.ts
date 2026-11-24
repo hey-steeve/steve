@@ -119,26 +119,15 @@ function armTimeout(timeoutMs: number): AbortSignal | undefined {
 }
 
 async function readJson(response: Response, signal: AbortSignal): Promise<unknown> {
-  const pending = response.json();
-  try {
-    return await whenNotAborted(pending, signal);
-  } finally {
-    if (signal.aborted) {
-      await cancelBody(response);
-    }
+  if (signal.aborted) {
+    throw signal.reason;
   }
-}
-
-async function cancelBody(response: Response): Promise<void> {
-  try {
-    await response.body?.cancel();
-  } catch {
-    return;
-  }
+  return whenNotAborted(response.json(), signal);
 }
 
 function whenNotAborted<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
+    void pending.catch(() => {});
     return Promise.reject(signal.reason);
   }
   return new Promise((resolve, reject) => {
@@ -258,23 +247,26 @@ function emergencyCalls(
   channel: Exclude<TriageChannel, "none">,
   harm: Harm | undefined,
 ): EmergencyCalls | undefined {
-  if (harm === "yes" && (channel === "psychological" || channel === "both")) {
+  if (channel === "psychological") {
     return [
       { type: "call", number: "3114" },
       { type: "call", number: "15" },
     ];
   }
   if (channel === "both") {
-    if (harm !== "no") {
-      return undefined;
+    if (harm === "yes") {
+      return [
+        { type: "call", number: "3114" },
+        { type: "call", number: "15" },
+      ];
     }
-    return [
-      { type: "call", number: "15" },
-      { type: "call", number: "3114" },
-    ];
-  }
-  if (channel === "psychological") {
-    return [{ type: "call", number: "3114" }];
+    if (harm === "no") {
+      return [
+        { type: "call", number: "15" },
+        { type: "call", number: "3114" },
+      ];
+    }
+    return undefined;
   }
   return [{ type: "call", number: "15" }];
 }
