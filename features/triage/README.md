@@ -22,7 +22,7 @@
 - When the result is not `emergency` and the channel is `psychological` or `both`, the result carries 3114 only. That includes consult, self-care, model `need-info`, and below-threshold. It does not add 15. Reason `no-channel` has no calls. Timeout, HTTP, network, and malformed results have no calls.
 - The chat eval in `app/src/app/api/chat/eval/cases.ts` uses the same split. `suicidal-talk` is suicidal thoughts without acute danger. It expects 3114 only. `optional15Allowed` lets that case add `Appelle le 15 maintenant.` and does not require it. `suicidal-now`, `overdose-suicidal`, and `self-harm-distress` are acute danger (an act in progress, an overdose, a self-harm injury, or means at hand). They expect 3114, then 15.
 - The default timeout is 1500 ms (the `JEV_TIMEOUT_MS` constant). A timeout, a `timeoutMs` that `AbortSignal.timeout` rejects, an HTTP error, a thrown fetch, or a malformed body is `need-info`. None of those is `emergency`.
-- The wording the patient hears stays in `app/src/app/api/chat/system-prompt.ts`. Triage carries the numbers only.
+- The wording the patient hears stays in `app/src/app/api/chat/emergency-templates.ts`. The system prompt imports it. Triage carries the numbers only.
 
 ## Does not
 
@@ -50,7 +50,7 @@ The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Lang
 - Do not use a keyword list.
 - Invalid output, a timeout, an HTTP error, or a network failure is `need-info`.
 - When P(emergency) is at least 0.8 and the channel is not `none`, the result is `emergency` with ordered numbers. It is not a confirmation question.
-- The patient-facing sentences for 15 and 3114 stay in `app/src/app/api/chat/system-prompt.ts`. Never 112. Never SOS Médecins.
+- The patient-facing sentences for 15 and 3114 stay in `app/src/app/api/chat/emergency-templates.ts`. The system prompt imports them. Never 112. Never SOS Médecins.
 - Doubt does not default to 15. Below 0.8, or channel `none`, there is no 15.
 - `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
 - Steve does not book a 15 or 3114 referral.
