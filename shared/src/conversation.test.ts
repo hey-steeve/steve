@@ -46,7 +46,7 @@ it("returns data when a feature result succeeds and omits it when the result fai
   expectTypeOf<Extract<FeatureResult<{ id: string }>, { ok: true }>>().branded.toEqualTypeOf<{
     readonly ok: true;
     readonly reply: string;
-    readonly data: { id: string };
+    readonly data?: { id: string };
   }>();
   expectTypeOf<Extract<FeatureResult<{ id: string }>, { ok: false }>>().branded.toEqualTypeOf<{
     readonly ok: false;
@@ -63,13 +63,47 @@ it("reads feature data only from a successful result", () => {
     reply: "Stored.",
     data: { id: "1" },
   } satisfies FeatureResult<{ id: string }>;
+  const noted = {
+    ok: true,
+    reply: "Noted.",
+  } satisfies FeatureResult<{ id: string }>;
   const failure = {
     ok: false,
     reply: "Not stored.",
   } satisfies FeatureResult<{ id: string }>;
 
+  expectTypeOf<Extract<FeatureResult<{ id: string }>, { ok: true }>["data"]>().toEqualTypeOf<
+    { id: string } | undefined
+  >();
   expect(readData(success)).toEqual({ id: "1" });
+  expect(readData(noted)).toBeUndefined();
   expect(readData(failure)).toBeUndefined();
+});
+
+it("returns a reply and no data when a feature has no payload", () => {
+  const plain = {
+    ok: true,
+    reply: "Done.",
+  } satisfies FeatureResult;
+  const empty = {
+    ok: true,
+    reply: "Done.",
+  } satisfies FeatureResult<undefined>;
+
+  expectTypeOf<Extract<FeatureResult, { ok: true }>>().branded.toEqualTypeOf<{
+    readonly ok: true;
+    readonly reply: string;
+    readonly data?: unknown;
+  }>();
+  expectTypeOf<Extract<FeatureResult<undefined>, { ok: true }>>().branded.toEqualTypeOf<{
+    readonly ok: true;
+    readonly reply: string;
+    readonly data?: undefined;
+  }>();
+  expect(plain).toEqual({ ok: true, reply: "Done." });
+  expect(empty).toEqual({ ok: true, reply: "Done." });
+  expect(readData(plain)).toBeUndefined();
+  expect(readData(empty)).toBeUndefined();
 });
 
 function readData<Data>(result: FeatureResult<Data>): Data | undefined {

@@ -18,7 +18,7 @@ export type FeatureResult<Data = unknown> =
   | {
       readonly ok: true;
       readonly reply: string;
-      readonly data: Data;
+      readonly data?: Data;
     }
   | {
       readonly ok: false;

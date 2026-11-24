@@ -23,7 +23,7 @@ Conversation reads and returns the contracts from `@steve/shared`.
 
 - The input is a `Turn`. `source` is `"voice"` or `"text"`, the members of `turnSources`.
 - The output is a `Handoff<Data>`. `target` and `intent` are strings. `data` is the payload. `Data` defaults to `unknown`.
-- A feature returns a `FeatureResult<Data>`. `reply` is what the patient hears. `data` is present only when `ok` is `true`.
+- A feature returns a `FeatureResult<Data>`. `reply` is what the patient hears. `data` is optional on success. The failure branch has no `data`. A feature with no payload returns `{ ok: true, reply }`.
 
 ## Depends on
 

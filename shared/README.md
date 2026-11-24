@@ -27,7 +27,7 @@ A `Turn` is one patient input. `sessionId` identifies the session. `source` is `
 
 Conversation uses a `Handoff<Data>` to pass a request to a feature. `target` and `intent` are strings. `data` is the payload. `Data` defaults to `unknown`.
 
-A `FeatureResult<Data>` is what the feature returns. `ok: true` includes `reply` and `data`. `ok: false` includes `reply`. `reply` is what the patient hears.
+A `FeatureResult<Data>` is what the feature returns. `ok: true` includes `reply`. `data` is optional on success. `ok: false` includes `reply` and has no `data`. `reply` is what the patient hears. A feature with no payload returns `{ ok: true, reply }`.
 
 The `VoiceProvider` interface, the logger, and the LLM client are still to be defined. Design tokens and the marmot avatar are exported.
 
