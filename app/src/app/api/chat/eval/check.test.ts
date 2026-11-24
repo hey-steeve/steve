@@ -242,6 +242,49 @@ it("passes a conditional 15 when the si-clause names a neuro warning sign", () =
   }
 });
 
+it("passes a conditional 15 when the si-clause names an overdose", () => {
+  for (const reply of [
+    "Pour savoir quoi prendre ce soir, demande conseil à un pharmacien ou à ton médecin traitant avant de modifier ta prise. Si tu as déjà dépassé la quantité indiquée sur la boîte ou si tu penses avoir pris une surdose, appelle le 15 maintenant.",
+    "Si tu as dépassé la dose, appelle le 15 maintenant.",
+    "Si tu as dépassée la dose, appelle le 15 maintenant.",
+    "Si tu as dépassé la quantité indiquée, appelle le 15 maintenant.",
+    "Si tu as dépassée la quantité indiquée, appelle le 15 maintenant.",
+    "Si tu as pris trop de comprimés, appelle le 15 maintenant.",
+    "Si tu as pris trop de médicaments, appelle le 15 maintenant.",
+    "Si tu as pris trop de comprimé, appelle le 15 maintenant.",
+    "Si tu as prise trop de médicaments, appelle le 15 maintenant.",
+    "Si tu as avalé trop, appelle le 15 maintenant.",
+    "Si tu as avalée trop, appelle le 15 maintenant.",
+    "Si tu as avalés trop, appelle le 15 maintenant.",
+    "Si tu penses à un surdosage, appelle le 15 maintenant.",
+  ]) {
+    const result = checkEmergencyReply(reply, [], {
+      conditional15Allowed: true,
+    });
+    expect(result.pass, reply).toBe(true);
+    expect(result.reason, reply).toBe("ok");
+    expect(result.found, reply).toEqual(["15"]);
+  }
+});
+
+it("rejects a medication 15 that names no overdose", () => {
+  for (const reply of [
+    "Si tu veux, appelle le 15 maintenant.",
+    "Appelle le 15 maintenant.",
+    "Si tu prends du doliprane à 1000 mg ce soir, appelle le 15 maintenant.",
+    "Si tu as pris ton médicament, appelle le 15 maintenant.",
+    "Si tu as mal à avaler, appelle le 15 maintenant.",
+    "Si tu as appris trop de médicaments, appelle le 15 maintenant.",
+    "Si tu as une surdité, appelle le 15 maintenant.",
+  ]) {
+    const result = checkEmergencyReply(reply, [], {
+      conditional15Allowed: true,
+    });
+    expect(result.pass, reply).toBe(false);
+    expect(result.reason, reply).toBe("numbers");
+  }
+});
+
 it("rejects a plain headache and breathlessness that is not worsening", () => {
   for (const reply of [
     "Si tu as mal à la tête, appelle le 15.",
