@@ -19,12 +19,15 @@
 
 ## Inputs and outputs
 
-- The input is a voice turn, or a text turn. The contracts are to be defined.
-- The output is a handoff. The contracts are to be defined.
+Conversation reads and returns the contracts from `@steve/shared`.
+
+- The input is a `Turn`. `source` is `"voice"` or `"text"`, the members of `turnSources`.
+- The output is a `Handoff<Data>`. `target` and `intent` are strings. `data` is the payload. `Data` defaults to `unknown`.
+- A feature returns a `FeatureResult<Data>`. `reply` is what the patient hears. `data` is present only when `ok` is `true`.
 
 ## Depends on
 
-`@steve/shared` only. The link with `voice` and with `inbox` goes through shared contracts, to be defined.
+`@steve/shared` only. `Turn`, `Handoff`, and `FeatureResult` are defined there. The link with `voice` and with `inbox` goes through shared contracts that are still to be defined.
 
 ## Rules
 

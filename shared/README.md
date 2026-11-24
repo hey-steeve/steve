@@ -19,7 +19,17 @@
 
 ## Inputs and outputs
 
-Features import `@steve/shared`. The planned contracts are the `VoiceProvider` interface, the logger, the LLM client, and the design tokens. The other names are to be defined.
+Features import `@steve/shared`.
+
+`Turn`, `Handoff`, and `FeatureResult` are the conversation contracts. They live in `shared/src/conversation.ts`.
+
+A `Turn` is one patient input. `sessionId` identifies the session. `source` is `"voice"` or `"text"`. `turnSources` lists those two values. `text` is what the patient said.
+
+Conversation uses a `Handoff<Data>` to pass a request to a feature. `target` and `intent` are strings. `data` is the payload. `Data` defaults to `unknown`.
+
+A `FeatureResult<Data>` is what the feature returns. `ok: true` includes `reply` and `data`. `ok: false` includes `reply`. `reply` is what the patient hears.
+
+The `VoiceProvider` interface, the logger, and the LLM client are still to be defined. Design tokens and the marmot avatar are exported.
 
 ## Depends on
 
@@ -37,7 +47,7 @@ To be defined.
 
 `pnpm --filter @steve/shared test`
 
-The tests are to be defined.
+`shared/src/conversation.test.ts` checks `Turn`, `Handoff`, and `FeatureResult`.
 
 ## Status
 
