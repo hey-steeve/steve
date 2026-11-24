@@ -18,7 +18,7 @@ const needInfoGuidance = {
 
 const consultGuidance = {
   placement: "after-system-prompt",
-  text: "oriente vers le médecin traitant ou une pharmacie de garde",
+  text: "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde",
 } as const satisfies TriageGuidance;
 
 const needInfoCases = [
@@ -40,7 +40,7 @@ function classifyNeedInfo(reason: Exclude<NeedInfoCaseId, "throw">): ClassifyRes
     case "below-threshold":
       return { label: "need-info", reason, probability: 0.42 };
     case "no-channel":
-      return { label: "need-info", reason, probability: 0.2 };
+      return { label: "need-info", reason, probability: 0.85 };
     case "timeout":
     case "network":
     case "http":
@@ -92,9 +92,7 @@ it("accepts a care_request handoff and classifies its current turn text", async 
     },
   });
 
-  expect(handoff.target).toBe("triage");
-  expect(handoff.intent).toBe("care_request");
-  expect(seen).toEqual([currentText]);
+  expect(seen).toEqual([handoff.data.at(-1)?.text]);
   expect(decision).toEqual({ label: "self-care" });
 });
 
@@ -206,8 +204,13 @@ it("maps consult to one guidance line after the system prompt", async () => {
   if (decision.label !== "consult") {
     return;
   }
-  expect(decision.guidance.text).toContain("le médecin traitant ou une pharmacie de garde");
-  expect(decision.guidance.text).not.toContain("téléconsultation");
+  const guidanceText = decision.guidance.text;
+  const nightOrWeekendAt = guidanceText.indexOf("la nuit ou le week-end");
+  const pharmacyAt = guidanceText.indexOf("pharmacie de garde");
+  expect(nightOrWeekendAt).toBeGreaterThanOrEqual(0);
+  expect(pharmacyAt).toBeGreaterThan(nightOrWeekendAt);
+  expect(guidanceText).toContain("le médecin traitant ou une pharmacie de garde");
+  expect(guidanceText).not.toContain("téléconsultation");
   expect(decision.guidance.text).not.toContain("15");
   expect(decision.guidance.text).not.toContain("3114");
   expect(decision.guidance.placement).toBe("after-system-prompt");
@@ -370,6 +373,80 @@ it("returns need-info with no guidance and does not classify when data is empty"
   expect(decision).not.toHaveProperty("guidance");
   expect(decision).not.toHaveProperty("calls");
 });
+
+it("fail-closes an unexpected classify result to need-info with no guidance", async () => {
+  function isForgedClassifyResult(value: unknown): value is ClassifyResult {
+    return typeof value === "object" && value !== null;
+  }
+
+  const forged = [{ label: "unknown" }, { label: "need-info", reason: "unknown" }] as const;
+  const decisions: TriageDecision[] = [];
+  for (const result of forged) {
+    if (!isForgedClassifyResult(result)) {
+      throw new Error("forged classify result");
+    }
+    decisions.push(
+      await triageTurn({
+        handoff: careHandoff(currentText),
+        classify: async () => result,
+      }),
+    );
+  }
+
+  expect(decisions).toEqual([{ label: "need-info" }, { label: "need-info" }]);
+  for (const decision of decisions) {
+    expect(decision).not.toHaveProperty("guidance");
+    expect(decision).not.toHaveProperty("calls");
+    expect(decision).not.toHaveProperty("reason");
+  }
+});
+
+it.each([
+  {
+    id: "turnId",
+    sessionId: "session-demo-1",
+    turnId: "turn-other",
+  },
+  {
+    id: "sessionId",
+    sessionId: "session-other",
+    turnId: "turn-demo-1",
+  },
+] as const)(
+  "returns need-info with no guidance and does not classify when only the $id mismatches",
+  async ({ sessionId, turnId }) => {
+    let called = false;
+    const decision = await triageTurn({
+      handoff: {
+        sessionId: "session-demo-1",
+        turnId: "turn-demo-1",
+        target: "triage",
+        intent: "care_request",
+        data: [
+          {
+            sessionId,
+            turnId,
+            channel: "text",
+            text: currentText,
+          },
+        ],
+      } satisfies Handoff<readonly Turn[]>,
+      classify: async () => {
+        called = true;
+        return {
+          label: "emergency",
+          probability: 0.99,
+          calls: [{ type: "call", number: "15" }],
+        } satisfies ClassifyResult;
+      },
+    });
+
+    expect(called).toBe(false);
+    expect(decision).toEqual({ label: "need-info" });
+    expect(decision).not.toHaveProperty("guidance");
+    expect(decision).not.toHaveProperty("calls");
+  },
+);
 
 it("returns need-info with no guidance and does not classify when the last turn does not match the handoff", async () => {
   let called = false;

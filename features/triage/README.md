@@ -66,7 +66,7 @@ The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Lang
 
 Emergency copies `calls` in the order `ClassifyResult` gives. Consult, self-care, and genuine need-info copy `calls` when that result has them. Those decisions omit `calls` when the result has none.
 
-Consult guidance is `oriente vers le médecin traitant ou une pharmacie de garde`. Genuine need-info guidance is `pose une seule question courte`. Both use `placement: "after-system-prompt"`. Self-care has no guidance. Guidance does not restrict 15 or 3114.
+Consult guidance is `la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde`. Genuine need-info guidance is `pose une seule question courte`. Both use `placement: "after-system-prompt"`. Self-care has no guidance. Guidance does not restrict 15 or 3114.
 
 `triageTurn` returns need-info with no guidance and no calls, and does not call `classify`, when `data` is empty or the last turn's `sessionId` or `turnId` does not match the handoff. A thrown `classify`, and reasons `timeout`, `network`, `http`, and `malformed`, take that same path. Reasons `model`, `below-threshold`, and `no-channel` keep guidance. `no-channel` has no calls. This path is never emergency.
 
@@ -80,4 +80,4 @@ The classifier is the same. Langfuse evaluation is not in this repo yet. The tri
 
 ## Status
 
-The Jev client and its unit tests are in this package. The chat route does not call `classify` yet. `triageTurn` reads a shared `Handoff` whose `data` is a `Turn` list. When Jev fails, or the handoff has no matching current turn, the result is need-info with no guidance. Genuine need-info keeps one short question. Consult guidance names the médecin traitant or a pharmacie de garde.
+The Jev client and its unit tests are in this package. The chat route does not call `classify` yet. `triageTurn` reads a shared `Handoff` whose `data` is a `Turn` list. When Jev fails, or the handoff has no matching current turn, the result is need-info with no guidance. Genuine need-info keeps one short question. Consult guidance names the médecin traitant or a pharmacie de garde la nuit ou le week-end.

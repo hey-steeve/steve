@@ -56,32 +56,35 @@ export async function classify(input: ClassifyInput): Promise<ClassifyResult> {
   }
   let response: Response;
   try {
-    response = await input.fetch(JEV_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        model,
-        state: input.state,
-        questions: {
-          label: {
-            type: "choice",
-            instructions: "Which care orientation fits this conversation? Pick exactly one label.",
-            criteria: labelCriteria,
+    response = await whenNotAborted(
+      input.fetch(JEV_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model,
+          state: input.state,
+          questions: {
+            label: {
+              type: "choice",
+              instructions: "Which care orientation fits this conversation? Pick exactly one label.",
+              criteria: labelCriteria,
+            },
+            channel: {
+              type: "choice",
+              instructions: "Which emergency service channel applies? Pick exactly one.",
+              criteria: channelCriteria,
+            },
+            overdoseOrSelfHarm: {
+              type: "choice",
+              instructions: "Is overdose or self-harm present? Pick exactly one.",
+              criteria: harmCriteria,
+            },
           },
-          channel: {
-            type: "choice",
-            instructions: "Which emergency service channel applies? Pick exactly one.",
-            criteria: channelCriteria,
-          },
-          overdoseOrSelfHarm: {
-            type: "choice",
-            instructions: "Is overdose or self-harm present? Pick exactly one.",
-            criteria: harmCriteria,
-          },
-        },
+        }),
+        signal,
       }),
       signal,
-    });
+    );
   } catch (error: unknown) {
     if (signal.aborted || isTimeoutError(error)) {
       return { label: "need-info", reason: "timeout" };

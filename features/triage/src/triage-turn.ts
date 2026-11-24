@@ -48,7 +48,7 @@ const needInfoGuidance = {
 
 const consultGuidance = {
   placement: "after-system-prompt",
-  text: "oriente vers le médecin traitant ou une pharmacie de garde",
+  text: "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde",
 } as const satisfies TriageGuidance;
 
 function noTriage(): { readonly label: "need-info" } {
@@ -115,12 +115,14 @@ export async function triageTurn(input: TriageTurnRequest): Promise<TriageDecisi
           );
         default: {
           const unreachableReason: never = result;
-          return unreachableReason;
+          void unreachableReason;
+          return noTriage();
         }
       }
     default: {
       const unreachable: never = result;
-      return unreachable;
+      void unreachable;
+      return noTriage();
     }
   }
 }
