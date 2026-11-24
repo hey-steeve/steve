@@ -114,6 +114,14 @@ const warningSigns: readonly RegExp[] = [
   warningTerm(String.raw`essouffl\w*(?:\s+\S+){0,3}\s+ne\s+cede\s+pas`),
   warningTerm(String.raw`essouffl\w*(?:\s+(?!ne\b)\S+){0,3}\s+persist\w*`),
   warningTerm(String.raw`essouffl\w*(?:\s+(?!ne\b)\S+){0,3}\s+s'aggrav\w*`),
+  warningTerm(String.raw`surdos\w*`),
+  warningTerm(
+    String.raw`depass\w*\s+la\s+(?:dose|quantite\s+indique\w*)`,
+  ),
+  warningTerm(
+    String.raw`pris(?:es?)?\s+trop\s+de\s+(?:comprime\w*|medicament\w*)`,
+  ),
+  warningTerm(String.raw`avale(?:e|es|s)?\s+trop`),
 ];
 
 export function checkEmergencyReply(
