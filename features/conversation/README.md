@@ -19,12 +19,15 @@
 
 ## Inputs and outputs
 
-- The input is a voice turn, or a text turn. The contracts are to be defined.
-- The output is a handoff. The contracts are to be defined.
+These are the planned inputs and outputs. `@steve/shared` defines them. This package does not read them yet.
+
+- The planned input is a `Turn`. `turnId` identifies the turn. `channel` is `"voice"` or `"text"`. Those two values are the members of `turnChannels`. `TurnChannel` is that union.
+- The planned output is a `Handoff<Data>`. `sessionId` identifies the session. `turnId` identifies the turn. `target` and `intent` are strings. `data` is the payload. `Data` defaults to `unknown`.
+- A feature returns a `FeatureResult<Data>`. `reply` is what the patient hears. `data` is optional on success. The failure branch has no `data`. A feature with no payload returns `{ ok: true, reply }`.
 
 ## Depends on
 
-`@steve/shared` only. The link with `voice` and with `inbox` goes through shared contracts, to be defined.
+The planned dependency is `@steve/shared` only. `Turn`, `Handoff`, and `FeatureResult` are defined there. This package does not depend on `@steve/shared` yet. The link with `voice` and with `inbox` goes through shared contracts that are still to be defined.
 
 ## Rules
 
