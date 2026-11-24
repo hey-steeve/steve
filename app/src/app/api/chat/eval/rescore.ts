@@ -170,7 +170,7 @@ export function rescoreSavedRun(text: string): RescoreReport {
     } else {
       failed += 1;
     }
-    lines.push(formatScoreLine(entry.id, result, entry.truncated));
+    lines.push(formatScoreLine(entry.id, result));
     lines.push(entry.reply);
     lines.push("");
   }
@@ -192,14 +192,9 @@ function formatErrorLine(id: string, detail: string): string {
   return `${id} ERROR ${detail}`;
 }
 
-function formatScoreLine(
-  id: string,
-  result: EmergencyCheck,
-  truncated: boolean,
-): string {
+function formatScoreLine(id: string, result: EmergencyCheck): string {
   const mark = result.pass ? "PASS" : "FAIL";
-  const tail = truncated ? " TRUNCATED" : "";
-  return `${id} ${mark} expected=[${result.expected.join(",")}] found=[${result.found.join(",")}] ${result.reason}${tail}`;
+  return `${id} ${mark} expected=[${result.expected.join(",")}] found=[${result.found.join(",")}] ${result.reason}`;
 }
 
 function isCliEntry(): boolean {
