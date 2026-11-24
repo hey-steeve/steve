@@ -7,19 +7,20 @@
 ## Does
 
 - `classify` posts one TypeSafe System One request to `https://api.typesafe.ai/v1/systemone` for model `jev-1.14.0`. The caller injects `fetch`. `classify` does not read `JEV_API_KEY` and does not send an `Authorization` header.
+- The injected fetch adds `Authorization: Bearer JEV_API_KEY` and must forward `init.signal`.
 - The questions are `label`, `channel`, and `overdoseOrSelfHarm`. `channel` is `physical`, `psychological`, `both`, or `none`. `overdoseOrSelfHarm` is `yes` or `no`.
 - Hand-written guards check the response. This package does not use Zod.
 - P(emergency) is applied first. When it is at least 0.8 and the channel is not `none`, the result is `emergency` with ordered call data. That result is not a confirmation question.
 - When P(emergency) is at least 0.8 and the channel is `none`, the result is `need-info` with reason `no-channel` and no calls.
 - When the chosen label is `emergency` and P(emergency) is below 0.8, the result is `need-info` with reason `below-threshold`.
-- An emergency result orders the numbers from the channel and the overdose answer.
-  - Overdose or self-harm with distress uses 3114, then 15. The channel is `both` or `psychological`, and `overdoseOrSelfHarm` is `yes`.
-  - A physical red flag with distress, and no overdose or self-harm, uses 15, then 3114. The channel is `both`, and `overdoseOrSelfHarm` is `no`.
-  - Psychological only uses 3114. The channel is `psychological`, and the overdose answer is absent or `no`.
-  - Any other emergency uses 15. The channel is `physical`. A `yes` answer does not change a `physical` channel.
+- An emergency result orders the numbers from the channel. `overdoseOrSelfHarm` is required only to tell the two `both` orders apart. It is not used for a psychological emergency, and it is not used for `physical`.
+  - A psychological emergency uses 3114, then 15. The 0.8 gate passed and the channel is `psychological`. That case is treated as immediate danger, whether the overdose answer is absent, `yes`, or `no`.
+  - Channel `both` with `overdoseOrSelfHarm` `yes` uses 3114, then 15.
+  - Channel `both` with `overdoseOrSelfHarm` `no` uses 15, then 3114.
+  - A physical emergency uses 15. A `yes` on `overdoseOrSelfHarm` does not change a `physical` channel.
 - Channel `both` on an emergency result, with the overdose answer missing, is `need-info` with reason `malformed`. `classify` does not guess the order.
-- When the result is not `emergency` and the channel is `psychological` or `both`, the result carries 3114. That includes consult, self-care, model `need-info`, and below-threshold. Reason `no-channel` has no calls. Timeout, HTTP, network, and malformed results have no calls.
-- The default timeout is 1500 ms (`JEV_TIMEOUT_MS`). A timeout, a `timeoutMs` that `AbortSignal.timeout` rejects, an HTTP error, a thrown fetch, or a malformed body is `need-info`. None of those is `emergency`.
+- When the result is not `emergency` and the channel is `psychological` or `both`, the result carries 3114 only. That includes consult, self-care, model `need-info`, and below-threshold. It does not add 15. Reason `no-channel` has no calls. Timeout, HTTP, network, and malformed results have no calls.
+- The default timeout is 1500 ms (the `JEV_TIMEOUT_MS` constant). A timeout, a `timeoutMs` that `AbortSignal.timeout` rejects, an HTTP error, a thrown fetch, or a malformed body is `need-info`. None of those is `emergency`.
 - The wording the patient hears stays in `app/src/app/api/chat/system-prompt.ts`. Triage carries the numbers only.
 
 ## Does not

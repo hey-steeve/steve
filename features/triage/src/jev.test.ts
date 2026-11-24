@@ -34,7 +34,7 @@ it("types an emergency result as call actions and keeps failures off 15 and 3114
   expectTypeOf<Extract<ClassifyResult, { label: "emergency" }>>().branded.toEqualTypeOf<{
     readonly label: "emergency";
     readonly probability: number;
-    readonly     calls:
+    readonly calls:
       | readonly [{ readonly type: "call"; readonly number: "15" }]
       | readonly [{ readonly type: "call"; readonly number: "3114" }]
       | readonly [
@@ -181,6 +181,14 @@ it("maps emergency channels to ordered 15 and 3114 calls", async () => {
     timeoutMs: 50,
     fetch: async () => Response.json(bodyFor("emergency", 0.88, "psychological")),
   });
+  const psychologicalNo = await classify({
+    state: demoState,
+    timeoutMs: 50,
+    fetch: async () =>
+      Response.json(
+        bodyFor("emergency", 0.85, "psychological", 0.2, { overdoseOrSelfHarm: "no" }),
+      ),
+  });
   const physicalOverdose = await classify({
     state: demoState,
     timeoutMs: 50,
@@ -221,7 +229,18 @@ it("maps emergency channels to ordered 15 and 3114 calls", async () => {
   expect(psychological).toEqual({
     label: "emergency",
     probability: 0.88,
-    calls: [{ type: "call", number: "3114" }],
+    calls: [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ],
+  });
+  expect(psychologicalNo).toEqual({
+    label: "emergency",
+    probability: 0.85,
+    calls: [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ],
   });
   expect(distressOverdose).toEqual({
     label: "emergency",
@@ -536,6 +555,51 @@ it("maps a body that stalls after the headers to a timeout", async () => {
   expect(result).toEqual({ label: "need-info", reason: "timeout" });
 }, 1000);
 
+it("maps a body that rejects after the timeout to need-info when fetch ignores the signal", async () => {
+  const rejections: unknown[] = [];
+  const onUnhandled = (reason: unknown) => {
+    rejections.push(reason);
+  };
+  process.on("unhandledRejection", onUnhandled);
+  let releaseBody: () => void = () => undefined;
+  const bodyRejected = new Promise<void>((resolve) => {
+    releaseBody = resolve;
+  });
+  let sawResult = false;
+  let bodyFailedAfterResult = false;
+  try {
+    const timeoutMs = 30;
+    const result = await classify({
+      state: demoState,
+      timeoutMs,
+      fetch: () =>
+        wait(timeoutMs + 25).then(
+          () =>
+            new Response(
+              new ReadableStream({
+                start(controller) {
+                  setTimeout(() => {
+                    bodyFailedAfterResult = sawResult;
+                    controller.error(new Error("body failed after abort"));
+                    releaseBody();
+                  }, 25);
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            ),
+        ),
+    });
+    sawResult = true;
+    await bodyRejected;
+    await wait(50);
+    expect(bodyFailedAfterResult).toBe(true);
+    expect(result).toEqual({ label: "need-info", reason: "timeout" });
+    expect(rejections).toEqual([]);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+}, 1000);
+
 it("fail-closes when timeoutMs cannot be armed", async () => {
   for (const timeoutMs of [Number.NaN, -1, Number.MAX_SAFE_INTEGER, 2 ** 53]) {
     let called = false;
@@ -686,6 +750,12 @@ function split(
     probabilities[option] = option === selected ? selectedP : rest;
   }
   return probabilities;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function hangUntilAbort(signal: AbortSignal | null | undefined): Promise<Response> {
