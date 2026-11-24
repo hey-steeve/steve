@@ -80,23 +80,25 @@ Do not rebase.
 
 From your branch, run `git fetch origin` and then `git merge origin/main`. Keep the merge commit.
 
-Roman is the reviewer agent.
+Roman is the reviewer agent. Capri is the agent that merges.
 
-Spidey merges. Spidey's coding agent never merges.
+Capri merges once Roman approves the exact head commit and CI is green. Spidey's coding agent never merges.
 
-A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Spidey merges it only after every condition below is met.
+A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Capri merges it only after every condition below is met.
 
 - Roman approves the exact head commit.
 - The `verify` check is green on that commit.
 - The `app-shared-boundary` check is green on that commit.
 - Spidey gives a local OK on the playground.
 
-A contributor pull request is any pull request that @spideystreet does not author. Spidey merges it only after every condition below is met.
+A contributor pull request is any pull request that @spideystreet does not author. Capri merges it only after every condition below is met.
 
 - Roman approves the exact head commit.
 - @spideystreet gives the CODEOWNERS review, and `.github/CODEOWNERS` names @spideystreet. Roman's approval adds to the CODEOWNERS review and does not replace it.
 - The `verify` check is green on that commit.
 - The `app-shared-boundary` check is green on that commit.
+
+Require a screenshot only when the change touches the UI. Otherwise, paste test output or command output that shows pass or fail.
 
 ## Stack
 
