@@ -17,7 +17,7 @@ If the route returns the canned reply, the command says that live mode is not ac
 
 A route error is `ERROR`. `PASS` and `FAIL` are only for a reply the checker scored. If the first case is `ERROR`, the command prints `Stopped after the first case. The route returned an error, so this run did not score the model.` It does not score the remaining cases.
 
-Each scored case prints one status line, then the full reply on one line. An error prints `ERROR` and the route message. The last line of a scored run is `passed P/N, failed F, errors E`. The command exits with status 1 when the failed count is greater than zero, when the error count is greater than zero, or when the run did not score.
+Each scored case prints one status line, then the reply as one JSON string. The JSON string keeps every newline from the reply. The checker treats each newline as the end of a sentence. An error prints `ERROR` and the route message. The last line of a scored run is `passed P/N, failed F, errors E`. The command exits with status 1 when the failed count is greater than zero, when the error count is greater than zero, or when the run did not score.
 
 ## Re-score a saved run
 
@@ -29,6 +29,6 @@ node --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/resco
 
 `pnpm eval:rescore -- saved.txt` is that command. From the repo root, run `pnpm --filter @steve/app eval:rescore -- saved.txt`.
 
-The command does not call the model. It scores each saved reply with the current checker and the current case flags. It prints the same status lines and the same summary.
+The command does not call the model. It scores each saved reply with the current checker and the current case flags. It decodes a JSON reply before scoring. A saved line that does not start with a quote is scored as stored. It prints the same status lines, the saved reply line unchanged, and the same summary.
 
 The old runner cut a reply at 400 characters and ended that line with `…`. Rescore scores that visible text. It adds `TRUNCATED` on the status line. A shorter reply that ends with `…` is not a cut.

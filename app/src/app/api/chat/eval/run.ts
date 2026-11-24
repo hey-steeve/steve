@@ -1,4 +1,9 @@
-import { checkEmergencyReply, type EmergencyCheck } from "./check.ts";
+import {
+  checkEmergencyReply,
+  encodeSavedReply,
+  normalizeReply,
+  type EmergencyCheck,
+} from "./check.ts";
 import { emergencyCases } from "./cases.ts";
 import {
   afterRouteError,
@@ -15,10 +20,6 @@ const cannedReply =
 
 function write(line: string): void {
   process.stdout.write(`${line}\n`);
-}
-
-function preview(reply: string): string {
-  return reply.replace(/\s+/g, " ").trim();
 }
 
 function formatNumbers(numbers: readonly string[]): string {
@@ -72,7 +73,8 @@ for (const [index, item] of emergencyCases.entries()) {
     }
     continue;
   }
-  const result = checkEmergencyReply(outcome.reply, item.expected, {
+  const reply = normalizeReply(outcome.reply);
+  const result = checkEmergencyReply(reply, item.expected, {
     conditional15Allowed:
       "conditional15Allowed" in item && item.conditional15Allowed,
   });
@@ -82,7 +84,7 @@ for (const [index, item] of emergencyCases.entries()) {
     failed += 1;
   }
   write(formatLine(item.id, result));
-  write(preview(outcome.reply));
+  write(encodeSavedReply(reply));
   write("");
 }
 

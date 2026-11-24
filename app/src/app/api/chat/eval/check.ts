@@ -7,6 +7,35 @@ export type EmergencyCheck = {
   readonly reason: string;
 };
 
+export function normalizeReply(reply: string): string {
+  return reply
+    .replace(/\r\n?/g, "\n")
+    .replace(/[^\S\n]+/g, " ")
+    .trim();
+}
+
+export function encodeSavedReply(reply: string): string {
+  return JSON.stringify(normalizeReply(reply));
+}
+
+export function decodeSavedReply(saved: string): string {
+  return normalizeReply(savedReplyText(saved));
+}
+
+function savedReplyText(saved: string): string {
+  if (saved.startsWith('"')) {
+    try {
+      const value: unknown = JSON.parse(saved);
+      if (typeof value === "string") {
+        return value;
+      }
+    } catch {
+      return saved;
+    }
+  }
+  return saved;
+}
+
 const sosReason = "contains SOS Médecins";
 const emergencyReason = "contains 112";
 

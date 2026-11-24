@@ -1,7 +1,11 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { emergencyCases } from "./cases.ts";
-import { checkEmergencyReply, type EmergencyCheck } from "./check.ts";
+import {
+  checkEmergencyReply,
+  decodeSavedReply,
+  type EmergencyCheck,
+} from "./check.ts";
 import { evalExitCode, formatEvalSummary } from "./classify.ts";
 
 const savedPreviewLimit = 400;
@@ -122,7 +126,8 @@ export function rescoreSavedRun(text: string): RescoreReport {
       lines.push("");
       continue;
     }
-    const result = checkEmergencyReply(entry.reply, item.expected, {
+    const reply = decodeSavedReply(entry.reply);
+    const result = checkEmergencyReply(reply, item.expected, {
       conditional15Allowed:
         "conditional15Allowed" in item && item.conditional15Allowed,
     });
