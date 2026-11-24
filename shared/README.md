@@ -33,7 +33,7 @@ The `VoiceProvider` interface, the logger, and the LLM client are still to be de
 
 ## Glossary
 
-`shared/src/conversation.ts` defines the first six names. The file does not define `evidence`.
+`shared/src/conversation.ts` defines these names.
 
 - `Turn`. One patient input. Its fields are `sessionId`, `turnId`, `channel`, and `text`.
 - `sessionId`. The id of one session.
@@ -41,7 +41,6 @@ The `VoiceProvider` interface, the logger, and the LLM client are still to be de
 - `channel`. `"voice"` or `"text"`.
 - `Handoff`. A request a conversation passes to a feature. Its fields are `sessionId`, `turnId`, `target`, `intent`, and `data`. `Data` defaults to `unknown`.
 - `FeatureResult`. The value a feature returns. Success has `ok` true, a `reply`, and optional `data`. Failure has `ok` false and a `reply`.
-- `evidence`. The emergency numbers a scored reply contains. No file in the repo defines the word. Those numbers are the `found` field in `app/src/app/api/chat/eval/check.ts`. `AGENTS.md` and `features/triage/README.md` name that check.
 
 ## Depends on
 

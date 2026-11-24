@@ -16,7 +16,7 @@ Ten features. The detail is in each README. The common contracts are in the [sha
 ## Rules
 
 - Never diagnose.
-- Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts` and checked by `app/src/app/api/chat/eval/`.
+- Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`.
 - `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
 - Steve does not book a 15 or 3114 referral.
 - Nothing enters the agenda without confirmation from the practice.

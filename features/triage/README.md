@@ -11,7 +11,6 @@
 - Zod validates the output.
 - If the output is invalid, or the time limit is exceeded, the result is `watch`, with a confirmation question.
 - A possible 15 or 3114 case leads to a confirmation question.
-- Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts` and checked by `app/src/app/api/chat/eval/`.
 - Orients toward a practitioner type and a delay.
 - Evaluations cover 50 to 100 tricky cases. Example: "mon père a fait un AVC il y a 5 ans".
 - No missed emergency is accepted.
@@ -41,7 +40,7 @@
 - No keyword list.
 - If the output is invalid, or the time limit is exceeded, the result is `watch`, then a confirmation question.
 - A possible 15 or 3114 case leads to a confirmation question.
-- Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts` and checked by `app/src/app/api/chat/eval/`.
+- Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`.
 - `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
 - Steve does not book a 15 or 3114 referral.
 

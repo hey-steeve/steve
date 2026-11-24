@@ -1,6 +1,6 @@
 # Steve
 
-Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts` and checked by `app/src/app/api/chat/eval/`.
+Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`.
 
 The project is Alan AI Health Hack #2 on 28 Nov 2026.
 
