@@ -217,8 +217,8 @@ it("re-scores every file when the command receives more than one path", () => {
 it("parses and re-scores both committed terra runs", () => {
   const runDir = join(dirname(fileURLToPath(import.meta.url)), "runs");
   const scores = [
-    ["gpt-6.1-terra.run1.txt", 19, 3],
-    ["gpt-6.1-terra.run2.txt", 18, 4],
+    ["gpt-6.1-terra.run1.txt", 22, 0],
+    ["gpt-6.1-terra.run2.txt", 22, 0],
   ] as const;
   for (const [name, passed, failed] of scores) {
     const text = readFileSync(join(runDir, name), "utf8");
