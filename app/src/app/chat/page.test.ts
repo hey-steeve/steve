@@ -424,7 +424,7 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
   );
   const captured: Array<{
     node: HTMLElement;
-    listener: (event: AnimationEvent) => void;
+    listener: (event: Event) => void;
   }> = [];
   const original = HTMLElement.prototype.addEventListener;
   const spy = vi
@@ -441,7 +441,7 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
       if (type === "animationend" && typeof listener === "function") {
         captured.push({
           node: this,
-          listener: listener as (event: AnimationEvent) => void,
+          listener,
         });
       }
       if (options === undefined) {
@@ -466,11 +466,15 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
     if (homeLeave === undefined) {
       throw new Error("missing animationend listener");
     }
+    const event = new AnimationEvent("animationend", {
+      animationName: "chat-home-out",
+    });
+    Object.defineProperty(event, "target", {
+      configurable: true,
+      value: homeLeave.node,
+    });
     await act(async () => {
-      homeLeave.listener.call(homeLeave.node, {
-        target: homeLeave.node,
-        animationName: "chat-home-out",
-      } as unknown as AnimationEvent);
+      homeLeave.listener.call(homeLeave.node, event);
     });
     expect(view.container.querySelector(".chat-greeting")).toBeNull();
     expect(view.container.querySelector(".chat-hero")).not.toBeNull();
@@ -999,14 +1003,14 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
       }),
     ),
   );
-  const listeners = new Map<string, Array<() => void>>();
+  const listeners = new Map<string, EventListener[]>();
   const viewport = {
     height: 844,
     offsetTop: 0,
     scale: 1,
     addEventListener(type: string, listener: EventListener) {
       const current = listeners.get(type) ?? [];
-      current.push(listener as () => void);
+      current.push(listener);
       listeners.set(type, current);
     },
     removeEventListener(type: string, listener: EventListener) {
@@ -1064,10 +1068,10 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
     page.style.transform = "translateY(12px)";
     await act(async () => {
       for (const listener of listeners.get("resize") ?? []) {
-        listener();
+        listener(new Event("resize"));
       }
       for (const listener of listeners.get("scroll") ?? []) {
-        listener();
+        listener(new Event("scroll"));
       }
     });
     await flushFrame();
@@ -1548,11 +1552,15 @@ it("keeps the scroll position and shows a new-message pill when a reply arrives 
 it("scrolls smoothly to the bottom and hides the pill when the new-message pill is tapped", async () => {
   const session = await pendingThread();
   const requested: ScrollToOptions[] = [];
-  session.thread.scrollTo = ((options?: ScrollToOptions | number) => {
+  function scrollTo(options?: ScrollToOptions): void;
+  function scrollTo(x: number, y: number): void;
+  function scrollTo(options?: ScrollToOptions | number, y?: number): void {
     if (typeof options === "object" && options !== null) {
       requested.push(options);
     }
-  }) as typeof session.thread.scrollTo;
+    void y;
+  }
+  session.thread.scrollTo = scrollTo;
   try {
     session.scrolled.top = 0;
     session.thread.dispatchEvent(new Event("scroll"));
@@ -1627,16 +1635,21 @@ it("scrolls instantly when the new-message pill is tapped with reduced motion", 
   const session = await pendingThread();
   const motions: Array<ScrollBehavior | undefined> = [];
   const restoreMotion = stubReducedMotion(true);
-  session.thread.scrollTo = ((options?: ScrollToOptions | number, y?: number) => {
-    const behavior = typeof options === "object" && options !== null ? options.behavior : "auto";
+  function scrollTo(options?: ScrollToOptions): void;
+  function scrollTo(x: number, y: number): void;
+  function scrollTo(options?: ScrollToOptions | number, y?: number): void {
+    const behavior =
+      typeof options === "object" && options !== null ? options.behavior : "auto";
     motions.push(behavior);
     if (behavior === "smooth") {
       return;
     }
-    const top = typeof options === "object" && options !== null ? (options.top ?? 0) : (y ?? 0);
+    const top =
+      typeof options === "object" && options !== null ? (options.top ?? 0) : (y ?? 0);
     session.scrolled.top = top;
     session.thread.dispatchEvent(new Event("scroll"));
-  }) as typeof session.thread.scrollTo;
+  }
+  session.thread.scrollTo = scrollTo;
   try {
     session.scrolled.top = 0;
     session.thread.dispatchEvent(new Event("scroll"));
@@ -1900,21 +1913,17 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
 const threadLength = 2000;
 
 function stubReducedMotion(matches = true): () => void {
-  const spy = vi.spyOn(window, "matchMedia").mockImplementation(
-    (query: string) =>
-      ({
-        matches: matches && query === "(prefers-reduced-motion: reduce)",
-        media: query,
-        onchange: null,
-        addListener() {},
-        removeListener() {},
-        addEventListener() {},
-        removeEventListener() {},
-        dispatchEvent() {
-          return false;
-        },
-      }) as MediaQueryList,
-  );
+  const original = window.matchMedia.bind(window);
+  const spy = vi.spyOn(window, "matchMedia").mockImplementation((query: string) => {
+    const list = original(query);
+    Object.defineProperty(list, "matches", {
+      configurable: true,
+      get() {
+        return matches && query === "(prefers-reduced-motion: reduce)";
+      },
+    });
+    return list;
+  });
   return () => {
     spy.mockRestore();
   };
@@ -2107,14 +2116,14 @@ function installViewport(initial: {
   innerHeight: number;
   scale?: number;
 }): ViewportStub {
-  const listeners = new Map<string, Array<() => void>>();
+  const listeners = new Map<string, EventListener[]>();
   const viewport = {
     height: initial.height,
     offsetTop: initial.offsetTop,
     scale: initial.scale ?? 1,
     addEventListener(type: string, listener: EventListener) {
       const current = listeners.get(type) ?? [];
-      current.push(listener as () => void);
+      current.push(listener);
       listeners.set(type, current);
     },
     removeEventListener(type: string, listener: EventListener) {
@@ -2159,8 +2168,9 @@ function installViewport(initial: {
       innerHeight = value;
     },
     fire(type: string) {
+      const event = new Event(type);
       for (const listener of [...(listeners.get(type) ?? [])]) {
-        listener();
+        listener(event);
       }
     },
     restore() {

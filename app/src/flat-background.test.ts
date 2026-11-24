@@ -106,10 +106,9 @@ function iconUrls(): string[] {
   }
   urls.push(...listedUrls(metadata.openGraph?.images));
   urls.push(...listedUrls(metadata.twitter?.images));
-  const manifest = JSON.parse(
-    readFileSync(path.join(repoRoot, "shared/assets/brand/site.webmanifest"), "utf8"),
-  ) as { icons: { src: string }[] };
-  for (const icon of manifest.icons) urls.push(icon.src);
+  urls.push(
+    ...readIconSrcs(path.join(repoRoot, "shared/assets/brand/site.webmanifest")),
+  );
   return urls.filter((url) => url.startsWith("/icons/"));
 }
 
@@ -229,3 +228,22 @@ it("paints the icons and the share image on the page token", async () => {
   const hash = createHash("sha256").update(original).digest("hex");
   expect(hash).toBe("697a5e0377c6cae98e683193f29c10bcd41df37aba55b0f978afd80739d1b41b");
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readIconSrcs(file: string): string[] {
+  const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+  if (!isRecord(parsed) || !Array.isArray(parsed["icons"])) {
+    throw new Error(`Invalid icon manifest: ${file}`);
+  }
+  const srcs: string[] = [];
+  for (const item of parsed["icons"]) {
+    if (!isRecord(item) || typeof item["src"] !== "string") {
+      throw new Error(`Invalid icon manifest: ${file}`);
+    }
+    srcs.push(item["src"]);
+  }
+  return srcs;
+}
