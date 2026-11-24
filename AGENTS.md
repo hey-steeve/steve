@@ -64,7 +64,7 @@ Do not import `app/` from a feature or from `shared/`. From `app/`, import `@ste
 
 Do not call `console` in `shared/`, in a feature, or in `app/`. Call `log()` from `@steve/shared/logger`. The logger is not in the repo yet. It lands with the shared contracts.
 
-Validate feature inputs with Zod at a feature boundary only when that package already has Zod installed. Do not require that check at every boundary. A missing Zod check does not block a contributor pull request. Use only the parsed value. Unvalidated input that crosses a feature boundary is the validate-then-reread bug.
+Validate feature inputs with Zod at a feature boundary only when that package already has Zod installed. Do not require that check at every boundary. A missing Zod check does not block a contributor pull request. Use only the parsed value. Reading the raw input again after validation is the validate-then-reread bug.
 
 Use only synthetic data. Never put real health data in the repo.
 
@@ -82,7 +82,7 @@ From your branch, run `git fetch origin` and then `git merge origin/main`. Keep 
 
 Roman is the reviewer agent. Capri is the agent that merges.
 
-Capri merges only after every condition below is met. Spidey's coding agent never merges.
+Capri merges only after the conditions below for that pull request's author are met. Spidey's coding agent never merges.
 
 A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Capri merges it only after every condition below is met.
 
