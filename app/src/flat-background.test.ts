@@ -106,12 +106,25 @@ function iconUrls(): string[] {
   }
   urls.push(...listedUrls(metadata.openGraph?.images));
   urls.push(...listedUrls(metadata.twitter?.images));
-  const manifest = JSON.parse(
-    readFileSync(path.join(repoRoot, "shared/assets/brand/site.webmanifest"), "utf8"),
-  ) as { icons: { src: string }[] };
-  for (const icon of manifest.icons) urls.push(icon.src);
-  return urls;
+  urls.push(
+    ...readIconSrcs(path.join(repoRoot, "shared/assets/brand/site.webmanifest")),
+  );
+  return urls.filter((url) => url.startsWith("/icons/"));
 }
+
+it("uses the rounded Steve avatar for the browser and Apple home-screen icons", () => {
+  const icons = metadata.icons;
+  if (icons === null || typeof icons !== "object" || Array.isArray(icons)) {
+    throw new Error("missing icon metadata");
+  }
+  const browserIcons = "icon" in icons ? listedUrls(icons.icon) : [];
+  const appleIcons = "apple" in icons ? listedUrls(icons.apple) : [];
+  expect(browserIcons).toEqual([
+    "/app-icons/favicon-16.png",
+    "/app-icons/favicon-32.png",
+  ]);
+  expect(appleIcons).toEqual(["/app-icons/apple-touch-icon.png"]);
+});
 
 function icoPngs(file: string): Buffer[] {
   const bytes = readFileSync(file);
@@ -215,3 +228,22 @@ it("paints the icons and the share image on the page token", async () => {
   const hash = createHash("sha256").update(original).digest("hex");
   expect(hash).toBe("697a5e0377c6cae98e683193f29c10bcd41df37aba55b0f978afd80739d1b41b");
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readIconSrcs(file: string): string[] {
+  const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+  if (!isRecord(parsed) || !Array.isArray(parsed["icons"])) {
+    throw new Error(`Invalid icon manifest: ${file}`);
+  }
+  const srcs: string[] = [];
+  for (const item of parsed["icons"]) {
+    if (!isRecord(item) || typeof item["src"] !== "string") {
+      throw new Error(`Invalid icon manifest: ${file}`);
+    }
+    srcs.push(item["src"]);
+  }
+  return srcs;
+}

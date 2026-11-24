@@ -27,9 +27,10 @@ beforeEach(() => {
   vi.spyOn(history, "replaceState");
 });
 
-it("renders the profile button with aria-label Profil", () => {
+it("renders the home greeting without the removed profile action", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
-  expect(html).toContain('aria-label="Profil"');
+  expect(html).toContain('class="chat-greeting">Bonjour</h1>');
+  expect(html).not.toContain('aria-label="Profil"');
 });
 
 it("limits the composer to the user message cap", () => {
@@ -37,7 +38,7 @@ it("limits the composer to the user message cap", () => {
   expect(html).toContain(`maxLength="${chatRequestLimits.maxMessageChars}"`);
 });
 
-it("keeps the profile button on the home screen only", async () => {
+it("opens the written conversation and returns to the home screen", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async () =>
@@ -45,17 +46,8 @@ it("keeps the profile button on the home screen only", async () => {
     ),
   );
   const view = await mount();
-  expect(
-    view.container.querySelector('.chat-header [aria-label="Profil"]'),
-  ).not.toBeNull();
-
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-  await act(async () => {
-    chip.click();
-  });
+  expect(view.container.querySelector('.chat-header [aria-label="Profil"]')).toBeNull();
+  const back = await openConversation(view);
 
   const header = view.container.querySelector(".chat-header");
   expect(header?.querySelector('[aria-label="Profil"]')).toBeNull();
@@ -72,20 +64,16 @@ it("keeps the profile button on the home screen only", async () => {
   expect(view.container.querySelector(".chat-avatar-agent")).not.toBeNull();
 
   await act(async () => {
-    header
-      ?.querySelector('[aria-label="Retour"]')
-      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    back.click();
   });
-  expect(
-    view.container.querySelector('.chat-header [aria-label="Profil"]'),
-  ).toBeNull();
   expect(view.container.querySelector(".chat-column-leave")).not.toBeNull();
 });
 
 it("renders the home greeting", async () => {
   const view = await mount();
-  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe("Bonjour,");
+  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe("Bonjour");
   expect(view.container.querySelector('[aria-label="Retour"]')).toBeNull();
+  expect(view.container.querySelector(".chat-home-mark")).toBeNull();
 });
 
 it("shows the bubbles pose on the empty home sheet", () => {
@@ -108,13 +96,13 @@ it("shows the bubbles pose on the empty home sheet", () => {
   expect({
     alt: img.getAttribute("alt"),
     overlap: chatCss.includes("--mascot-overlap"),
-    width: hero.includes("width: 284px;"),
-    left: hero.includes("margin-left: 29px;"),
+    width: hero.includes("width: min(320px, calc(100vw - 48px));"),
+    left: hero.includes("align-self: flex-start;"),
     top: hero.includes("margin-top: -5px;"),
-    align: hero.includes("align-self: flex-start;"),
+    align: hero.includes("align-self: center;"),
     fit: hero.includes("object-fit: contain;"),
     clippedTop: hero.includes("-16px"),
-    sheet: hero.includes("calc(284px * (718 - 840) / 1137)"),
+    sheet: hero.includes("margin-bottom: calc(284px * (718 - 840) / 1137)"),
     float: chatCss.includes("float"),
     aspect: hero.includes("aspect-ratio: 1137 / 840"),
     shadow: hero.includes("filter:") || hero.includes("box-shadow"),
@@ -122,19 +110,19 @@ it("shows the bubbles pose on the empty home sheet", () => {
     alt: "",
     overlap: false,
     width: true,
-    left: true,
-    top: true,
+    left: false,
+    top: false,
     align: true,
     fit: true,
     clippedTop: false,
-    sheet: true,
+    sheet: false,
     float: false,
     aspect: true,
     shadow: false,
   });
 });
 
-it("rests the bubbles pose on the top edge of the sheet", () => {
+it("centers the mascot above the current home actions", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
   const host = document.createElement("div");
   host.innerHTML = html;
@@ -144,67 +132,27 @@ it("rests the bubbles pose on the top edge of the sheet", () => {
   }
   const heroStart = chatCss.indexOf(".chat-hero-mascot {");
   const heroEnd = chatCss.indexOf("}", heroStart);
-  const sheetStart = chatCss.indexOf(".chat-sheet {");
-  const sheetEnd = chatCss.indexOf("}", sheetStart);
-  if (heroStart < 0 || heroEnd < 0 || sheetStart < 0 || sheetEnd < 0) {
-    throw new Error("missing hero or sheet rule");
+  if (heroStart < 0 || heroEnd < 0) {
+    throw new Error("missing hero rule");
   }
   const hero = chatCss.slice(heroStart, heroEnd);
-  const sheet = chatCss.slice(sheetStart, sheetEnd);
-  const pull = /margin-bottom:\s*calc\((\d+)px \* \((\d+) - (\d+)\) \/ (\d+)\)/.exec(hero);
-  if (pull === null) {
-    throw new Error("missing sheet alignment");
-  }
-  const cssWidth = Number(pull[1]);
-  const sheetRow = Number(pull[2]);
-  const assetHeight = Number(pull[3]);
-  const assetWidth = Number(pull[4]);
-  const fromTop = (cssWidth * sheetRow) / assetWidth;
   expect({
     width: img.getAttribute("width"),
     height: img.getAttribute("height"),
     aspect: hero.includes("aspect-ratio: 1137 / 840"),
-    filtered: hero.includes("filter:") || hero.includes("blur("),
-    shadow: sheet.includes("radial-gradient("),
-    overlap: chatCss.includes("--mascot-overlap"),
-    left: hero.includes("margin-left: 29px;"),
-    top: hero.includes("margin-top: -5px;"),
-    clippedTop: hero.includes("-16px"),
-    insetLeft: sheet.includes("margin-left: 10px;"),
-    insetRight: sheet.includes("margin-right: 8px;"),
-    radius: chatCss.includes("--radius-sheet: 34px;"),
-    cssWidth,
-    sheetRow,
-    assetWidth,
-    assetHeight,
-    fromTop,
+    centered: hero.includes("align-self: center;"),
+    responsive: hero.includes("width: min(320px, calc(100vw - 48px));"),
   }).toEqual({
     width: "1137",
     height: "840",
     aspect: true,
-    filtered: false,
-    shadow: false,
-    overlap: false,
-    left: true,
-    top: true,
-    clippedTop: false,
-    insetLeft: true,
-    insetRight: true,
-    radius: true,
-    cssWidth: 284,
-    sheetRow: 718,
-    assetWidth: 1137,
-    assetHeight: 840,
-    fromTop: (284 * 718) / 1137,
+    centered: true,
+    responsive: true,
   });
-  expect(fromTop).toBeCloseTo(179.34, 2);
 });
 
-it("paints the home chips and composer white, and the profile face lavender", async () => {
-  const fill = designTokens.color.canvas;
-  const edge = designTokens.color.border;
+it("paints the current call card and composer on the home screen", async () => {
   const canvas = designTokens.color.canvas;
-  expect(designTokens.color.profile).toBe("#daddfe");
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -218,63 +166,26 @@ it("paints the home chips and composer white, and the profile face lavender", as
     const view = await mount(
       createElement(RootLayout, null, createElement(ChatPage)),
     );
-    const sheet = view.container.querySelector(".chat-sheet");
-    const composer = view.container.querySelector(".chat-sheet .chat-composer");
-    const chips = [
-      ...view.container.querySelectorAll(".chat-sheet .chat-chip"),
-    ];
-    if (!(sheet instanceof HTMLElement) || !(composer instanceof HTMLElement)) {
-      throw new Error("missing home sheet");
+    const call = view.container.querySelector(".chat-call-cta");
+    const composer = view.container.querySelector(".chat-home-dock .chat-composer");
+    if (!(call instanceof HTMLElement) || !(composer instanceof HTMLElement)) {
+      throw new Error("missing home call card or composer");
     }
-    expect(chips).toHaveLength(4);
-    const chipList = view.container.querySelector(".chat-chips");
-    if (!(chipList instanceof HTMLElement)) {
-      throw new Error("missing suggestions");
-    }
-    expect(getComputedStyle(chipList).flexDirection).toBe("column");
-    expect(getComputedStyle(chipList).alignItems).toBe("center");
-    const face = view.container.querySelector(".chat-profile-face");
-    if (!(face instanceof HTMLElement)) {
-      throw new Error("missing profile");
-    }
-    expect(channels(getComputedStyle(face).backgroundColor)).toBe(
-      channels(designTokens.color.profile),
-    );
-    expect(channels(getComputedStyle(face).color)).toBe(
-      channels(designTokens.color.primary),
-    );
-    expect(channels(getComputedStyle(sheet).backgroundColor)).toBe(
-      channels(canvas),
-    );
-    for (const chip of chips) {
-      if (!(chip instanceof HTMLElement)) {
-        throw new Error("missing suggestion");
-      }
-      expect(channels(getComputedStyle(chip).backgroundColor)).toBe(
-        channels(fill),
-      );
-      expect(channels(getComputedStyle(chip).borderTopColor)).toBe(
-        channels(edge),
-      );
-    }
+    expect(channels(getComputedStyle(call).backgroundColor)).toBe(channels(canvas));
     const homeField = composer.querySelector(".chat-field");
-    if (!(homeField instanceof HTMLElement)) {
+    if (!(homeField instanceof HTMLTextAreaElement)) {
       throw new Error("missing composer field");
     }
-    expect(channels(getComputedStyle(homeField).backgroundColor)).toBe(
-      channels(fill),
+    expect(getComputedStyle(homeField).backgroundColor).toBe("transparent");
+    expect(channels(getComputedStyle(composer).backgroundColor)).toBe(
+      channels(canvas),
     );
-    expect(channels(getComputedStyle(homeField).borderTopColor)).toBe(
-      channels(edge),
-    );
-    expect(getComputedStyle(homeField).borderTopWidth).toBe("1px");
-    const chip = chips[0];
-    if (!(chip instanceof HTMLElement)) {
-      throw new Error("missing suggestion");
-    }
-    await act(async () => {
-      chip.click();
-    });
+    expect(view.container.querySelectorAll(".chat-chip")).toHaveLength(0);
+    expect(view.container.querySelector('.chat-header [aria-label="Profil"]')).toBeNull();
+    await act(async () => setField(homeField, "Bonjour"));
+    const send = view.container.querySelector('button[aria-label="Envoyer"]');
+    if (!(send instanceof HTMLButtonElement)) throw new Error("missing send button");
+    await act(async () => send.click());
     const dock = view.container.querySelector(
       ".chat-column > .chat-dock .chat-composer .chat-field",
     );
@@ -284,9 +195,7 @@ it("paints the home chips and composer white, and the profile face lavender", as
     expect(channels(getComputedStyle(dock).backgroundColor)).toBe(
       channels(canvas),
     );
-    expect(channels(getComputedStyle(dock).borderTopColor)).toBe(
-      channels(edge),
-    );
+    expect(getComputedStyle(dock).borderTopWidth).toBe("1px");
   } finally {
     style.remove();
     document.documentElement.removeAttribute("style");
@@ -307,12 +216,19 @@ it("fills each message avatar with its photo and drops the white frame", async (
     const view = await mount(
       createElement(RootLayout, null, createElement(ChatPage)),
     );
-    const chip = view.container.querySelector(".chat-chip");
-    if (!(chip instanceof HTMLButtonElement)) {
-      throw new Error("missing suggestion");
+    const field = view.container.querySelector(".chat-field");
+    if (!(field instanceof HTMLTextAreaElement)) {
+      throw new Error("missing composer");
     }
     await act(async () => {
-      chip.click();
+      setField(field, "Bonjour");
+    });
+    const send = view.container.querySelector('button[aria-label="Envoyer"]');
+    if (!(send instanceof HTMLButtonElement)) {
+      throw new Error("missing send button");
+    }
+    await act(async () => {
+      send.click();
     });
     const avatars = [
       view.container.querySelector(".chat-row-agent .chat-avatar"),
@@ -353,7 +269,7 @@ it("shows the composer disclaimer as one line with no digits", async () => {
     throw new Error("missing disclaimer");
   }
   expect(disclaimer.textContent).toBe(
-    "Steve n'est pas un médecin ni un dispositif médical.",
+    "Steve n’est pas médecin et ne pose pas de diagnostic.",
   );
   expect(disclaimer.textContent).not.toMatch(/\d/);
 });
@@ -370,17 +286,10 @@ it("shows the suggestion and the reply after a chip tap", async () => {
     ),
   );
   const view = await mount();
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-
-  await act(async () => {
-    chip.click();
-  });
+  await openConversation(view);
 
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
   expect(view.container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
   expect(view.container.textContent).toContain("Je peux vous aider à préparer ça.");
@@ -412,13 +321,7 @@ it("renders an assistant bubble without a model label, a speak button, or a foot
   );
   try {
     const view = await mount();
-    const chip = view.container.querySelector(".chat-chip");
-    if (!(chip instanceof HTMLButtonElement)) {
-      throw new Error("missing suggestion");
-    }
-    await act(async () => {
-      chip.click();
-    });
+    await openConversation(view);
 
     const bubble = view.container.querySelector(".chat-agent");
     if (!(bubble instanceof HTMLElement)) {
@@ -446,14 +349,7 @@ it("shows the thread when the home leave animation never ends", async () => {
     vi.fn<typeof fetch>(() => new Promise(() => {})),
   );
   const view = await mount();
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-
-  await act(async () => {
-    chip.click();
-  });
+  await openConversation(view);
 
   expect(view.container.querySelector(".chat-hero")).not.toBeNull();
   await act(async () => {
@@ -463,9 +359,7 @@ it("shows the thread when the home leave animation never ends", async () => {
   });
 
   expect(view.container.querySelector(".chat-hero")).toBeNull();
-  expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
-  );
+  expect(view.container.querySelector(".chat-user")?.textContent).toContain("Bonjour");
   expect(view.container.querySelector('[aria-label="Retour"]')).not.toBeNull();
 });
 
@@ -475,14 +369,7 @@ it("drops the covering home sheet when its leave animation is cancelled", async 
     vi.fn<typeof fetch>(() => new Promise(() => {})),
   );
   const view = await mount();
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-
-  await act(async () => {
-    chip.click();
-  });
+  await openConversation(view);
   const hero = view.container.querySelector(".chat-hero");
   if (!(hero instanceof HTMLElement)) {
     throw new Error("missing hero");
@@ -499,7 +386,7 @@ it("drops the covering home sheet when its leave animation is cancelled", async 
 
   expect(view.container.querySelector(".chat-hero")).toBeNull();
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
 });
 
@@ -509,14 +396,7 @@ it("drops the covering home sheet when its leave animation ends", async () => {
     vi.fn<typeof fetch>(() => new Promise(() => {})),
   );
   const view = await mount();
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-
-  await act(async () => {
-    chip.click();
-  });
+  await openConversation(view);
   const hero = view.container.querySelector(".chat-hero");
   if (!(hero instanceof HTMLElement)) {
     throw new Error("missing hero");
@@ -533,7 +413,7 @@ it("drops the covering home sheet when its leave animation ends", async () => {
 
   expect(view.container.querySelector(".chat-hero")).toBeNull();
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
 });
 
@@ -544,7 +424,7 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
   );
   const captured: Array<{
     node: HTMLElement;
-    listener: (event: AnimationEvent) => void;
+    listener: (event: Event) => void;
   }> = [];
   const original = HTMLElement.prototype.addEventListener;
   const spy = vi
@@ -561,7 +441,7 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
       if (type === "animationend" && typeof listener === "function") {
         captured.push({
           node: this,
-          listener: listener as (event: AnimationEvent) => void,
+          listener,
         });
       }
       if (options === undefined) {
@@ -572,13 +452,7 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
     });
   try {
     const view = await mount();
-    const chip = view.container.querySelector(".chat-chip");
-    if (!(chip instanceof HTMLButtonElement)) {
-      throw new Error("missing suggestion");
-    }
-    await act(async () => {
-      chip.click();
-    });
+    await openConversation(view);
     const back = view.container.querySelector('[aria-label="Retour"]');
     if (!(back instanceof HTMLButtonElement)) {
       throw new Error("missing back");
@@ -592,16 +466,20 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
     if (homeLeave === undefined) {
       throw new Error("missing animationend listener");
     }
+    const event = new AnimationEvent("animationend", {
+      animationName: "chat-home-out",
+    });
+    Object.defineProperty(event, "target", {
+      configurable: true,
+      value: homeLeave.node,
+    });
     await act(async () => {
-      homeLeave.listener.call(homeLeave.node, {
-        target: homeLeave.node,
-        animationName: "chat-home-out",
-      } as unknown as AnimationEvent);
+      homeLeave.listener.call(homeLeave.node, event);
     });
     expect(view.container.querySelector(".chat-greeting")).toBeNull();
     expect(view.container.querySelector(".chat-hero")).not.toBeNull();
     expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-      "Prendre rendez-vous chez un généraliste",
+      "Bonjour",
     );
     expect(view.container.querySelector(".chat-column-leave")).not.toBeNull();
   } finally {
@@ -662,7 +540,7 @@ it("adds the exit state on Retour and resets to the empty home when that animati
   expect(column.classList.contains("chat-column-leave")).toBe(true);
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
   expect(field.value).toBe("brouillon");
   expectNoHistoryChange();
@@ -695,7 +573,7 @@ it("resets to the empty home when the exit animation never ends", async () => {
   });
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
   expectNoHistoryChange();
   await act(async () => {
@@ -788,7 +666,7 @@ it("ignores a child animationend while the column exit plays", async () => {
 
   expect(column.classList.contains("chat-column-leave")).toBe(true);
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
-  expect(thread.textContent).toContain("Prendre rendez-vous chez un généraliste");
+  expect(thread.textContent).toContain("Bonjour");
   expectNoHistoryChange();
 
   await act(async () => {
@@ -907,13 +785,7 @@ it("does not finish a later Retour with the previous exit timeout", async () => 
     vi.advanceTimersByTime(100);
   });
 
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-  await act(async () => {
-    chip.click();
-  });
+  await openConversation(view);
   const second = view.container.querySelector('[aria-label="Retour"]');
   if (!(second instanceof HTMLButtonElement)) {
     throw new Error("missing back");
@@ -930,7 +802,7 @@ it("does not finish a later Retour with the previous exit timeout", async () => 
   );
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
   expectNoHistoryChange();
 });
@@ -1028,17 +900,11 @@ it("returns home from Retour, starts another conversation, and returns home agai
     "fetch",
     vi.fn(() => pending.promise),
   );
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-  await act(async () => {
-    chip.click();
-  });
+  await openConversation(view);
 
   expect(view.container.querySelector(".chat-badge")).toBeNull();
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
   const second = view.container.querySelector('[aria-label="Retour"]');
   if (!(second instanceof HTMLButtonElement)) {
@@ -1053,7 +919,7 @@ it("returns home from Retour, starts another conversation, and returns home agai
   );
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
 
   await act(async () => {
@@ -1118,7 +984,7 @@ it("keeps the keyboard pin while the column exit plays", async () => {
     });
     expect(view.container.querySelector(".chat-greeting")).toBeNull();
     expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-      "Prendre rendez-vous chez un généraliste",
+      "Bonjour",
     );
     expectNoHistoryChange();
   } finally {
@@ -1137,14 +1003,14 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
       }),
     ),
   );
-  const listeners = new Map<string, Array<() => void>>();
+  const listeners = new Map<string, EventListener[]>();
   const viewport = {
     height: 844,
     offsetTop: 0,
     scale: 1,
     addEventListener(type: string, listener: EventListener) {
       const current = listeners.get(type) ?? [];
-      current.push(listener as () => void);
+      current.push(listener);
       listeners.set(type, current);
     },
     removeEventListener(type: string, listener: EventListener) {
@@ -1171,13 +1037,18 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
   try {
     const view = await mount();
     await flushFrame();
-    const chip = view.container.querySelector(".chat-chip");
-    if (!(chip instanceof HTMLButtonElement)) {
-      throw new Error("missing suggestion");
+    const field = view.container.querySelector(".chat-field");
+    if (!(field instanceof HTMLTextAreaElement)) {
+      throw new Error("missing composer");
     }
     await act(async () => {
-      chip.click();
+      setField(field, "Bonjour");
     });
+    const send = view.container.querySelector('button[aria-label="Envoyer"]');
+    if (!(send instanceof HTMLButtonElement)) {
+      throw new Error("missing send button");
+    }
+    await act(async () => send.click());
     const page = view.container.querySelector(".chat-page");
     const thread = view.container.querySelector(".chat-scroll");
     const disclaimer = view.container.querySelector(
@@ -1197,10 +1068,10 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
     page.style.transform = "translateY(12px)";
     await act(async () => {
       for (const listener of listeners.get("resize") ?? []) {
-        listener();
+        listener(new Event("resize"));
       }
       for (const listener of listeners.get("scroll") ?? []) {
-        listener();
+        listener(new Event("scroll"));
       }
     });
     await flushFrame();
@@ -1574,15 +1445,10 @@ it("drops a late reply after Retour and returns to the empty home", async () => 
   vi.stubGlobal("fetch", fetchMock);
   const view = await mount();
   const header = () => view.container.querySelector(".chat-header");
-  const chip = view.container.querySelector(".chat-chip");
-  expect(chip).not.toBeNull();
-
-  await act(async () => {
-    chip?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  });
+  await openConversation(view);
 
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
   const back = header()?.querySelector('[aria-label="Retour"]');
   expect(back).not.toBeNull();
@@ -1595,7 +1461,7 @@ it("drops a late reply after Retour and returns to the empty home", async () => 
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-column-leave")).not.toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
   expectNoHistoryChange();
 
@@ -1623,16 +1489,10 @@ it("drops a late reply after Retour and returns to the empty home", async () => 
   expect(view.container.textContent).not.toContain("Réponse tardive.");
   expectEmptyHome(view.container);
 
-  const next = view.container.querySelector(".chat-chip");
-  if (!(next instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-  await act(async () => {
-    next.click();
-  });
+  await openConversation(view);
 
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
+    "Bonjour",
   );
   expect(view.container.textContent).toContain("Deuxième.");
   expect(view.container.textContent).not.toContain("Réponse tardive.");
@@ -1692,11 +1552,15 @@ it("keeps the scroll position and shows a new-message pill when a reply arrives 
 it("scrolls smoothly to the bottom and hides the pill when the new-message pill is tapped", async () => {
   const session = await pendingThread();
   const requested: ScrollToOptions[] = [];
-  session.thread.scrollTo = ((options?: ScrollToOptions | number) => {
+  function scrollTo(options?: ScrollToOptions): void;
+  function scrollTo(x: number, y: number): void;
+  function scrollTo(options?: ScrollToOptions | number, y?: number): void {
     if (typeof options === "object" && options !== null) {
       requested.push(options);
     }
-  }) as typeof session.thread.scrollTo;
+    void y;
+  }
+  session.thread.scrollTo = scrollTo;
   try {
     session.scrolled.top = 0;
     session.thread.dispatchEvent(new Event("scroll"));
@@ -1771,16 +1635,21 @@ it("scrolls instantly when the new-message pill is tapped with reduced motion", 
   const session = await pendingThread();
   const motions: Array<ScrollBehavior | undefined> = [];
   const restoreMotion = stubReducedMotion(true);
-  session.thread.scrollTo = ((options?: ScrollToOptions | number, y?: number) => {
-    const behavior = typeof options === "object" && options !== null ? options.behavior : "auto";
+  function scrollTo(options?: ScrollToOptions): void;
+  function scrollTo(x: number, y: number): void;
+  function scrollTo(options?: ScrollToOptions | number, y?: number): void {
+    const behavior =
+      typeof options === "object" && options !== null ? options.behavior : "auto";
     motions.push(behavior);
     if (behavior === "smooth") {
       return;
     }
-    const top = typeof options === "object" && options !== null ? (options.top ?? 0) : (y ?? 0);
+    const top =
+      typeof options === "object" && options !== null ? (options.top ?? 0) : (y ?? 0);
     session.scrolled.top = top;
     session.thread.dispatchEvent(new Event("scroll"));
-  }) as typeof session.thread.scrollTo;
+  }
+  session.thread.scrollTo = scrollTo;
   try {
     session.scrolled.top = 0;
     session.thread.dispatchEvent(new Event("scroll"));
@@ -2002,19 +1871,20 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
     expect(newMessagePill(session.container)).toBeNull();
     expect(session.scrolled.top).toBe(0);
     expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
-      "Bonjour,",
+      "Bonjour",
     );
     expectNoHistoryChange();
 
     const restoreMotion = stubReducedMotion(true);
     try {
-      const chip = session.container.querySelector(".chat-chip");
-      if (!(chip instanceof HTMLButtonElement)) {
-        throw new Error("missing suggestion");
+      const field = session.container.querySelector(".chat-field");
+      if (!(field instanceof HTMLTextAreaElement)) {
+        throw new Error("missing composer");
       }
-      await act(async () => {
-        chip.click();
-      });
+      await act(async () => setField(field, "Bonjour encore"));
+      const send = session.container.querySelector('button[aria-label="Envoyer"]');
+      if (!(send instanceof HTMLButtonElement)) throw new Error("missing send button");
+      await act(async () => send.click());
       session.scrolled.top = 400;
       session.thread.dispatchEvent(new Event("scroll"));
       await session.release("Encore.");
@@ -2029,7 +1899,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
       expect(newMessagePill(session.container)).toBeNull();
       expect(session.scrolled.top).toBe(0);
       expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
-        "Bonjour,",
+        "Bonjour",
       );
       expectNoHistoryChange();
     } finally {
@@ -2043,21 +1913,17 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
 const threadLength = 2000;
 
 function stubReducedMotion(matches = true): () => void {
-  const spy = vi.spyOn(window, "matchMedia").mockImplementation(
-    (query: string) =>
-      ({
-        matches: matches && query === "(prefers-reduced-motion: reduce)",
-        media: query,
-        onchange: null,
-        addListener() {},
-        removeListener() {},
-        addEventListener() {},
-        removeEventListener() {},
-        dispatchEvent() {
-          return false;
-        },
-      }) as MediaQueryList,
-  );
+  const original = window.matchMedia.bind(window);
+  const spy = vi.spyOn(window, "matchMedia").mockImplementation((query: string) => {
+    const list = original(query);
+    Object.defineProperty(list, "matches", {
+      configurable: true,
+      get() {
+        return matches && query === "(prefers-reduced-motion: reduce)";
+      },
+    });
+    return list;
+  });
   return () => {
     spy.mockRestore();
   };
@@ -2066,12 +1932,19 @@ function stubReducedMotion(matches = true): () => void {
 async function openConversation(view: {
   container: ParentNode;
 }): Promise<HTMLButtonElement> {
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
+  const field = view.container.querySelector(".chat-field");
+  if (!(field instanceof HTMLTextAreaElement)) {
+    throw new Error("missing composer");
   }
   await act(async () => {
-    chip.click();
+    setField(field, "Bonjour");
+  });
+  const send = view.container.querySelector('button[aria-label="Envoyer"]');
+  if (!(send instanceof HTMLButtonElement)) {
+    throw new Error("missing send button");
+  }
+  await act(async () => {
+    send.click();
   });
   const back = view.container.querySelector('[aria-label="Retour"]');
   if (!(back instanceof HTMLButtonElement)) {
@@ -2096,22 +1969,22 @@ function expectEmptyHome(container: ParentNode): void {
     hero: hero instanceof HTMLElement && !hero.classList.contains("chat-hero-leave"),
     mascot: container.querySelector(".chat-hero-mascot") instanceof HTMLElement,
     draft: field instanceof HTMLTextAreaElement ? field.value : null,
-    chip: container.querySelector(".chat-chip")?.textContent ?? null,
+    callCta: container.querySelector(".chat-call-cta") instanceof HTMLElement,
     leaving: column?.classList.contains("chat-column-leave") ?? null,
     profile:
       container.querySelector('.chat-header [aria-label="Profil"]') instanceof
       HTMLElement,
     badge: container.querySelector(".chat-badge"),
   }).toEqual({
-    greeting: "Bonjour,",
+    greeting: "Bonjour",
     back: null,
     thread: null,
     hero: true,
     mascot: true,
     draft: "",
-    chip: "Prendre rendez-vous chez un généraliste",
+    callCta: true,
     leaving: false,
-    profile: true,
+    profile: false,
     badge: null,
   });
 }
@@ -2243,14 +2116,14 @@ function installViewport(initial: {
   innerHeight: number;
   scale?: number;
 }): ViewportStub {
-  const listeners = new Map<string, Array<() => void>>();
+  const listeners = new Map<string, EventListener[]>();
   const viewport = {
     height: initial.height,
     offsetTop: initial.offsetTop,
     scale: initial.scale ?? 1,
     addEventListener(type: string, listener: EventListener) {
       const current = listeners.get(type) ?? [];
-      current.push(listener as () => void);
+      current.push(listener);
       listeners.set(type, current);
     },
     removeEventListener(type: string, listener: EventListener) {
@@ -2295,8 +2168,9 @@ function installViewport(initial: {
       innerHeight = value;
     },
     fire(type: string) {
+      const event = new Event(type);
       for (const listener of [...(listeners.get(type) ?? [])]) {
-        listener();
+        listener(event);
       }
     },
     restore() {
@@ -2329,13 +2203,18 @@ async function scrolledThread(): Promise<{
 }> {
   const view = await mount();
   await flushFrame();
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
+  const field = view.container.querySelector(".chat-field");
+  if (!(field instanceof HTMLTextAreaElement)) {
+    throw new Error("missing composer");
   }
   await act(async () => {
-    chip.click();
+    setField(field, "Bonjour");
   });
+  const send = view.container.querySelector('button[aria-label="Envoyer"]');
+  if (!(send instanceof HTMLButtonElement)) {
+    throw new Error("missing send button");
+  }
+  await act(async () => send.click());
   const page = view.container.querySelector(".chat-page");
   const thread = view.container.querySelector(".chat-scroll");
   if (!(page instanceof HTMLElement) || !(thread instanceof HTMLElement)) {
@@ -2392,13 +2271,18 @@ async function pendingThread(): Promise<{
   try {
     const view = await mount();
     await flushFrame();
-    const chip = view.container.querySelector(".chat-chip");
-    if (!(chip instanceof HTMLButtonElement)) {
-      throw new Error("missing suggestion");
+    const field = view.container.querySelector(".chat-field");
+    if (!(field instanceof HTMLTextAreaElement)) {
+      throw new Error("missing composer");
     }
     await act(async () => {
-      chip.click();
+      setField(field, "Bonjour");
     });
+    const send = view.container.querySelector('button[aria-label="Envoyer"]');
+    if (!(send instanceof HTMLButtonElement)) {
+      throw new Error("missing send button");
+    }
+    await act(async () => send.click());
     const thread = view.container.querySelector(".chat-scroll");
     if (!(thread instanceof HTMLElement)) {
       throw new Error("missing thread");

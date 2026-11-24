@@ -29,7 +29,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("places the greeting in a left row beside the profile avatar", async () => {
+it("places the Alan-style greeting in the home header without a profile photo", async () => {
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -42,28 +42,29 @@ it("places the greeting in a left row beside the profile avatar", async () => {
       ),
     );
     const header = view.container.querySelector(".chat-header-home");
-    const profile = header?.querySelector(":scope > .chat-profile");
-    const greeting = header?.querySelector(":scope > .chat-greeting");
+    const brand = header?.querySelector(":scope > .chat-home-brand");
+    const greeting = header?.querySelector(".chat-greeting");
     if (
       !(header instanceof HTMLElement) ||
-      !(profile instanceof HTMLElement) ||
+      !(brand instanceof HTMLElement) ||
       !(greeting instanceof HTMLElement)
     ) {
       throw new Error("missing home header row");
     }
-    expect(profile.nextElementSibling).toBe(greeting);
+    expect(brand.textContent).toContain("Bonjour Peter,");
+    expect(header.querySelector(".chat-profile")).toBeNull();
     expect(greeting.textContent).toBe("Bonjour Peter,");
     const row = getComputedStyle(header);
     expect(row.display).toBe("flex");
-    expect(row.flexDirection).toBe("row");
+    expect(["", "row"]).toContain(row.flexDirection);
     expect(row.alignItems).toBe("center");
-    expect(row.justifyContent).toBe("flex-start");
-    expect(["", "static"]).toContain(getComputedStyle(greeting).position);
+    expect(row.justifyContent).toBe("space-between");
+    expect(getComputedStyle(greeting).position).toBe("relative");
     const greetingStyle = getComputedStyle(greeting);
     expect(greetingStyle.fontWeight).toBe(
       String(designTokens.font.weight.heading),
     );
-    expect(greetingStyle.fontSize).toBe("22px");
+    expect(greetingStyle.fontSize).toBe("28px");
     expect(greetingStyle.textOverflow).toBe("ellipsis");
     expect(designTokens.space[3]).toBe("12px");
     const published = getComputedStyle(document.documentElement)
@@ -79,14 +80,10 @@ it("places the greeting in a left row beside the profile avatar", async () => {
   }
 });
 
-it("reads the first name from the page seam and keeps Bonjour, without one", async () => {
+it("reads the first name from the page seam and falls back to Bonjour", async () => {
   const empty = await mount();
-  expect(empty.container.querySelector(".chat-greeting")?.textContent).toBe("Bonjour,");
-  expect(
-    empty.container.querySelector(".chat-header-home .chat-profile")?.getAttribute(
-      "aria-label",
-    ),
-  ).toBe("Profil");
+  expect(empty.container.querySelector(".chat-greeting")?.textContent).toBe("Bonjour");
+  expect(empty.container.querySelector(".chat-header-home .chat-profile")).toBeNull();
 
   const named = await mount(createElement(ChatPage, { patientFirstName: "Maximilien" }));
   expect(named.container.querySelector(".chat-greeting")?.textContent).toBe(
