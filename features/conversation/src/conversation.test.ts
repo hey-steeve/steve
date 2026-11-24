@@ -3,7 +3,9 @@ import {
   conversationLimits,
   createConversation,
   createInMemoryConversationStore,
+  type Conversation,
   type ConversationStore,
+  type ConversationTurnResult,
   type RequestUnderstandingProvider,
 } from "./index.js";
 
@@ -57,6 +59,13 @@ async function startedConversation(answers: readonly unknown[]) {
   return { ...fixture, conversation, started };
 }
 
+function handleUnknown(
+  conversation: Conversation,
+  input: unknown,
+): Promise<ConversationTurnResult> {
+  return Reflect.apply(conversation.handleTurn, conversation, [input]);
+}
+
 it("creates a stable session with a French greeting", async () => {
   const { conversation, dependencies } = await startedConversation([]);
   const stored = await dependencies.store.get("session-1");
@@ -76,6 +85,7 @@ it("creates a stable session with a French greeting", async () => {
         createdAt: "2026-11-23T14:00:01.000Z",
       },
     ],
+    seenTurnIds: [],
   });
 
   const second = await conversation.startSession({ channel: "voice" });
@@ -106,10 +116,13 @@ it("understands a care request and produces a non-medical triage handoff", async
     target: "triage",
     sessionId: "session-1",
     turnId: "text-turn-1",
-    channel: "text",
     intent: "care_request",
-    summary: "Recherche d'un rendez-vous généraliste",
-    sourceText: "Je cherche un généraliste",
+    data: {
+      channel: "text",
+      summary: "Recherche d'un rendez-vous généraliste",
+      sourceText: "Je cherche un généraliste",
+      completeAfterTriage: false,
+    },
   });
   expect(result.session.version).toBe(1);
   expect(result.session.turns.map((turn) => turn.id)).toEqual([
@@ -142,9 +155,9 @@ it("uses the same core for a voice document request and a general question", asy
   expect(voice.outcome).toBe("handled");
   expect(text.outcome).toBe("handled");
   if (voice.outcome === "handled" && text.outcome === "handled") {
-    expect(voice.handoff?.target).toBe("triage");
-    expect(voice.handoff?.channel).toBe("voice");
-    expect(text.handoff?.target).toBe("triage");
+    expect(voice.handoff.target).toBe("triage");
+    expect(voice.handoff.data.channel).toBe("voice");
+    expect(text.handoff.target).toBe("triage");
     expect(text.session.turns).toHaveLength(5);
   }
   expect(understand).toHaveBeenCalledTimes(2);
@@ -176,8 +189,8 @@ it("asks for clarification on unsupported input and can continue the session", a
 
   expect(unclear).toMatchObject({
     outcome: "handled",
-    handoff: null,
-    nextAction: "awaiting_user",
+    handoff: { target: "triage", intent: "unsupported" },
+    nextAction: "handoff",
   });
   expect(continued).toMatchObject({
     outcome: "handled",
@@ -186,33 +199,31 @@ it("asks for clarification on unsupported input and can continue the session", a
   });
 });
 
-it("completes a conversation explicitly and rejects later turns", async () => {
+it("hands a goodbye that mentions a symptom to triage before completion", async () => {
   const { conversation, understand } = await startedConversation([
-    { intent: "end_conversation", summary: "Fin demandée" },
+    {
+      intent: "end_conversation",
+      summary: "Fin demandée avec un symptôme mentionné",
+    },
   ]);
   const ended = await conversation.handleTurn({
     sessionId: "session-1",
     turnId: "turn-goodbye",
     channel: "text",
-    text: "Merci, au revoir",
-  });
-  const later = await conversation.handleTurn({
-    sessionId: "session-1",
-    turnId: "turn-later",
-    channel: "text",
-    text: "Encore une demande",
+    text: "Merci, au revoir, j'ai aussi mal à la poitrine",
   });
 
   expect(ended).toMatchObject({
     outcome: "handled",
-    handoff: null,
-    nextAction: "completed",
-    session: { status: "completed" },
-  });
-  expect(later).toMatchObject({
-    outcome: "rejected",
-    code: "session_completed",
-    nextAction: "completed",
+    handoff: {
+      target: "triage",
+      intent: "end_conversation",
+      sessionId: "session-1",
+      turnId: "turn-goodbye",
+      data: { completeAfterTriage: true },
+    },
+    nextAction: "handoff",
+    session: { status: "active" },
   });
   expect(understand).toHaveBeenCalledTimes(1);
 });
@@ -224,7 +235,7 @@ it("rejects malformed, empty and oversized input without calling the provider", 
       input: {
         sessionId: "session-1",
         turnId: "turn-channel",
-        channel: "fax" as "text",
+        channel: "fax",
         text: "Bonjour",
       },
       code: "invalid_channel",
@@ -233,7 +244,7 @@ it("rejects malformed, empty and oversized input without calling the provider", 
       input: {
         sessionId: " ",
         turnId: "turn-1",
-        channel: "text" as const,
+        channel: "text",
         text: "Bonjour",
       },
       code: "invalid_session_id",
@@ -242,7 +253,7 @@ it("rejects malformed, empty and oversized input without calling the provider", 
       input: {
         sessionId: "session-1",
         turnId: "bad turn",
-        channel: "text" as const,
+        channel: "text",
         text: "Bonjour",
       },
       code: "invalid_turn_id",
@@ -251,7 +262,7 @@ it("rejects malformed, empty and oversized input without calling the provider", 
       input: {
         sessionId: "session-1",
         turnId: "turn-2",
-        channel: "text" as const,
+        channel: "text",
         text: "   ",
       },
       code: "invalid_text",
@@ -260,14 +271,14 @@ it("rejects malformed, empty and oversized input without calling the provider", 
       input: {
         sessionId: "session-1",
         turnId: "turn-3",
-        channel: "text" as const,
+        channel: "text",
         text: "a".repeat(conversationLimits.maxTextChars + 1),
       },
       code: "text_too_long",
     },
   ];
   for (const item of cases) {
-    const result = await conversation.handleTurn(item.input);
+    const result = await handleUnknown(conversation, item.input);
     expect(result.outcome).toBe("rejected");
     if (result.outcome !== "rejected") {
       throw new Error("Malformed input was not rejected");
@@ -281,12 +292,14 @@ it("rejects malformed, empty and oversized input without calling the provider", 
 it("rejects an unsupported channel before creating a session", async () => {
   const fixture = testDependencies([]);
   const conversation = createConversation(fixture.dependencies);
-  const result = await conversation.startSession({ channel: "fax" as "text" });
+  const result = await Reflect.apply(conversation.startSession, conversation, [
+    { channel: "fax" },
+  ]);
 
   expect(result).toMatchObject({
     outcome: "rejected",
     code: "invalid_channel",
-    nextAction: "completed",
+    nextAction: "awaiting_user",
   });
   expect(await fixture.dependencies.store.get("session-1")).toBeNull();
 });
@@ -325,9 +338,12 @@ it("rejects missing and duplicate sessions or turns explicitly", async () => {
   expect(understand).toHaveBeenCalledTimes(1);
 });
 
-it("persists an informative safe reply when understanding fails", async () => {
+it("allows the same turn id to retry after understanding fails", async () => {
   for (const answer of [new Error("provider unavailable"), { unexpected: true }]) {
-    const { conversation, dependencies } = await startedConversation([answer]);
+    const { conversation, dependencies, understand } = await startedConversation([
+      answer,
+      { intent: "care_request", summary: "Demande réessayée" },
+    ]);
     const result = await conversation.handleTurn({
       sessionId: "session-1",
       turnId: "turn-failed",
@@ -343,12 +359,21 @@ it("persists an informative safe reply when understanding fails", async () => {
     expect(result.response).toContain("réessayer");
     expect(result.response).not.toMatch(/112|SOS Médecins/i);
     const stored = await dependencies.store.get("session-1");
-    expect(stored?.version).toBe(1);
-    expect(stored?.turns.map((turn) => turn.id)).toEqual([
-      "assistant-1",
-      "turn-failed",
-      "assistant-2",
-    ]);
+    expect(stored?.version).toBe(0);
+    expect(stored?.turns.map((turn) => turn.id)).toEqual(["assistant-1"]);
+    expect(stored?.seenTurnIds).toEqual([]);
+
+    const retried = await conversation.handleTurn({
+      sessionId: "session-1",
+      turnId: "turn-failed",
+      channel: "text",
+      text: "J'ai besoin d'aide",
+    });
+    expect(retried).toMatchObject({
+      outcome: "handled",
+      handoff: { target: "triage", turnId: "turn-failed" },
+    });
+    expect(understand).toHaveBeenCalledTimes(2);
   }
 });
 
@@ -380,7 +405,42 @@ it("keeps only the bounded relevant history", async () => {
     );
     expect(lastResult.session.turns.at(-2)?.id).toBe("turn-24");
     expect(lastResult.session.turns.at(-1)?.role).toBe("assistant");
+    expect(lastResult.session.seenTurnIds).toHaveLength(25);
   }
+});
+
+it("rejects a seen turn id after its turn leaves the bounded history", async () => {
+  const answers = Array.from(
+    { length: 25 },
+    (_, index) => ({ intent: "unsupported", summary: `Demande ${index}` }),
+  );
+  const { conversation, dependencies, understand } = await startedConversation(
+    answers,
+  );
+  for (let index = 0; index < answers.length; index += 1) {
+    await conversation.handleTurn({
+      sessionId: "session-1",
+      turnId: `turn-${index}`,
+      channel: "text",
+      text: `Demande ${index}`,
+    });
+  }
+
+  const beforeReplay = await dependencies.store.get("session-1");
+  expect(beforeReplay?.turns.some((turn) => turn.id === "turn-0")).toBe(false);
+  expect(beforeReplay?.seenTurnIds).toContain("turn-0");
+
+  const replayed = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-0",
+    channel: "text",
+    text: "Ancienne demande rejouée",
+  });
+  expect(replayed).toMatchObject({
+    outcome: "rejected",
+    code: "duplicate_turn",
+  });
+  expect(understand).toHaveBeenCalledTimes(25);
 });
 
 it("returns safe failures when creation or persistence dependencies fail", async () => {
@@ -448,4 +508,173 @@ it("does not expose an unpersisted result when an update conflicts", async () =>
     nextAction: "awaiting_user",
   });
   expect((await inner.get("session-1"))?.version).toBe(0);
+});
+
+it("times out understanding and aborts its signal", async () => {
+  vi.useFakeTimers();
+  try {
+    const signals: AbortSignal[] = [];
+    const fixture = testDependencies([]);
+    const conversation = createConversation({
+      ...fixture.dependencies,
+      understanding: {
+        understand(input) {
+          signals.push(input.signal);
+          return new Promise(() => undefined);
+        },
+      },
+    });
+    await conversation.startSession({ channel: "text" });
+    const pending = conversation.handleTurn({
+      sessionId: "session-1",
+      turnId: "turn-timeout",
+      channel: "text",
+      text: "Je cherche un rendez-vous",
+    });
+
+    await vi.advanceTimersByTimeAsync(
+      conversationLimits.understandingTimeoutMs,
+    );
+    const result = await pending;
+    expect(result).toMatchObject({
+      outcome: "failed",
+      code: "understanding_timeout",
+      nextAction: "awaiting_user",
+    });
+    expect(signals[0]?.aborted).toBe(true);
+    if (result.outcome === "failed") {
+      expect(result.session?.seenTurnIds).toEqual([]);
+    }
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("reports an id or clock failure separately from understanding", async () => {
+  const fixture = testDependencies([
+    { intent: "care_request", summary: "Demande comprise" },
+  ]);
+  let clockCall = 0;
+  const conversation = createConversation({
+    ...fixture.dependencies,
+    clock: {
+      now() {
+        clockCall += 1;
+        return clockCall < 3 ? "2026-11-24T12:00:00.000Z" : "invalid";
+      },
+    },
+  });
+  await conversation.startSession({ channel: "text" });
+  const result = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-1",
+    channel: "text",
+    text: "Je cherche un rendez-vous",
+  });
+
+  expect(result).toMatchObject({
+    outcome: "failed",
+    code: "dependency_failure",
+    nextAction: "awaiting_user",
+  });
+  expect(fixture.understand).toHaveBeenCalledTimes(1);
+});
+
+it("accepts text and summaries at their caps and rejects values beyond them", async () => {
+  const atSummaryCap = "s".repeat(conversationLimits.maxSummaryChars);
+  const overSummaryCap = `${atSummaryCap}s`;
+  const { conversation } = await startedConversation([
+    { intent: "general_question", summary: atSummaryCap },
+    { intent: "general_question", summary: overSummaryCap },
+    { intent: "general_question", summary: "Identifiant à la limite" },
+  ]);
+  const accepted = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-at-cap",
+    channel: "text",
+    text: "a".repeat(conversationLimits.maxTextChars),
+  });
+  const rejectedSummary = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-summary-over-cap",
+    channel: "text",
+    text: "Question suivante",
+  });
+  const acceptedId = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: `t${"a".repeat(conversationLimits.maxIdChars - 1)}`,
+    channel: "text",
+    text: "Question avec un identifiant à la limite",
+  });
+  const rejectedId = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: `t${"a".repeat(conversationLimits.maxIdChars)}`,
+    channel: "text",
+    text: "Question avec un identifiant trop long",
+  });
+
+  expect(accepted).toMatchObject({ outcome: "handled" });
+  expect(rejectedSummary).toMatchObject({
+    outcome: "failed",
+    code: "understanding_failure",
+  });
+  if (rejectedSummary.outcome === "failed") {
+    expect(rejectedSummary.session?.seenTurnIds).toEqual(["turn-at-cap"]);
+  }
+  expect(acceptedId).toMatchObject({ outcome: "handled" });
+  expect(rejectedId).toMatchObject({
+    outcome: "rejected",
+    code: "invalid_turn_id",
+  });
+});
+
+it("allows only one concurrent turn to update an in-memory session version", async () => {
+  const releases: Array<() => void> = [];
+  const barrier = new Promise<void>((resolve) => {
+    releases.push(resolve);
+  });
+  const understand = vi.fn<RequestUnderstandingProvider["understand"]>(
+    async () => {
+      await barrier;
+      return { intent: "care_request", summary: "Demande concurrente" };
+    },
+  );
+  const fixture = testDependencies([]);
+  const conversation = createConversation({
+    ...fixture.dependencies,
+    understanding: { understand },
+  });
+  await conversation.startSession({ channel: "text" });
+  const first = conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-concurrent-1",
+    channel: "text",
+    text: "Première demande",
+  });
+  const second = conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-concurrent-2",
+    channel: "text",
+    text: "Deuxième demande",
+  });
+  await vi.waitFor(() => {
+    expect(understand).toHaveBeenCalledTimes(2);
+  });
+  const release = releases[0];
+  if (release === undefined) {
+    throw new Error("Missing concurrency release");
+  }
+  release();
+  const results = await Promise.all([first, second]);
+
+  expect(results.map((result) => result.outcome).sort()).toEqual([
+    "failed",
+    "handled",
+  ]);
+  expect(
+    results.some(
+      (result) =>
+        result.outcome === "failed" && result.code === "storage_failure",
+    ),
+  ).toBe(true);
 });

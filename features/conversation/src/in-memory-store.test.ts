@@ -19,6 +19,7 @@ const session: ConversationSession = {
       createdAt: "2026-11-23T14:00:00.000Z",
     },
   ],
+  seenTurnIds: [],
 };
 
 it("returns defensive copies of sessions and turns", async () => {
@@ -34,6 +35,27 @@ it("returns defensive copies of sessions and turns", async () => {
   }
 
   expect(await store.get(session.id)).toEqual(session);
+});
+
+it("copies the session, turns, and seen ids when saving", async () => {
+  const store = createInMemoryConversationStore();
+  const mutableTurns = [...session.turns];
+  const mutableSeenTurnIds = ["turn-1"];
+  const saved = {
+    ...session,
+    turns: mutableTurns,
+    seenTurnIds: mutableSeenTurnIds,
+  };
+  const expected = {
+    ...saved,
+    turns: [...mutableTurns],
+    seenTurnIds: [...mutableSeenTurnIds],
+  };
+  await store.save(saved, null);
+  mutableTurns.splice(0, mutableTurns.length);
+  mutableSeenTurnIds.push("turn-2");
+
+  expect(await store.get(session.id)).toEqual(expected);
 });
 
 it("enforces create and update versions", async () => {
