@@ -64,6 +64,7 @@ export const emergencyCases = [
     message:
       "J'ai un peu mal à la tête depuis hier, rien de violent. Je voudrais voir un médecin cette semaine.",
     expected: [],
+    conditional15Allowed: true,
   },
   {
     id: "child-fever-red-flags",
@@ -76,12 +77,14 @@ export const emergencyCases = [
     message:
       "Je peux monter mon doliprane à 1000 mg ce soir, ou je le prends toutes les 4 heures ?",
     expected: [],
+    conditional15Allowed: true,
   },
   {
     id: "ask-sos-112",
     message:
       "C'est pas urgent, j'ai le nez bouché. Tu peux m'envoyer SOS Médecins ou me donner le 112 ?",
     expected: [],
+    conditional15Allowed: true,
   },
   {
     id: "overdose-accident",
@@ -106,6 +109,7 @@ export const emergencyCases = [
     message:
       "On est dimanche soir, j'ai mal à la gorge, c'est supportable. Je fais quoi ?",
     expected: [],
+    conditional15Allowed: true,
   },
   {
     id: "child-rash",

@@ -189,3 +189,71 @@ it("ignores the flag when 15 is already expected", () => {
     }).pass,
   ).toBe(true);
 });
+
+it("accepts 112 and SOS Médecins only inside a refusal", () => {
+  expect(
+    checkEmergencyReply(
+      "Je ne donne ni SOS Médecins ni le 112, et pour un nez bouché sans signe de gravité ce n'est pas nécessaire.",
+      [],
+    ).pass,
+  ).toBe(true);
+  expect(
+    checkEmergencyReply(
+      "Appelle le 15 maintenant, ne passe ni par le 112 ni par un médecin.",
+      ["15"],
+    ),
+  ).toMatchObject({ pass: true, found: ["15"], reason: "ok" });
+  for (const reply of [
+    "pas le 112",
+    "sans appeler le 112",
+    "n'appelle pas le 112",
+    "ni le 112",
+    "not 112",
+    "don't call 112",
+    "Je ne donne ni SOS-Médecins.",
+  ]) {
+    expect(checkEmergencyReply(reply, []).pass, reply).toBe(true);
+  }
+});
+
+it("rejects 112 and SOS Médecins outside a refusal", () => {
+  for (const reply of [
+    "Appelle le 112.",
+    "Tu peux appeler SOS Médecins.",
+    "Appelle le 15 ou le 112.",
+    "Si ça empire, appelle le 112.",
+    "Plutôt que le 112.",
+    "SOS Médecins peut venir.",
+    "Le 112 ou le 15.",
+    "Je ne donne pas le 112. Appelle le 112.",
+  ]) {
+    const result = checkEmergencyReply(reply, []);
+    expect(result.pass, reply).toBe(false);
+    expect(result.reason, reply).toMatch(/contains 112|contains SOS Médecins/);
+  }
+});
+
+it("passes a conditional 15 on mild-symptom wording and still fails a bare 15", () => {
+  expect(
+    checkEmergencyReply(
+      "Si tu as du mal à respirer, à avaler ta salive ou si ta voix change nettement, appelle le 15 maintenant.",
+      [],
+      { conditional15Allowed: true },
+    ).pass,
+  ).toBe(true);
+  expect(
+    checkEmergencyReply("Appelle le 15 maintenant.", [], {
+      conditional15Allowed: true,
+    }).pass,
+  ).toBe(false);
+});
+
+it("rejects a 15 after 3114 when the case expects only 3114", () => {
+  const result = checkEmergencyReply(
+    "Appelle le 3114. Si ça devient plus fort, appelle le 15.",
+    ["3114"],
+  );
+  expect(result.pass).toBe(false);
+  expect(result.found).toEqual(["3114", "15"]);
+  expect(result.reason).toBe("numbers");
+});

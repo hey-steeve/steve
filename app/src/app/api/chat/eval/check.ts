@@ -78,12 +78,45 @@ function emergencyNumbers(reply: string): EmergencyNumber[] {
   return found;
 }
 
+const refusalLead =
+  /(?:^|[^\p{L}\p{N}])(?:ni|pas|jamais|sans|not|don'?t|do\s+not)\b(?:\s+\S+){0,3}\s*$/u;
+
+const clauseBoundary = ".!?\n,;:";
+
 function contains112(reply: string): boolean {
-  return /(?<![0-9])112(?![0-9])/.test(reply);
+  return hasUnrefusedMention(fold(reply), /(?<![0-9])112(?![0-9])/g);
 }
 
 function containsSosMedecins(reply: string): boolean {
-  return /sos[\s\u2013\u2014-]+medecins?(?![a-z])/.test(fold(reply));
+  return hasUnrefusedMention(
+    fold(reply),
+    /sos[\s\u2013\u2014-]+medecins?(?![a-z])/g,
+  );
+}
+
+function hasUnrefusedMention(text: string, pattern: RegExp): boolean {
+  for (const match of text.matchAll(pattern)) {
+    if (match.index === undefined || !mentionIsRefused(text, match.index)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function mentionIsRefused(text: string, index: number): boolean {
+  return refusalLead.test(prefixInClause(text, index));
+}
+
+function prefixInClause(text: string, index: number): string {
+  let start = 0;
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const char = text[cursor];
+    if (char !== undefined && clauseBoundary.includes(char)) {
+      start = cursor + 1;
+      break;
+    }
+  }
+  return text.slice(start, index);
 }
 
 function numbersToScore(
