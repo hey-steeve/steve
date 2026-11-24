@@ -4,7 +4,6 @@ import {
   type FactualAssertion,
   type StoredDocument,
   type SupportedDocumentMimeType,
-  type VaultDocumentInput,
   type VaultDocumentMetadata,
   type VaultError,
   type VaultResult,
@@ -13,6 +12,8 @@ import {
 const documentIdPattern = /^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,62}[A-Za-z0-9])?$/;
 const controlCharacterPattern = /[\u0000-\u001f\u007f]/;
 const fileControlCharacterPattern = /[\u0000-\u001f\u007f]/;
+const evidenceControlCharacterPattern = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+const letterOrDigitPattern = /[\p{L}\p{N}]/u;
 
 type ValidatedDocument = {
   readonly document: StoredDocument;
@@ -33,7 +34,11 @@ function failure(
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function hasOnlyKeys(
@@ -41,6 +46,43 @@ function hasOnlyKeys(
   keys: readonly string[],
 ): boolean {
   return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function snapshotArray(
+  value: unknown,
+  maximum: number,
+): readonly unknown[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const length: unknown = Reflect.get(value, "length");
+  if (
+    typeof length !== "number" ||
+    !Number.isInteger(length) ||
+    length < 0 ||
+    length > maximum
+  ) {
+    return null;
+  }
+  const snapshot: unknown[] = [];
+  for (let index = 0; index < length; index += 1) {
+    if (!Object.hasOwn(value, index)) {
+      return null;
+    }
+    snapshot.push(Reflect.get(value, index));
+  }
+  return snapshot;
+}
+
+function snapshotBytes(value: unknown): Uint8Array | null {
+  if (!(value instanceof Uint8Array)) {
+    return null;
+  }
+  const cloned: unknown = structuredClone(value);
+  if (!(cloned instanceof Uint8Array)) {
+    return null;
+  }
+  return new Uint8Array(cloned);
 }
 
 function isSupportedMimeType(
@@ -82,6 +124,22 @@ function validBoundedText(value: unknown, maximum: number): value is string {
     value === value.trim() &&
     !controlCharacterPattern.test(value)
   );
+}
+
+function snapshotEvidence(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const snapshot = value.trim();
+  if (
+    snapshot.length < vaultLimits.evidenceMinimumCharacters ||
+    snapshot.length > vaultLimits.evidenceCharacters ||
+    evidenceControlCharacterPattern.test(snapshot) ||
+    !letterOrDigitPattern.test(snapshot)
+  ) {
+    return null;
+  }
+  return snapshot;
 }
 
 function validCalendarDate(value: unknown): value is string {
@@ -130,9 +188,12 @@ function validateMetadata(
     source?: string;
     documentDate?: string;
   } = {};
-  if (value["title"] !== undefined) {
+  const title: unknown = Reflect.get(value, "title");
+  const source: unknown = Reflect.get(value, "source");
+  const documentDate: unknown = Reflect.get(value, "documentDate");
+  if (title !== undefined) {
     if (
-      !validBoundedText(value["title"], vaultLimits.metadataTitleCharacters)
+      !validBoundedText(title, vaultLimits.metadataTitleCharacters)
     ) {
       return failure(
         "INVALID_DOCUMENT",
@@ -140,11 +201,11 @@ function validateMetadata(
         "metadata.title",
       );
     }
-    metadata.title = value["title"];
+    metadata.title = title;
   }
-  if (value["source"] !== undefined) {
+  if (source !== undefined) {
     if (
-      !validBoundedText(value["source"], vaultLimits.metadataSourceCharacters)
+      !validBoundedText(source, vaultLimits.metadataSourceCharacters)
     ) {
       return failure(
         "INVALID_DOCUMENT",
@@ -152,17 +213,17 @@ function validateMetadata(
         "metadata.source",
       );
     }
-    metadata.source = value["source"];
+    metadata.source = source;
   }
-  if (value["documentDate"] !== undefined) {
-    if (!validCalendarDate(value["documentDate"])) {
+  if (documentDate !== undefined) {
+    if (!validCalendarDate(documentDate)) {
       return failure(
         "INVALID_DOCUMENT",
         "Document metadata is invalid.",
         "metadata.documentDate",
       );
     }
-    metadata.documentDate = value["documentDate"];
+    metadata.documentDate = documentDate;
   }
   return { ok: true, value: metadata };
 }
@@ -189,19 +250,33 @@ function decodeText(content: Uint8Array): VaultResult<string> {
 }
 
 export function validateDocumentInput(
-  input: VaultDocumentInput,
-  generatedId: string,
+  input: unknown,
+  generateId: () => string,
   storedAt: string,
 ): VaultResult<ValidatedDocument> {
-  const value: unknown = input;
   if (
-    !isRecord(value) ||
-    !hasOnlyKeys(value, ["id", "fileName", "mimeType", "content", "metadata"])
+    !isRecord(input) ||
+    !hasOnlyKeys(input, ["id", "fileName", "mimeType", "content", "metadata"])
   ) {
     return failure("INVALID_DOCUMENT", "Document input is invalid.");
   }
 
-  const id = value["id"] === undefined ? generatedId : value["id"];
+  const inputId: unknown = Reflect.get(input, "id");
+  const fileName: unknown = Reflect.get(input, "fileName");
+  const mimeType: unknown = Reflect.get(input, "mimeType");
+  const content = snapshotBytes(Reflect.get(input, "content"));
+  const metadataInput: unknown = Reflect.get(input, "metadata");
+  let id = inputId;
+  if (id === undefined) {
+    try {
+      id = generateId();
+    } catch {
+      return failure(
+        "DEPENDENCY_FAILURE",
+        "Document identifier generation failed.",
+      );
+    }
+  }
   if (!validDocumentId(id)) {
     return failure(
       "INVALID_DOCUMENT",
@@ -209,28 +284,28 @@ export function validateDocumentInput(
       "id",
     );
   }
-  if (!validFileName(value["fileName"])) {
+  if (!validFileName(fileName)) {
     return failure(
       "INVALID_DOCUMENT",
       "Document filename is invalid.",
       "fileName",
     );
   }
-  if (!isSupportedMimeType(value["mimeType"])) {
+  if (!isSupportedMimeType(mimeType)) {
     return failure(
       "UNSUPPORTED_CONTENT_TYPE",
       "Document content type is not supported.",
       "mimeType",
     );
   }
-  if (!(value["content"] instanceof Uint8Array)) {
+  if (content === null) {
     return failure(
       "INVALID_DOCUMENT",
       "Document content must be bytes.",
       "content",
     );
   }
-  if (value["content"].byteLength > vaultLimits.contentBytes) {
+  if (content.byteLength > vaultLimits.contentBytes) {
     return failure(
       "CONTENT_TOO_LARGE",
       "Document content exceeds the size limit.",
@@ -238,11 +313,11 @@ export function validateDocumentInput(
     );
   }
 
-  const text = decodeText(value["content"]);
+  const text = decodeText(content);
   if (!text.ok) {
     return text;
   }
-  const metadata = validateMetadata(value["metadata"]);
+  const metadata = validateMetadata(metadataInput);
   if (!metadata.ok) {
     return metadata;
   }
@@ -252,10 +327,10 @@ export function validateDocumentInput(
     value: {
       document: {
         id,
-        fileName: value["fileName"],
-        mimeType: value["mimeType"],
-        sizeBytes: value["content"].byteLength,
-        content: new Uint8Array(value["content"]),
+        fileName,
+        mimeType,
+        sizeBytes: content.byteLength,
+        content,
         metadata: metadata.value,
         storedAt,
       },
@@ -277,25 +352,37 @@ export function validateStoredDocument(
       "content",
       "metadata",
       "storedAt",
-    ]) ||
-    !validDocumentId(input["id"]) ||
-    !validFileName(input["fileName"]) ||
-    !isSupportedMimeType(input["mimeType"]) ||
-    !(input["content"] instanceof Uint8Array) ||
-    typeof input["sizeBytes"] !== "number" ||
-    !Number.isInteger(input["sizeBytes"]) ||
-    input["sizeBytes"] !== input["content"].byteLength ||
-    input["sizeBytes"] > vaultLimits.contentBytes ||
-    !validTimestamp(input["storedAt"])
+    ])
   ) {
     return failure("INVALID_DOCUMENT", "Stored document is invalid.");
   }
 
-  const text = decodeText(input["content"]);
+  const id: unknown = Reflect.get(input, "id");
+  const fileName: unknown = Reflect.get(input, "fileName");
+  const mimeType: unknown = Reflect.get(input, "mimeType");
+  const sizeBytes: unknown = Reflect.get(input, "sizeBytes");
+  const content = snapshotBytes(Reflect.get(input, "content"));
+  const metadataInput: unknown = Reflect.get(input, "metadata");
+  const storedAt: unknown = Reflect.get(input, "storedAt");
+  if (
+    !validDocumentId(id) ||
+    !validFileName(fileName) ||
+    !isSupportedMimeType(mimeType) ||
+    typeof sizeBytes !== "number" ||
+    !Number.isInteger(sizeBytes) ||
+    content === null ||
+    sizeBytes !== content.byteLength ||
+    sizeBytes > vaultLimits.contentBytes ||
+    !validTimestamp(storedAt)
+  ) {
+    return failure("INVALID_DOCUMENT", "Stored document is invalid.");
+  }
+
+  const text = decodeText(content);
   if (!text.ok) {
     return text;
   }
-  const metadata = validateMetadata(input["metadata"]);
+  const metadata = validateMetadata(metadataInput);
   if (!metadata.ok) {
     return metadata;
   }
@@ -303,13 +390,13 @@ export function validateStoredDocument(
     ok: true,
     value: {
       document: {
-        id: input["id"],
-        fileName: input["fileName"],
-        mimeType: input["mimeType"],
-        sizeBytes: input["sizeBytes"],
-        content: new Uint8Array(input["content"]),
+        id,
+        fileName,
+        mimeType,
+        sizeBytes,
+        content,
         metadata: metadata.value,
-        storedAt: input["storedAt"],
+        storedAt,
       },
       text: text.value,
     },
@@ -333,11 +420,19 @@ export function validateSummaryOutput(
 ): VaultResult<ValidatedSummary> {
   if (
     !isRecord(output) ||
-    !hasOnlyKeys(output, ["assertions"]) ||
-    !Array.isArray(output["assertions"]) ||
-    output["assertions"].length === 0 ||
-    output["assertions"].length > vaultLimits.summaryAssertions
+    !hasOnlyKeys(output, ["assertions"])
   ) {
+    return failure(
+      "INVALID_SUMMARY",
+      "Summary provider returned an invalid result.",
+    );
+  }
+
+  const assertionItems = snapshotArray(
+    Reflect.get(output, "assertions"),
+    vaultLimits.summaryAssertions,
+  );
+  if (assertionItems === null || assertionItems.length === 0) {
     return failure(
       "INVALID_SUMMARY",
       "Summary provider returned an invalid result.",
@@ -347,15 +442,26 @@ export function validateSummaryOutput(
   const assertions: FactualAssertion[] = [];
   const assertionTexts = new Set<string>();
   const allEvidence = new Set<string>();
-  for (const item of output["assertions"]) {
+  for (const item of assertionItems) {
     if (
       !isRecord(item) ||
-      !hasOnlyKeys(item, ["text", "evidence"]) ||
-      !validBoundedText(item["text"], vaultLimits.assertionCharacters) ||
-      assertionTexts.has(item["text"]) ||
-      !Array.isArray(item["evidence"]) ||
-      item["evidence"].length === 0 ||
-      item["evidence"].length > vaultLimits.evidencePerAssertion
+      !hasOnlyKeys(item, ["text", "evidence"])
+    ) {
+      return failure(
+        "INVALID_SUMMARY",
+        "Summary provider returned an invalid result.",
+      );
+    }
+    const text: unknown = Reflect.get(item, "text");
+    const evidenceItems = snapshotArray(
+      Reflect.get(item, "evidence"),
+      vaultLimits.evidencePerAssertion,
+    );
+    if (
+      !validBoundedText(text, vaultLimits.assertionCharacters) ||
+      assertionTexts.has(text) ||
+      evidenceItems === null ||
+      evidenceItems.length === 0
     ) {
       return failure(
         "INVALID_SUMMARY",
@@ -363,9 +469,10 @@ export function validateSummaryOutput(
       );
     }
     const evidence: string[] = [];
-    for (const excerpt of item["evidence"]) {
+    for (const item of evidenceItems) {
+      const excerpt = snapshotEvidence(item);
       if (
-        !validBoundedText(excerpt, vaultLimits.evidenceCharacters) ||
+        excerpt === null ||
         !sourceText.includes(excerpt) ||
         allEvidence.has(excerpt)
       ) {
@@ -377,8 +484,8 @@ export function validateSummaryOutput(
       evidence.push(excerpt);
       allEvidence.add(excerpt);
     }
-    assertionTexts.add(item["text"]);
-    assertions.push({ text: item["text"], evidence });
+    assertionTexts.add(text);
+    assertions.push({ text, evidence });
   }
   return {
     ok: true,

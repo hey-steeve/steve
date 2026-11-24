@@ -33,6 +33,25 @@ function documentInput(
   };
 }
 
+function storedDocument(
+  overrides: Partial<StoredDocument> = {},
+): StoredDocument {
+  return {
+    id: "doc_generated",
+    fileName: "consultation-note.md",
+    mimeType: "text/markdown",
+    sizeBytes: encoder.encode(text).byteLength,
+    content: encoder.encode(text),
+    metadata: {
+      title: "Consultation note",
+      source: "synthetic fixture",
+      documentDate: "2026-11-12",
+    },
+    storedAt: "2026-11-23T20:00:00.000Z",
+    ...overrides,
+  };
+}
+
 function provider(output: unknown = {
   assertions: [{
     text: "The note requests a blood test before the next appointment.",
@@ -183,7 +202,7 @@ describe("Vault document lifecycle", () => {
 
     mutableInput.content[0] = 88;
     stored.value.content[1] = 88;
-    (stored.value.metadata as { title?: string }).title = "Changed";
+    Reflect.set(stored.value.metadata, "title", "Changed");
     const retrieved = await service.get("doc_immutable");
     if (!retrieved.ok) {
       throw new Error("fixture was not retrieved");
@@ -249,8 +268,83 @@ describe("dependency failures", () => {
     });
   });
 
+  test("snapshots changing document and metadata getters once", async () => {
+    const document = documentInput();
+    const metadata = {
+      source: "synthetic fixture",
+      documentDate: "2026-11-12",
+    };
+    let idReads = 0;
+    let fileNameReads = 0;
+    let mimeTypeReads = 0;
+    let contentReads = 0;
+    let titleReads = 0;
+    Object.defineProperty(document, "id", {
+      enumerable: true,
+      get() {
+        idReads += 1;
+        return idReads === 1 ? undefined : "doc_changed";
+      },
+    });
+    Object.defineProperty(document, "fileName", {
+      enumerable: true,
+      get() {
+        fileNameReads += 1;
+        return fileNameReads === 1 ? "safe-note.txt" : "../secret";
+      },
+    });
+    Object.defineProperty(document, "mimeType", {
+      enumerable: true,
+      get() {
+        mimeTypeReads += 1;
+        return mimeTypeReads === 1 ? "text/plain" : "application/pdf";
+      },
+    });
+    Object.defineProperty(document, "content", {
+      enumerable: true,
+      get() {
+        contentReads += 1;
+        return contentReads === 1
+          ? encoder.encode("Synthetic safe content.")
+          : new Uint8Array(vaultLimits.contentBytes + 1).fill(65);
+      },
+    });
+    Object.defineProperty(metadata, "title", {
+      enumerable: true,
+      get() {
+        titleReads += 1;
+        return titleReads === 1 ? "Safe title" : "Changed title";
+      },
+    });
+    Object.defineProperty(document, "metadata", {
+      enumerable: true,
+      value: metadata,
+    });
+    const service = createVault(dependencies());
+
+    const result = await service.store(document);
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        id: "doc_generated",
+        fileName: "safe-note.txt",
+        mimeType: "text/plain",
+        content: encoder.encode("Synthetic safe content."),
+        metadata: { title: "Safe title" },
+      },
+    });
+    expect({ idReads, fileNameReads, mimeTypeReads, contentReads, titleReads }).toEqual({
+      idReads: 1,
+      fileNameReads: 1,
+      mimeTypeReads: 1,
+      contentReads: 1,
+      titleReads: 1,
+    });
+  });
+
   test("contains hostile records returned by storage", async () => {
-    const hostileRecord = new Proxy({} as StoredDocument, {
+    const hostileRecord = new Proxy(storedDocument(), {
       ownKeys() {
         throw new Error("hostile storage record");
       },
@@ -258,6 +352,57 @@ describe("dependency failures", () => {
     const storage: DocumentStorage = {
       create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => hostileRecord),
+    };
+    const service = createVault(dependencies({ storage }));
+
+    const result = await service.get("doc_generated");
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "STORAGE_FAILURE",
+        message: "Document storage returned invalid data.",
+      },
+    });
+  });
+
+  test("snapshots changing storage getters once", async () => {
+    const record = storedDocument();
+    let idReads = 0;
+    let fileNameReads = 0;
+    Object.defineProperty(record, "id", {
+      enumerable: true,
+      get() {
+        idReads += 1;
+        return idReads === 1 ? "doc_generated" : "doc_changed";
+      },
+    });
+    Object.defineProperty(record, "fileName", {
+      enumerable: true,
+      get() {
+        fileNameReads += 1;
+        return fileNameReads === 1 ? "safe-note.txt" : "../secret";
+      },
+    });
+    const storage: DocumentStorage = {
+      create: vi.fn(async () => "created" as const),
+      get: vi.fn(async () => record),
+    };
+    const service = createVault(dependencies({ storage }));
+
+    const result = await service.get("doc_generated");
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { id: "doc_generated", fileName: "safe-note.txt" },
+    });
+    expect({ idReads, fileNameReads }).toEqual({ idReads: 1, fileNameReads: 1 });
+  });
+
+  test("rejects a storage record for a different identifier", async () => {
+    const storage: DocumentStorage = {
+      create: vi.fn(async () => "created" as const),
+      get: vi.fn(async () => storedDocument({ id: "doc_other" })),
     };
     const service = createVault(dependencies({ storage }));
 
@@ -299,7 +444,7 @@ describe("dependency failures", () => {
   });
 
   test("rejects malformed data returned by a storage adapter", async () => {
-    const malformed = {
+    const malformed: StoredDocument = {
       id: "doc_generated",
       fileName: "note.txt",
       mimeType: "text/plain",
@@ -307,7 +452,7 @@ describe("dependency failures", () => {
       content: encoder.encode("short"),
       metadata: {},
       storedAt: "not-a-date",
-    } as StoredDocument;
+    };
     const storage: DocumentStorage = {
       create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => malformed),
@@ -326,10 +471,18 @@ describe("dependency failures", () => {
   });
 
   test("rejects invalid storage outcomes", async () => {
-    const storage: DocumentStorage = {
-      create: vi.fn(async () => "unexpected" as "created"),
+    const validStorage: DocumentStorage = {
+      create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => null),
     };
+    const storage = new Proxy(validStorage, {
+      get(target, property, receiver) {
+        if (property === "create") {
+          return async () => "unexpected";
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
     const service = createVault(dependencies({ storage }));
 
     const result = await service.store(documentInput());
@@ -449,10 +602,53 @@ describe("summary validation boundaries", () => {
       error: { code: "INVALID_SUMMARY" },
     });
   });
+
+  test("requires a meaningful eight-character evidence anchor", async () => {
+    const exact = "abc12345";
+    const short = "abc1234";
+    const punctuation = "........";
+    const source = `${exact} ${short} ${punctuation}`;
+
+    const accepted = await summarizeOutput(source, {
+      assertions: [{ text: "Fact.", evidence: [`  ${exact}  `] }],
+    });
+    const shortResult = await summarizeOutput(source, {
+      assertions: [{ text: "Fact.", evidence: [short] }],
+    });
+    const punctuationResult = await summarizeOutput(source, {
+      assertions: [{ text: "Fact.", evidence: [punctuation] }],
+    });
+
+    expect(accepted).toMatchObject({
+      ok: true,
+      value: { assertions: [{ evidence: [exact] }] },
+    });
+    expect(shortResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SUMMARY" },
+    });
+    expect(punctuationResult).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SUMMARY" },
+    });
+  });
+
+  test("accepts a verbatim multi-line evidence excerpt", async () => {
+    const excerpt = "Line one\nLine two";
+
+    const result = await summarizeOutput(excerpt, {
+      assertions: [{ text: "The document has two lines.", evidence: [excerpt] }],
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { assertions: [{ evidence: [excerpt] }] },
+    });
+  });
 });
 
 describe("untrusted summary output", () => {
-  test("contains hostile summary objects, properties, and arrays", async () => {
+  test("contains hostile summary objects and properties", async () => {
     const hostileObject = new Proxy({}, {
       ownKeys() {
         throw new Error("hostile summary object");
@@ -464,21 +660,9 @@ describe("untrusted summary output", () => {
         throw new Error("hostile summary property");
       },
     });
-    const hostileAssertions = new Proxy([{
-      text: "Fact.",
-      evidence: [evidence],
-    }], {
-      get(target, property, receiver) {
-        if (property === Symbol.iterator) {
-          throw new Error("hostile summary array");
-        }
-        return Reflect.get(target, property, receiver);
-      },
-    });
     const outputs = [
       hostileObject,
       hostileProperty,
-      { assertions: hostileAssertions },
     ];
 
     for (const output of outputs) {
@@ -495,6 +679,94 @@ describe("untrusted summary output", () => {
         },
       });
     }
+  });
+
+  test("ignores custom iterators and snapshots indexed arrays", async () => {
+    const indexedEvidence = [evidence];
+    Object.defineProperty(indexedEvidence, Symbol.iterator, {
+      value: function* emptyEvidenceIterator() {
+        return undefined;
+      },
+    });
+    const indexedAssertions = [{ text: "Fact.", evidence: indexedEvidence }];
+    Object.defineProperty(indexedAssertions, Symbol.iterator, {
+      value: function* emptyAssertionIterator() {
+        return undefined;
+      },
+    });
+    const service = createVault(
+      dependencies({ summarizer: provider({ assertions: indexedAssertions }) }),
+    );
+    await service.store(documentInput());
+
+    const result = await service.summarize("doc_generated");
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { assertions: [{ text: "Fact.", evidence: [evidence] }] },
+    });
+  });
+
+  test("rejects sparse arrays even when a custom iterator yields values", async () => {
+    const sparseAssertions: unknown[] = [];
+    sparseAssertions.length = 1;
+    Object.defineProperty(sparseAssertions, Symbol.iterator, {
+      value: function* customIterator() {
+        yield { text: "Fact.", evidence: [evidence] };
+      },
+    });
+    const service = createVault(
+      dependencies({ summarizer: provider({ assertions: sparseAssertions }) }),
+    );
+    await service.store(documentInput());
+
+    const result = await service.summarize("doc_generated");
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_SUMMARY" },
+    });
+  });
+
+  test("snapshots changing summary getters once", async () => {
+    let assertionsReads = 0;
+    let textReads = 0;
+    let evidenceReads = 0;
+    const assertion = Object.defineProperty({}, "text", {
+      enumerable: true,
+      get() {
+        textReads += 1;
+        return textReads === 1 ? "Fact." : "Changed fact.";
+      },
+    });
+    Object.defineProperty(assertion, "evidence", {
+      enumerable: true,
+      get() {
+        evidenceReads += 1;
+        return evidenceReads === 1 ? [evidence] : [];
+      },
+    });
+    const output = Object.defineProperty({}, "assertions", {
+      enumerable: true,
+      get() {
+        assertionsReads += 1;
+        return assertionsReads === 1 ? [assertion] : [];
+      },
+    });
+    const service = createVault(dependencies({ summarizer: provider(output) }));
+    await service.store(documentInput());
+
+    const result = await service.summarize("doc_generated");
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { assertions: [{ text: "Fact.", evidence: [evidence] }] },
+    });
+    expect({ assertionsReads, textReads, evidenceReads }).toEqual({
+      assertionsReads: 1,
+      textReads: 1,
+      evidenceReads: 1,
+    });
   });
 
   test.each([
@@ -525,6 +797,12 @@ describe("untrusted summary output", () => {
       assertions: [
         { text: "First fact.", evidence: [evidence] },
         { text: "Second fact.", evidence: [evidence] },
+      ],
+    }],
+    ["duplicate assertion text", {
+      assertions: [
+        { text: "Same fact.", evidence: ["Consultation on 12 November."] },
+        { text: "Same fact.", evidence: [evidence] },
       ],
     }],
     ["unknown assertion field", {

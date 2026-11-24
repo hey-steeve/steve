@@ -41,6 +41,8 @@ describe("document validation", () => {
     ["empty identifier", { id: "" }, "id"],
     ["identifier punctuation", { id: "doc:unsafe" }, "id"],
     ["parent path", { fileName: "../report.txt" }, "fileName"],
+    ["dot filename", { fileName: "." }, "fileName"],
+    ["parent filename", { fileName: ".." }, "fileName"],
     ["Windows path", { fileName: "folder\\report.txt" }, "fileName"],
     ["blank filename", { fileName: "   " }, "fileName"],
     ["control in filename", { fileName: "report\u0000.txt" }, "fileName"],
@@ -55,12 +57,12 @@ describe("document validation", () => {
 
   test("rejects unsupported and parameterized MIME types", async () => {
     const service = vault();
-    const pdf = await service.store(
-      input({ mimeType: "application/pdf" as "text/plain" }),
-    );
-    const parameterized = await service.store(
-      input({ mimeType: "text/plain; charset=utf-8" as "text/plain" }),
-    );
+    const pdfInput = input();
+    const parameterizedInput = input();
+    Reflect.set(pdfInput, "mimeType", "application/pdf");
+    Reflect.set(parameterizedInput, "mimeType", "text/plain; charset=utf-8");
+    const pdf = await service.store(pdfInput);
+    const parameterized = await service.store(parameterizedInput);
 
     expect([pdf, parameterized]).toEqual([
       {
@@ -172,9 +174,9 @@ describe("document validation", () => {
     ["invalid date", { documentDate: "2026-02-29" }, "metadata.documentDate"],
     ["unknown field", { category: "report" }, "metadata"],
   ])("rejects %s metadata", async (_name, metadata, field) => {
-    const result = await vault().store(
-      input({ metadata: metadata as { title?: string } }),
-    );
+    const document = input();
+    Reflect.set(document, "metadata", metadata);
+    const result = await vault().store(document);
 
     expect(result).toMatchObject({
       ok: false,
@@ -183,14 +185,12 @@ describe("document validation", () => {
   });
 
   test("rejects unknown document fields and non-byte content at runtime", async () => {
-    const unknownField = await vault().store({
-      ...input(),
-      unsafePath: "/tmp/report.txt",
-    } as VaultDocumentInput);
-    const stringContent = await vault().store({
-      ...input(),
-      content: "private document text",
-    } as unknown as VaultDocumentInput);
+    const unknownInput = input();
+    const stringInput = input();
+    Reflect.set(unknownInput, "unsafePath", "/tmp/report.txt");
+    Reflect.set(stringInput, "content", "private document text");
+    const unknownField = await vault().store(unknownInput);
+    const stringContent = await vault().store(stringInput);
 
     expect(unknownField).toMatchObject({
       ok: false,
@@ -199,6 +199,18 @@ describe("document validation", () => {
     expect(stringContent).toMatchObject({
       ok: false,
       error: { code: "INVALID_DOCUMENT", field: "content" },
+    });
+  });
+
+  test("rejects inherited document fields", async () => {
+    const document = input();
+    Object.setPrototypeOf(document, { inherited: "unsafe" });
+
+    const result = await vault().store(document);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_DOCUMENT" },
     });
   });
 });

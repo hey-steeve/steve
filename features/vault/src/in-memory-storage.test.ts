@@ -45,7 +45,7 @@ test("copies bytes and metadata on write and read", async () => {
     throw new Error("missing stored fixture");
   }
   first.content[1] = 88;
-  (first.metadata as { title?: string }).title = "Changed again";
+  Reflect.set(first.metadata, "title", "Changed again");
   const second = await storage.get(document.id);
 
   expect(second?.content).toEqual(new TextEncoder().encode("note"));

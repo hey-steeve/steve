@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   factualSummaryRules,
   type DocumentSummary,
@@ -33,21 +32,11 @@ function timestamp(now: () => Date): string | null {
   }
 }
 
-function needsGeneratedId(input: unknown): boolean | null {
-  try {
-    if (input === null || typeof input !== "object" || Array.isArray(input)) {
-      return true;
-    }
-    return Reflect.get(input, "id") === undefined;
-  } catch {
-    return null;
-  }
-}
-
 export function createVault(dependencies: VaultDependencies): Vault {
   const storage = dependencies.storage;
   const summarizer = dependencies.summarizer;
-  const generateId = dependencies.generateId ?? (() => `doc_${randomUUID()}`);
+  const generateId =
+    dependencies.generateId ?? (() => `doc_${globalThis.crypto.randomUUID()}`);
   const now = dependencies.now ?? (() => new Date());
 
   async function load(
@@ -76,30 +65,21 @@ export function createVault(dependencies: VaultDependencies): Vault {
     if (!validated.ok) {
       return failure("STORAGE_FAILURE", "Document storage returned invalid data.");
     }
+    if (validated.value.document.id !== validId.value) {
+      return failure("STORAGE_FAILURE", "Document storage returned invalid data.");
+    }
     return validated;
   }
 
   return {
     async store(input: VaultDocumentInput): Promise<VaultResult<StoredDocument>> {
-      let generatedId = "";
-      const generateDocumentId = needsGeneratedId(input);
-      if (generateDocumentId === null) {
-        return failure("INVALID_DOCUMENT", "Document input is invalid.");
-      }
-      if (generateDocumentId) {
-        try {
-          generatedId = generateId();
-        } catch {
-          return failure("DEPENDENCY_FAILURE", "Document identifier generation failed.");
-        }
-      }
       const storedAt = timestamp(now);
       if (storedAt === null) {
         return failure("DEPENDENCY_FAILURE", "Document clock failed.");
       }
       let validated: ReturnType<typeof validateDocumentInput>;
       try {
-        validated = validateDocumentInput(input, generatedId, storedAt);
+        validated = validateDocumentInput(input, generateId, storedAt);
       } catch {
         return failure("INVALID_DOCUMENT", "Document input is invalid.");
       }

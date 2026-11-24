@@ -15,6 +15,7 @@ export const vaultLimits = Object.freeze({
   summaryAssertions: 8,
   assertionCharacters: 500,
   evidencePerAssertion: 4,
+  evidenceMinimumCharacters: 8,
   evidenceCharacters: 500,
 } as const);
 
