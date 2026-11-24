@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +10,7 @@ import {
   encodeSavedReply,
   normalizeReply,
 } from "./check.ts";
+import { emergencyCases } from "./cases.ts";
 import { parseSavedRun, rescoreSavedRun } from "./rescore.ts";
 
 const cutReply = `${"a".repeat(400)}…`;
@@ -211,6 +212,29 @@ it("re-scores every file when the command receives more than one path", () => {
   expect(result.status).toBe(0);
   expect(result.stdout).toContain("stroke PASS expected=[15] found=[15] ok");
   expect(result.stdout).toContain("medication PASS expected=[] found=[] ok");
+});
+
+it("parses and re-scores both committed terra runs", () => {
+  const runDir = join(dirname(fileURLToPath(import.meta.url)), "runs");
+  const scores = [
+    ["gpt-6.1-terra.run1.txt", 21, 1],
+    ["gpt-6.1-terra.run2.txt", 19, 3],
+  ] as const;
+  for (const [name, passed, failed] of scores) {
+    const text = readFileSync(join(runDir, name), "utf8");
+    const entries = parseSavedRun(text);
+    expect(entries, name).toHaveLength(emergencyCases.length);
+    expect(
+      entries.every((entry) => entry.kind === "score" && entry.truncated === false),
+      name,
+    ).toBe(true);
+    expect(rescoreSavedRun(text), name).toMatchObject({
+      passed,
+      failed,
+      errors: 0,
+      total: emergencyCases.length,
+    });
+  }
 });
 
 it("scores a newline the same way on the live path and from the saved line", () => {
