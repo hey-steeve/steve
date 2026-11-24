@@ -1,6 +1,6 @@
 # Steve
 
-Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`. Doubt does not default to 15: when in doubt, ask one short question or recommend a consultation, never 15 by default.
+Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. The patient-facing 15 and 3114 wording stays in `app/src/app/api/chat/system-prompt.ts`. Triage carries the numbers as call data. Steve does not route to 112 or SOS Médecins. Doubt does not default to 15: when in doubt, ask one short question or recommend a consultation, never 15 by default.
 
 The project is Alan AI Health Hack #2 on 28 Nov 2026.
 

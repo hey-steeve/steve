@@ -126,10 +126,6 @@ async function readJson(response: Response, signal: AbortSignal): Promise<unknow
 }
 
 function whenNotAborted<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) {
-    void pending.catch(() => {});
-    return Promise.reject(signal.reason);
-  }
   return new Promise((resolve, reject) => {
     const onAbort = () => {
       reject(signal.reason);

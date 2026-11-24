@@ -600,6 +600,82 @@ it("maps a body that rejects after the timeout to need-info when fetch ignores t
   }
 }, 1000);
 
+it("maps a body that settles after response.json has started to a timeout", async () => {
+  const rejections: unknown[] = [];
+  const onUnhandled = (reason: unknown) => {
+    rejections.push(reason);
+  };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    for (const settlement of ["fulfill", "reject"] as const) {
+      let releaseBody: () => void = () => undefined;
+      const bodySettled = new Promise<void>((resolve) => {
+        releaseBody = resolve;
+      });
+      let pulls = 0;
+      let bodyReadStarted = false;
+      let settledAfterResult = false;
+      let sawResult = false;
+      const payload = JSON.stringify(bodyFor("consult", 0.7, "physical"));
+      const timeoutMs = 30;
+      const result = await classify({
+        state: demoState,
+        timeoutMs,
+        fetch: (_input, init) => {
+          const signal = init?.signal;
+          if (!(signal instanceof AbortSignal)) {
+            return Promise.reject(new Error("missing signal"));
+          }
+          let stream: ReadableStream<Uint8Array> | undefined;
+          stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+              signal.addEventListener(
+                "abort",
+                () => {
+                  bodyReadStarted = stream?.locked === true && pulls >= 1;
+                  setTimeout(() => {
+                    settledAfterResult = sawResult;
+                    if (settlement === "fulfill") {
+                      controller.enqueue(new TextEncoder().encode(payload));
+                      controller.close();
+                    } else {
+                      controller.error(new Error("body settled after abort"));
+                    }
+                    releaseBody();
+                  }, 0);
+                },
+                { once: true },
+              );
+            },
+            pull() {
+              pulls += 1;
+            },
+          });
+          return Promise.resolve(
+            new Response(stream, {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            }),
+          );
+        },
+      });
+      sawResult = true;
+      await bodySettled;
+      expect({ settlement, bodyReadStarted, settledAfterResult, result, rejections }).toEqual({
+        settlement,
+        bodyReadStarted: true,
+        settledAfterResult: true,
+        result: { label: "need-info", reason: "timeout" },
+        rejections: [],
+      });
+    }
+    await wait(50);
+    expect(rejections).toEqual([]);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+}, 1000);
+
 it("fail-closes when timeoutMs cannot be armed", async () => {
   for (const timeoutMs of [Number.NaN, -1, Number.MAX_SAFE_INTEGER, 2 ** 53]) {
     let called = false;
