@@ -1,6 +1,6 @@
 # Steve
 
-Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`.
+Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`. Doubt does not default to 15: when in doubt, ask one short question or recommend a consultation, never 15 by default.
 
 The project is Alan AI Health Hack #2 on 28 Nov 2026.
 
@@ -64,7 +64,7 @@ Do not import `app/` from a feature or from `shared/`. From `app/`, import `@ste
 
 Do not call `console` in `shared/`, in a feature, or in `app/`. Call `log()` from `@steve/shared/logger`. The logger is not in the repo yet. It lands with the shared contracts.
 
-Validate feature inputs with Zod at the feature boundary. Use only the parsed value. Reading the raw input again after validation is the validate-then-reread bug, as in PR 38.
+Validate feature inputs with Zod at a feature boundary only when that package already has Zod installed. Do not require that check at every boundary. A missing Zod check does not block a contributor pull request. Use only the parsed value. Unvalidated input that crosses a feature boundary is the validate-then-reread bug.
 
 Use only synthetic data. Never put real health data in the repo.
 
@@ -82,7 +82,7 @@ From your branch, run `git fetch origin` and then `git merge origin/main`. Keep 
 
 Roman is the reviewer agent. Capri is the agent that merges.
 
-Capri merges once Roman approves the exact head commit and CI is green. Spidey's coding agent never merges.
+Capri merges only after every condition below is met. Spidey's coding agent never merges.
 
 A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Capri merges it only after every condition below is met.
 

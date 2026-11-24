@@ -39,6 +39,8 @@ The `VoiceProvider` interface, the logger, and the LLM client are still to be de
 - `sessionId`. The id of one session.
 - `turnId`. The id of one turn.
 - `channel`. `"voice"` or `"text"`.
+- `turnChannels`. The values `"voice"` and `"text"`.
+- `TurnChannel`. A value from `turnChannels`.
 - `Handoff`. A request a conversation passes to a feature. Its fields are `sessionId`, `turnId`, `target`, `intent`, and `data`. `Data` defaults to `unknown`.
 - `FeatureResult`. The value a feature returns. Success has `ok` true, a `reply`, and optional `data`. Failure has `ok` false and a `reply`.
 
