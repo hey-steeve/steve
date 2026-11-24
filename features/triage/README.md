@@ -64,11 +64,11 @@ The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Lang
 
 `state` is `Turn.text` for the last 6 turns, oldest first, with the current turn last. `sessionId`, `turnId`, `target`, `intent`, and `channel` stay out of `state`.
 
-Emergency copies `calls` in the order `ClassifyResult` gives. Consult, self-care, and need-info copy `calls` when that result has them. Those three decisions omit `calls` when the result has none.
+Emergency copies `calls` in the order `ClassifyResult` gives. Consult, self-care, and genuine need-info copy `calls` when that result has them. Those decisions omit `calls` when the result has none.
 
-Consult guidance is `recommande une consultation chez le médecin traitant, en pharmacie de garde ou en téléconsultation`. Need-info guidance is `pose une seule question courte, sans nommer le 15`. Both use `placement: "after-system-prompt"`. Self-care has no guidance.
+Consult guidance is `oriente vers le médecin traitant ou une pharmacie de garde`. Genuine need-info guidance is `pose une seule question courte`. Both use `placement: "after-system-prompt"`. Self-care has no guidance. Guidance does not restrict 15 or 3114.
 
-A fail-closed classify result is never emergency. Reasons `timeout`, `http`, `network`, `malformed`, and `no-channel` have no `calls`.
+`triageTurn` returns need-info with no guidance and no calls, and does not call `classify`, when `data` is empty or the last turn's `sessionId` or `turnId` does not match the handoff. A thrown `classify`, and reasons `timeout`, `network`, `http`, and `malformed`, take that same path. Reasons `model`, `below-threshold`, and `no-channel` keep guidance. `no-channel` has no calls. This path is never emergency.
 
 ## Demo and production
 
@@ -80,4 +80,4 @@ The classifier is the same. Langfuse evaluation is not in this repo yet. The tri
 
 ## Status
 
-The Jev client and its unit tests are in this package. The chat route does not call `classify` yet. `triageTurn` reads a shared `Handoff` whose `data` is a `Turn` list. A fail-closed classify result is never emergency.
+The Jev client and its unit tests are in this package. The chat route does not call `classify` yet. `triageTurn` reads a shared `Handoff` whose `data` is a `Turn` list. When Jev fails, or the handoff has no matching current turn, the result is need-info with no guidance. Genuine need-info keeps one short question. Consult guidance names the médecin traitant or a pharmacie de garde.

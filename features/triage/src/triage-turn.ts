@@ -35,7 +35,7 @@ export type TriageDecision =
     }
   | {
       readonly label: "need-info";
-      readonly guidance: TriageGuidance;
+      readonly guidance?: TriageGuidance;
       readonly calls?: Offer3114;
     };
 
@@ -43,13 +43,17 @@ const stateTurnLimit = 6;
 
 const needInfoGuidance = {
   placement: "after-system-prompt",
-  text: "pose une seule question courte, sans nommer le 15",
+  text: "pose une seule question courte",
 } as const satisfies TriageGuidance;
 
 const consultGuidance = {
   placement: "after-system-prompt",
-  text: "recommande une consultation chez le médecin traitant, en pharmacie de garde ou en téléconsultation",
+  text: "oriente vers le médecin traitant ou une pharmacie de garde",
 } as const satisfies TriageGuidance;
+
+function noTriage(): { readonly label: "need-info" } {
+  return { label: "need-info" };
+}
 
 function offeredCalls(result: Exclude<ClassifyResult, { label: "emergency" }>): Offer3114 | undefined {
   if (!("calls" in result)) {
@@ -69,11 +73,25 @@ function withCalls<Decision extends { readonly label: "consult" | "self-care" | 
 }
 
 export async function triageTurn(input: TriageTurnRequest): Promise<TriageDecision> {
+  const current = input.handoff.data.at(-1);
+  if (
+    current === undefined ||
+    current.sessionId !== input.handoff.sessionId ||
+    current.turnId !== input.handoff.turnId
+  ) {
+    return noTriage();
+  }
+
   const state = input.handoff.data
     .slice(-stateTurnLimit)
     .map((turn) => turn.text)
     .join("\n");
-  const result = await input.classify({ state });
+  let result: ClassifyResult;
+  try {
+    result = await input.classify({ state });
+  } catch {
+    return noTriage();
+  }
   switch (result.label) {
     case "emergency":
       return { label: "emergency", calls: result.calls };
@@ -82,7 +100,24 @@ export async function triageTurn(input: TriageTurnRequest): Promise<TriageDecisi
     case "self-care":
       return withCalls({ label: "self-care" }, offeredCalls(result));
     case "need-info":
-      return withCalls({ label: "need-info", guidance: needInfoGuidance }, offeredCalls(result));
+      switch (result.reason) {
+        case "timeout":
+        case "network":
+        case "http":
+        case "malformed":
+          return noTriage();
+        case "model":
+        case "below-threshold":
+        case "no-channel":
+          return withCalls(
+            { label: "need-info", guidance: needInfoGuidance },
+            offeredCalls(result),
+          );
+        default: {
+          const unreachableReason: never = result;
+          return unreachableReason;
+        }
+      }
     default: {
       const unreachable: never = result;
       return unreachable;
