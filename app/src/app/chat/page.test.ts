@@ -315,7 +315,7 @@ it("renders an assistant bubble without a model label, a speak button, or a foot
       Response.json({
         reply: "Tu peux contacter le secrétariat.",
         mocked: false,
-        model: "google/gemini-3.8-flash",
+        model: "openai/gpt-6.1-terra",
       }),
     ),
   );
