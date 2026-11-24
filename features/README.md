@@ -17,7 +17,7 @@ Ten features. The detail is in each README. The common contracts are in the [sha
 
 - Never diagnose.
 - The patient-facing 15 and 3114 wording stays in `app/src/app/api/chat/system-prompt.ts`. Triage carries the numbers as call data. Steve does not route to 112 or SOS Médecins.
-- `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
+- `app/src/app/api/chat/route.test.ts` rejects `Dans le doute, appelle le 15.` and `appelle le 116 117`. It also rejects wording that forbids or discourages 15 or 3114 by default, including `tu ne donnes jamais le 15 par défaut`, `sans nommer le 15`, and `ne pas appeler`.
 - Steve does not book a 15 or 3114 referral.
 - Nothing enters the agenda without confirmation from the practice.
 - Reminders cover only appointments that are in the agenda.

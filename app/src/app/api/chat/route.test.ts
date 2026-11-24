@@ -45,7 +45,7 @@ const systemPromptRules = [
   "Tu réponds en français, comme dans une conversation, en 2 à 4 phrases courtes.",
   "Tu n'utilises une courte liste que si des étapes sont vraiment nécessaires.",
   "Pas de titre, pas de gras, pas d'italique.",
-  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation, et tu ne donnes jamais le 15 par défaut.",
+  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation.",
 ] as const;
 
 it("pins every system prompt rule as a full sentence", () => {
@@ -57,9 +57,52 @@ const forbiddenPromptAdditions = [
   "appelle le 116 117",
 ] as const;
 
+const discouragingEmergencyPhrases = [
+  "ne donne jamais le 15",
+  "ne donne jamais le 3114",
+  "tu ne donnes jamais le 15 par défaut",
+  "évite le 3114",
+  "évite le 15",
+  "pas le 15 par défaut",
+  "pas le 3114 par défaut",
+  "sans nommer le 15",
+  "sans nommer le 3114",
+  "ne pas appeler",
+] as const;
+
+const childFeverNeverByDefault =
+  "tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.";
+
+const discouragingEmergencyPatterns = [
+  /ne donnes? jamais le (?:15|3114)/iu,
+  /évite le (?:15|3114)/iu,
+  /pas le (?:15|3114) par défaut/iu,
+  /sans nommer le (?:15|3114)/iu,
+  /ne pas appeler/iu,
+] as const;
+
+function discouragesEmergencyByDefault(prompt: string): boolean {
+  return discouragingEmergencyPatterns.some((pattern) => pattern.test(prompt));
+}
+
 it("rejects a system prompt that adds a doubt default or 116 117", () => {
   for (const phrase of forbiddenPromptAdditions) {
     expect(systemPrompt).not.toContain(phrase);
+  }
+  expect(systemPrompt).toContain(childFeverNeverByDefault);
+  expect(discouragesEmergencyByDefault(childFeverNeverByDefault)).toBe(false);
+  expect(discouragesEmergencyByDefault(systemPrompt)).toBe(false);
+  for (const phrase of discouragingEmergencyPhrases) {
+    expect(systemPrompt.toLocaleLowerCase("fr").includes(phrase)).toBe(false);
+  }
+});
+
+it("flags a system prompt that discourages 15 or 3114 once that wording is injected", () => {
+  expect(discouragesEmergencyByDefault(systemPrompt)).toBe(false);
+  for (const phrase of discouragingEmergencyPhrases) {
+    const injected = `${systemPrompt}\n${phrase}`;
+    expect(injected).toContain(childFeverNeverByDefault);
+    expect(discouragesEmergencyByDefault(injected), phrase).toBe(true);
   }
 });
 

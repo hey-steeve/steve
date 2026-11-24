@@ -51,7 +51,7 @@ The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Lang
 - When P(emergency) is at least 0.8 and the channel is not `none`, the result is `emergency` with ordered numbers. It is not a confirmation question.
 - The patient-facing sentences for 15 and 3114 stay in `app/src/app/api/chat/system-prompt.ts`. Never 112. Never SOS Médecins.
 - Doubt does not default to 15. Below 0.8, or channel `none`, there is no 15.
-- `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
+- `app/src/app/api/chat/route.test.ts` rejects `Dans le doute, appelle le 15.` and `appelle le 116 117`. It also rejects wording that forbids or discourages 15 or 3114 by default, including `tu ne donnes jamais le 15 par défaut`, `sans nommer le 15`, and `ne pas appeler`.
 - Steve does not book a 15 or 3114 referral.
 
 ## triageTurn
@@ -80,4 +80,4 @@ The classifier is the same. Langfuse evaluation is not in this repo yet. The tri
 
 ## Status
 
-The Jev client and its unit tests are in this package. The chat route does not call `classify` yet. `triageTurn` reads a shared `Handoff` whose `data` is a `Turn` list. When Jev fails, or the handoff has no matching current turn, the result is need-info with no guidance. Genuine need-info keeps one short question. Consult guidance names the médecin traitant or a pharmacie de garde la nuit ou le week-end.
+The Jev client and its unit tests are in this package. The live path calls `triageLive` then the chat at `app/src/app/api/chat/route.ts:51-52`, and `triageTurn` is at `app/src/app/api/chat/route.ts:68`. The `classify` callback injects a fetch that adds `Authorization: Bearer` from `JEV_API_KEY` and forwards `init.signal`. `triageTurn` reads a shared `Handoff` whose `data` is a `Turn` list. Reasons `timeout`, `network`, `http`, and `malformed`, a thrown `classify`, or a missing `JEV_API_KEY` are no-triage. On that path the route calls the chat with the plain system prompt only. The no-triage result has no guidance. A handoff with no matching current turn is the same no-triage result. Genuine need-info keeps one short question. Consult guidance names the médecin traitant or a pharmacie de garde la nuit ou le week-end.
