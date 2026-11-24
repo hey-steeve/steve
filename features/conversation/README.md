@@ -19,15 +19,21 @@
 
 ## Inputs and outputs
 
-These are the planned inputs and outputs. `@steve/shared` defines them. This package does not read them yet.
+`startSession({ channel })` creates a versioned session and returns a French greeting. `channel` is `"voice"` or `"text"`.
 
-- The planned input is a `Turn`. `sessionId` identifies the session. `turnId` identifies the turn. `channel` is `"voice"` or `"text"`. Those two values are the members of `turnChannels`. `TurnChannel` is that union. `text` is what the patient said.
-- The planned output is a `Handoff<Data>`. `sessionId` identifies the session. `turnId` identifies the turn. `target` and `intent` are strings. `data` is the payload. `Data` defaults to `unknown`.
-- A feature returns a `FeatureResult<Data>`. `reply` is what the patient hears. `data` is optional on success. The failure branch has no `data`. A feature with no payload returns `{ ok: true, reply }`.
+`handleTurn(turn)` accepts the shared `Turn` contract. `sessionId` identifies the session, `turnId` identifies one patient turn, `channel` identifies its transport, and `text` is the normalized patient input.
+
+Every successfully understood turn returns a shared `Handoff<Data>` whose target is `triage`. This includes unsupported requests and requests to end the conversation. The caller must process that handoff before honoring `completeAfterTriage`. Conversation never classifies urgency itself.
+
+The handoff carries the shared `sessionId` and `turnId`. Its data contains the source `channel`, the source text, a non-medical summary, and `completeAfterTriage`.
+
+Sessions keep a bounded 40-turn history for provider context and a separate set of every accepted `turnId` for replay protection. A failed or timed-out understanding is not accepted or persisted, so the same turn can be retried.
 
 ## Depends on
 
-The planned dependency is `@steve/shared` only. `Turn`, `Handoff`, and `FeatureResult` are defined there. This package does not depend on `@steve/shared` yet. The link with `voice` and with `inbox` goes through shared contracts that are still to be defined.
+`@steve/shared` provides `Turn`, `TurnChannel`, and `Handoff`. Conversation imports no other workspace package.
+
+The core also receives four injected dependencies: a session store, a general request-understanding provider, an identifier generator, and a clock. The package includes an optimistic in-memory store for deterministic tests and local integration.
 
 ## Rules
 
@@ -38,14 +44,15 @@ The planned dependency is `@steve/shared` only. `Turn`, `Handoff`, and `FeatureR
 
 ## Demo and production
 
-The flow is the same by voice and by text. The difference between the demo and production is to be defined.
+The domain flow and public result are the same for voice and text. Tests inject deterministic providers and require no network. Production must inject a validated understanding provider and a durable store. Understanding is bounded to 30 seconds and receives an abort signal.
 
 ## Check
 
-`pnpm --filter @steve/conversation test`
-
-The tests are to be defined.
+```bash
+pnpm --filter @steve/conversation test
+pnpm --filter @steve/conversation typecheck
+```
 
 ## Status
 
-To do. Owner:
+In progress. Owner: @idris404
