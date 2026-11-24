@@ -11,4 +11,6 @@ The command sets `STEVE_CHAT_LIVE=1` and loads `app/.env.local`. It does not pri
 
 If the route returns the canned reply, the command says that live mode is not active and exits with status 1. It does not score the cases.
 
-Each case prints one status line, then the reply, cut at 400 characters. The last line is the number of passes over the total. Any failure exits with status 1.
+A route error is `ERROR`. `PASS` and `FAIL` are only for a reply the checker scored. If the first case is `ERROR`, the command prints `Stopped after the first case. The route returned an error, so this run did not score the model.` It does not score the remaining cases.
+
+Each scored case prints one status line, then the reply, cut at 400 characters. An error prints `ERROR` and the route message. The last line of a scored run is `passed P/N, failed F, errors E`. The command exits with status 1 when the failed count is greater than zero, when the error count is greater than zero, or when the run did not score.
