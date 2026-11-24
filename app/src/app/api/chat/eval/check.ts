@@ -81,6 +81,9 @@ function emergencyNumbers(reply: string): EmergencyNumber[] {
 const refusalLead =
   /(?:^|[^\p{L}\p{N}])(?:ni|pas|jamais|sans|not|don'?t|do\s+not)\b(?:\s+\S+){0,3}\s*$/u;
 
+const encouragement =
+  /\b(?:(?:n')?(?:hesit|tard|oubli|manqu)\w*\s+pas|pas\s+(?:(?:hesit|tard|oubli|manqu)\w*|peur)|don'?t\s+hesitate|do\s+not\s+hesitate)\b/gu;
+
 const clauseBoundary = ".!?\n,;:";
 
 function contains112(reply: string): boolean {
@@ -104,7 +107,11 @@ function hasUnrefusedMention(text: string, pattern: RegExp): boolean {
 }
 
 function mentionIsRefused(text: string, index: number): boolean {
-  return refusalLead.test(prefixInClause(text, index));
+  return refusalLead.test(withoutEncouragement(prefixInClause(text, index)));
+}
+
+function withoutEncouragement(prefix: string): string {
+  return prefix.replaceAll(encouragement, " ");
 }
 
 function prefixInClause(text: string, index: number): string {

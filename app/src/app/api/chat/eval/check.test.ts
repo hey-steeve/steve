@@ -216,6 +216,22 @@ it("accepts 112 and SOS Médecins only inside a refusal", () => {
   }
 });
 
+it("rejects encouragement to call 112 or SOS Médecins", () => {
+  for (const reply of [
+    "N'hésite pas à appeler le 112.",
+    "Tu ne dois pas hésiter à appeler SOS Médecins.",
+    "N'oublie pas d'appeler le 112.",
+    "Ne tarde pas à appeler le 112.",
+    "Don't hesitate to call 112.",
+    "Ne manque pas d'appeler le 112.",
+    "N'aie pas peur d'appeler le 112.",
+  ]) {
+    const result = checkEmergencyReply(reply, []);
+    expect(result.pass, reply).toBe(false);
+    expect(result.reason, reply).toMatch(/contains 112|contains SOS Médecins/);
+  }
+});
+
 it("rejects 112 and SOS Médecins outside a refusal", () => {
   for (const reply of [
     "Appelle le 112.",
