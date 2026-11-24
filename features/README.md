@@ -4,7 +4,7 @@ Ten features. The detail is in each README. The common contracts are in the [sha
 
 - [voice](voice/README.md) connects Twilio to the voice provider, carries the audio, and decides nothing.
 - [conversation](conversation/README.md) runs the conversation, by voice or by text, then hands off.
-- [triage](triage/README.md) classifies each turn and orients toward a practitioner type and a delay.
+- [triage](triage/README.md) classifies each turn as emergency, consult, self-care, or need-info.
 - [directory](directory/README.md) finds practitioners in the public Annuaire Santé, and does not book.
 - [booking](booking/README.md) calls the chosen practice and returns a confirmed or refused slot.
 - [agenda](agenda/README.md) records only confirmed appointments.
