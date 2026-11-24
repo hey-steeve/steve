@@ -31,6 +31,18 @@ A `FeatureResult<Data>` is what the feature returns. `ok: true` includes `reply`
 
 The `VoiceProvider` interface, the logger, and the LLM client are still to be defined. The value exports are the design tokens, the marmot avatar, and `turnChannels`.
 
+## Glossary
+
+`shared/src/conversation.ts` defines the first six names. The file does not define `evidence`.
+
+- `Turn`. One patient input. Its fields are `sessionId`, `turnId`, `channel`, and `text`.
+- `sessionId`. The id of one session.
+- `turnId`. The id of one turn.
+- `channel`. `"voice"` or `"text"`.
+- `Handoff`. A request a conversation passes to a feature. Its fields are `sessionId`, `turnId`, `target`, `intent`, and `data`. `Data` defaults to `unknown`.
+- `FeatureResult`. The value a feature returns. Success has `ok` true, a `reply`, and optional `data`. Failure has `ok` false and a `reply`.
+- `evidence`. The emergency numbers a scored reply contains. No file in the repo defines the word. Those numbers are the `found` field in `app/src/app/api/chat/eval/check.ts`. `AGENTS.md` and `features/triage/README.md` name that check.
+
 ## Depends on
 
 No workspace package.

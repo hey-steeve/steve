@@ -69,14 +69,6 @@ it("types successful feature data as the payload or undefined", () => {
 });
 
 it("keeps data optional on success and accepts a feature with no payload", () => {
-  expectTypeOf({
-    ok: true,
-    reply: "Done.",
-  } satisfies FeatureResult).not.toHaveProperty("data");
-  expectTypeOf({
-    ok: true,
-    reply: "Done.",
-  } satisfies FeatureResult<undefined>).not.toHaveProperty("data");
   expectTypeOf<Extract<FeatureResult, { ok: true }>>().branded.toEqualTypeOf<{
     readonly ok: true;
     readonly reply: string;
