@@ -43,13 +43,16 @@ it("paints the home screen and the chat screen with that flat page background", 
     backgroundImage: "none",
   });
 
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
+  const field = view.container.querySelector(".chat-field");
+  if (!(field instanceof HTMLTextAreaElement)) {
+    throw new Error("missing composer");
   }
   await act(async () => {
-    chip.click();
+    setField(field, "Bonjour");
   });
+  const send = view.container.querySelector('button[aria-label="Envoyer"]');
+  if (!(send instanceof HTMLButtonElement)) throw new Error("missing send button");
+  await act(async () => send.click());
 
   const chat = pageOf(view.container);
   expect(paint(chat)).toEqual({
@@ -64,6 +67,15 @@ function pageOf(container: ParentNode): HTMLElement {
     throw new Error("missing chat page");
   }
   return page;
+}
+
+function setField(field: HTMLTextAreaElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  setter?.call(field, value);
+  field.dispatchEvent(new InputEvent("input", { bubbles: true }));
 }
 
 function paint(page: HTMLElement): {

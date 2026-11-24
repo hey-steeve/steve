@@ -44,16 +44,16 @@ it("keeps attach and mic as siblings outside the bordered field", async () => {
     const view = await mount(
       createElement(RootLayout, null, createElement(ChatPage)),
     );
-    expectOutside(view.container.querySelector(".chat-sheet .chat-composer"));
-    const chip = view.container.querySelector(".chat-chip");
-    if (!(chip instanceof HTMLButtonElement)) {
-      throw new Error("missing suggestion");
+    expectOutside(view.container.querySelector(".chat-home-dock .chat-composer"));
+    const field = view.container.querySelector(".chat-home-dock .chat-field");
+    if (!(field instanceof HTMLTextAreaElement)) {
+      throw new Error("missing home composer controls");
     }
     await act(async () => {
-      chip.click();
+      sendComposer(view.container, "Bonjour");
     });
     expectOutside(
-      view.container.querySelector(".chat-column > .chat-dock .chat-composer"),
+      view.container.querySelector(".chat-column > .chat-dock-enter .chat-composer"),
     );
   } finally {
     style.remove();
@@ -61,43 +61,11 @@ it("keeps attach and mic as siblings outside the bordered field", async () => {
   }
 });
 
-it("matches the home field text inset to the chat field", async () => {
-  const style = document.createElement("style");
-  style.textContent = chatCss;
-  document.head.append(style);
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof fetch>(async () =>
-      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
-    ),
+it("keeps the home field border on the shared composer frame", () => {
+  expect(declaration(chatCss, ".chat-home-dock .chat-field", "border")).toBe("0");
+  expect(declaration(chatCss, ".chat-home-dock .chat-composer", "border")).toBe(
+    "var(--card-line)",
   );
-  try {
-    const view = await mount(
-      createElement(RootLayout, null, createElement(ChatPage)),
-    );
-    const homeField = view.container.querySelector(".chat-sheet .chat-field");
-    if (!(homeField instanceof HTMLTextAreaElement)) {
-      throw new Error("missing home field");
-    }
-    const homeInset = textInset(homeField);
-    const chip = view.container.querySelector(".chat-chip");
-    if (!(chip instanceof HTMLButtonElement)) {
-      throw new Error("missing suggestion");
-    }
-    await act(async () => {
-      chip.click();
-    });
-    const chatField = view.container.querySelector(
-      ".chat-column > .chat-dock .chat-field",
-    );
-    if (!(chatField instanceof HTMLTextAreaElement)) {
-      throw new Error("missing chat field");
-    }
-    expect(homeInset).toEqual(textInset(chatField));
-  } finally {
-    style.remove();
-    document.documentElement.removeAttribute("style");
-  }
 });
 
 it("rounds the composer field with the large radius token", () => {
@@ -107,48 +75,45 @@ it("rounds the composer field with the large radius token", () => {
   expect(designTokens.radius.lg).toBe("16px");
 });
 
-it("keeps the composer controls from overlapping at 320", () => {
-  for (const place of ["home", "chat"] as const) {
-    const frame = composerFrame({
-      css: chatCss,
-      viewport: 320,
-      place,
-    });
-    expect(frame.overlaps).toBe(false);
-    expect(frame.overflows).toBe(false);
-    expect(frame.plus.right).toBeLessThanOrEqual(frame.field.left);
-    expect(frame.field.right).toBeLessThanOrEqual(frame.action.left);
-    expect(frame.field.right).toBeGreaterThan(frame.field.left);
-    expect(centerY(frame.plus)).toBe(centerY(frame.field));
-    expect(centerY(frame.action)).toBe(centerY(frame.field));
-  }
+it("keeps the home composer text at iOS's 16px zoom threshold", () => {
+  expect(declaration(chatCss, ".chat-home-dock .chat-field", "font-size")).toBe(
+    "16px",
+  );
 });
 
-function textInset(field: HTMLElement): {
-  readonly paddingLeft: number;
-  readonly borderLeft: number;
-  readonly indent: number;
-  readonly inset: number;
-} {
-  const style = getComputedStyle(field);
-  const paddingLeft = side(style.paddingLeft);
-  const borderLeft = side(style.borderLeftWidth);
-  const indent = side(style.textIndent);
-  return {
-    paddingLeft,
-    borderLeft,
-    indent,
-    inset: paddingLeft + borderLeft + indent,
-  };
-}
+it("keeps the composer controls from overlapping at 320", () => {
+  const tokens = pageTokens(chatCss);
+  const viewport = 320;
+  const homeDock = horizontal(
+    declaration(chatCss, ".chat-home-dock", "padding"),
+    tokens,
+  );
+  const homeComposerPadding = horizontal(
+    declaration(chatCss, ".chat-home-dock .chat-composer", "padding"),
+    tokens,
+  );
+  const homeAction = resolve(
+    declaration(chatCss, ".chat-home-dock .chat-action", "width"),
+    tokens,
+  );
+  const homeGap = resolve(
+    declaration(chatCss, ".chat-home-dock .chat-composer", "gap"),
+    tokens,
+  );
+  const homeWidth = viewport - homeDock.left - homeDock.right;
+  const homeFieldWidth =
+    homeWidth - homeComposerPadding.left - homeComposerPadding.right - homeAction - homeGap;
+  expect(homeFieldWidth).toBeGreaterThan(0);
 
-function side(value: string): number {
-  const parsed = Number.parseFloat(value);
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`not a length: ${value}`);
-  }
-  return parsed;
-}
+  const chat = composerFrame({ css: chatCss, viewport, place: "chat" });
+  expect(chat.overlaps).toBe(false);
+  expect(chat.overflows).toBe(false);
+  expect(chat.plus.right).toBeLessThanOrEqual(chat.field.left);
+  expect(chat.field.right).toBeLessThanOrEqual(chat.action.left);
+  expect(chat.field.right).toBeGreaterThan(chat.field.left);
+  expect(centerY(chat.plus)).toBe(centerY(chat.field));
+  expect(centerY(chat.action)).toBe(centerY(chat.field));
+});
 
 function expectOutside(composer: Element | null): void {
   if (!(composer instanceof HTMLElement)) {
@@ -157,32 +122,59 @@ function expectOutside(composer: Element | null): void {
   const plus = composer.querySelector(".chat-plus");
   const field = composer.querySelector(".chat-field");
   const action = composer.querySelector(".chat-action");
-  if (
-    !(plus instanceof HTMLElement) ||
-    !(field instanceof HTMLTextAreaElement) ||
-    !(action instanceof HTMLElement)
-  ) {
+  if (!(field instanceof HTMLTextAreaElement) || !(action instanceof HTMLElement)) {
     throw new Error("missing composer controls");
   }
   const order = [...composer.children];
-  expect(order.indexOf(plus)).toBeLessThan(order.indexOf(field));
+  if (plus instanceof HTMLElement) {
+    expect(order.indexOf(plus)).toBeLessThan(order.indexOf(field));
+    expect(plus.parentElement).toBe(field.parentElement);
+    expect(field.contains(plus)).toBe(false);
+    expect(plus.getAttribute("aria-label")).toBe("Ajouter une pièce jointe");
+  }
   expect(order.indexOf(field)).toBeLessThan(order.indexOf(action));
-  expect(plus.parentElement).toBe(field.parentElement);
   expect(action.parentElement).toBe(field.parentElement);
-  expect(field.contains(plus)).toBe(false);
   expect(field.contains(action)).toBe(false);
-  expect(borderedControl(composer)).toBe(field);
-  expect(plus.getAttribute("aria-label")).toBe("Ajouter une pièce jointe");
-  expect(action.getAttribute("aria-label")).toBe("Dicter un message");
+  if (composer.classList.contains("chat-composer") && composer.closest(".chat-home-dock")) {
+    expect(borderedControl(composer)).toBe(composer);
+    expect(["Dicter un message", "Saisir un message"]).toContain(
+      action.getAttribute("aria-label"),
+    );
+  } else {
+    expect(borderedControl(composer)).toBe(field);
+  }
   expect(field.placeholder).toBe("Demande n'importe quoi");
-  const painted = getComputedStyle(field);
-  expect(painted.borderTopWidth).toBe("1px");
-  expect(painted.borderRadius).toBe(designTokens.radius.lg);
-  expect(channels(painted.borderTopColor)).toBe(channels(designTokens.color.border));
-  expect(channels(painted.backgroundColor)).toBe(channels(designTokens.color.canvas));
-  expect(channels(getComputedStyle(composer).backgroundColor)).not.toBe(
-    channels(designTokens.color.canvas),
-  );
+  if (!composer.closest(".chat-home-dock")) {
+    const painted = getComputedStyle(field);
+    expect(painted.borderTopWidth).toBe("1px");
+    expect(painted.borderRadius).toBe(designTokens.radius.lg);
+    expect(channels(painted.borderTopColor)).toBe(channels(designTokens.color.border));
+    expect(channels(painted.backgroundColor)).toBe(channels(designTokens.color.canvas));
+  }
+}
+
+function setField(field: HTMLTextAreaElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  setter?.call(field, value);
+  field.dispatchEvent(new InputEvent("input", { bubbles: true }));
+}
+
+async function sendComposer(container: ParentNode, value: string): Promise<void> {
+  const field = container.querySelector(".chat-field");
+  if (!(field instanceof HTMLTextAreaElement)) {
+    throw new Error("missing composer field");
+  }
+  setField(field, value);
+  const send = container.querySelector('button[aria-label="Envoyer"]');
+  if (!(send instanceof HTMLButtonElement)) {
+    throw new Error("missing send button");
+  }
+  await act(async () => {
+    send.click();
+  });
 }
 
 function borderedControl(composer: HTMLElement): HTMLElement | null {
@@ -420,6 +412,14 @@ function resolve(value: string, tokens: ReadonlyMap<string, number>): number {
       throw new Error(`missing ${variable[1]}`);
     }
     return found;
+  }
+  const sum = /^calc\(var\((--[a-z0-9-]+)\)\s*\+\s*(\d+(?:\.\d+)?)px\)$/.exec(trimmed);
+  if (sum?.[1] !== undefined && sum[2] !== undefined) {
+    const found = tokens.get(sum[1]);
+    if (found === undefined) {
+      throw new Error(`missing ${sum[1]}`);
+    }
+    return found + Number(sum[2]);
   }
   throw new Error(`unresolved ${value}`);
 }

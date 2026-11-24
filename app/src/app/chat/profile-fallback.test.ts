@@ -21,16 +21,9 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("keeps the profile glyph when no demo avatar is set", async () => {
+it("keeps the home header clear when no profile action is part of the layout", async () => {
   const view = await mount();
-  const button = view.container.querySelector(".chat-header-home .chat-profile");
-  const face = button?.querySelector(".chat-profile-face");
-  if (!(button instanceof HTMLButtonElement) || !(face instanceof HTMLElement)) {
-    throw new Error("missing profile");
-  }
-  expect(button.getAttribute("aria-label")).toBe("Profil");
-  expect(face.querySelector("img")).toBeNull();
-  expect(face.querySelector("svg")).not.toBeNull();
+  expect(view.container.querySelector(".chat-header-home .chat-profile")).toBeNull();
 });
 
 it("keeps the message glyph when no demo avatar is set", async () => {
@@ -41,13 +34,21 @@ it("keeps the message glyph when no demo avatar is set", async () => {
     ),
   );
   const view = await mount();
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
+  const field = view.container.querySelector(".chat-field");
+  if (!(field instanceof HTMLTextAreaElement)) {
+    throw new Error("missing composer");
   }
   await act(async () => {
-    chip.click();
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )?.set;
+    setter?.call(field, "Bonjour");
+    field.dispatchEvent(new InputEvent("input", { bubbles: true }));
   });
+  const send = view.container.querySelector('button[aria-label="Envoyer"]');
+  if (!(send instanceof HTMLButtonElement)) throw new Error("missing send button");
+  await act(async () => send.click());
   const avatar = view.container.querySelector(".chat-row-user .chat-avatar-user");
   if (!(avatar instanceof HTMLElement)) {
     throw new Error("missing user avatar");

@@ -17,7 +17,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("renders Bonjour Peter, from the demo profile", async () => {
+it("renders Bonjour Peter from the demo profile", async () => {
   const givenName = loadDemoPatientMemory().identity.givenName;
   const view = await mount();
   const greeting = view.container.querySelector(".chat-greeting")?.textContent;
