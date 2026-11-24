@@ -58,6 +58,58 @@ function sendButton(container: ParentNode): HTMLButtonElement {
   return button;
 }
 
+async function sendForReply(body: unknown, status: number): Promise<HTMLDivElement> {
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => Response.json(body, { status })));
+  const container = await renderPage();
+  await act(async () => {
+    setField(fieldIn(container), "Bonjour");
+  });
+  await act(async () => {
+    sendButton(container).click();
+  });
+  return container;
+}
+
+function expectCallActions(container: ParentNode, bubble: string, numbers: readonly string[]) {
+  const links = [...container.querySelectorAll('a[href^="tel:"]')];
+  expect(links.map((link) => ({
+    href: link.getAttribute("href"),
+    label: link.textContent,
+    inBubble: link.closest(bubble) !== null,
+  }))).toEqual(numbers.map((number) => ({
+    href: `tel:${number}`,
+    label: `Appeler le ${number}`,
+    inBubble: true,
+  })));
+}
+
+it.each([
+  { numbers: [] },
+  { numbers: ["15"] },
+  { numbers: ["3114"] },
+  { numbers: ["15", "3114"] },
+  { numbers: ["3114", "15"] },
+])("renders the 200 reply with call actions in order for $numbers", async ({ numbers }) => {
+  const reply = "Voici ma réponse.";
+  const calls = numbers.length ? numbers.map((number) => ({ type: "call", number })) : undefined;
+  const container = await sendForReply({ reply, mocked: true, model: "mock", calls }, 200);
+
+  expect(container.querySelector(".chat-agent-text")?.textContent).toBe(reply);
+  expectCallActions(container, ".chat-agent", numbers);
+});
+
+it.each([
+  { name: "a valid call", calls: [{ type: "call", number: "15" }], expected: ["15"] },
+  { name: "no calls", calls: undefined, expected: [] },
+  { name: "an invalid call", calls: [{ type: "call", number: "112" }], expected: [] },
+])("preserves the 502 error text with $name", async ({ calls, expected }) => {
+  const error = "La réponse est indisponible.";
+  const container = await sendForReply({ error, calls }, 502);
+
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(error);
+  expectCallActions(container, ".chat-error", expected);
+});
+
 it("shows a typing indicator while the reply is pending and removes it after the reply", async () => {
   const pending: Array<(value: Response | PromiseLike<Response>) => void> = [];
   vi.stubGlobal(
