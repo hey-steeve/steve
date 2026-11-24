@@ -164,6 +164,7 @@ export function rescoreSavedRun(text: string): RescoreReport {
         "conditional15Allowed" in item && item.conditional15Allowed,
       optional3114Allowed:
         "optional3114Allowed" in item && item.optional3114Allowed,
+      optional15Allowed: "optional15Allowed" in item && item.optional15Allowed,
     });
     if (result.pass) {
       passed += 1;
@@ -205,41 +206,45 @@ function isCliEntry(): boolean {
   return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
 }
 
-function fileArg(): string | undefined {
+function fileArgs(): string[] {
   const args = process.argv.slice(2);
   const start = args[0] === "--" ? 1 : 0;
-  const file = args[start];
-  if (file === undefined || file.length === 0) {
-    return undefined;
-  }
-  return file;
+  return args.slice(start).filter((file) => file.length > 0);
 }
 
 function runCli(): void {
-  const file = fileArg();
-  if (file === undefined) {
+  const files = fileArgs();
+  if (files.length === 0) {
     process.stderr.write(
-      "usage: node --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/rescore.ts <file>\n",
+      "usage: node --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/rescore.ts <file> [file...]\n",
     );
     process.exitCode = 1;
     return;
   }
-  let text: string;
-  try {
-    text = readFileSync(file, "utf8");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "unreadable file";
-    process.stderr.write(`${message}\n`);
-    process.exitCode = 1;
-    return;
+  let exitCode: 0 | 1 = 0;
+  for (const file of files) {
+    let text: string;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unreadable file";
+      process.stderr.write(`${message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    const report = rescoreSavedRun(text);
+    process.stdout.write(report.text);
+    if (
+      evalExitCode({
+        scored: true,
+        failed: report.failed,
+        errors: report.errors,
+      }) === 1
+    ) {
+      exitCode = 1;
+    }
   }
-  const report = rescoreSavedRun(text);
-  process.stdout.write(report.text);
-  process.exitCode = evalExitCode({
-    scored: true,
-    failed: report.failed,
-    errors: report.errors,
-  });
+  process.exitCode = exitCode;
 }
 
 if (isCliEntry()) {
