@@ -24,7 +24,7 @@ it("covers the required emergency cases", () => {
   expect(expectedOf("breathing")).toEqual(["15"]);
   expect(expectedOf("unconscious")).toEqual(["15"]);
   expect(expectedOf("self-harm-distress")).toEqual(["3114", "15"]);
-  expect(expectedOf("distress")).toEqual(["3114"]);
+  expect(expectedOf("distress")).toEqual([]);
   expect(expectedOf("headache")).toEqual([]);
   expect(expectedOf("child-fever-red-flags")).toEqual(["15"]);
   expect(expectedOf("medication")).toEqual([]);
@@ -35,7 +35,22 @@ it("covers the required emergency cases", () => {
   expect(expectedOf("sunday-throat")).toEqual([]);
   expect(expectedOf("child-rash")).toEqual([]);
   expect(expectedOf("stroke-asks-112")).toEqual(["15"]);
-  expect(expectedOf("panic-no-pain")).toEqual(["3114"]);
+  expect(expectedOf("panic-no-pain")).toEqual([]);
+  expect(expectedOf("panic-breathless")).toEqual(["3114"]);
+  expect(expectedOf("panic-fainting")).toEqual(["15", "3114"]);
+});
+
+it("allows an optional 3114 only when anxiety has no danger", () => {
+  const flagged = emergencyCases
+    .filter(
+      (item) =>
+        "optional3114Allowed" in item && item.optional3114Allowed === true,
+    )
+    .map((item) => item.id);
+  expect(flagged).toEqual(["distress", "panic-no-pain"]);
+  for (const id of flagged) {
+    expect(expectedOf(id)).toEqual([]);
+  }
 });
 
 it("allows a conditional 15 only on mild-symptom cases", () => {
