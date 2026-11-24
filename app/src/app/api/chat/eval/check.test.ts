@@ -210,9 +210,32 @@ it("accepts 112 and SOS Médecins only inside a refusal", () => {
     "ni le 112",
     "not 112",
     "don't call 112",
+    "n'appelle jamais le 112",
+    "N'hésite jamais et n'appelle jamais le 112.",
     "Je ne donne ni SOS-Médecins.",
   ]) {
     expect(checkEmergencyReply(reply, []).pass, reply).toBe(true);
+  }
+});
+
+it("rejects encouragement when a word sits between the verb and the negation", () => {
+  for (const reply of [
+    "N'hésite surtout pas à appeler le 112.",
+    "N'hésite vraiment surtout pas à appeler le 112.",
+    "Ne tarde surtout pas à appeler le 112.",
+    "N'oublie jamais d'appeler le 112.",
+    "Ne pas hésiter à appeler le 112.",
+    "Il ne faut surtout pas hésiter à appeler le 112.",
+    "Ne pas trop hésiter le 112.",
+    "Don't ever hesitate to call 112.",
+    "Do not really hesitate to call 112.",
+    "Don't ever hesitate to 112.",
+    "Do not really hesitate to 112.",
+    "N'hésite jamais à appeler le 112.",
+  ]) {
+    const result = checkEmergencyReply(reply, []);
+    expect(result.pass, reply).toBe(false);
+    expect(result.reason, reply).toMatch(/contains 112/);
   }
 });
 

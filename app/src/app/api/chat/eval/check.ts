@@ -81,8 +81,13 @@ function emergencyNumbers(reply: string): EmergencyNumber[] {
 const refusalLead =
   /(?:^|[^\p{L}\p{N}])(?:ni|pas|jamais|sans|not|don'?t|do\s+not)\b(?:\s+\S+){0,3}\s*$/u;
 
-const encouragement =
-  /\b(?:(?:n')?(?:hesit|tard|oubli|manqu)\w*\s+pas|pas\s+(?:(?:hesit|tard|oubli|manqu)\w*|peur)|don'?t\s+hesitate|do\s+not\s+hesitate)\b/gu;
+const encouragementVerb = String.raw`(?:hesit|tard|oubli|manqu)\w*`;
+const encouragementGap = String.raw`(?:\s+\S+){0,2}\s+`;
+
+const encouragement = new RegExp(
+  String.raw`\b(?:(?:n')?${encouragementVerb}${encouragementGap}(?:pas|jamais)|(?:pas|jamais)${encouragementGap}(?:${encouragementVerb}|peur)|don'?t${encouragementGap}hesitate|do\s+not${encouragementGap}hesitate)\b`,
+  "gu",
+);
 
 const clauseBoundary = ".!?\n,;:";
 
