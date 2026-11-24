@@ -1,6 +1,6 @@
 # Steve
 
-Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. 15 is only for a real emergency. A real emergency is physical warning signs, an overdose, self-harm, or immediate danger. For an ordinary symptom, the agent names 15 only beside physical warning signs. Doubt does not default to 15. 3114 is for psychological distress and for suicidal thoughts. An overdose or self-harm that includes suicidal thoughts or psychological distress starts with 3114 and then adds 15. For suicidal thoughts or psychological distress, with no overdose, no self-harm and no physical warning sign, the agent gives 3114 first and adds 15 only for immediate danger. With no overdose and no self-harm, the agent gives 15 first, then 3114, when a physical warning sign comes with suicidal thoughts or psychological distress. Chest pain during a panic attack is an example. The agent never gives 112 or SOS Médecins. The wording is `app/src/app/api/chat/system-prompt.ts`.
+Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`. Doubt does not default to 15: when in doubt, ask one short question or recommend a consultation, never 15 by default.
 
 The project is Alan AI Health Hack #2 on 28 Nov 2026.
 
@@ -64,6 +64,8 @@ Do not import `app/` from a feature or from `shared/`. From `app/`, import `@ste
 
 Do not call `console` in `shared/`, in a feature, or in `app/`. Call `log()` from `@steve/shared/logger`. The logger is not in the repo yet. It lands with the shared contracts.
 
+Validate feature inputs with Zod at a feature boundary only when that package already has Zod installed. Do not require that check at every boundary. A missing Zod check does not block a contributor pull request. Use only the parsed value. Reading the raw input again after validation is the validate-then-reread bug.
+
 Use only synthetic data. Never put real health data in the repo.
 
 Use one feature per branch. Change `shared/` on its own branch. The cross-boundary check flags a pull request that changes both `app/` and `shared/`. The `main-protection` ruleset requires the `app-shared-boundary` check. That check blocks the merge. Add the `cross-boundary` label when that mix is intentional.
@@ -78,21 +80,25 @@ Do not rebase.
 
 From your branch, run `git fetch origin` and then `git merge origin/main`. Keep the merge commit.
 
-Roman is the reviewer agent.
+Roman is the reviewer agent. Capri is the agent that merges.
 
-A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Merge a pull request that @spideystreet authors only after every condition below is met.
+Capri merges only after the conditions below for that pull request's author are met. Spidey's coding agent never merges.
+
+A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Capri merges it only after every condition below is met.
 
 - Roman approves the exact head commit.
 - The `verify` check is green on that commit.
 - The `app-shared-boundary` check is green on that commit.
 - Spidey gives a local OK on the playground.
 
-A contributor pull request is any pull request that @spideystreet does not author. Merge it only after every condition below is met.
+A contributor pull request is any pull request that @spideystreet does not author. Capri merges it only after every condition below is met.
 
 - Roman approves the exact head commit.
 - @spideystreet gives the CODEOWNERS review, and `.github/CODEOWNERS` names @spideystreet. Roman's approval adds to the CODEOWNERS review and does not replace it.
 - The `verify` check is green on that commit.
 - The `app-shared-boundary` check is green on that commit.
+
+Require a screenshot only when the change touches the UI. Otherwise, paste test output or command output that shows pass or fail.
 
 ## Stack
 
