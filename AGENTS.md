@@ -20,7 +20,7 @@ Each directory under `features/` is one package. The packages, in order, are `@s
 
 `@steve/conversation` runs one conversation, by voice or by text. Text means the app chat. SMS and email come later, through inbox. The flow stays the same. Conversation greets, understands, and hands off. It does not triage. It does not book.
 
-`@steve/triage` runs a small scoped LLM classifier on every turn. The result is urgent, watch, or not urgent. Triage orients toward a practitioner type and a delay. It never diagnoses or prescribes.
+`@steve/triage` classifies one turn as emergency, consult, self-care, or need-info. It carries 15 and 3114 as call data. A timeout is need-info. It never diagnoses or prescribes.
 
 `@steve/directory` finds practitioners by specialty, distance, and conventionnement in the public Annuaire Santé. It does not book.
 
