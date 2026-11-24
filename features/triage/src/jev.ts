@@ -10,7 +10,7 @@ import {
 
 export const JEV_MODEL = "jev-1.14.0";
 
-export const JEV_TIMEOUT_MS = 800;
+export const JEV_TIMEOUT_MS = 1500;
 
 export const JEV_URL = "https://api.typesafe.ai/v1/systemone";
 
@@ -30,16 +30,30 @@ const labelCriteria = {
 } as const;
 
 const channelCriteria = {
-  physical: "The concern is bodily.",
-  psychological: "The concern is mental distress, including a suicidal crisis.",
-  both: "Both a bodily emergency and a mental-health emergency are present.",
+  physical:
+    "A bodily emergency, including overdose or self-harm, with no suicidal thoughts and no psychological distress.",
+  psychological:
+    "Suicidal thoughts or psychological distress, with no overdose, no self-harm, and no physical red flag.",
+  both: "Suicidal thoughts or psychological distress, together with overdose, self-harm, or a physical red flag.",
   none: "No emergency service channel applies.",
+} as const;
+
+const harmOptions = ["yes", "no"] as const;
+
+type Harm = (typeof harmOptions)[number];
+
+const harmCriteria = {
+  yes: "Overdose or self-harm is present.",
+  no: "Neither overdose nor self-harm is present.",
 } as const;
 
 export async function classify(input: ClassifyInput): Promise<ClassifyResult> {
   const timeoutMs = input.timeoutMs ?? JEV_TIMEOUT_MS;
   const model = input.model ?? JEV_MODEL;
-  const signal = AbortSignal.timeout(timeoutMs);
+  const signal = armTimeout(timeoutMs);
+  if (signal === undefined) {
+    return { label: "need-info", reason: "timeout" };
+  }
   let response: Response;
   try {
     response = await input.fetch(JEV_URL, {
@@ -59,6 +73,11 @@ export async function classify(input: ClassifyInput): Promise<ClassifyResult> {
             instructions: "Which emergency service channel applies? Pick exactly one.",
             criteria: channelCriteria,
           },
+          overdoseOrSelfHarm: {
+            type: "choice",
+            instructions: "Is overdose or self-harm present? Pick exactly one.",
+            criteria: harmCriteria,
+          },
         },
       }),
       signal,
@@ -67,7 +86,7 @@ export async function classify(input: ClassifyInput): Promise<ClassifyResult> {
     if (signal.aborted || isTimeoutError(error)) {
       return { label: "need-info", reason: "timeout" };
     }
-    return { label: "need-info", reason: "http" };
+    return { label: "need-info", reason: "network" };
   }
 
   if (!response.ok) {
@@ -76,7 +95,7 @@ export async function classify(input: ClassifyInput): Promise<ClassifyResult> {
 
   let payload: unknown;
   try {
-    payload = await response.json();
+    payload = await readJson(response, signal);
   } catch (error: unknown) {
     if (signal.aborted || isTimeoutError(error)) {
       return { label: "need-info", reason: "timeout" };
@@ -91,10 +110,72 @@ export async function classify(input: ClassifyInput): Promise<ClassifyResult> {
   return classified;
 }
 
+function armTimeout(timeoutMs: number): AbortSignal | undefined {
+  try {
+    return AbortSignal.timeout(timeoutMs);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readJson(response: Response, signal: AbortSignal): Promise<unknown> {
+  const pending = response.json();
+  try {
+    return await whenNotAborted(pending, signal);
+  } finally {
+    if (signal.aborted) {
+      await cancelBody(response);
+    }
+  }
+}
+
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    return;
+  }
+}
+
+function whenNotAborted<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(signal.reason);
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    void pending.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+type ProbabilityBy<Option extends string> = { readonly [Key in Option]: number };
+
 type ChoiceRead<Option extends string> = {
   readonly choice: Option;
-  readonly byOption: ReadonlyMap<Option, number>;
+  readonly byOption: ProbabilityBy<Option>;
 };
+
+type ScoredResult =
+  | {
+      readonly label: "consult" | "self-care";
+      readonly probability: number;
+    }
+  | {
+      readonly label: "need-info";
+      readonly reason: "model" | "below-threshold";
+      readonly probability: number;
+    };
 
 function classifyPayload(payload: unknown): ClassifyResult | undefined {
   if (!isRecord(payload)) {
@@ -109,56 +190,93 @@ function classifyPayload(payload: unknown): ClassifyResult | undefined {
   if (label === undefined || channel === undefined) {
     return undefined;
   }
-  return decide(label, channel.choice);
+  let harm: Harm | undefined;
+  if (answers["overdoseOrSelfHarm"] !== undefined) {
+    const choice = readChoice(answers["overdoseOrSelfHarm"], harmOptions);
+    if (choice === undefined) {
+      return undefined;
+    }
+    harm = choice.choice;
+  }
+  return decide(label, channel, harm);
 }
 
 function decide(
   label: ChoiceRead<TriageLabel>,
-  channel: TriageChannel,
+  channel: ChoiceRead<TriageChannel>,
+  harm: Harm | undefined,
 ): ClassifyResult | undefined {
-  const emergencyProbability = label.byOption.get("emergency");
-  const selected = label.byOption.get(label.choice);
-  if (emergencyProbability === undefined || selected === undefined) {
-    return undefined;
-  }
-  if (label.choice === "emergency") {
-    if (emergencyProbability < EMERGENCY_MIN_P) {
-      return {
-        label: "need-info",
-        reason: "below-threshold",
-        probability: emergencyProbability,
-      };
-    }
-    if (channel === "none") {
+  const emergencyProbability = label.byOption.emergency;
+  if (emergencyProbability >= EMERGENCY_MIN_P) {
+    if (channel.choice === "none") {
       return {
         label: "need-info",
         reason: "no-channel",
         probability: emergencyProbability,
       };
     }
-    return {
-      label: "emergency",
-      probability: emergencyProbability,
-      calls: callsFor(channel),
-    };
+    const calls = emergencyCalls(channel.choice, harm);
+    if (calls === undefined) {
+      return undefined;
+    }
+    return { label: "emergency", probability: emergencyProbability, calls };
+  }
+  if (label.choice === "emergency") {
+    return withOffer(
+      {
+        label: "need-info",
+        reason: "below-threshold",
+        probability: emergencyProbability,
+      },
+      channel.choice,
+    );
   }
   if (label.choice === "need-info") {
-    return { label: "need-info", reason: "model", probability: selected };
+    return withOffer(
+      {
+        label: "need-info",
+        reason: "model",
+        probability: label.byOption["need-info"],
+      },
+      channel.choice,
+    );
   }
-  return { label: label.choice, probability: selected };
+  return withOffer(
+    { label: label.choice, probability: label.byOption[label.choice] },
+    channel.choice,
+  );
 }
 
-function callsFor(channel: Exclude<TriageChannel, "none">): EmergencyCalls {
-  if (channel === "physical") {
-    return [{ type: "call", number: "15" }];
+function withOffer(result: ScoredResult, channel: TriageChannel): ClassifyResult {
+  if (channel !== "psychological" && channel !== "both") {
+    return result;
+  }
+  return { ...result, calls: [{ type: "call", number: "3114" }] };
+}
+
+function emergencyCalls(
+  channel: Exclude<TriageChannel, "none">,
+  harm: Harm | undefined,
+): EmergencyCalls | undefined {
+  if (harm === "yes" && (channel === "psychological" || channel === "both")) {
+    return [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ];
+  }
+  if (channel === "both") {
+    if (harm !== "no") {
+      return undefined;
+    }
+    return [
+      { type: "call", number: "15" },
+      { type: "call", number: "3114" },
+    ];
   }
   if (channel === "psychological") {
     return [{ type: "call", number: "3114" }];
   }
-  return [
-    { type: "call", number: "15" },
-    { type: "call", number: "3114" },
-  ];
+  return [{ type: "call", number: "15" }];
 }
 
 function readChoice<Option extends string>(
@@ -172,22 +290,41 @@ function readChoice<Option extends string>(
   if (typeof choice !== "string" || !hasOption(options, choice)) {
     return undefined;
   }
-  if (!isUnitInterval(value["confidence"])) {
-    return undefined;
-  }
   const probabilities = value["probabilities"];
   if (!isRecord(probabilities)) {
     return undefined;
   }
-  const byOption = new Map<Option, number>();
+  const byOption = readProbabilities(options, probabilities);
+  if (byOption === undefined) {
+    return undefined;
+  }
+  return { choice, byOption };
+}
+
+function readProbabilities<Option extends string>(
+  options: readonly Option[],
+  probabilities: Record<string, unknown>,
+): ProbabilityBy<Option> | undefined {
+  const collected: Record<string, number> = {};
+  if (!fillProbabilities(options, probabilities, collected)) {
+    return undefined;
+  }
+  return collected;
+}
+
+function fillProbabilities<Option extends string>(
+  options: readonly Option[],
+  probabilities: Record<string, unknown>,
+  collected: Record<string, number>,
+): collected is ProbabilityBy<Option> {
   for (const option of options) {
     const probability = probabilities[option];
     if (!isUnitInterval(probability)) {
-      return undefined;
+      return false;
     }
-    byOption.set(option, probability);
+    collected[option] = probability;
   }
-  return { choice, byOption };
+  return true;
 }
 
 function hasOption<Option extends string>(
