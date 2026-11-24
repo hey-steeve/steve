@@ -6,6 +6,7 @@ import {
   warningSignLeadIns,
   warningSignTail,
   warningSigns,
+  warningSignsIl,
 } from "../emergency-templates.ts";
 
 export type EmergencyNumber = "15" | "3114";
@@ -113,6 +114,20 @@ function scoreReply(
   for (let cursor = 0; cursor < sentences.length; cursor += 1) {
     const sentence = sentences[cursor] ?? "";
     const names = named[cursor] ?? emptyNames();
+    if (
+      isWarningSentence(sentence, mode) &&
+      names.has15 &&
+      !names.has112 &&
+      !names.hasSos &&
+      (mode !== "exact" || !names.has3114)
+    ) {
+      found.push("15");
+      if (options?.conditional15Allowed === true && !expected.includes("15")) {
+        continue;
+      }
+      badNumbers = true;
+      continue;
+    }
     const call = matchCall(sentence, mode);
     if (call !== undefined) {
       for (const number of call) {
@@ -126,20 +141,6 @@ function scoreReply(
         }
         badNumbers = true;
       }
-      continue;
-    }
-    if (
-      isWarningSentence(sentence) &&
-      names.has15 &&
-      !names.has3114 &&
-      !names.has112 &&
-      !names.hasSos
-    ) {
-      found.push("15");
-      if (options?.conditional15Allowed === true && !expected.includes("15")) {
-        continue;
-      }
-      badNumbers = true;
       continue;
     }
     if (
@@ -456,23 +457,75 @@ function matchesTemplate(
   return sentence.startsWith(body);
 }
 
-function isWarningSentence(sentence: string): boolean {
-  if (!sentence.endsWith(warningSignTail)) {
+function isWarningSentence(sentence: string, mode: ExactMatchMode): boolean {
+  if (mode === "exact") {
+    return exactWarning(sentence);
+  }
+  return looseWarning(sentence);
+}
+
+function exactWarning(sentence: string): boolean {
+  const tail = normalizeForMatch(warningSignTail);
+  if (!sentence.endsWith(tail) || hasWarningNegation(sentence)) {
     return false;
   }
-  const head = sentence.slice(0, -warningSignTail.length);
-  const lead = warningSignLeadIns.find((item) => head.startsWith(item));
-  if (lead === undefined) {
+  const head = sentence.slice(0, -tail.length);
+  const silLead = warningSignLeadIns.find((item) => item === "s'il ");
+  const siLead = warningSignLeadIns.find((item) => item === "si ");
+  if (silLead !== undefined && head.startsWith(silLead)) {
+    const sign = head.slice(silLead.length);
+    return warningSignsIl.some((item) => normalizeForMatch(item) === sign);
+  }
+  if (siLead === undefined || !head.startsWith(siLead)) {
     return false;
   }
-  const middle = head.slice(lead.length);
-  if (middle.length === 0 || middle.includes(",")) {
+  return exactSignList(head.slice(siLead.length));
+}
+
+function exactSignList(middle: string): boolean {
+  const signs = new Set(warningSigns.map((sign) => normalizeForMatch(sign)));
+  if (signs.has(middle)) {
+    return true;
+  }
+  const marker = " ou ";
+  const at = middle.lastIndexOf(marker);
+  if (at <= 0) {
     return false;
   }
-  if (hasWarningNegation(sentence)) {
+  const last = middle.slice(at + marker.length);
+  const rest = middle.slice(0, at);
+  if (!signs.has(last) || rest.length === 0) {
     return false;
   }
-  return warningSigns.some((sign) => includesSign(middle, sign));
+  if (!rest.includes(",")) {
+    return signs.has(rest);
+  }
+  const parts = rest.split(", ");
+  if (parts.length < 2 || parts.join(", ") !== rest) {
+    return false;
+  }
+  return parts.every((part) => signs.has(part));
+}
+
+function looseWarning(sentence: string): boolean {
+  const tail = normalizeForMatch(warningSignTail);
+  const body = tail.endsWith(".") ? tail.slice(0, -1) : tail;
+  const at = sentence.indexOf(body);
+  if (at < 0 || hasWarningNegation(sentence)) {
+    return false;
+  }
+  const head = sentence.slice(0, at);
+  const silLead = warningSignLeadIns.find((item) => item === "s'il ");
+  const siLead = warningSignLeadIns.find((item) => item === "si ");
+  const leadOk =
+    (siLead !== undefined && head.startsWith(siLead)) ||
+    (silLead !== undefined && head.startsWith(silLead));
+  if (!leadOk) {
+    return false;
+  }
+  return [...warningSigns, ...warningSignsIl].some((sign) =>
+    hasWord(head, normalizeForMatch(sign)),
+  );
 }
 
 function hasWarningNegation(sentence: string): boolean {
@@ -488,10 +541,6 @@ function hasWarningNegation(sentence: string): boolean {
     }
   }
   return false;
-}
-
-function includesSign(middle: string, sign: string): boolean {
-  return hasWord(middle, sign);
 }
 
 function hasWord(text: string, word: string): boolean {
