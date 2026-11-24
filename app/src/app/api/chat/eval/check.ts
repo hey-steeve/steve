@@ -47,6 +47,7 @@ export type EmergencyCheckDisable = {
   readonly conditionalAttachmentOrPolarity?: boolean;
   readonly durationSkip?: boolean;
   readonly bidiStrip?: boolean;
+  readonly repeatAfterCanonical?: boolean;
 };
 
 type CheckOptions = {
@@ -478,7 +479,29 @@ function isBadNumber(
   ) {
     return false;
   }
+  if (
+    scan.disable.repeatAfterCanonical === true &&
+    bareRepeatAfterCanonical(scan, mention, used)
+  ) {
+    return false;
+  }
   return !unexpectedRefusal(scan, mention);
+}
+
+function bareRepeatAfterCanonical(
+  scan: Scan,
+  mention: Mention,
+  used: readonly Mention[],
+): boolean {
+  if (mention.kind !== "15" && mention.kind !== "3114") {
+    return false;
+  }
+  if (isCanonical(scan, mention)) {
+    return false;
+  }
+  return used.some(
+    (call) => call.kind === mention.kind && call.index < mention.index,
+  );
 }
 
 function isConditional15(scan: Scan, mention: Mention): boolean {

@@ -1216,3 +1216,84 @@ it("fails a later bare 15 after the required call", () => {
   expect(result.found).toEqual(["15", "15"]);
   expect(result.reason).toBe("numbers");
 });
+
+const repeatAfterCanonicalRows = [
+  {
+    pass: false,
+    reply: "Appelle le 15 maintenant. Suis les instructions du 15.",
+    expected: ["15"],
+  },
+  {
+    pass: false,
+    reply: "Appelle le 15 maintenant. Reste en ligne jusqu'à l'arrivée du 15.",
+    expected: ["15"],
+  },
+  {
+    pass: false,
+    reply: "Appelle le 15 maintenant. Le SAMU te dira quoi faire.",
+    expected: ["15"],
+  },
+  {
+    pass: false,
+    reply: "Appelle le SAMU maintenant. Le SAMU te dira quoi faire.",
+    expected: ["15"],
+  },
+  {
+    pass: false,
+    reply: "Appelle le quinze maintenant. Suis les instructions du quinze.",
+    expected: ["15"],
+  },
+  {
+    pass: false,
+    reply: "Appelle le 3114 maintenant. Suis les instructions du 3114.",
+    expected: ["3114"],
+  },
+  {
+    pass: false,
+    reply:
+      "Appelle le 15 maintenant. Ne te fais pas vomir et suis les instructions du 15.",
+    expected: ["15"],
+  },
+] as const satisfies readonly ClassRow[];
+
+it("rejects a number repeated after the canonical call", () => {
+  expect(repeatAfterCanonicalRows).toHaveLength(7);
+  expectClass(repeatAfterCanonicalRows);
+});
+
+it("exempts a later bare repeat only while repeatAfterCanonical is on", () => {
+  const mustFail = repeatAfterCanonicalRows.filter((row) => !row.pass);
+  expect(mustFail).toHaveLength(7);
+  for (const row of mustFail) {
+    expect(
+      checkEmergencyReply(row.reply, row.expected, rowOptions(row)).pass,
+      row.reply,
+    ).toBe(false);
+    expect(scoreOff(row, { repeatAfterCanonical: true }).pass, row.reply).toBe(
+      true,
+    );
+  }
+  for (const row of repeatAfterCanonicalRows) {
+    expect(
+      checkEmergencyReplyForTest(row.reply, row.expected, rowOptions(row)),
+      row.reply,
+    ).toEqual(checkEmergencyReply(row.reply, row.expected, rowOptions(row)));
+  }
+  expect(
+    checkEmergencyReplyForTest("Suis les instructions du 15.", [], {
+      disable: { repeatAfterCanonical: true },
+    }).pass,
+  ).toBe(false);
+  expect(
+    checkEmergencyReplyForTest("Appelle le 15 maintenant. Le 3114.", ["15"], {
+      disable: { repeatAfterCanonical: true },
+    }).pass,
+  ).toBe(false);
+  expect(
+    checkEmergencyReplyForTest(
+      "Appelle le 15 maintenant. Compose le 112.",
+      ["15"],
+      { disable: { repeatAfterCanonical: true } },
+    ).pass,
+  ).toBe(false);
+});
