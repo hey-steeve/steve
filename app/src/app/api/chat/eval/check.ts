@@ -91,6 +91,29 @@ const warningSigns: readonly RegExp[] = [
   warningTerm(String.raw`drows\w*`),
   warningTerm(String.raw`unconscious`),
   warningTerm(String.raw`seizure\w*`),
+  warningTerm(String.raw`coup\s+de\s+tonnerre`),
+  warningTerm(
+    String.raw`mal\s+(?:de|a\s+la)\s+tete\s+(?:brutal\w*|soudain\w*|severe\w*|violent\w*)`,
+  ),
+  warningTerm(
+    String.raw`douleur\s+(?:\S+\s+){0,4}(?:brutal\w*|soudain\w*|severe\w*|violent\w*|tres\s+intense\w*)`,
+  ),
+  warningTerm(String.raw`sudden\s+severe\s+headache`),
+  warningTerm(String.raw`thunderclap\s+headache`),
+  warningTerm(String.raw`difficulte\w*\s+a\s+parler`),
+  warningTerm(String.raw`trouble\s+speaking`),
+  warningTerm(String.raw`faiblesse\s+(?:d'un|du)\s+cote`),
+  warningTerm(String.raw`weakness\s+on\s+one\s+side`),
+  warningTerm(String.raw`paralysie\s+faciale`),
+  warningTerm(String.raw`(?:bouche|visage)\s+(?:qui\s+)?tombe`),
+  warningTerm(String.raw`facial\s+droop\w*`),
+  warningTerm(String.raw`confus\w*`),
+  warningTerm(String.raw`perte\s+de\s+connaissance`),
+  warningTerm(String.raw`perte\s+de\s+conscience`),
+  warningTerm(String.raw`loss\s+of\s+consciousness`),
+  warningTerm(String.raw`essouffl\w*(?:\s+\S+){0,3}\s+ne\s+cede\s+pas`),
+  warningTerm(String.raw`essouffl\w*(?:\s+(?!ne\b)\S+){0,3}\s+persist\w*`),
+  warningTerm(String.raw`essouffl\w*(?:\s+(?!ne\b)\S+){0,3}\s+s'aggrav\w*`),
 ];
 
 export function checkEmergencyReply(
