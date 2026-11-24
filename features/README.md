@@ -76,7 +76,7 @@ stateDiagram-v2
   s6 --> s3: The patient describes a serious symptom [triage on every turn]
   s6 --> s9: The patient chooses a practitioner
   s7 --> s10: Steve recaps and hangs up
-  s8 --> s10: Steve gives 15, or 3114, or 3114 then 15, or 15 then 3114, and hangs up
+  s8 --> s10: Steve gives the order of 15 and 3114 in app/src/app/api/chat/system-prompt.ts and hangs up.
   s9 --> s11: The practice confirms the slot
   s9 --> s12: The practice refuses
   s11 --> s13: Steve records the appointment in the agenda
