@@ -55,12 +55,9 @@ it("serves brand files from public/icons, including every manifest icon", () => 
   );
   expect(publicDir.startsWith(path.join(appDir, "public"))).toBe(false);
 
-  const manifest = JSON.parse(
-    readFileSync(path.join(destDir, "site.webmanifest"), "utf8"),
-  ) as { icons: { src: string }[] };
-  for (const icon of manifest.icons) {
-    expect(icon.src.startsWith("/icons/")).toBe(true);
-    const name = icon.src.slice("/icons/".length);
+  for (const src of readIconSrcs(path.join(destDir, "site.webmanifest"))) {
+    expect(src.startsWith("/icons/")).toBe(true);
+    const name = src.slice("/icons/".length);
     expect(name.includes("/")).toBe(false);
     expect(readFileSync(path.join(destDir, name))).toEqual(
       readFileSync(path.join(sourceDir, name)),
@@ -101,3 +98,22 @@ it("throws when the brand source is missing and leaves no staging directory", ()
   );
   expect(existsSync(path.join(publicDir, "icons"))).toBe(false);
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readIconSrcs(file: string): string[] {
+  const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+  if (!isRecord(parsed) || !Array.isArray(parsed["icons"])) {
+    throw new Error(`Invalid icon manifest: ${file}`);
+  }
+  const srcs: string[] = [];
+  for (const item of parsed["icons"]) {
+    if (!isRecord(item) || typeof item["src"] !== "string") {
+      throw new Error(`Invalid icon manifest: ${file}`);
+    }
+    srcs.push(item["src"]);
+  }
+  return srcs;
+}

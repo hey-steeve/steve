@@ -50,13 +50,38 @@ it("creates rounded Steve favicons and matching install icons", async () => {
   expect(maskable.info.height).toBe(512);
   expect([...maskable.data.subarray(0, 4)]).toEqual([218, 221, 254, 255]);
 
-  const manifest = JSON.parse(
-    readFileSync(path.join(publicDir, "icons", "site.webmanifest"), "utf8"),
-  ) as { icons: { src: string; purpose?: string }[] };
-  expect(manifest.icons.map((icon) => icon.src)).toEqual([
+  const icons = readManifestIcons(path.join(publicDir, "icons", "site.webmanifest"));
+  expect(icons.map((icon) => icon.src)).toEqual([
     "/app-icons/app-192.png",
     "/app-icons/app-512.png",
     "/app-icons/app-maskable-512.png",
   ]);
-  expect(manifest.icons[2]?.purpose).toBe("maskable");
+  expect(icons[2]?.purpose).toBe("maskable");
 });
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readManifestIcons(file: string): { src: string; purpose?: string }[] {
+  const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+  if (!isRecord(parsed) || !Array.isArray(parsed["icons"])) {
+    throw new Error(`Invalid icon manifest: ${file}`);
+  }
+  const icons: { src: string; purpose?: string }[] = [];
+  for (const item of parsed["icons"]) {
+    if (!isRecord(item) || typeof item["src"] !== "string") {
+      throw new Error(`Invalid icon manifest: ${file}`);
+    }
+    const purpose = item["purpose"];
+    if (typeof purpose === "string") {
+      icons.push({ src: item["src"], purpose });
+      continue;
+    }
+    if (purpose !== undefined) {
+      throw new Error(`Invalid icon manifest: ${file}`);
+    }
+    icons.push({ src: item["src"] });
+  }
+  return icons;
+}
