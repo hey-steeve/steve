@@ -175,6 +175,10 @@ export function normalizeEmergencyText(text: string): string {
     .trim();
 }
 
+const exactCallTemplates = new Set(
+  [call15Now, call3114Now, call3114].map((template) => normalizeEmergencyText(template)),
+);
+
 export function ensureEmergencyCalls(
   reply: string,
   calls: readonly EmergencyCall[],
@@ -183,35 +187,19 @@ export function ensureEmergencyCalls(
     return reply;
   }
   const templates = templatesFor(calls);
-  if (templates.every((template) => hasExactSentence(reply, template))) {
+  if (startsWithTemplates(reply, templates)) {
     return reply;
   }
-  if (!hasExactSentence(reply, call15Now)) {
-    const prefix = templates.join(" ");
-    if (reply.trim().length === 0) {
-      return prefix;
-    }
-    return `${prefix} ${reply.trim()}`;
+  const prefix = templates.join(" ");
+  const body = withoutExactCallTemplates(reply);
+  const trimmed = body.trim();
+  if (trimmed.length === 0) {
+    return prefix;
   }
-  const first15 = templates.indexOf(call15Now);
-  const missingBefore = templates
-    .slice(0, first15)
-    .filter((template) => !hasExactSentence(reply, template));
-  let result = missingBefore.length > 0 ? `${missingBefore.join(" ")} ${reply}` : reply;
-  let anchor = indexAfterSentence(result, call15Now);
-  for (const template of templates.slice(first15 + 1)) {
-    if (hasExactSentence(result, template)) {
-      continue;
-    }
-    if (anchor < 0) {
-      result = result.trim().length === 0 ? template : `${result.trim()} ${template}`;
-      anchor = indexAfterSentence(result, call15Now);
-      continue;
-    }
-    result = `${result.slice(0, anchor)} ${template}${result.slice(anchor)}`;
-    anchor += template.length + 1;
+  if (/^\s*\n/.test(body)) {
+    return `${prefix}${body.trimEnd()}`;
   }
-  return result;
+  return `${prefix} ${trimmed}`;
 }
 
 function templatesFor(calls: readonly EmergencyCall[]): string[] {
@@ -224,26 +212,35 @@ function templatesFor(calls: readonly EmergencyCall[]): string[] {
   });
 }
 
-function hasExactSentence(reply: string, template: string): boolean {
-  const target = normalizeEmergencyText(template);
-  return splitExact(normalizeEmergencyText(reply)).some((sentence) => sentence === target);
+function startsWithTemplates(reply: string, templates: readonly string[]): boolean {
+  const sentences = splitExact(normalizeEmergencyText(reply));
+  return templates.every(
+    (template, index) => sentences[index] === normalizeEmergencyText(template),
+  );
 }
 
-function indexAfterSentence(reply: string, template: string): number {
-  const target = normalizeEmergencyText(template);
+function withoutExactCallTemplates(reply: string): string {
+  let kept = "";
   let start = 0;
-  for (let index = 0; index < reply.length; index += 1) {
-    const char = reply[index];
-    if (char !== "." && char !== "!" && char !== "?" && char !== "\n") {
+  for (let index = 0; index <= reply.length; index += 1) {
+    const atEnd = index === reply.length;
+    const char = atEnd ? "" : reply[index];
+    const boundary = !atEnd && (char === "." || char === "!" || char === "?" || char === "\n");
+    if (!atEnd && !boundary) {
       continue;
     }
-    const sentence = reply.slice(start, index + 1).trim();
-    if (sentence.length > 0 && normalizeEmergencyText(sentence) === target) {
-      return index + 1;
+    const raw = reply.slice(start, atEnd ? reply.length : index + 1);
+    const sentence = raw.trim();
+    const drop = sentence.length > 0 && exactCallTemplates.has(normalizeEmergencyText(sentence));
+    if (!drop) {
+      kept += raw;
+    }
+    if (atEnd) {
+      break;
     }
     start = index + 1;
   }
-  return -1;
+  return kept;
 }
 
 function splitExact(text: string): string[] {

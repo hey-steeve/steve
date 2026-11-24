@@ -20,7 +20,7 @@ export type EmergencyModelReply = {
 };
 
 const rest = "Reste au chaud.";
-const partial15 = "Appelle le 15.";
+const aside = "Reste calme.";
 const lead3114Then15 = `${call3114Now} ${call15Now}`;
 const lead15Then3114 = `${call15Now} ${call3114}`;
 
@@ -35,19 +35,19 @@ function modelReply(
 
 const physicalReplies = [
   modelReply("missing", "missing", rest, `${call15Now} ${rest}`),
-  modelReply("partial", "partial", partial15, `${call15Now} ${partial15}`),
+  modelReply("partial", "partial", aside, `${call15Now} ${aside}`),
   modelReply("compliant", "compliant", `${call15Now} ${rest}`, `${call15Now} ${rest}`),
   modelReply(
     "wrong-order",
     "wrong-order",
-    `${call3114Now} ${partial15}`,
-    `${call15Now} ${call3114Now} ${partial15}`,
+    `${call3114Now} ${aside}`,
+    `${call15Now} ${aside}`,
   ),
   modelReply(
     "exact-wrong-order",
     "wrong-order",
     `${call3114Now} ${call15Now}`,
-    `${call3114Now} ${call15Now}`,
+    call15Now,
   ),
 ] as const satisfies readonly EmergencyModelReply[];
 
@@ -62,8 +62,8 @@ const psychologicalReplies = [
   modelReply(
     "partial",
     "partial",
-    `${call3114Now} ${partial15}`,
-    `${lead3114Then15} ${call3114Now} ${partial15}`,
+    `${call3114Now} ${aside}`,
+    `${lead3114Then15} ${aside}`,
   ),
   modelReply(
     "compliant",
@@ -74,14 +74,14 @@ const psychologicalReplies = [
   modelReply(
     "wrong-order",
     "wrong-order",
-    `${partial15} ${call3114}`,
-    `${lead3114Then15} ${partial15} ${call3114}`,
+    `${aside} ${call3114}`,
+    `${lead3114Then15} ${aside}`,
   ),
   modelReply(
     "exact-wrong-order",
     "wrong-order",
     `${call15Now} ${call3114Now}`,
-    `${call15Now} ${call3114Now}`,
+    lead3114Then15,
   ),
 ] as const satisfies readonly EmergencyModelReply[];
 
@@ -96,8 +96,8 @@ const bothNoReplies = [
   modelReply(
     "partial",
     "partial",
-    `${partial15} ${call3114}`,
-    `${lead15Then3114} ${partial15} ${call3114}`,
+    `${aside} ${call3114}`,
+    `${lead15Then3114} ${aside}`,
   ),
   modelReply(
     "compliant",
@@ -108,14 +108,14 @@ const bothNoReplies = [
   modelReply(
     "wrong-order",
     "wrong-order",
-    `${call3114Now} ${partial15}`,
-    `${lead15Then3114} ${call3114Now} ${partial15}`,
+    `${call3114Now} ${aside}`,
+    `${lead15Then3114} ${aside}`,
   ),
   modelReply(
     "exact-wrong-order",
     "wrong-order",
     `${call3114Now} ${call15Now}`,
-    `${call3114Now} ${call15Now} ${call3114}`,
+    lead15Then3114,
   ),
 ] as const satisfies readonly EmergencyModelReply[];
 

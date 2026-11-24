@@ -28,6 +28,7 @@ import {
   warningSignHeadache,
   warningSignPair,
 } from "./emergency-templates.js";
+import { checkEmergencyReply } from "./eval/check.js";
 import { POST } from "./route.js";
 import { systemPrompt } from "./system-prompt.js";
 import { readTriageLog, resetTriageLog } from "./triage-log.js";
@@ -91,8 +92,9 @@ const approvedEmergencySentences = [
   "Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.",
   "Pour une crise de panique dont le seul signe physique est un essoufflement, tu ne donnes pas le 15 en première phrase.",
   "Le 15 n'est pas exigé.",
-  "Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114, sans l'exiger en première phrase, et cette phrase est exactement « Appelle le 3114.",
-  "», pas le 15.",
+  "Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la première phrase est « Appelle le 15 maintenant. », jamais seulement une phrase conditionnelle.",
+  "Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114, sans l'exiger en première phrase, et cette phrase est exactement « Appelle le 3114. » ou « Appelle le 3114 maintenant. ».",
+  "Si une crise de panique n'a comme signe physique qu'un essoufflement, tu dis en première phrase : « Appelle le 3114. », pas le 15.",
   "Tu ne mets jamais le 15 et le 3114 dans la même phrase.",
 ] as const;
 
@@ -151,12 +153,46 @@ function normalizeEmergencyWording(text: string): string {
 function emergencySentences(text: string): readonly string[] {
   const sentences: string[] = [];
   for (const line of text.split(/\n+/)) {
-    for (const bit of line.split(/(?<=[.!?])\s+/)) {
-      const trimmed = bit.trim();
-      if (trimmed.length > 0) {
-        sentences.push(trimmed);
-      }
+    sentences.push(...splitPromptLine(line));
+  }
+  return sentences;
+}
+
+function splitPromptLine(line: string): string[] {
+  const sentences: string[] = [];
+  let start = 0;
+  let quote = 0;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === "«") {
+      quote += 1;
+      continue;
     }
+    if (char === "»" && quote > 0) {
+      quote -= 1;
+      continue;
+    }
+    if (quote > 0 || (char !== "." && char !== "!" && char !== "?")) {
+      continue;
+    }
+    const next = line[index + 1];
+    if (next !== undefined && !/\s/.test(next)) {
+      continue;
+    }
+    const sentence = line.slice(start, index + 1).trim();
+    if (sentence.length > 0) {
+      sentences.push(sentence);
+    }
+    let cursor = index + 1;
+    while (cursor < line.length && /\s/.test(line[cursor] ?? "")) {
+      cursor += 1;
+    }
+    start = cursor;
+    index = cursor - 1;
+  }
+  const tail = line.slice(start).trim();
+  if (tail.length > 0) {
+    sentences.push(tail);
   }
   return sentences;
 }
@@ -226,6 +262,44 @@ it("flags discouraging 15, 3114, or samu wording once that wording is injected",
   const first = discouragingEmergencyVariants[0];
   expect(discouragesEmergencyNumber(`${consultGuidance.text}\n${first}`)).toBe(true);
   expect(discouragesEmergencyNumber(`${needInfoGuidance.text}\nne donne pas le 3114`)).toBe(
+    true,
+  );
+});
+
+const doubtClause =
+  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation.";
+
+const chestPainDiscouragement =
+  "Pour une douleur thoracique, tu dis « Appelle le 3114. », pas le 15.";
+
+function guillemetsBalanced(sentence: string): boolean {
+  let depth = 0;
+  for (const char of sentence) {
+    if (char === "«") {
+      depth += 1;
+    } else if (char === "»") {
+      if (depth === 0) {
+        return false;
+      }
+      depth -= 1;
+    }
+  }
+  return depth === 0;
+}
+
+it("allowlists only whole sentences of the current prompt", () => {
+  const sentences = emergencySentences(systemPrompt);
+  for (const sentence of approvedEmergencySentences) {
+    expect(guillemetsBalanced(sentence), sentence).toBe(true);
+    expect(sentences, sentence).toContain(sentence);
+  }
+  expect(sentences.at(-1)).toBe(doubtClause);
+  expect(systemPrompt.endsWith(doubtClause)).toBe(true);
+});
+
+it("flags a quoted 3114 line that says not to call 15", () => {
+  expect(discouragesEmergencyNumber(chestPainDiscouragement)).toBe(true);
+  expect(discouragesEmergencyNumber(`${systemPrompt}\n${chestPainDiscouragement}`)).toBe(
     true,
   );
 });
@@ -856,7 +930,51 @@ it("fills each missing emergency call and keeps a compliant reply", async () => 
         model: "openai/gpt-6.1-terra",
         calls: item.calls,
       });
+      if (item.classify.label === "emergency") {
+        const numbers = item.calls.map((call) => call.number);
+        const ordered = failureSentences(item.calls).join(" ");
+        const spoken = replyText(payload);
+        expect(spoken.startsWith(ordered), label).toBe(true);
+        expect(checkEmergencyReply(spoken, numbers).pass, label).toBe(true);
+      }
     }
+  }
+});
+
+it("fails the ordered-call oracle when ensureEmergencyCalls is a passthrough", async () => {
+  const item = triageDecisionCases.find((entry) => entry.name === "emergency-physical");
+  const row = item?.replies.find((entry) => entry.name === "exact-wrong-order");
+  if (item === undefined || row === undefined || item.calls === undefined) {
+    throw new Error("missing exact-wrong-order row");
+  }
+  const numbers = item.calls.map((call) => call.number);
+  const ordered = failureSentences(item.calls).join(" ");
+  const mockedEnsure = vi.mocked(ensureEmergencyCalls);
+  const realEnsure = mockedEnsure.getMockImplementation();
+  if (realEnsure === undefined) {
+    throw new Error("ensureEmergencyCalls mock");
+  }
+  mockedEnsure.mockImplementation((reply) => reply);
+  try {
+    const disabledMock = triageFetch(() => Response.json(classifyPayload(item)), row.model);
+    vi.stubGlobal("fetch", disabledMock);
+    const disabled = await post(history);
+    expect(disabled.status).toBe(200);
+    const disabledReply = replyText(await disabled.json());
+    const disabledOpens = disabledReply.startsWith(ordered);
+    const disabledCheck = checkEmergencyReply(disabledReply, numbers).pass;
+    expect(disabledOpens && disabledCheck).toBe(false);
+
+    mockedEnsure.mockImplementation(realEnsure);
+    const enabledMock = triageFetch(() => Response.json(classifyPayload(item)), row.model);
+    vi.stubGlobal("fetch", enabledMock);
+    const enabled = await post(history);
+    expect(enabled.status).toBe(200);
+    const enabledReply = replyText(await enabled.json());
+    expect(enabledReply.startsWith(ordered)).toBe(true);
+    expect(checkEmergencyReply(enabledReply, numbers).pass).toBe(true);
+  } finally {
+    mockedEnsure.mockImplementation(realEnsure);
   }
 });
 
@@ -916,6 +1034,17 @@ it("omits the exact 15 sentence when the success-path guard is disabled", async 
   } finally {
     mockedEnsure.mockImplementation(realEnsure);
   }
+});
+
+it("pins the 502 call sentences for 15 and 3114", () => {
+  expect(failureText([{ number: "15" }])).toBe(`${call15Now} ${upstreamError}`);
+  expect(failureText([{ number: "3114" }, { number: "15" }])).toBe(
+    `${call3114Now} ${call15Now} ${upstreamError}`,
+  );
+  expect(failureText([{ number: "15" }, { number: "3114" }])).toBe(
+    `${call15Now} ${call3114} ${upstreamError}`,
+  );
+  expect(failureText([{ number: "3114" }])).toBe(`${call3114Now} ${upstreamError}`);
 });
 
 it("keeps triage calls in order when the model fails", async () => {
@@ -1093,6 +1222,13 @@ function providerMessages(fetchMock: FetchMock): readonly { role: string; conten
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function replyText(body: unknown): string {
+  if (!isRecord(body) || typeof body["reply"] !== "string") {
+    throw new Error("missing reply");
+  }
+  return body["reply"];
 }
 
 function classifyPayload(item: (typeof triageDecisionCases)[number]): unknown {
