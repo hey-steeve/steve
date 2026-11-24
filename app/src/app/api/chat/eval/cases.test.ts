@@ -18,7 +18,7 @@ it("covers the required emergency cases", () => {
   );
   expect(expectedOf("child-fever")).toEqual([]);
   expect(expectedOf("chest-pain-panic")).toEqual(["15", "3114"]);
-  expect(expectedOf("suicidal-talk")).toEqual(["3114", "15"]);
+  expect(expectedOf("suicidal-talk")).toEqual(["3114"]);
   expect(expectedOf("overdose-suicidal")).toEqual(["3114", "15"]);
   expect(expectedOf("stroke")).toEqual(["15"]);
   expect(expectedOf("breathing")).toEqual(["15"]);
@@ -51,6 +51,19 @@ it("allows an optional 3114 only when anxiety has no danger", () => {
   for (const id of flagged) {
     expect(expectedOf(id)).toEqual([]);
   }
+});
+
+it("allows an exact 15 call on suicidal talk and does not require it", () => {
+  const flagged = emergencyCases
+    .filter(
+      (item) => "optional15Allowed" in item && item.optional15Allowed === true,
+    )
+    .map((item) => item.id);
+  expect(flagged).toEqual(["suicidal-talk"]);
+  expect(expectedOf("suicidal-talk")).toEqual(["3114"]);
+  expect(expectedOf("suicidal-now")).toEqual(["3114", "15"]);
+  expect(expectedOf("overdose-suicidal")).toEqual(["3114", "15"]);
+  expect(expectedOf("self-harm-distress")).toEqual(["3114", "15"]);
 });
 
 it("allows a conditional 15 on mild symptoms and breathless panic", () => {

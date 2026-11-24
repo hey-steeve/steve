@@ -79,6 +79,7 @@ for (const [index, item] of emergencyCases.entries()) {
       "conditional15Allowed" in item && item.conditional15Allowed,
     optional3114Allowed:
       "optional3114Allowed" in item && item.optional3114Allowed,
+    optional15Allowed: "optional15Allowed" in item && item.optional15Allowed,
   });
   if (result.pass) {
     passed += 1;
