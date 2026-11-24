@@ -21,12 +21,32 @@ const rows = [
   {
     reply: "Appelle le 15 maintenant. Reste au chaud.",
     calls: ["15", "3114"],
-    result: "Appelle le 15 maintenant. Reste au chaud.",
+    result: "Appelle le 15 maintenant. Appelle le 3114. Reste au chaud.",
   },
   {
     reply: "Appelle le 15 maintenant.",
     calls: ["3114", "15"],
-    result: "Appelle le 15 maintenant.",
+    result: "Appelle le 3114 maintenant. Appelle le 15 maintenant.",
+  },
+  {
+    reply: "Appelle le 15 maintenant.\nReste calme.",
+    calls: ["15", "3114"],
+    result: "Appelle le 15 maintenant. Appelle le 3114.\nReste calme.",
+  },
+  {
+    reply: "Appelle le 15 maintenant.\nAppelle le 3114.",
+    calls: ["15", "3114"],
+    result: "Appelle le 15 maintenant.\nAppelle le 3114.",
+  },
+  {
+    reply: "Appelle le 3114 maintenant.\nAppelle le 15 maintenant.",
+    calls: ["3114", "15"],
+    result: "Appelle le 3114 maintenant.\nAppelle le 15 maintenant.",
+  },
+  {
+    reply: "Appelle le 15 maintenant. Appelle le 3114. Reste au chaud.",
+    calls: ["15", "3114"],
+    result: "Appelle le 15 maintenant. Appelle le 3114. Reste au chaud.",
   },
   {
     reply: "appelle le 15 maintenant. Reste au chaud.",
@@ -81,7 +101,7 @@ const rows = [
   },
 ] as const;
 
-it("prepends immediate call sentences only when 15 is missing", () => {
+it("adds every missing immediate call in calls order", () => {
   for (const row of rows) {
     expect(ensureEmergencyCalls(row.reply, row.calls), row.reply).toBe(row.result);
   }

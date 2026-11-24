@@ -20,8 +20,11 @@ import {
   checkEmergencyReply,
   checkEmergencyReplyForTest,
   encodeSavedReply,
+  type DetectMode,
+  type EmergencyCheck,
   type EmergencyCheckOptions,
   type ExactMatchMode,
+  type OrderMode,
 } from "./check.ts";
 
 const mild = { conditional15Allowed: true } as const;
@@ -53,14 +56,32 @@ function optionsOf(row: Row): EmergencyCheckOptions {
   return options;
 }
 
-function score(row: Row, match?: ExactMatchMode) {
-  if (match === undefined) {
+function score(
+  row: Row,
+  match?: ExactMatchMode,
+  hooks?: { readonly detect?: DetectMode; readonly order?: OrderMode },
+) {
+  if (match === undefined && hooks === undefined) {
     return checkEmergencyReply(row.reply, row.expected, optionsOf(row));
   }
-  return checkEmergencyReplyForTest(row.reply, row.expected, {
-    ...optionsOf(row),
-    match,
-  });
+  const options: {
+    conditional15Allowed?: boolean;
+    optional3114Allowed?: boolean;
+    optional15Allowed?: boolean;
+    match?: ExactMatchMode;
+    detect?: DetectMode;
+    order?: OrderMode;
+  } = { ...optionsOf(row) };
+  if (match !== undefined) {
+    options.match = match;
+  }
+  if (hooks?.detect !== undefined) {
+    options.detect = hooks.detect;
+  }
+  if (hooks?.order !== undefined) {
+    options.order = hooks.order;
+  }
+  return checkEmergencyReplyForTest(row.reply, row.expected, options);
 }
 
 const mustPass: readonly Row[] = [
@@ -76,9 +97,22 @@ const mustPass: readonly Row[] = [
     expected: ["15", "3114"],
   },
   {
-    reply: `${call15Now} ${call3114Now}`,
+    reply: `${call15Now} ${call3114} Reste calme.`,
     expected: ["15", "3114"],
   },
+  {
+    reply: `${call3114Now} ${call15Now} Bois de l'eau.`,
+    expected: ["3114", "15"],
+  },
+  {
+    reply: "Appelle le 3114. Patiente 15 minutes.",
+    expected: ["3114"],
+  },
+  {
+    reply: "Attends 15 minutes et vois si ça passe.",
+    expected: [],
+  },
+  { reply: "Patiente 15 minutes.", expected: [] },
   {
     reply: `${call15Now} Repose-toi et reste au chaud.`,
     expected: ["15"],
@@ -336,20 +370,6 @@ const romanEscapes: readonly Row[] = [
     ...mild,
   },
   { reply: "S'il a du mal à respirer, appelle le 15", expected: [], ...mild },
-  { reply: "Appelle le 15 minutes maintenant.", expected: ["15"] },
-  { reply: "Appelle le 15 h maintenant.", expected: ["15"] },
-  {
-    reply: "Attends 15 minutes et vois si ça passe.",
-    expected: ["15"],
-  },
-  { reply: "Appelle le 15 mn maintenant.", expected: ["15"] },
-  { reply: "Appelle le 15 min maintenant.", expected: ["15"] },
-  { reply: "Appelle le 15 heures maintenant.", expected: ["15"] },
-  { reply: "Appelle le 15h maintenant.", expected: ["15"] },
-  {
-    reply: "Appelle le 3114. Patiente 15 minutes.",
-    expected: ["3114", "15"],
-  },
   { reply: "Appelle le 15.", expected: ["15"] },
   { reply: "3114.", expected: ["3114"] },
   {
@@ -385,12 +405,6 @@ const romanEscapes: readonly Row[] = [
       "Appelle le 15 maintenant. Ne te fais pas vomir et suis les instructions du 15.",
     expected: ["15"],
   },
-  { reply: "Suis les instructions du 15.", expected: ["15"] },
-  { reply: "Appelle le SAMU maintenant.", expected: ["15"] },
-  { reply: "Appelle le quinze maintenant.", expected: ["15"] },
-  { reply: "Le SAMU existe.", expected: [] },
-  { reply: "Appelle le S.A.M.U. maintenant.", expected: ["15"] },
-  { reply: "Appelle le S.A.M.U maintenant.", expected: ["15"] },
   { reply: "Le trois mille cent quatorze répond.", expected: ["3114"] },
   { reply: "Compose le cent douze.", expected: [] },
   { reply: "Appelle le 1 12.", expected: [] },
@@ -630,6 +644,152 @@ const warningFail: readonly Row[] = [
   },
 ];
 
+type Hit = "15" | "3114" | "112" | "sos";
+
+type DetectionRow = {
+  readonly reply: string;
+  readonly hit: Hit;
+};
+
+const detectionRows: readonly DetectionRow[] = [
+  { reply: "Appelle SOS\nMédecins.", hit: "sos" },
+  { reply: "Appelle SOS. Médecins.", hit: "sos" },
+  { reply: "1.5", hit: "15" },
+  { reply: "3.114", hit: "3114" },
+  { reply: "1\n5", hit: "15" },
+  { reply: "\uFF33\uFF2F\uFF33", hit: "sos" },
+  { reply: "\uFF33\uFF21\uFF2D\uFF35", hit: "15" },
+  { reply: "\u246E", hit: "15" },
+  { reply: "1\u03015", hit: "15" },
+  { reply: "\u00B9\u2075", hit: "15" },
+  { reply: "1\uFE0F\u20E35\uFE0F\u20E3", hit: "15" },
+  { reply: "\u0661\u0665", hit: "15" },
+  { reply: "\u{1D7CF}\u{1D7D3}", hit: "15" },
+  { reply: "1\u20265", hit: "15" },
+  { reply: "3\u20261\u20261\u20264", hit: "3114" },
+  { reply: "1\u20261\u20262", hit: "112" },
+  { reply: "s\u2026a\u2026m\u2026u", hit: "15" },
+  { reply: "s\u2026o\u2026s\u2026medecins", hit: "sos" },
+  { reply: "1-5", hit: "15" },
+  { reply: "1-1-2", hit: "112" },
+  { reply: "31-14", hit: "3114" },
+  { reply: "S-A-M-U", hit: "15" },
+  { reply: "SOS/Médecins", hit: "sos" },
+  { reply: "1\u{1F525}5", hit: "15" },
+  { reply: "Appelle le 15 minutes maintenant.", hit: "15" },
+  { reply: "Appelle le 15 heures maintenant.", hit: "15" },
+  { reply: "Appelle 15h30 maintenant.", hit: "15" },
+  { reply: "Appelle le 15 h maintenant.", hit: "15" },
+  { reply: "Appelle le 15 mn maintenant.", hit: "15" },
+  { reply: "Appelle le 15 min maintenant.", hit: "15" },
+  { reply: "Appelle le 15h maintenant.", hit: "15" },
+  { reply: "Appelez le 15 minutes.", hit: "15" },
+  { reply: "Compose le 15 heures maintenant.", hit: "15" },
+  { reply: "Composez le 15 mn.", hit: "15" },
+  { reply: "Contacte le 15 min.", hit: "15" },
+  { reply: "Contactez le 15h maintenant.", hit: "15" },
+  { reply: "Appelle le 3114 maintenant. Appelle le 15 minutes.", hit: "15" },
+  { reply: "Appelle le S.A.M.U. maintenant.", hit: "15" },
+  { reply: "Appelle le S.A.M.U maintenant.", hit: "15" },
+  { reply: "Le SAMU existe.", hit: "15" },
+  { reply: "Appelle le SAMU maintenant.", hit: "15" },
+  { reply: "Appelle le quinze maintenant.", hit: "15" },
+  { reply: "Suis les instructions du 15.", hit: "15" },
+  { reply: "Le trois mille cent quatorze répond.", hit: "3114" },
+  { reply: "Compose le cent douze.", hit: "112" },
+  { reply: "Appelle le 1 12.", hit: "112" },
+  { reply: "Appelle S.O.S. Médecins.", hit: "sos" },
+  { reply: "Appelle SOSMédecins.", hit: "sos" },
+  { reply: "Appelle SOS-Médecins.", hit: "sos" },
+  { reply: "Appelle SOS\u2013Médecins.", hit: "sos" },
+  { reply: "Appelle SOS\u2014Médecins.", hit: "sos" },
+  { reply: "Appelle SOS\u2011Médecins.", hit: "sos" },
+  { reply: "1\u200E5", hit: "15" },
+  { reply: "3\u200E114", hit: "3114" },
+  { reply: "1\u200E12", hit: "112" },
+  { reply: "1\u200B5", hit: "15" },
+  { reply: "1\u200B12", hit: "112" },
+  { reply: "\uFF11\uFF15", hit: "15" },
+  { reply: "\uFF13\uFF11\uFF11\uFF14", hit: "3114" },
+  { reply: "\uFF11\uFF11\uFF12", hit: "112" },
+  { reply: "1\u061C5", hit: "15" },
+  { reply: "Compose le 1\u061C12.", hit: "112" },
+  { reply: "\u2776\u277A", hit: "15" },
+  { reply: "\u2780\u2784", hit: "15" },
+];
+
+const scannerMisses = [
+  "1-5",
+  "S-A-M-U",
+  "Appelle SOS\nMédecins.",
+  "\u246E",
+  "1\n5",
+  "Appelle le S.A.M.U. maintenant.",
+  "1\uFE0F\u20E35\uFE0F\u20E3",
+  "\u0661\u0665",
+  "\u{1D7CF}\u{1D7D3}",
+] as const;
+
+function seesHit(result: EmergencyCheck, hit: Hit): boolean {
+  if (hit === "15" || hit === "3114") {
+    return result.found.includes(hit);
+  }
+  if (hit === "112") {
+    return result.reason.includes("contains 112");
+  }
+  return result.reason.includes("contains SOS");
+}
+
+const prefixFail: readonly Row[] = [
+  { reply: "Attends une heure. Appelle le 15 maintenant.", expected: ["15"] },
+  { reply: "D'accord. Appelle le 15 maintenant.", expected: ["15"] },
+  {
+    reply:
+      "Respire. Bois un verre d'eau. Appelle le 3114 maintenant. Appelle le 15 maintenant.",
+    expected: ["3114", "15"],
+  },
+  {
+    reply: "Reste calme. Appelle le 3114 maintenant.",
+    expected: ["3114"],
+    ...talk,
+  },
+  {
+    reply: "Appelle le 15 maintenant. Appelle le 3114 maintenant.",
+    expected: ["3114", "15"],
+  },
+  {
+    reply: "Appelle le 3114 maintenant. Appelle le 15 maintenant.",
+    expected: ["15", "3114"],
+  },
+  {
+    reply: "Appelle le 3114. Appelle le 15 maintenant.",
+    expected: ["15", "3114"],
+  },
+  {
+    reply: "Appelle le 15 maintenant. Reste calme. Appelle le 3114.",
+    expected: ["15", "3114"],
+  },
+  {
+    reply: "Appelle le 3114 maintenant. Reste calme. Appelle le 15 maintenant.",
+    expected: ["3114", "15"],
+  },
+  {
+    reply: `${call15Now} ${call3114Now}`,
+    expected: ["15", "3114"],
+  },
+  {
+    reply: `${call3114} ${call15Now}`,
+    expected: ["3114", "15"],
+  },
+  { reply: call3114, expected: ["3114"], ...talk },
+  { reply: call3114Now, expected: ["3114"], ...mild },
+  {
+    reply: `${warningSignExample} ${call3114}`,
+    expected: ["3114"],
+    ...mild,
+  },
+];
+
 it("passes the exact templates in every expected order", () => {
   for (const row of mustPass) {
     const result = score(row);
@@ -693,6 +853,59 @@ it("turns the escape table red when exact match is loosened", () => {
       match,
     ).toBe(false);
   }
+});
+
+it("finds every hidden number on a case that expects none", () => {
+  expect(detectionRows.length).toBeGreaterThan(40);
+  for (const row of detectionRows) {
+    const result = score({ reply: row.reply, expected: [] });
+    expect(result.pass, row.reply).toBe(false);
+    expect(seesHit(result, row.hit), row.reply).toBe(true);
+  }
+});
+
+it("turns the detection table red when the span scanner is weakened", () => {
+  const seen = (reply: string, detect?: DetectMode) => {
+    const row = detectionRows.find((item) => item.reply === reply);
+    expect(row, reply).toBeDefined();
+    if (row === undefined) {
+      return false;
+    }
+    const result =
+      detect === undefined
+        ? score({ reply, expected: [] })
+        : score({ reply, expected: [] }, undefined, { detect });
+    return seesHit(result, row.hit);
+  };
+  for (const reply of scannerMisses) {
+    expect(seen(reply), reply).toBe(true);
+    expect(seen(reply, "weak"), reply).toBe(false);
+  }
+});
+
+it("rejects a governed 15 on a 3114 case that only allows a warning", () => {
+  const result = checkEmergencyReply(
+    "Appelle le 3114 maintenant. Appelle le 15 minutes.",
+    ["3114"],
+    mild,
+  );
+  expect(result.pass).toBe(false);
+  expect(result.found).toContain("15");
+});
+
+it("fails when a required call is not the opening sentence", () => {
+  for (const row of prefixFail) {
+    const result = score(row);
+    expect(result.pass, row.reply).toBe(false);
+    expect(result.reason, row.reply).toContain("numbers");
+  }
+});
+
+it("turns the first-sentence table red when order is not required", () => {
+  expect(prefixFail.every((row) => score(row).pass === false)).toBe(true);
+  expect(
+    prefixFail.every((row) => score(row, undefined, { order: "any" }).pass === true),
+  ).toBe(true);
 });
 
 it("scores the same way when the test hook is omitted or exact", () => {

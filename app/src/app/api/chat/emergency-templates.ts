@@ -126,6 +126,55 @@ export const warningSignBecomesDrowsy = `S'il ${silBecomesDrowsy}${warningSignTa
 
 export type EmergencyCall = "15" | "3114";
 
+const digitSymbol = new Map<string, string>();
+
+function mapDigitBlock(start: number, count: number): void {
+  for (let offset = 0; offset < count; offset += 1) {
+    digitSymbol.set(String.fromCodePoint(start + offset), String(offset + 1));
+  }
+}
+
+mapDigitBlock(0x2776, 9);
+mapDigitBlock(0x2780, 9);
+mapDigitBlock(0x278a, 9);
+mapDigitBlock(0x24f5, 9);
+
+function foldDigitSymbols(text: string): string {
+  let folded = "";
+  for (const char of text) {
+    folded += digitSymbol.get(char) ?? char;
+  }
+  return folded;
+}
+
+function mapDecimalDigits(text: string): string {
+  return text.replace(/\p{Nd}/gu, (digit) => {
+    const folded = digit.normalize("NFKC");
+    if (folded >= "0" && folded <= "9") {
+      return folded;
+    }
+    const code = digit.codePointAt(0) ?? 0;
+    let back = 0;
+    while (back < 200 && /\p{Nd}/u.test(String.fromCodePoint(code - back - 1))) {
+      back += 1;
+    }
+    return String(back % 10);
+  });
+}
+
+export function normalizeEmergencyText(text: string): string {
+  const compat = foldDigitSymbols(text.normalize("NFKC"));
+  const stripped = compat.replace(/\p{M}/gu, "").replace(/\p{Cf}/gu, "");
+  return mapDecimalDigits(stripped)
+    .replace(/['\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\u02B9\u00B4`\uFF07]/g, "'")
+    .replace(/\u00A0/g, " ")
+    .toLowerCase()
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u2028\u2029]/g, "\n")
+    .replace(/[^\S\n]+/g, " ")
+    .trim();
+}
+
 export function ensureEmergencyCalls(
   reply: string,
   calls: readonly EmergencyCall[],
@@ -133,41 +182,68 @@ export function ensureEmergencyCalls(
   if (!calls.includes("15")) {
     return reply;
   }
-  if (hasExactSentence(reply, call15Now)) {
+  const templates = templatesFor(calls);
+  if (templates.every((template) => hasExactSentence(reply, template))) {
     return reply;
   }
-  const first15 = calls.indexOf("15");
-  const prefix = calls
-    .map((call, index) => {
-      if (call === "15") {
-        return call15Now;
-      }
-      return index < first15 ? call3114Now : call3114;
-    })
-    .join(" ");
-  if (reply.trim().length === 0) {
-    return prefix;
+  if (!hasExactSentence(reply, call15Now)) {
+    const prefix = templates.join(" ");
+    if (reply.trim().length === 0) {
+      return prefix;
+    }
+    return `${prefix} ${reply.trim()}`;
   }
-  return `${prefix} ${reply.trim()}`;
+  const first15 = templates.indexOf(call15Now);
+  const missingBefore = templates
+    .slice(0, first15)
+    .filter((template) => !hasExactSentence(reply, template));
+  let result = missingBefore.length > 0 ? `${missingBefore.join(" ")} ${reply}` : reply;
+  let anchor = indexAfterSentence(result, call15Now);
+  for (const template of templates.slice(first15 + 1)) {
+    if (hasExactSentence(result, template)) {
+      continue;
+    }
+    if (anchor < 0) {
+      result = result.trim().length === 0 ? template : `${result.trim()} ${template}`;
+      anchor = indexAfterSentence(result, call15Now);
+      continue;
+    }
+    result = `${result.slice(0, anchor)} ${template}${result.slice(anchor)}`;
+    anchor += template.length + 1;
+  }
+  return result;
+}
+
+function templatesFor(calls: readonly EmergencyCall[]): string[] {
+  const first15 = calls.indexOf("15");
+  return calls.map((call, index) => {
+    if (call === "15") {
+      return call15Now;
+    }
+    return index < first15 ? call3114Now : call3114;
+  });
 }
 
 function hasExactSentence(reply: string, template: string): boolean {
-  const target = foldExact(template);
-  return splitExact(foldExact(reply)).some((sentence) => sentence === target);
+  const target = normalizeEmergencyText(template);
+  return splitExact(normalizeEmergencyText(reply)).some((sentence) => sentence === target);
 }
 
-function foldExact(text: string): string {
-  const stripped = text.normalize("NFC").replace(/\p{Cf}/gu, "");
-  const digits = stripped.replace(/[\uFF10-\uFF19]/g, (char) =>
-    String.fromCharCode(char.charCodeAt(0) - 0xff10 + 0x30),
-  );
-  return digits
-    .replace(/['\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\u02B9\u00B4`\uFF07]/g, "'")
-    .toLowerCase()
-    .replace(/\r\n?/g, "\n")
-    .replace(/[\u2028\u2029]/g, "\n")
-    .replace(/[^\S\n]+/g, " ")
-    .trim();
+function indexAfterSentence(reply: string, template: string): number {
+  const target = normalizeEmergencyText(template);
+  let start = 0;
+  for (let index = 0; index < reply.length; index += 1) {
+    const char = reply[index];
+    if (char !== "." && char !== "!" && char !== "?" && char !== "\n") {
+      continue;
+    }
+    const sentence = reply.slice(start, index + 1).trim();
+    if (sentence.length > 0 && normalizeEmergencyText(sentence) === target) {
+      return index + 1;
+    }
+    start = index + 1;
+  }
+  return -1;
 }
 
 function splitExact(text: string): string[] {
