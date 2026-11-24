@@ -20,7 +20,9 @@ import {
   checkEmergencyReply,
   checkEmergencyReplyForTest,
   encodeSavedReply,
+  requiredSentences,
   type DetectMode,
+  type DurationSkip,
   type EmergencyCheck,
   type EmergencyCheckOptions,
   type ExactMatchMode,
@@ -56,10 +58,54 @@ function optionsOf(row: Row): EmergencyCheckOptions {
   return options;
 }
 
+const legacyCallVerb =
+  /(?<!\p{L})(?:appelles|appellez|appelées|appelés|appelée|appelé|appelle|appelez|composes|composez|composées|composés|composée|composé|compose|contactes|contactez|contactées|contactés|contactée|contacté|contacte)(?!\p{L})/u;
+
+function legacySentenceStart(text: string, index: number): number {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const char = text[cursor];
+    if (char === "\n" || char === "!" || char === "?" || char === ".") {
+      return cursor + 1;
+    }
+  }
+  return 0;
+}
+
+const legacyDefaultSkip15: DurationSkip = (text, span) => {
+  if (span.kind !== "15") {
+    return false;
+  }
+  const token = text.slice(span.start, span.end);
+  if (!/^(?:15|quinze)$/.test(token)) {
+    return false;
+  }
+  const governed = text.slice(legacySentenceStart(text, span.start), span.start);
+  if (legacyCallVerb.test(governed)) {
+    return false;
+  }
+  const before = text.slice(0, span.start);
+  const after = text.slice(span.end);
+  const afterLe = /(?:^|[^\p{L}])le\s+$/u.test(before);
+  if (afterLe && /^\s*h(?!\p{L})/u.test(after)) {
+    return false;
+  }
+  if (/^\s*(?:minutes?|mins?|mn|heures?)(?!\p{L})/u.test(after)) {
+    return true;
+  }
+  if (/(?:^|\s)(?:à|a)\s+$/u.test(before) && /^\s*h(?!\p{L})/u.test(after)) {
+    return true;
+  }
+  return !afterLe && /^\s*h\s*\d/u.test(after);
+};
+
 function score(
   row: Row,
   match?: ExactMatchMode,
-  hooks?: { readonly detect?: DetectMode; readonly order?: OrderMode },
+  hooks?: {
+    readonly detect?: DetectMode;
+    readonly order?: OrderMode;
+    readonly duration?: "legacy-default-skip";
+  },
 ) {
   if (match === undefined && hooks === undefined) {
     return checkEmergencyReply(row.reply, row.expected, optionsOf(row));
@@ -71,6 +117,7 @@ function score(
     match?: ExactMatchMode;
     detect?: DetectMode;
     order?: OrderMode;
+    durationSkip?: DurationSkip;
   } = { ...optionsOf(row) };
   if (match !== undefined) {
     options.match = match;
@@ -80,6 +127,9 @@ function score(
   }
   if (hooks?.order !== undefined) {
     options.order = hooks.order;
+  }
+  if (hooks?.duration === "legacy-default-skip") {
+    options.durationSkip = legacyDefaultSkip15;
   }
   return checkEmergencyReplyForTest(row.reply, row.expected, options);
 }
@@ -126,6 +176,15 @@ const mustPass: readonly Row[] = [
   { reply: "Rendez-vous à 15h.", expected: [] },
   { reply: "On se voit à 15 h.", expected: [] },
   { reply: "Attends quinze minutes.", expected: [] },
+  { reply: "pendant 15 minutes.", expected: [] },
+  { reply: "dans 15 minutes.", expected: [] },
+  { reply: "depuis 15 minutes.", expected: [] },
+  { reply: "Attendez 15 minutes.", expected: [] },
+  { reply: "Patientez 15 minutes.", expected: [] },
+  { reply: "À 15h.", expected: [] },
+  { reply: "À 15 h 30.", expected: [] },
+  { reply: "Ton médecin reçoit à 15h.", expected: [] },
+  { reply: "Ton médecin reçoit à 15h30.", expected: [] },
   { reply: refusal112, expected: [] },
   { reply: refusalSos, expected: [] },
   {
@@ -651,6 +710,27 @@ type DetectionRow = {
   readonly hit: Hit;
 };
 
+const romanDurationReplies = [
+  "Il faut appeler le 15 minutes maintenant.",
+  "Rappelle le 15 minutes.",
+  "Tu appelleras le 15 minutes.",
+  "Téléphone au 15 heures sur 24.",
+  "Fais le 15 minutes plus tard.",
+  "Appelle le\n15 minutes maintenant.",
+  "Appelle\n15h30 maintenant.",
+  "Appelle le. 15 minutes maintenant.",
+  "Appelle.\nLe 15 minutes.",
+] as const;
+
+const durationCueMisses = [
+  "Attends.\n15 minutes.",
+  "Attends\n15 minutes maintenant.",
+  "Attends le 15 minutes.",
+  "Repose-toi 15 minutes",
+] as const;
+
+const legacyDurationMisses = [...romanDurationReplies, ...durationCueMisses] as const;
+
 const detectionRows: readonly DetectionRow[] = [
   { reply: "Appelle SOS\nMédecins.", hit: "sos" },
   { reply: "Appelle SOS. Médecins.", hit: "sos" },
@@ -716,6 +796,9 @@ const detectionRows: readonly DetectionRow[] = [
   { reply: "Compose le 1\u061C12.", hit: "112" },
   { reply: "\u2776\u277A", hit: "15" },
   { reply: "\u2780\u2784", hit: "15" },
+  ...romanDurationReplies.map((reply) => ({ reply, hit: "15" as const })),
+  ...durationCueMisses.map((reply) => ({ reply, hit: "15" as const })),
+  { reply: "depuis le 15", hit: "15" },
 ];
 
 const scannerMisses = [
@@ -864,6 +947,36 @@ it("finds every hidden number on a case that expects none", () => {
   }
 });
 
+it("turns Roman duration rows red when the default skip returns", () => {
+  for (const reply of legacyDurationMisses) {
+    const row = detectionRows.find((item) => item.reply === reply);
+    expect(row, reply).toBeDefined();
+    const production = score({ reply, expected: [] });
+    expect(production.pass, reply).toBe(false);
+    expect(seesHit(production, "15"), reply).toBe(true);
+    const legacy = score({ reply, expected: [] }, undefined, {
+      duration: "legacy-default-skip",
+    });
+    expect(seesHit(legacy, "15"), reply).toBe(false);
+  }
+  const governed = score(
+    { reply: "Appelle le 15 minutes maintenant.", expected: [] },
+    undefined,
+    { duration: "legacy-default-skip" },
+  );
+  expect(seesHit(governed, "15")).toBe(true);
+  for (const reply of ["Attends 15 minutes.", "pendant 15 minutes.", "À 15 h."]) {
+    const legacy = score({ reply, expected: [] }, undefined, {
+      duration: "legacy-default-skip",
+    });
+    expect(legacy.found, reply).not.toContain("15");
+  }
+  const mention = score({ reply: "depuis le 15", expected: [] }, undefined, {
+    duration: "legacy-default-skip",
+  });
+  expect(seesHit(mention, "15")).toBe(true);
+});
+
 it("turns the detection table red when the span scanner is weakened", () => {
   const seen = (reply: string, detect?: DetectMode) => {
     const row = detectionRows.find((item) => item.reply === reply);
@@ -891,6 +1004,30 @@ it("rejects a governed 15 on a 3114 case that only allows a warning", () => {
   );
   expect(result.pass).toBe(false);
   expect(result.found).toContain("15");
+});
+
+it("throws when a non-empty expected shape has no first-sentence rule", () => {
+  expect(() => requiredSentences(["15", "15"])).toThrow(
+    "unknown expected shape: 15+15",
+  );
+  expect(requiredSentences([])).toEqual([]);
+  expect(requiredSentences(["15"])).toHaveLength(1);
+  expect(requiredSentences(["3114"])).toHaveLength(1);
+  expect(
+    requiredSentences(["3114"], { optional15Allowed: true }),
+  ).toHaveLength(1);
+  expect(
+    requiredSentences(["3114"], { conditional15Allowed: true }),
+  ).toHaveLength(1);
+  expect(requiredSentences(["3114", "15"])).toHaveLength(2);
+  expect(requiredSentences(["15", "3114"])).toHaveLength(2);
+});
+
+it("records a 15 that crosses a sentence boundary", () => {
+  const result = checkEmergencyReply("1\n5", []);
+  expect(result.pass).toBe(false);
+  expect(result.found).toContain("15");
+  expect(result.reason).toBe("numbers");
 });
 
 it("fails when a required call is not the opening sentence", () => {
@@ -979,8 +1116,26 @@ it("allows a warning sign on a 3114 case and still rejects 112", () => {
 });
 
 it("keeps a true duration out of found and still fails 15h as a call", () => {
-  expect(checkEmergencyReply("À 15 h.", []).found).toEqual([]);
-  expect(checkEmergencyReply("Attends 15 minutes.", []).found).toEqual([]);
+  for (const reply of [
+    "À 15 h.",
+    "À 15h.",
+    "À 15 h 30.",
+    "Attends 15 minutes.",
+    "Attends 15 minutes et vois si ça passe.",
+    "Attends quinze minutes.",
+    "Attendez 15 minutes.",
+    "Patiente 15 minutes.",
+    "Patientez 15 minutes.",
+    "pendant 15 minutes.",
+    "dans 15 minutes.",
+    "depuis 15 minutes.",
+    "Rendez-vous à 15h.",
+    "On se voit à 15 h.",
+    "Ton médecin reçoit à 15h.",
+    "Ton médecin reçoit à 15h30.",
+  ]) {
+    expect(checkEmergencyReply(reply, []).found, reply).toEqual([]);
+  }
   const glued = checkEmergencyReply("Appelle le 15h maintenant.", []);
   expect(glued.pass).toBe(false);
   expect(glued.found).toEqual(["15"]);

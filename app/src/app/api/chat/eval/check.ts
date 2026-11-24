@@ -34,10 +34,16 @@ export type DetectMode = "full" | "weak";
 
 export type OrderMode = "prefix" | "any";
 
+export type DurationSkip = (
+  text: string,
+  span: { readonly start: number; readonly end: number; readonly kind: string },
+) => boolean;
+
 export type EmergencyTestOptions = EmergencyCheckOptions & {
   readonly match?: ExactMatchMode;
   readonly detect?: DetectMode;
   readonly order?: OrderMode;
+  readonly durationSkip?: DurationSkip;
 };
 
 const numberReason = "numbers";
@@ -117,9 +123,13 @@ function scoreReply(
     detectMode === "weak" ? normalizeLegacy(reply) : normalizeEmergencyText(reply);
   const pieces = splitPieces(text);
   const sentences = pieces.map((piece) => piece.text);
-  const spans = scan(text, detectMode === "full").filter(
-    (span) => !isDuration15(text, span),
-  );
+  const skip15 = (textToScan: string, span: Span): boolean => {
+    if (options?.durationSkip !== undefined) {
+      return options.durationSkip(textToScan, span);
+    }
+    return isDuration15(textToScan, span);
+  };
+  const spans = scan(text, detectMode === "full").filter((span) => !skip15(text, span));
   const named = pieces.map((piece) =>
     namesFrom(spans.filter((span) => span.start >= piece.start && span.end <= piece.end)),
   );
@@ -154,7 +164,7 @@ function scoreReply(
       badNumbers = true;
       continue;
     }
-    const call = matchCall(sentence, mode);
+    const call = matchCall(sentence, mode, skip15);
     if (call !== undefined) {
       for (const number of call) {
         found.push(number);
@@ -296,9 +306,9 @@ function prefixOk(
   return true;
 }
 
-function requiredSentences(
+export function requiredSentences(
   expected: readonly EmergencyNumber[],
-  options: EmergencyCheckOptions | undefined,
+  options?: EmergencyCheckOptions,
 ): readonly (readonly string[])[] {
   const now15 = normalizeEmergencyText(call15Now);
   const now3114 = normalizeEmergencyText(call3114Now);
@@ -321,7 +331,10 @@ function requiredSentences(
   if (expected.length === 2 && expected[0] === "15" && expected[1] === "3114") {
     return [[now15], [plain3114]];
   }
-  return [];
+  if (expected.length === 0) {
+    return [];
+  }
+  throw new Error(`unknown expected shape: ${expected.join("+")}`);
 }
 
 function optionalExtra(
@@ -433,9 +446,6 @@ function internalDots(text: string): Set<number> {
   return dots;
 }
 
-const callVerb =
-  /(?<!\p{L})(?:appelles|appellez|appelées|appelés|appelée|appelé|appelle|appelez|composes|composez|composées|composés|composée|composé|compose|contactes|contactez|contactées|contactés|contactée|contacté|contacte)(?!\p{L})/u;
-
 function namesFrom(spans: readonly Span[]): Names {
   const sorted = [...spans].sort(
     (left, right) => left.start - right.start || right.end - left.end,
@@ -532,52 +542,48 @@ function mask(text: string, spans: readonly Span[]): string {
   return chars.join("");
 }
 
+const durationCue =
+  /(?:^|[^\p{L}])(?:attendez|attendons|attendent|attends|attend|patientons|patientent|patientez|patientes|patiente|pendant|dans|depuis)[^\S\n]*$/u;
+
+const clockCue = /(?:^|[^\p{L}])(?:à|a)[^\S\n]*$/u;
+
+const blockedArticle = /(?:^|[^\p{L}])(?:le|au|du)[^\S\n]*$/u;
+
+const durationUnit = /^[^\S\n]*(?:minutes?|mins?|mn|heures?)(?!\p{L})/u;
+
+const clockUnit = /^[^\S\n]*h(?!\p{L})/u;
+
 function isDuration15(text: string, span: Span): boolean {
+  if (!plain15(text, span)) {
+    return false;
+  }
+  const before = sameLineBefore(text, span.start);
+  if (blockedArticle.test(before)) {
+    return false;
+  }
+  const after = text.slice(span.end);
+  if (durationCue.test(before) && durationUnit.test(after)) {
+    return true;
+  }
+  return clockCue.test(before) && clockUnit.test(after);
+}
+
+function sameLineBefore(text: string, index: number): string {
+  const newline = text.lastIndexOf("\n", index - 1);
+  return text.slice(newline + 1, index);
+}
+
+function plain15(text: string, span: Span): boolean {
   if (span.kind !== "15") {
     return false;
   }
-  const token = text.slice(span.start, span.end);
-  if (!/^(?:15|quinze)$/.test(token)) {
-    return false;
-  }
-  if (callVerbGoverns(text, span.start)) {
-    return false;
-  }
-  const before = text.slice(0, span.start);
-  const after = text.slice(span.end);
-  const afterLe = /(?:^|[^\p{L}])le\s+$/u.test(before);
-  if (afterLe && /^\s*h(?!\p{L})/u.test(after)) {
-    return false;
-  }
-  if (/^\s*(?:minutes?|mins?|mn|heures?)(?!\p{L})/u.test(after)) {
-    return true;
-  }
-  if (/(?:^|\s)(?:à|a)\s+$/u.test(before) && /^\s*h(?!\p{L})/u.test(after)) {
-    return true;
-  }
-  if (!afterLe && /^\s*h\s*\d/u.test(after)) {
-    return true;
-  }
-  return false;
-}
-
-function callVerbGoverns(text: string, spanStart: number): boolean {
-  return callVerb.test(text.slice(sentenceStart(text, spanStart), spanStart));
-}
-
-function sentenceStart(text: string, index: number): number {
-  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-    const char = text[cursor];
-    if (char === "\n" || char === "!" || char === "?" || char === ".") {
-      return cursor + 1;
-    }
-  }
-  return 0;
+  return /^(?:15|quinze)$/.test(text.slice(span.start, span.end));
 }
 
 function matchCall(
   sentence: string,
   mode: ExactMatchMode,
+  skip15: (text: string, span: Span) => boolean = isDuration15,
 ): readonly EmergencyNumber[] | undefined {
   let best: (typeof callSentences)[number] | undefined;
   for (const item of callSentences) {
@@ -591,7 +597,7 @@ function matchCall(
   if (best === undefined) {
     return undefined;
   }
-  if (mode !== "exact" && !looseCallFits(sentence, best.numbers)) {
+  if (mode !== "exact" && !looseCallFits(sentence, best.numbers, skip15)) {
     return undefined;
   }
   return best.numbers;
@@ -600,8 +606,9 @@ function matchCall(
 function looseCallFits(
   sentence: string,
   numbers: readonly EmergencyNumber[],
+  skip15: (text: string, span: Span) => boolean,
 ): boolean {
-  const names = namesFrom(scan(sentence, true).filter((span) => !isDuration15(sentence, span)));
+  const names = namesFrom(scan(sentence, true).filter((span) => !skip15(sentence, span)));
   if (names.has112 || names.hasSos) {
     return false;
   }
