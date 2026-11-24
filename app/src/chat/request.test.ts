@@ -148,9 +148,16 @@ it("rejects a message longer than the content cap", () => {
   ).toBe(200);
 });
 
+function historyRole(index: number): "user" | "agent" {
+  if (index % 2 === 0) {
+    return "user";
+  }
+  return "agent";
+}
+
 it("keeps the newest turns when the history is over the message cap", () => {
   const older = Array.from({ length: chatRequestLimits.maxMessages }, (_, index) => ({
-    role: (index % 2 === 0 ? "user" : "agent") as "user" | "agent",
+    role: historyRole(index),
     content: `old-${index}`,
   }));
   const sent = toProviderMessages([

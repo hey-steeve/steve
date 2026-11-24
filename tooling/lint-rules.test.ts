@@ -68,7 +68,7 @@ describe("package lint rules", () => {
 
   it("reports a template-literal import() of a deep feature path", async () => {
     const found = await messages(
-      "import(`../../features/x/src/y.ts`);\n",
+      "void import(`../../features/x/src/y.ts`);\n",
       "app/src/import-template.ts",
     );
     expect(found).toEqual([appOutbound]);
@@ -84,7 +84,7 @@ describe("package lint rules", () => {
 
   it("ignores a template literal import() that has an expression", async () => {
     const found = await messages(
-      "import(`../../features/${name}/src/y.ts`);\n",
+      "void import(`../../features/${name}/src/y.ts`);\n",
       "app/src/import-dynamic.ts",
     );
     expect(found).toEqual([]);
@@ -183,5 +183,60 @@ describe("package lint rules", () => {
   it("reports console.log in tooling", async () => {
     const found = await messages("console.log('x');\n", "tooling/log.ts");
     expect(found).toEqual([noConsole]);
+  });
+});
+
+const typeAssertion = "Do not use any type assertions.";
+const explicitAny = "Unexpected any. Specify a different type.";
+const nonNullAssertion = "Forbidden non-null assertion.";
+const floatingPromise =
+  "Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator.";
+
+describe("typed lint rules", () => {
+  it("bans a type assertion and allows as const", async () => {
+    const asserted = await messages(
+      "export const value = 1 as number;\n",
+      "app/src/asserted.ts",
+    );
+    const literal = await messages(
+      "export const value = { lossless: true as const };\n",
+      "app/src/literal.ts",
+    );
+    const list = await messages(
+      "export const value = [1, 2] as const;\n",
+      "tooling/literal.ts",
+    );
+    expect(asserted).toContain(typeAssertion);
+    expect(literal).not.toContain(typeAssertion);
+    expect(list).not.toContain(typeAssertion);
+  });
+
+  it("bans an explicit any", async () => {
+    const found = await messages(
+      "export function read(value: any): any {\n  return value;\n}\n",
+      "features/voice/src/any.ts",
+    );
+    expect(found).toContain(explicitAny);
+  });
+
+  it("bans a non-null assertion", async () => {
+    const found = await messages(
+      "export function read(value: string | null): string {\n  return value!;\n}\n",
+      "shared/src/non-null.ts",
+    );
+    expect(found).toContain(nonNullAssertion);
+  });
+
+  it("bans a floating promise and allows an intentional void", async () => {
+    const floating = await messages(
+      "async function load(): Promise<void> {\n  return undefined;\n}\nload();\n",
+      "app/src/floating.ts",
+    );
+    const ignored = await messages(
+      "async function load(): Promise<void> {\n  return undefined;\n}\nvoid load();\n",
+      "app/src/voided.ts",
+    );
+    expect(floating).toContain(floatingPromise);
+    expect(ignored).not.toContain(floatingPromise);
   });
 });

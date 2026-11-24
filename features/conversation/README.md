@@ -19,37 +19,15 @@
 
 ## Inputs and outputs
 
-- `startSession({ channel })` creates a versioned session and returns the French
-  greeting as the first assistant turn.
-- `handleTurn({ sessionId, turnId, channel, text })` continues an existing
-  session with a normalized text, voice, or future inbox turn.
-- Every accepted turn has stable session and turn identifiers and is kept in a
-  bounded conversation history.
-- The result states whether the caller should await another turn, perform a
-  handoff, or consider the conversation complete.
-- A handoff contains correlation identifiers, the source channel and text, a
-  non-medical summary, and a general request intent. It contains no urgency
-  classification, diagnosis, practitioner result, or booking decision.
-- Every understood request is handed toward `triage`; `conversation` never
-  bypasses that safety boundary or chooses the downstream feature itself.
-- Rejected and failed turns return a short French explanation so the patient is
-  never left without an outcome.
+These are the planned inputs and outputs. `@steve/shared` defines them. This package does not read them yet.
+
+- The planned input is a `Turn`. `sessionId` identifies the session. `turnId` identifies the turn. `channel` is `"voice"` or `"text"`. Those two values are the members of `turnChannels`. `TurnChannel` is that union. `text` is what the patient said.
+- The planned output is a `Handoff<Data>`. `sessionId` identifies the session. `turnId` identifies the turn. `target` and `intent` are strings. `data` is the payload. `Data` defaults to `unknown`.
+- A feature returns a `FeatureResult<Data>`. `reply` is what the patient hears. `data` is optional on success. The failure branch has no `data`. A feature with no payload returns `{ ok: true, reply }`.
 
 ## Depends on
 
-No workspace package today. The future link with `voice`, `triage`, and `inbox`
-must use separately reviewed contracts from `@steve/shared`.
-
-The core receives four injected dependencies:
-
-- a session store;
-- a general request-understanding provider;
-- an identifier generator;
-- a clock.
-
-The package includes an in-memory store for deterministic tests and local
-integration. A production adapter can replace every non-deterministic or
-persistent dependency without changing the conversation flow.
+The planned dependency is `@steve/shared` only. `Turn`, `Handoff`, and `FeatureResult` are defined there. This package does not depend on `@steve/shared` yet. The link with `voice` and with `inbox` goes through shared contracts that are still to be defined.
 
 ## Rules
 
@@ -60,18 +38,14 @@ persistent dependency without changing the conversation flow.
 
 ## Demo and production
 
-The domain flow and public result are the same for voice and text. Tests inject
-deterministic providers and require no network. Production must inject a
-validated understanding provider and a durable store.
+The flow is the same by voice and by text. The difference between the demo and production is to be defined.
 
 ## Check
 
-```bash
-pnpm --filter @steve/conversation test
-pnpm --filter @steve/conversation typecheck
-```
+`pnpm --filter @steve/conversation test`
 
-## Public entry point
+The tests are to be defined.
 
-Import `createConversation`, `createInMemoryConversationStore`, and the public
-types from `@steve/conversation`. Consumers must not import files below `src/`.
+## Status
+
+To do. Owner:

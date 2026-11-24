@@ -23,11 +23,30 @@ const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(appDir, "../../..");
 const manifestPath = path.join(repoRoot, "shared/assets/brand/site.webmanifest");
 
-it("matches the installed app to the flat page background", async () => {
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-    theme_color: string;
-    background_color: string;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readThemeColors(file: string): {
+  readonly theme_color: string;
+  readonly background_color: string;
+} {
+  const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+  if (
+    !isRecord(parsed) ||
+    typeof parsed["theme_color"] !== "string" ||
+    typeof parsed["background_color"] !== "string"
+  ) {
+    throw new Error("Invalid theme manifest");
+  }
+  return {
+    theme_color: parsed["theme_color"],
+    background_color: parsed["background_color"],
   };
+}
+
+it("matches the installed app to the flat page background", async () => {
+  const manifest = readThemeColors(manifestPath);
   expect(designTokens.color.page).toBe(page);
   expect(manifest.theme_color).toBe(page);
   expect(manifest.background_color).toBe(page);

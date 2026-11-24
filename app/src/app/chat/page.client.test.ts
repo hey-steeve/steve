@@ -132,27 +132,10 @@ it("disables send while the chat request is in flight", async () => {
   });
 });
 
-it("does not focus the composer when a suggestion chip is tapped", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof fetch>(async () =>
-      Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
-    ),
-  );
+it("does not autofocus the composer on the home screen", async () => {
   const container = await renderPage();
-  const chip = container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
-  }
-
-  await act(async () => {
-    chip.click();
-  });
-
   expect(document.activeElement).not.toBe(fieldIn(container));
-  expect(container.querySelector(".chat-user")?.textContent).toContain(
-    "Prendre rendez-vous chez un généraliste",
-  );
+  expect(container.querySelector(".chat-thread")).toBeNull();
 });
 
 it("keeps the composer focused after the first send", async () => {

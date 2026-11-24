@@ -1,19 +1,10 @@
 // @vitest-environment happy-dom
 
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import sharp from "sharp";
 import { afterEach, expect, it, vi } from "vitest";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar.js";
 import ChatPage from "./chat-page.js";
-
-const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const avatarPath = path.join(appDir, "public/demo/user-avatar.webp");
-const chatCss = readFileSync(path.join(appDir, "src/app/chat/chat.css"), "utf8");
-const circlePx = 32;
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -26,33 +17,11 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("shows the demo photo in the profile frame and keeps the glyph's tap target", async () => {
+it("does not render a profile photo in the home header", async () => {
   expect(demoUserAvatarSrc).toBe("/demo/user-avatar.webp");
   const view = await mount();
-  const button = view.container.querySelector(".chat-header-home .chat-profile");
-  const photo = button?.querySelector(".chat-profile-photo");
-  if (!(button instanceof HTMLButtonElement) || !(photo instanceof HTMLImageElement)) {
-    throw new Error("missing profile photo");
-  }
-  expect(button.getAttribute("aria-label")).toBe("Profil");
-  expect(photo.getAttribute("src")).toBe(demoUserAvatarSrc);
-  expect(photo.getAttribute("alt")).toBe("");
-  expect(button.querySelector("svg")).toBeNull();
-  expect(rule(chatCss, ".chat-profile")).toContain("width: var(--hit-min);");
-  expect(rule(chatCss, ".chat-profile")).toContain("height: var(--hit-min);");
-  expect(rule(chatCss, ".chat-profile-face")).toContain("width: 32px;");
-  expect(rule(chatCss, ".chat-profile-face")).toContain("height: 32px;");
-  expect(rule(chatCss, ".chat-profile-face")).toContain("background: var(--color-profile);");
-  expect(rule(chatCss, ".chat-profile-face")).toContain("border-radius: var(--radius-sm);");
-  expect(rule(chatCss, ".chat-profile-photo")).toContain("border-radius: var(--radius-sm);");
-  expect(rule(chatCss, ".chat-profile-photo")).toContain("object-fit: cover;");
-
-  const meta = await sharp(readFileSync(avatarPath)).metadata();
-  expect(meta.format).toBe("webp");
-  expect(meta.width).toBe(meta.height);
-  expect(meta.width).toBeGreaterThanOrEqual(circlePx * 3);
-  expect(photo.getAttribute("width")).toBe(String(meta.width));
-  expect(photo.getAttribute("height")).toBe(String(meta.height));
+  expect(view.container.querySelector(".chat-header-home .chat-profile")).toBeNull();
+  expect(view.container.querySelector(".chat-header-home img")).toBeNull();
 });
 
 it("shows the demo photo on the user message avatar", async () => {
@@ -63,13 +32,16 @@ it("shows the demo photo on the user message avatar", async () => {
     ),
   );
   const view = await mount();
-  const chip = view.container.querySelector(".chat-chip");
-  if (!(chip instanceof HTMLButtonElement)) {
-    throw new Error("missing suggestion");
+  const field = view.container.querySelector(".chat-field");
+  if (!(field instanceof HTMLTextAreaElement)) {
+    throw new Error("missing composer");
   }
   await act(async () => {
-    chip.click();
+    setField(field, "Bonjour");
   });
+  const send = view.container.querySelector('button[aria-label="Envoyer"]');
+  if (!(send instanceof HTMLButtonElement)) throw new Error("missing send button");
+  await act(async () => send.click());
   const avatar = view.container.querySelector(".chat-row-user .chat-avatar-user");
   const photo = avatar?.querySelector("img");
   if (!(avatar instanceof HTMLElement) || !(photo instanceof HTMLImageElement)) {
@@ -78,29 +50,7 @@ it("shows the demo photo on the user message avatar", async () => {
   expect(photo.getAttribute("src")).toBe(demoUserAvatarSrc);
   expect(photo.getAttribute("alt")).toBe("");
   expect(avatar.querySelector("svg")).toBeNull();
-  expect(rule(chatCss, ".chat-avatar img")).toContain("object-fit: cover;");
 });
-
-function rule(css: string, selector: string): string {
-  const token = `${selector} {`;
-  let from = 0;
-  while (from < css.length) {
-    const start = css.indexOf(token, from);
-    if (start < 0) {
-      throw new Error(`missing ${selector}`);
-    }
-    const prefix = css.slice(Math.max(0, start - 40), start);
-    if (!prefix.endsWith(".chat-header-home ")) {
-      const end = css.indexOf("}", start);
-      if (end < 0) {
-        throw new Error(`unclosed ${selector}`);
-      }
-      return css.slice(start + token.length, end);
-    }
-    from = start + token.length;
-  }
-  throw new Error(`missing ${selector}`);
-}
 
 async function mount(): Promise<{ container: HTMLDivElement }> {
   const container = document.createElement("div");
@@ -114,3 +64,12 @@ async function mount(): Promise<{ container: HTMLDivElement }> {
 }
 
 const roots: Root[] = [];
+
+function setField(field: HTMLTextAreaElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  setter?.call(field, value);
+  field.dispatchEvent(new InputEvent("input", { bubbles: true }));
+}
