@@ -36,7 +36,7 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `OPENROUTER_API_KEY` is the OpenRouter API key. The route reads it on the server and trims it. Whitespace alone counts as empty.
 
-`OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends the pinned default, `google/gemini-3.8-flash`.
+`OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends the pinned default, `openai/gpt-6.1-terra`.
 
 `STEVE_CHAT_LIVE` must be exactly `1`, and `OPENROUTER_API_KEY` must be set, before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set. `true`, `0`, and ` 1 ` keep the canned reply.
 
@@ -46,7 +46,7 @@ When the route calls OpenRouter, it sends the French system prompt in `system-pr
 {
   "reply": "Une pharmacie de garde.",
   "mocked": false,
-  "model": "google/gemini-3.8-flash"
+  "model": "openai/gpt-6.1-terra"
 }
 ```
 

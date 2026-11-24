@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "typecheck": "next typegen && pnpm --dir .. exec tsc --noEmit -p app",
-    "test": "pnpm --dir .. exec vitest run --passWithNoTests app"
+    "test": "pnpm --dir .. exec vitest run --passWithNoTests app",
+    "eval:emergency": "STEVE_CHAT_LIVE=1 node --env-file-if-exists=.env.local --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/run.ts",
+    "eval:rescore": "node --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/rescore.ts"
   },
   "dependencies": {
     "@steve/profile": "workspace:*",
