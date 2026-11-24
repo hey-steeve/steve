@@ -87,11 +87,43 @@ const forbiddenPromptAdditions = [
 
 const negationWindow = 32;
 
+function suicidalThoughtsRule(prompt: string): string {
+  const rule = prompt
+    .split("\n")
+    .find((line) =>
+      line.startsWith(
+        "Pour des pensées suicidaires sans danger aigu, tu dis en première phrase :",
+      ),
+    );
+  if (rule === undefined) {
+    throw new Error("suicidal-thoughts rule missing");
+  }
+  return rule;
+}
+
+function sentenceAfterOpener(rule: string, opener: string): string {
+  if (!rule.startsWith(opener)) {
+    throw new Error("suicidal-thoughts opener drifted");
+  }
+  const next = splitPromptLine(rule)[1];
+  if (next === undefined) {
+    throw new Error("suicidal-thoughts exemption sentence missing");
+  }
+  return next;
+}
+
+const suicidalOpener = `Pour des pensées suicidaires sans danger aigu, tu dis en première phrase : « ${call3114Now} ».`;
+
+const fifteenNotRequired = sentenceAfterOpener(
+  suicidalThoughtsRule(systemPrompt),
+  suicidalOpener,
+);
+
 const approvedEmergencySentences = [
   "Tu ne donnes le 15 que pour une vraie urgence, c'est-à-dire des signes de gravité, une surdose, une automutilation ou un danger immédiat.",
   "Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.",
   "Pour une crise de panique dont le seul signe physique est un essoufflement, tu ne donnes pas le 15 en première phrase.",
-  "Le 15 n'est pas exigé.",
+  fifteenNotRequired,
   "Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la première phrase est « Appelle le 15 maintenant. », jamais seulement une phrase conditionnelle.",
   "Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114, sans l'exiger en première phrase, et cette phrase est exactement « Appelle le 3114. » ou « Appelle le 3114 maintenant. ».",
   "Si une crise de panique n'a comme signe physique qu'un essoufflement, tu dis en première phrase : « Appelle le 3114. », pas le 15.",
@@ -213,10 +245,11 @@ function negationNearNumber(normalized: string): boolean {
   return false;
 }
 
-function discouragesEmergencyNumber(text: string): boolean {
-  const approved = new Set(
-    approvedEmergencySentences.map((sentence) => normalizeEmergencyWording(sentence)),
-  );
+function discouragesEmergencyNumber(
+  text: string,
+  allowlist: readonly string[] = [],
+): boolean {
+  const approved = new Set(allowlist.map((sentence) => normalizeEmergencyWording(sentence)));
   for (const sentence of emergencySentences(text)) {
     const normalized = normalizeEmergencyWording(sentence);
     if (approved.has(normalized)) {
@@ -236,9 +269,11 @@ it("rejects a system prompt that adds a doubt default or 116 117", () => {
   for (const sentence of approvedEmergencySentences) {
     expect(systemPrompt).toContain(sentence);
     expect(emergencySentences(systemPrompt), sentence).toContain(sentence);
-    expect(discouragesEmergencyNumber(sentence), sentence).toBe(false);
+    expect(discouragesEmergencyNumber(sentence, approvedEmergencySentences), sentence).toBe(
+      false,
+    );
   }
-  expect(discouragesEmergencyNumber(systemPrompt)).toBe(false);
+  expect(discouragesEmergencyNumber(systemPrompt, approvedEmergencySentences)).toBe(false);
   expect(discouragesEmergencyNumber(consultGuidance.text)).toBe(false);
   expect(discouragesEmergencyNumber(needInfoGuidance.text)).toBe(false);
   expect(
@@ -247,7 +282,7 @@ it("rejects a system prompt that adds a doubt default or 116 117", () => {
 });
 
 it("flags discouraging 15, 3114, or samu wording once that wording is injected", () => {
-  expect(discouragesEmergencyNumber(systemPrompt)).toBe(false);
+  expect(discouragesEmergencyNumber(systemPrompt, approvedEmergencySentences)).toBe(false);
   for (const phrase of discouragingEmergencyVariants) {
     const normalized = normalizeEmergencyWording(phrase);
     expect(
@@ -257,13 +292,25 @@ it("flags discouraging 15, 3114, or samu wording once that wording is injected",
       phrase,
     ).toBe(false);
     expect(discouragesEmergencyNumber(phrase), phrase).toBe(true);
-    expect(discouragesEmergencyNumber(`${systemPrompt}\n${phrase}`), phrase).toBe(true);
+    expect(
+      discouragesEmergencyNumber(`${systemPrompt}\n${phrase}`, approvedEmergencySentences),
+      phrase,
+    ).toBe(true);
   }
   const first = discouragingEmergencyVariants[0];
   expect(discouragesEmergencyNumber(`${consultGuidance.text}\n${first}`)).toBe(true);
   expect(discouragesEmergencyNumber(`${needInfoGuidance.text}\nne donne pas le 3114`)).toBe(
     true,
   );
+});
+
+it("flags the suicidal-thoughts exemption copied into guidance with no allowlist", () => {
+  expect(fifteenNotRequired).toBe("Le 15 n'est pas exigé.");
+  const guidanceLike = `Pose une question courte. ${fifteenNotRequired}`;
+  expect(discouragesEmergencyNumber(guidanceLike)).toBe(true);
+  expect(discouragesEmergencyNumber(consultGuidance.text)).toBe(false);
+  expect(discouragesEmergencyNumber(needInfoGuidance.text)).toBe(false);
+  expect(discouragesEmergencyNumber(systemPrompt, approvedEmergencySentences)).toBe(false);
 });
 
 const doubtClause =
@@ -299,9 +346,12 @@ it("allowlists only whole sentences of the current prompt", () => {
 
 it("flags a quoted 3114 line that says not to call 15", () => {
   expect(discouragesEmergencyNumber(chestPainDiscouragement)).toBe(true);
-  expect(discouragesEmergencyNumber(`${systemPrompt}\n${chestPainDiscouragement}`)).toBe(
-    true,
-  );
+  expect(
+    discouragesEmergencyNumber(
+      `${systemPrompt}\n${chestPainDiscouragement}`,
+      approvedEmergencySentences,
+    ),
+  ).toBe(true);
 });
 
 it("returns the labelled mock unless STEVE_CHAT_LIVE is 1", async () => {
@@ -932,10 +982,28 @@ it("fills each missing emergency call and keeps a compliant reply", async () => 
       });
       if (item.classify.label === "emergency") {
         const numbers = item.calls.map((call) => call.number);
-        const ordered = failureSentences(item.calls).join(" ");
         const spoken = replyText(payload);
-        expect(spoken.startsWith(ordered), label).toBe(true);
-        expect(checkEmergencyReply(spoken, numbers).pass, label).toBe(true);
+        if (physicalModelKeeps3114(numbers, row.model)) {
+          const kept = row.model.includes(call3114Now) ? call3114Now : call3114;
+          expect(spoken.startsWith(`${call15Now} ${kept}`), label).toBe(true);
+          const rejected = checkEmergencyReply(spoken, numbers);
+          expect(rejected.pass, label).toBe(false);
+          expect(rejected.reason, label).toBe("numbers");
+          expect(
+            checkEmergencyReply(spoken, numbers, { optional3114Allowed: true }).pass,
+            label,
+          ).toBe(true);
+        } else {
+          const ordered = failureSentences(item.calls).join(" ");
+          expect(spoken.startsWith(ordered), label).toBe(true);
+          const checked = checkEmergencyReply(spoken, numbers);
+          if (row.model.includes("Appelle le 15.")) {
+            expect(checked.pass, label).toBe(false);
+            expect(checked.reason, label).toBe("numbers");
+          } else {
+            expect(checked.pass, label).toBe(true);
+          }
+        }
       }
     }
   }
@@ -971,8 +1039,50 @@ it("fails the ordered-call oracle when ensureEmergencyCalls is a passthrough", a
     const enabled = await post(history);
     expect(enabled.status).toBe(200);
     const enabledReply = replyText(await enabled.json());
+    expect(enabledReply).toBe(`${call15Now} ${call3114Now}`);
     expect(enabledReply.startsWith(ordered)).toBe(true);
-    expect(checkEmergencyReply(enabledReply, numbers).pass).toBe(true);
+    expect(checkEmergencyReply(enabledReply, numbers).pass).toBe(false);
+    expect(
+      checkEmergencyReply(enabledReply, numbers, { optional3114Allowed: true }).pass,
+    ).toBe(true);
+  } finally {
+    mockedEnsure.mockImplementation(realEnsure);
+  }
+});
+
+it("fails when a physical 15 call drops a model 3114 sentence", async () => {
+  const item = triageDecisionCases.find((entry) => entry.name === "emergency-physical");
+  const row = item?.replies.find((entry) => entry.name === "keeps-model-3114");
+  if (item === undefined || row === undefined || item.calls === undefined) {
+    throw new Error("missing keeps-model-3114 row");
+  }
+  const numbers = item.calls.map((call) => call.number);
+  const guarded = `${call15Now} ${call3114Now}`;
+  const mockedEnsure = vi.mocked(ensureEmergencyCalls);
+  const realEnsure = mockedEnsure.getMockImplementation();
+  if (realEnsure === undefined) {
+    throw new Error("ensureEmergencyCalls mock");
+  }
+  mockedEnsure.mockImplementation(() => call15Now);
+  try {
+    const droppedMock = triageFetch(() => Response.json(classifyPayload(item)), row.model);
+    vi.stubGlobal("fetch", droppedMock);
+    const dropped = await post(history);
+    expect(dropped.status).toBe(200);
+    expect(replyText(await dropped.json()).startsWith(guarded)).toBe(false);
+
+    mockedEnsure.mockImplementation(realEnsure);
+    const keptMock = triageFetch(() => Response.json(classifyPayload(item)), row.model);
+    vi.stubGlobal("fetch", keptMock);
+    const kept = await post(history);
+    expect(kept.status).toBe(200);
+    const keptReply = replyText(await kept.json());
+    expect(keptReply).toBe(row.reply);
+    expect(keptReply.startsWith(guarded)).toBe(true);
+    expect(checkEmergencyReply(keptReply, numbers).pass).toBe(false);
+    expect(
+      checkEmergencyReply(keptReply, numbers, { optional3114Allowed: true }).pass,
+    ).toBe(true);
   } finally {
     mockedEnsure.mockImplementation(realEnsure);
   }
@@ -1281,6 +1391,17 @@ function failureSentences(
     }
     return call3114;
   });
+}
+
+function physicalModelKeeps3114(
+  numbers: readonly ("15" | "3114")[],
+  model: string,
+): boolean {
+  return (
+    numbers.length === 1 &&
+    numbers[0] === "15" &&
+    (model.includes(call3114Now) || model.includes(call3114))
+  );
 }
 
 function failureText(calls: readonly { readonly number: "15" | "3114" }[]): string {

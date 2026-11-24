@@ -103,7 +103,7 @@ const rows = [
   {
     reply: "Appelle le 3114 maintenant. Appelle le 15 maintenant.",
     calls: ["15"],
-    result: "Appelle le 15 maintenant.",
+    result: "Appelle le 15 maintenant. Appelle le 3114 maintenant.",
   },
   {
     reply: "Appelle le 15 maintenant. Appelle le 3114 maintenant.",
@@ -118,7 +118,32 @@ const rows = [
   {
     reply: "Appelle le 3114 maintenant. Reste au chaud.",
     calls: ["15"],
-    result: "Appelle le 15 maintenant. Reste au chaud.",
+    result: "Appelle le 15 maintenant. Appelle le 3114 maintenant. Reste au chaud.",
+  },
+  {
+    reply: "Appelle le 15 maintenant. Reste au chaud. Appelle le 3114 maintenant.",
+    calls: ["15"],
+    result: "Appelle le 15 maintenant. Appelle le 3114 maintenant. Reste au chaud.",
+  },
+  {
+    reply: "Appelle le 3114. Appelle le 15 maintenant.",
+    calls: ["15"],
+    result: "Appelle le 15 maintenant. Appelle le 3114.",
+  },
+  {
+    reply: "Appelle le 15 maintenant. Ils t'écoutent. Appelle le 3114.",
+    calls: ["15", "3114"],
+    result: "Appelle le 15 maintenant. Appelle le 3114.",
+  },
+  {
+    reply: "Appelle le 3114 maintenant. Ils t'écoutent. Appelle le 15 maintenant.",
+    calls: ["15"],
+    result: "Appelle le 15 maintenant. Appelle le 3114 maintenant. Ils t'écoutent.",
+  },
+  {
+    reply: "Appelle le 3114 maintenant. Ils t'écoutent",
+    calls: ["15", "3114"],
+    result: "Appelle le 15 maintenant. Appelle le 3114.",
   },
 ] as const;
 
@@ -128,9 +153,33 @@ it("adds every missing immediate call in calls order", () => {
   }
 });
 
+it("drops a listening tail with a removed call and keeps one on a kept 3114", () => {
+  expect(
+    ensureEmergencyCalls(
+      "Appelle le 15 maintenant. Ils t'écoutent. Appelle le 3114.",
+      ["15", "3114"],
+    ),
+  ).toBe("Appelle le 15 maintenant. Appelle le 3114.");
+  expect(
+    ensureEmergencyCalls(
+      "Appelle le 3114 maintenant. Ils t'écoutent. Appelle le 15 maintenant.",
+      ["15"],
+    ),
+  ).toBe("Appelle le 15 maintenant. Appelle le 3114 maintenant. Ils t'écoutent.");
+  expect(
+    ensureEmergencyCalls("Appelle le 15 maintenant. Reste au chaud.", ["15", "3114"]),
+  ).toBe("Appelle le 15 maintenant. Appelle le 3114. Reste au chaud.");
+});
+
 it("passes the emergency checker after it puts calls in order", () => {
+  const kept = ensureEmergencyCalls(
+    "Appelle le 3114 maintenant. Appelle le 15 maintenant.",
+    ["15"],
+  );
+  expect(kept).toBe("Appelle le 15 maintenant. Appelle le 3114 maintenant.");
+  expect(checkEmergencyReply(kept, ["15"]).pass).toBe(false);
+  expect(checkEmergencyReply(kept, ["15"], { optional3114Allowed: true }).pass).toBe(true);
   const cases = [
-    ["Appelle le 3114 maintenant. Appelle le 15 maintenant.", ["15"]],
     ["Appelle le 15 maintenant. Appelle le 3114 maintenant.", ["3114", "15"]],
     ["Appelle le 3114 maintenant. Appelle le 15 maintenant.", ["15", "3114"]],
     ["Reste calme. Appelle le 15 maintenant.", ["15"]],
