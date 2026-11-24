@@ -1,3 +1,5 @@
+import type { EmergencyCalls } from "@steve/triage";
+
 export const chatRequestLimits = {
   maxBodyBytes: 1_048_576,
   maxMessages: 40,
@@ -16,6 +18,7 @@ export type ChatHttpResult =
         readonly reply: string;
         readonly mocked: boolean;
         readonly model: string;
+        readonly calls?: EmergencyCalls;
       };
     }
   | {
@@ -24,7 +27,10 @@ export type ChatHttpResult =
     }
   | {
       readonly status: 502;
-      readonly body: { readonly error: string };
+      readonly body: {
+        readonly error: string;
+        readonly calls?: EmergencyCalls;
+      };
     };
 
 export type ChatReply =
@@ -33,6 +39,7 @@ export type ChatReply =
       readonly reply: string;
       readonly mocked: boolean;
       readonly model: string;
+      readonly calls?: EmergencyCalls;
     }
   | { readonly kind: "invalid" };
 
@@ -127,7 +134,11 @@ export function parseChatReply(body: unknown): ChatReply {
   ) {
     return { kind: "invalid" };
   }
-  return { kind: "ok", reply, mocked, model };
+  const calls = parseCalls(field(body, "calls"));
+  if (calls === undefined) {
+    return { kind: "ok", reply, mocked, model };
+  }
+  return { kind: "ok", reply, mocked, model, calls };
 }
 
 function isUserConversation(turns: readonly ChatTurn[]): boolean {
@@ -206,6 +217,52 @@ function clampText(text: string, maxChars: number): string {
   const splitsPair =
     before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff;
   return text.slice(0, splitsPair ? maxChars - 1 : maxChars);
+}
+
+function parseCalls(value: unknown): EmergencyCalls | undefined {
+  if (!Array.isArray(value) || (value.length !== 1 && value.length !== 2)) {
+    return undefined;
+  }
+  const first = parseCall(value[0]);
+  if (first === undefined) {
+    return undefined;
+  }
+  if (value.length === 1) {
+    if (first.number === "15") {
+      return [{ type: "call", number: "15" }];
+    }
+    return [{ type: "call", number: "3114" }];
+  }
+  const second = parseCall(value[1]);
+  if (second === undefined) {
+    return undefined;
+  }
+  if (first.number === "15" && second.number === "3114") {
+    return [
+      { type: "call", number: "15" },
+      { type: "call", number: "3114" },
+    ];
+  }
+  if (first.number === "3114" && second.number === "15") {
+    return [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ];
+  }
+  return undefined;
+}
+
+function parseCall(
+  value: unknown,
+): { readonly type: "call"; readonly number: "15" | "3114" } | undefined {
+  if (!isRecord(value) || field(value, "type") !== "call") {
+    return undefined;
+  }
+  const number = field(value, "number");
+  if (number !== "15" && number !== "3114") {
+    return undefined;
+  }
+  return { type: "call", number };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

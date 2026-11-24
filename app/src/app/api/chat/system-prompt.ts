@@ -30,6 +30,7 @@ export const systemPromptRules = [
   "Tu réponds en français, comme dans une conversation, en 2 à 4 phrases courtes.",
   "Tu n'utilises une courte liste que si des étapes sont vraiment nécessaires.",
   "Pas de titre, pas de gras, pas d'italique.",
+  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation.",
 ] as const;
 
 export const systemPrompt = systemPromptRules.join("\n");

@@ -458,6 +458,29 @@ it("maps a timeout to need-info and never to emergency", async () => {
   expect(result).toEqual({ label: "need-info", reason: "timeout" });
 });
 
+it("maps a fetch that never settles to a timeout", async () => {
+  const rejections: unknown[] = [];
+  const onUnhandled = (reason: unknown) => {
+    rejections.push(reason);
+  };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const result = await Promise.race([
+      classify({
+        state: demoState,
+        timeoutMs: 30,
+        fetch: () => new Promise<Response>(() => undefined),
+      }),
+      wait(250).then(() => "hung" as const),
+    ]);
+    expect(result).toEqual({ label: "need-info", reason: "timeout" });
+    await wait(40);
+    expect(rejections).toEqual([]);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+});
+
 it("uses a 1500 ms timeout when the caller omits one", async () => {
   const timeout = vi.spyOn(AbortSignal, "timeout");
   try {
@@ -594,6 +617,33 @@ it("maps a body that rejects after the timeout to need-info when fetch ignores t
     await wait(50);
     expect(bodyFailedAfterResult).toBe(true);
     expect(result).toEqual({ label: "need-info", reason: "timeout" });
+    expect(rejections).toEqual([]);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+}, 1000);
+
+it("maps a fetch that rejects after the timeout to need-info without an unhandled rejection", async () => {
+  const rejections: unknown[] = [];
+  const onUnhandled = (reason: unknown) => {
+    rejections.push(reason);
+  };
+  process.on("unhandledRejection", onUnhandled);
+  let settled = false;
+  try {
+    const timeoutMs = 30;
+    const result = await classify({
+      state: demoState,
+      timeoutMs,
+      fetch: () =>
+        wait(timeoutMs + 40).then(() => {
+          settled = true;
+          throw new Error("fetch settled after the timeout");
+        }),
+    });
+    expect(settled).toBe(false);
+    expect(result).toEqual({ label: "need-info", reason: "timeout" });
+    await wait(80);
     expect(rejections).toEqual([]);
   } finally {
     process.off("unhandledRejection", onUnhandled);

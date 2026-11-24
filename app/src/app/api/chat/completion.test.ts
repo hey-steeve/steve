@@ -20,6 +20,7 @@ afterEach(() => {
 it("asks OpenRouter for low-effort reasoning and excludes it from the reply", async () => {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
+  vi.stubEnv("JEV_API_KEY", "");
   delete process.env["OPENROUTER_MODEL"];
   const fetchMock = vi.fn<typeof fetch>(async () =>
     Response.json({
@@ -42,8 +43,12 @@ it("asks OpenRouter for low-effort reasoning and excludes it from the reply", as
     model: "openai/gpt-6.1-terra",
   });
 
-  expect(fetchMock).toHaveBeenCalledTimes(1);
-  const init = fetchMock.mock.calls[0]?.[1];
+  expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
+    "https://openrouter.ai/api/v1/chat/completions",
+  ]);
+  const init = fetchMock.mock.calls.find(
+    (call) => String(call[0]) === "https://openrouter.ai/api/v1/chat/completions",
+  )?.[1];
   const sent = JSON.parse(String(init?.body));
   expect(sent).toMatchObject({
     model: "openai/gpt-6.1-terra",
@@ -358,6 +363,7 @@ it("returns the upstream error when finish_reason is error", async () => {
 it("returns the upstream error when choices is an object", async () => {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
+  vi.stubEnv("JEV_API_KEY", "");
   delete process.env["OPENROUTER_MODEL"];
   vi.stubGlobal(
     "fetch",
@@ -383,6 +389,7 @@ it("returns the upstream error when choices is an object", async () => {
 it("returns the upstream error when the OpenRouter JSON omits choices", async () => {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
+  vi.stubEnv("JEV_API_KEY", "");
   delete process.env["OPENROUTER_MODEL"];
   vi.stubGlobal(
     "fetch",
@@ -572,6 +579,7 @@ it("returns null when assistant content is not a string", () => {
 it("uses the requested model when OpenRouter sends an empty model string", async () => {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
+  vi.stubEnv("JEV_API_KEY", "");
   delete process.env["OPENROUTER_MODEL"];
   vi.stubGlobal(
     "fetch",
@@ -598,6 +606,7 @@ function liveReply(choice: {
 }): Promise<Response> {
   vi.stubEnv("STEVE_CHAT_LIVE", "1");
   vi.stubEnv("OPENROUTER_API_KEY", canary);
+  vi.stubEnv("JEV_API_KEY", "");
   delete process.env["OPENROUTER_MODEL"];
   vi.stubGlobal(
     "fetch",

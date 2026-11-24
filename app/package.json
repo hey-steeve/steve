@@ -13,6 +13,7 @@
   "dependencies": {
     "@steve/profile": "workspace:*",
     "@steve/shared": "workspace:*",
+    "@steve/triage": "workspace:*",
     "next": "^16.4.6",
     "open-bot-avatar": "^0.3.0",
     "react": "^19.3.1",

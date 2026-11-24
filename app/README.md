@@ -38,6 +38,10 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends the pinned default, `openai/gpt-6.1-terra`.
 
+`JEV_API_KEY` is the TypeSafe key. The route reads it on the server and trims it. The classify request sends it as `Authorization: Bearer`. A missing or empty value skips classify, and the route sends only the system prompt.
+
+`JEV_MODEL` is the optional classify model id. The route trims it. A missing or empty value omits the model, and classify uses its own default.
+
 `STEVE_CHAT_LIVE` must be exactly `1`, and `OPENROUTER_API_KEY` must be set, before the route calls OpenRouter. Any other value keeps the canned reply, even when the key is set. `true`, `0`, and ` 1 ` keep the canned reply.
 
 When the route calls OpenRouter, it sends the French system prompt in `system-prompt.ts`, then the validated history, to `POST https://openrouter.ai/api/v1/chat/completions`. The prompt states the 15 and 3114 rules, the medication ban, and the reply limits. The JSON includes `max_tokens` set to 1024 and `reasoning` set to `{ "effort": "low", "exclude": true }`. HTTP 200 looks like this.
@@ -52,7 +56,7 @@ When the route calls OpenRouter, it sends the French system prompt in `system-pr
 
 The response `model` is the `model` string from the OpenRouter JSON, the id of the model that ran. When that string is missing or empty, the response `model` is the id the route sent.
 
-The route aborts the OpenRouter call after 30 seconds. Each case below returns HTTP 502 and `{ "error": "Le service de chat est indisponible. Réessayez." }`.
+The route aborts the OpenRouter call after 30 seconds. Each case below returns HTTP 502. With no triage calls, the body is `{ "error": "Le service de chat est indisponible. Réessayez." }`. With triage calls, the body also includes `calls` in that order. The `error` string starts with one sentence per call, in that same order, then the unavailable sentence. The sentence for 15 is `Appelle le 15 maintenant.` The sentence for a 3114 before that 15, and for a 3114 when the list has no 15, is `Appelle le 3114 maintenant.` The sentence for a 3114 after that 15 is `Appelle le 3114.`
 
 - OpenRouter responds with a status outside 2xx.
 - The call throws a network error.
