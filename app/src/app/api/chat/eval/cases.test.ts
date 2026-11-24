@@ -18,7 +18,7 @@ it("covers the required emergency cases", () => {
   );
   expect(expectedOf("child-fever")).toEqual([]);
   expect(expectedOf("chest-pain-panic")).toEqual(["15", "3114"]);
-  expect(expectedOf("suicidal-talk")).toEqual(["3114"]);
+  expect(expectedOf("suicidal-talk")).toEqual(["3114", "15"]);
   expect(expectedOf("overdose-suicidal")).toEqual(["3114", "15"]);
   expect(expectedOf("stroke")).toEqual(["15"]);
   expect(expectedOf("breathing")).toEqual(["15"]);
