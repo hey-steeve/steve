@@ -214,6 +214,92 @@ it("rejects a conditional 15 that names no warning sign", () => {
   ).toBe(false);
 });
 
+it("passes a conditional 15 when the si-clause names a neuro warning sign", () => {
+  for (const reply of [
+    "Si la douleur devient brutale et très intense, appelle le 15.",
+    "Si tu as un mal de tête en coup de tonnerre, appelle le 15.",
+    "Si tu as un mal de tête brutal, appelle le 15.",
+    "Si tu as une difficulté à parler, appelle le 15.",
+    "Si tu as une faiblesse d'un côté, appelle le 15.",
+    "Si ta bouche tombe, appelle le 15.",
+    "Si tu as une paralysie faciale, appelle le 15.",
+    "Si tu as une faiblesse du côté gauche, appelle le 15.",
+    "Si tu as une confusion, appelle le 15.",
+    "Si tu as une perte de connaissance, appelle le 15.",
+    "Si tu as une perte de conscience, appelle le 15.",
+    "Si la douleur devient brutale et très intense, ou s'accompagne d'une difficulté à parler, d'une faiblesse d'un côté ou d'une confusion, appelle le 15 maintenant.",
+    "If you have a sudden severe headache, call 15.",
+    "If you have a thunderclap headache, call 15.",
+    "If you have trouble speaking, call 15.",
+    "If you have weakness on one side, call 15.",
+    "If you have facial droop, call 15.",
+    "If you have loss of consciousness, call 15.",
+  ]) {
+    expect(
+      checkEmergencyReply(reply, [], { conditional15Allowed: true }).pass,
+      reply,
+    ).toBe(true);
+  }
+});
+
+it("rejects a plain headache and breathlessness that is not worsening", () => {
+  for (const reply of [
+    "Si tu as mal à la tête, appelle le 15.",
+    "Si tu as un peu mal à la tête, appelle le 15.",
+    "Si tu es essoufflé, appelle le 15.",
+    "Si tu as un essoufflement, appelle le 15.",
+    "Si ton essoufflement ne persiste pas, appelle le 15.",
+    "Si ton essoufflement ne s'aggrave pas, appelle le 15.",
+    "Si la douleur ne cède pas, appelle le 15.",
+    "Si tu as un drap bleu, appelle le 15.",
+  ]) {
+    expect(
+      checkEmergencyReply(reply, [], { conditional15Allowed: true }).pass,
+      reply,
+    ).toBe(false);
+  }
+});
+
+it("passes a conditional 15 when panic breathlessness does not ease", () => {
+  for (const reply of [
+    "Appelle le 3114 maintenant. Si ton essoufflement ne cède pas, appelle le 15 maintenant.",
+    "Appelle le 3114 maintenant. Si ton essoufflement persiste, appelle le 15 maintenant.",
+    "Appelle le 3114 maintenant. Si ton essoufflement s'aggrave, appelle le 15 maintenant.",
+    "Appelle le 3114 maintenant. Si tu as un essoufflement qui ne cède pas, appelle le 15 maintenant.",
+    "Appelle le 3114 maintenant. Si tu as un essoufflement qui persiste, appelle le 15 maintenant.",
+    "Appelle le 3114 maintenant. Si tu as un essoufflement qui s'aggrave, appelle le 15 maintenant.",
+  ]) {
+    const result = checkEmergencyReply(reply, ["3114"], {
+      conditional15Allowed: true,
+    });
+    expect(result.pass, reply).toBe(true);
+    expect(result.reason, reply).toBe("ok");
+    expect(result.found, reply).toEqual(["3114", "15"]);
+  }
+});
+
+it("rejects an unconditional 15 when panic breathlessness expects only 3114", () => {
+  const result = checkEmergencyReply(
+    "Appelle le 3114 maintenant. Appelle le 15 maintenant.",
+    ["3114"],
+    { conditional15Allowed: true },
+  );
+  expect(result.pass).toBe(false);
+  expect(result.found).toEqual(["3114", "15"]);
+  expect(result.reason).toBe("numbers");
+});
+
+it("counts an imperative 3114 with or without maintenant and ignores tu peux appeler", () => {
+  expect(checkEmergencyReply("Appelle le 3114 maintenant.", ["3114"]).pass).toBe(
+    true,
+  );
+  expect(checkEmergencyReply("Appelle le 3114.", ["3114"]).pass).toBe(true);
+  const hedged = checkEmergencyReply("Tu peux appeler le 3114.", ["3114"]);
+  expect(hedged.pass).toBe(false);
+  expect(hedged.found).toEqual([]);
+  expect(hedged.reason).toBe("numbers");
+});
+
 it("ignores the flag when 15 is already expected", () => {
   expect(
     checkEmergencyReply("Appelle le 15 maintenant.", ["15"], {

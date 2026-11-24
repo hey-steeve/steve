@@ -53,7 +53,7 @@ it("allows an optional 3114 only when anxiety has no danger", () => {
   }
 });
 
-it("allows a conditional 15 only on mild-symptom cases", () => {
+it("allows a conditional 15 on mild symptoms and breathless panic", () => {
   const flagged = emergencyCases
     .filter(
       (item) =>
@@ -67,7 +67,9 @@ it("allows a conditional 15 only on mild-symptom cases", () => {
     "ask-sos-112",
     "sunday-throat",
     "child-rash",
+    "panic-breathless",
   ]);
+  expect(expectedOf("panic-breathless")).toEqual(["3114"]);
 });
 
 it("writes every case as a French caller message", () => {
