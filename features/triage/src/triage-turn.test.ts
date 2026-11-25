@@ -180,6 +180,24 @@ it("keeps both the first turns and the latest turns when the budget is exceeded"
   expect(state).not.toContain("Deuxième");
 });
 
+it("keeps the previous turn when it fits, even if it is over half the budget with the current turn", async () => {
+  const first = `Premier: ${"a".repeat(1000)}`;
+  const bulkyMiddle = `Milieu: ${"b".repeat(7000)}`;
+  const previous = `Précédent: j'ai des idées noires. ${"c".repeat(3980)}`;
+  const state = await stateSeen(careHandoff(currentText, earlier([first, bulkyMiddle, previous])));
+  expect(state).toBe([first, previous, currentText].join("\n"));
+  expect(state.length).toBeLessThan(triageStateCharBudget);
+});
+
+it("drops only the middle turns that do not fit and keeps the first and the previous turn", async () => {
+  const first = `Premier: ${"a".repeat(3000)}`;
+  const middle = `Milieu: ${"b".repeat(3000)}`;
+  const previous = `Précédent: ${"c".repeat(3000)}`;
+  const state = await stateSeen(careHandoff(currentText, earlier([first, middle, previous])));
+  expect(state).toBe([first, previous, currentText].join("\n"));
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget + 1);
+});
+
 it("keeps the current turn whole even when it alone exceeds the budget", async () => {
   const long = `Dernier message: ${"z".repeat(triageStateCharBudget + 500)}`;
   const state = await stateSeen(careHandoff(long, earlier(["Un.", "Deux."])));

@@ -48,10 +48,13 @@ export type TriageDecision =
 // `jev.ts` sets no input limit, only a 1500 ms timeout. So the state is bounded here.
 //
 // 8 000 characters holds a whole usual conversation and stays a small request body. When the turns
-// exceed it, the first turns and the latest turns each get half. The first turns are where a person
-// states the reason they came, and the latest ones are what they say now. The middle is dropped as
-// whole turns, and no turn is cut. The current turn is always kept whole, even alone over budget.
-// No text is read to decide what stays. The rule is position and length only.
+// exceed it, the current turn is kept whole, then the latest turns fill up to half the budget, then
+// the first turns take what is left. The first turns are where a person states the reason they came,
+// and the latest ones are what they say now. Any budget the first turns leave unused goes back to
+// older latest turns, so a turn is never dropped while keeping it fits (a fixed half for each side
+// wasted unused head room and could drop the turn right before the current one). The middle is
+// dropped as whole turns, and no turn is cut. The current turn is always kept whole, even alone over
+// budget. No text is read to decide what stays. The rule is position and length only.
 export const triageStateCharBudget = 8_000;
 
 function stateText(turns: readonly Turn[]): string {
@@ -61,25 +64,32 @@ function stateText(turns: readonly Turn[]): string {
     return texts.join("\n");
   }
   const half = Math.floor(triageStateCharBudget / 2);
+  const lengthAt = (index: number): number => texts[index]?.length ?? 0;
+
   let tailStart = texts.length - 1;
-  let tailUsed = texts[tailStart]?.length ?? 0;
-  while (tailStart > 0) {
-    const cost = (texts[tailStart - 1]?.length ?? 0) + 1;
-    if (tailUsed + cost > half) {
-      break;
-    }
-    tailUsed += cost;
+  let tailUsed = lengthAt(tailStart);
+  while (tailStart > 0 && tailUsed + lengthAt(tailStart - 1) + 1 <= half) {
+    tailUsed += lengthAt(tailStart - 1) + 1;
     tailStart -= 1;
   }
+
+  // A current turn over half the budget still leaves the first turns up to half.
+  const headLimit = Math.max(triageStateCharBudget - tailUsed, half);
   let headEnd = 0;
   let headUsed = 0;
   while (headEnd < tailStart) {
-    const cost = (texts[headEnd]?.length ?? 0) + (headEnd === 0 ? 0 : 1);
-    if (headUsed + cost > half) {
+    const cost = lengthAt(headEnd) + (headEnd === 0 ? 0 : 1);
+    if (headUsed + cost > headLimit) {
       break;
     }
     headUsed += cost;
     headEnd += 1;
+  }
+
+  // Leftover budget goes to more recent turns, contiguous with the tail, newest first.
+  while (tailStart > headEnd && headUsed + tailUsed + lengthAt(tailStart - 1) + 1 <= triageStateCharBudget) {
+    tailUsed += lengthAt(tailStart - 1) + 1;
+    tailStart -= 1;
   }
   return [...texts.slice(0, headEnd), ...texts.slice(tailStart)].join("\n");
 }
