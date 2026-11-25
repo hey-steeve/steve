@@ -2,49 +2,72 @@
 
 ## Role
 
-`voice` connects Twilio to the voice provider and carries audio both ways.
+`@steve/voice` holds the pure in-app live-call logic: session config, event parsing, call-state reducer, and audio helpers.
+The app owns the routes, the hook, and the UI.
+`voice` decides nothing.
 
 ## Does
 
-- Connects Twilio to the voice provider.
-- Grok is the first provider.
-- An environment variable swaps the provider.
-- Audio goes both ways.
+- Builds the pinned `grok-voice-3.0` session config, with voice `eve` and a French language hint.
+- Parses Realtime events.
+- Reduces call state, including barge-in.
+- Encodes and decodes PCM16.
+- Twilio is out of scope for this demo. Phone calls come later.
 
 ## Does not
 
-- Decides nothing.
+- Triage or diagnose.
+- Mint tokens.
+- Talk to xAI. The app does that.
 
 ## Inputs and outputs
 
-- The input is Twilio audio. The contract is to be defined.
-- The output is audio to the provider, and audio back. The contracts are to be defined.
-- `voice` uses the `VoiceProvider` interface from `@steve/shared`.
+- The config input is injected instructions and tuning.
+- The events are typed server events.
+- The output is call state and PCM16 helpers.
+- The contracts land in this package in the next PR.
 
 ## Depends on
 
-`@steve/shared`, for the `VoiceProvider` interface. Twilio. The voice provider. Grok is the first.
+Nothing but the package itself, for the demo core. The app imports the public index.
+`@steve/shared` is allowed later, if a shared contract is added in its own PR.
 
 ## Rules
 
 - `voice` decides nothing.
 - Never diagnose.
+- Safety: Jev classifies each user transcript. On an emergency, Steve says the exact 15 / 3114 sentences and the call buttons show. Use `call3114` after 15, with no new sentence.
 
 ## Demo and production
 
-An environment variable selects the voice provider. Grok is the first. The rest is to be defined.
+The Friday demo is an in-app browser call over xAI Realtime, in the same thread.
+The browser opens a WebSocket to xAI with an ephemeral token minted server-side.
+A call lasts 10 minutes at most.
+`STEVE_VOICE_LIVE=1` enables a live token mint in the app. Any other value keeps a mock session.
+`XAI_API_KEY` is server-only. It never reaches the client.
+
+## Glossary
+
+- **Live call**: the in-app browser call with Steve.
+- **Realtime session**: `wss://api.x.ai/v1/realtime?model=grok-voice-3.0`.
+- **Ephemeral token**: a short-lived token minted server-side for the browser.
+- **Server VAD**: the server detects when the user speaks.
+- **Barge-in**: user speech stops Steve's playback.
+- **TTFA**: time to first audio.
+- **Forced sentence**: an exact sentence Steve must say.
+- **Safety sidecar**: Jev on each user transcript.
+- **Call bar**: the floating bar with mute, hang-up, and transcript toggle.
+- **Turn** with channel `"voice"`, **Handoff**: as in the [shared README](../../shared/README.md). **Jev** and **EmergencyCalls** belong to `@steve/triage` (see the [triage README](../triage/README.md)).
 
 ## Resources
 
-- Twilio Voice
-- Media Streams
+- xAI Realtime
+- xAI Speech to Speech
 
 ## Check
 
 `pnpm --filter @steve/voice test`
 
-The tests are to be defined.
-
 ## Status
 
-To do. Owner:
+In progress for the Friday in-app demo. Twilio later.
