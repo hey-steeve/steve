@@ -46,10 +46,10 @@ The test hook `checkEmergencyReplyForTest` can set `match` to `includes` or `sta
 
 ## Run the live eval
 
-1. Put `OPENROUTER_API_KEY` in `app/.env.local`. Add `OPENROUTER_MODEL` there when you want a model other than the route default.
+1. Put `OPENROUTER_API_KEY` in the environment, or in `app/.env.local`. Add `OPENROUTER_MODEL` when you want a model other than the route default. The value must be `provider/model`.
 2. From the repo root, run `pnpm eval:emergency`.
 
-The command sets `STEVE_CHAT_LIVE=1` and loads `app/.env.local`. It does not print that file.
+The command sets `STEVE_CHAT_LIVE=1`. Node loads `app/.env.local` when that file exists. The route reads `process.env`, so a missing env file still sees keys that are already in the environment. The command does not print the key.
 
 If the route returns the canned reply, the command says that live mode is not active and exits with status 1. It does not score the cases.
 

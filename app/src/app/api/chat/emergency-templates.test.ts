@@ -365,6 +365,23 @@ it("keeps every sentence that is not an exact call template or a closed listenin
   }
 });
 
+const doubledPunctuation = /[.!?]{2}/;
+
+it("never emits doubled punctuation", () => {
+  const ellipsisTail = {
+    reply: "Appelle le 3114 maintenant. Ils t'écoutent...",
+    calls: ["15"],
+  } as const;
+  const guarded = [...rows, ...listeningTailRows, ...mustKeepRows, ellipsisTail];
+  for (const row of guarded) {
+    const output = ensureEmergencyCalls(row.reply, [...row.calls]);
+    expect(output, output).not.toMatch(doubledPunctuation);
+  }
+  expect(ensureEmergencyCalls(ellipsisTail.reply, [...ellipsisTail.calls])).toBe(
+    "Appelle le 15 maintenant. Appelle le 3114 maintenant. Ils t'écoutent.",
+  );
+});
+
 it("passes the emergency checker after it puts calls in order", () => {
   const kept = ensureEmergencyCalls(
     "Appelle le 3114 maintenant. Appelle le 15 maintenant.",

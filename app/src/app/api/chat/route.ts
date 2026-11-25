@@ -15,6 +15,7 @@ import {
   type ChatTurn,
 } from "../../../chat/request";
 import { call3114Now, ensureEmergencyCalls } from "./emergency-templates";
+import { openRouterModel } from "./openrouter-model";
 import { systemPrompt } from "./system-prompt";
 import { recordTriageLog } from "./triage-log";
 
@@ -307,7 +308,7 @@ async function readCappedBytes(
 }
 
 function requestedModel(): string {
-  return envString("OPENROUTER_MODEL") ?? defaultModel;
+  return openRouterModel(envString("OPENROUTER_MODEL"), defaultModel);
 }
 
 function isJsonContentType(header: string | null): boolean {
