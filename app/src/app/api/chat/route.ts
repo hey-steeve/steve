@@ -1,3 +1,11 @@
+import type { Handoff, Turn } from "@steve/shared";
+import {
+  classify,
+  triageTurn,
+  type ClassifyResult,
+  type EmergencyCalls,
+  type TriageDecision,
+} from "@steve/triage";
 import { readCompletion } from "../../../chat/completion";
 import {
   chatRequestLimits,
@@ -6,10 +14,12 @@ import {
   type ChatHttpResult,
   type ChatTurn,
 } from "../../../chat/request";
+import { call3114Now, ensureEmergencyCalls } from "./emergency-templates";
 import { systemPrompt } from "./system-prompt";
+import { recordTriageLog } from "./triage-log";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
-const defaultModel = "google/gemini-3.8-flash";
+const defaultModel = "openai/gpt-6.1-terra";
 const maxCompletionTokens = 1024;
 const upstreamTimeoutMs = 30_000;
 const openRouterReasoning = {
@@ -45,14 +55,113 @@ export async function POST(request: Request): Promise<Response> {
     const result = mockChatResult(messages);
     return Response.json(result.body, { status: result.status });
   }
-  const result = await completeWithOpenRouter(messages, apiKey, requestedModel());
+  const triage = await triageLive(messages);
+  const result = await completeWithOpenRouter(messages, apiKey, requestedModel(), triage);
   return Response.json(result.body, { status: result.status });
+}
+
+type LiveTriage = {
+  readonly guidance?: string;
+  readonly calls?: EmergencyCalls;
+};
+
+async function triageLive(messages: readonly ChatTurn[]): Promise<LiveTriage> {
+  const jevKey = envString("JEV_API_KEY");
+  if (jevKey === undefined) {
+    recordTriageLog({ cause: "no-triage", reason: "missing-key" });
+    return {};
+  }
+  const jevModel = envString("JEV_MODEL");
+  const decision = await triageTurn({
+    handoff: chatHandoff(messages),
+    classify: async ({ state }) => {
+      try {
+        const result = await classify({
+          state,
+          fetch: fetchWithBearer(jevKey),
+          ...(jevModel === undefined ? {} : { model: jevModel }),
+        });
+        logClosed(result);
+        return result;
+      } catch {
+        recordTriageLog({ cause: "no-triage", reason: "throw" });
+        throw new Error("triage");
+      }
+    },
+  });
+  return triageFields(decision);
+}
+
+function triageFields(decision: TriageDecision): LiveTriage {
+  const guidance = "guidance" in decision ? decision.guidance?.text : undefined;
+  const calls = decision.calls;
+  if (guidance !== undefined && calls !== undefined) {
+    return { guidance, calls };
+  }
+  if (guidance !== undefined) {
+    return { guidance };
+  }
+  if (calls !== undefined) {
+    return { calls };
+  }
+  return {};
+}
+
+function chatHandoff(messages: readonly ChatTurn[]): Handoff<readonly Turn[]> {
+  const sessionId = "chat";
+  const turns: Turn[] = [];
+  for (const message of messages) {
+    if (message.role !== "user") {
+      continue;
+    }
+    turns.push({
+      sessionId,
+      turnId: `turn-${turns.length}`,
+      channel: "text",
+      text: message.content,
+    });
+  }
+  const current = turns[turns.length - 1];
+  return {
+    sessionId,
+    turnId: current === undefined ? "turn-empty" : current.turnId,
+    target: "triage",
+    intent: "care_request",
+    data: turns,
+  };
+}
+
+function fetchWithBearer(apiKey: string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `Bearer ${apiKey}`);
+    return fetch(input, { ...init, headers });
+  };
+}
+
+function logClosed(result: ClassifyResult): void {
+  if (result.label !== "need-info") {
+    return;
+  }
+  switch (result.reason) {
+    case "http":
+    case "timeout":
+    case "network":
+    case "malformed":
+      recordTriageLog({ cause: "no-triage", reason: result.reason });
+      return;
+    case "model":
+    case "below-threshold":
+    case "no-channel":
+      return;
+  }
 }
 
 async function completeWithOpenRouter(
   messages: readonly ChatTurn[],
   apiKey: string,
   model: string,
+  triage: LiveTriage,
 ): Promise<ChatHttpResult> {
   try {
     const response = await fetch(openRouterUrl, {
@@ -66,29 +175,64 @@ async function completeWithOpenRouter(
         model,
         max_tokens: maxCompletionTokens,
         reasoning: openRouterReasoning,
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        messages: providerMessages(messages, triage.guidance),
       }),
       signal: AbortSignal.timeout(upstreamTimeoutMs),
     });
     if (!response.ok) {
-      return { status: 502, body: { error: upstreamError } };
+      return modelFailure(triage);
     }
     const payload: unknown = await response.json();
     const completion = readCompletion(payload, model);
     if (completion === null) {
-      return { status: 502, body: { error: upstreamError } };
+      return modelFailure(triage);
     }
-    return {
-      status: 200,
-      body: {
-        reply: completion.reply,
-        mocked: false,
-        model: completion.model,
-      },
+    const calls = triage.calls;
+    const reply =
+      calls === undefined
+        ? completion.reply
+        : ensureEmergencyCalls(
+            completion.reply,
+            calls.map((call) => call.number),
+          );
+    const body = {
+      reply,
+      mocked: false,
+      model: completion.model,
     };
+    if (calls === undefined) {
+      return { status: 200, body };
+    }
+    return { status: 200, body: { ...body, calls } };
   } catch {
+    return modelFailure(triage);
+  }
+}
+
+function modelFailure(triage: LiveTriage): ChatHttpResult {
+  const calls = triage.calls;
+  if (calls === undefined) {
     return { status: 502, body: { error: upstreamError } };
   }
+  const numbers = calls.map((call) => call.number);
+  const spoken = numbers.includes("15") ? ensureEmergencyCalls("", numbers) : call3114Now;
+  return {
+    status: 502,
+    body: {
+      error: `${spoken} ${upstreamError}`,
+      calls,
+    },
+  };
+}
+
+function providerMessages(messages: readonly ChatTurn[], guidance: string | undefined) {
+  const head: { role: "system"; content: string }[] = [
+    { role: "system", content: systemPrompt },
+  ];
+  if (guidance !== undefined) {
+    head.push({ role: "system", content: guidance });
+  }
+  return [...head, ...messages];
 }
 
 type ChatBodyRead =

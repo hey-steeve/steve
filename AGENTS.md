@@ -1,6 +1,6 @@
 # Steve
 
-Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`. Doubt does not default to 15: when in doubt, ask one short question or recommend a consultation, never 15 by default.
+Steve is a health agent that people phone. The agent handles orientation and care management. It never gives a diagnosis. The patient-facing 15 and 3114 wording stays in `app/src/app/api/chat/emergency-templates.ts`, and the system prompt imports those sentences. Triage carries the numbers as call data. Steve does not route to 112 or SOS Médecins. Doubt does not default to 15: when in doubt, ask one short question or recommend a consultation, never 15 by default.
 
 The project is Alan AI Health Hack #2 on 28 Nov 2026.
 
@@ -20,7 +20,7 @@ Each directory under `features/` is one package. The packages, in order, are `@s
 
 `@steve/conversation` runs one conversation, by voice or by text. Text means the app chat. SMS and email come later, through inbox. The flow stays the same. Conversation greets, understands, and hands off. It does not triage. It does not book.
 
-`@steve/triage` runs a small scoped LLM classifier on every turn. The result is urgent, watch, or not urgent. Triage orients toward a practitioner type and a delay. It never diagnoses or prescribes.
+`@steve/triage` classifies one turn as emergency, consult, self-care, or need-info. It carries 15 and 3114 as call data. A timeout is need-info. It never diagnoses or prescribes.
 
 `@steve/directory` finds practitioners by specialty, distance, and conventionnement in the public Annuaire Santé. It does not book.
 
