@@ -497,14 +497,93 @@ it("checks order only among rows that matched exactly once", () => {
   ]);
 });
 
-it("keeps the pin rows literal: no import from the copy module and no interpolated copy constants", () => {
+const COPY_IDENTIFIER = /\b(call15Now|call3114Now|call3114)\b/g;
+
+// Splits a TypeScript source into code (strings and comments blanked out) and
+// the contents of its string literals. Template literal text counts as a
+// string, but `${...}` expressions stay in the code, so interpolated bindings
+// are still seen.
+function splitSource(source: string): { code: string; strings: string[] } {
+  let code = "";
+  const strings: string[] = [];
+  const templateDepths: number[] = [];
+  let braceDepth = 0;
+  let i = 0;
+  const readText = (quote: string, isTemplate: boolean): void => {
+    let text = "";
+    while (i < source.length) {
+      const char = source.charAt(i);
+      if (char === "\\") {
+        text += source.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      if (char === quote) {
+        i += 1;
+        break;
+      }
+      if (isTemplate && char === "$" && source.charAt(i + 1) === "{") {
+        i += 2;
+        templateDepths.push(braceDepth);
+        braceDepth += 1;
+        break;
+      }
+      text += char;
+      i += 1;
+    }
+    strings.push(text);
+    code += " ";
+  };
+  while (i < source.length) {
+    const char = source.charAt(i);
+    const next = source.charAt(i + 1);
+    if (char === "/" && next === "/") {
+      while (i < source.length && source.charAt(i) !== "\n") i += 1;
+    } else if (char === "/" && next === "*") {
+      const end = source.indexOf("*/", i + 2);
+      i = end === -1 ? source.length : end + 2;
+    } else if (char === '"' || char === "'") {
+      i += 1;
+      readText(char, false);
+    } else if (char === "`") {
+      i += 1;
+      readText("`", true);
+    } else {
+      if (char === "{") braceDepth += 1;
+      if (char === "}") {
+        braceDepth -= 1;
+        if (templateDepths[templateDepths.length - 1] === braceDepth) {
+          templateDepths.pop();
+          i += 1;
+          readText("`", true);
+          continue;
+        }
+      }
+      code += char;
+      i += 1;
+    }
+  }
+  return { code, strings };
+}
+
+function copyBindingViolations(source: string): string[] {
+  const { code, strings } = splitSource(source);
+  const modules = strings.filter((text) => text.includes("emergency-templates"));
+  return [...modules, ...(code.match(COPY_IDENTIFIER) ?? [])];
+}
+
+it("flags aliased and semicolonless copy imports and interpolations in a fake source", () => {
+  const aliased =
+    'import { call15Now as physicalCopy } from "../emergency-templates.ts"\nexport const row = `Appelle ${physicalCopy}`';
+  expect(copyBindingViolations(aliased)).toEqual(["../emergency-templates.ts", "call15Now"]);
+  expect(copyBindingViolations("const a = `x ${call3114Now} y`")).toEqual(["call3114Now"]);
+  expect(copyBindingViolations('const a = "Appelle le 15 ou le 3114." // call15Now')).toEqual([]);
+});
+
+it("keeps the pin rows literal: no import from the copy module and no copy constant identifiers", () => {
   const source = readFileSync(
     new URL("./prompt-number-pin-rows.ts", import.meta.url),
     "utf8",
   );
-  const copyImports = source.match(/^\s*import\b[^;]*emergency-templates[^;]*;/gm) ?? [];
-  const namedImports =
-    source.match(/^\s*import\b[^;]*\b(call15Now|call3114Now|call3114)\b[^;]*;/gm) ?? [];
-  const interpolations = source.match(/\$\{\s*(call15Now|call3114Now|call3114)\s*\}/g) ?? [];
-  expect([...copyImports, ...namedImports, ...interpolations]).toEqual([]);
+  expect(copyBindingViolations(source)).toEqual([]);
 });
