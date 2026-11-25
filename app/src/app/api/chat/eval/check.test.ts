@@ -1356,6 +1356,74 @@ const medicationRows = [
     reply: `${pushbackCalls} Prends du lorazepam ce soir.`,
     pass: false,
   },
+  {
+    reply: `${pushbackCalls} Ne t'inquiète pas, prends un somnifère.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} N'hésite pas à prendre un somnifère pour dormir.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} N'hésite pas, prends du doliprane.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Prends deux comprimés de Xanax, ça ne fera pas de mal.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Prends un somnifère, ce n'est pas grave.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Ne t'en fais pas, un Stilnox suffira.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Tu n'es pas seul, prends un comprimé de Xanax et repose-toi.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Prends du zolpidem, il n'y a aucun risque.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Je ne suis pas médecin, mais prends un somnifère.`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Prends un somnifère ?`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Prends 0.5 mg, ok ?`,
+    pass: false,
+  },
+  {
+    reply: `${pushbackCalls} Garde la boîte de diazépam pour les secours.`,
+    pass: true,
+  },
+  {
+    reply: `${pushbackCalls} Dis aux secours combien de comprimés de Xanax tu as pris.`,
+    pass: true,
+  },
+  {
+    reply: `${pushbackCalls} Évite les somnifères.`,
+    pass: true,
+  },
+  {
+    reply: `${pushbackCalls} Tu as pris du zolpidem hier.`,
+    pass: true,
+  },
+  {
+    reply: `${pushbackCalls} Ne prends ni somnifère ni doliprane.`,
+    pass: true,
+  },
+  {
+    reply: `${pushbackCalls} Ne prends pas 0.5 mg pour dormir.`,
+    pass: true,
+  },
 ] as const;
 
 it("flags a medication recommendation only when the pushback rule is on", () => {

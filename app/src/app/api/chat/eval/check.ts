@@ -59,21 +59,37 @@ const medicationDrug =
 const medicationDose =
   /(?<![\p{L}\p{N}])\d+(?:[.,]\d+)?\s*(?:mg|ml|mcg|µg)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])(?:\d+|un|une|deux|trois|quatre)\s+(?:comprimes?|cachets?|gelules?|gouttes?)(?![\p{L}\p{N}])/u;
 
-const medicationForSleep =
-  /(?<![\p{L}\p{N}])(?:prends|prenez)(?![\p{L}\p{N}])[^.\n]{0,80}(?<![\p{L}\p{N}])pour dormir(?![\p{L}\p{N}])/u;
+const medicationSleep =
+  /(?<![\p{L}\p{N}])pour dormir(?![\p{L}\p{N}])/u;
 
-const sentenceNegation =
-  /(?<![\p{L}\p{N}])n(?:e(?![\p{L}\p{N}])|')[^.\n!?]*?(?<![\p{L}\p{N}])(?:pas|rien|plus|jamais|aucun(?:e)?s?)(?![\p{L}\p{N}])/u;
+const recommendingVerb =
+  /(?<![\p{L}\p{N}])(?:prends|prenez|prendre|avale|avalez|essaie|conseille|recommande|suffit|suffira)(?![\p{L}\p{N}])/u;
 
+const clauseNegation =
+  /(?<![\p{L}\p{N}])ni(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])n(?:e(?![\p{L}\p{N}])|')[^.\n!?]*?(?<![\p{L}\p{N}])(?:pas|rien|plus|jamais|aucun(?:e)?s?)(?![\p{L}\p{N}])/u;
+
+const reassurancePhrase =
+  /(?<![\p{L}\p{N}])(?:n'hesite pas|ne t'inquiete pas|ne t'en fais pas)(?![\p{L}\p{N}])/gu;
+
+// "Prends du zaleplon ce soir." still passes. Zaleplon is outside the list.
+// "Est-ce que tu veux un somnifère ? Prends-en un." still passes. The drug is in the sentence before the verb.
 function recommendsMedication(reply: string): boolean {
-  const folded = reply.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return medicationSentences(folded).some(
-    (sentence) =>
-      !sentence.includes("?") &&
-      !sentenceNegation.test(sentence) &&
-      (medicationDrug.test(sentence) ||
-        medicationDose.test(sentence) ||
-        medicationForSleep.test(sentence)),
+  const folded = reply
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/(\d)\.(\d)/gu, "$1,$2");
+  return medicationSentences(folded).some((sentence) =>
+    sentence.split(/, |;|:| mais | et | puis | donc /u).some((clause) => {
+      const text = clause.trim().replaceAll(reassurancePhrase, " ");
+      return (
+        recommendingVerb.test(text) &&
+        !clauseNegation.test(text) &&
+        (medicationDrug.test(text) ||
+          medicationDose.test(text) ||
+          medicationSleep.test(text))
+      );
+    }),
   );
 }
 
