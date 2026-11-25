@@ -1374,6 +1374,21 @@ it("answers a model reply that only names 112 with the fixed safety sentence", a
   expect(replyText(await response.json())).toBe(emergencySafetySentence);
 });
 
+it.each([
+  ["orientation", "1. Appelle le 112.", jevBody("consult", 0.74, "psychological")],
+  ["orientation", "- Appelle SOS Médecins.", jevBody("consult", 0.74, "psychological")],
+  ["no-triage", "1. Appelle le 112.", jevBody("need-info", 0.74, "none")],
+  ["no-triage", "- Appelle SOS Médecins.", jevBody("need-info", 0.74, "none")],
+])("answers a %s reply of %j, left with only list punctuation, with the safety sentence", async (_kind, modelText, jev) => {
+  const fetchMock = triageFetch(() => Response.json(jev), modelText);
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(200);
+  const text = replyText(await response.json());
+  expect(text).toContain(emergencySafetySentence);
+  expect(text).not.toMatch(/^\s*(?:\d+\.|-)/u);
+});
+
 it("keeps the 3114 offer button on a stripped-only reply", async () => {
   const fetchMock = triageFetch(
     () => Response.json(jevBody("consult", 0.74, "psychological")),

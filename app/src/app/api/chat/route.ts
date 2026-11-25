@@ -228,8 +228,10 @@ function modelReply(
   }
   // Steve never routes to 112 or SOS Médecins. Nothing left after the strip is not a failed
   // model: the turn is non-urgent, so it gets the fixed safety sentence and keeps its calls.
+  // Leftover list markers such as "1." or "-" count as nothing too. A bare number of two digits
+  // or more ("15.", "3114.") is an emergency number the model kept, so it stays.
   const stripped = withoutOtherServices(completion.reply);
-  const kept = stripped.length === 0 ? strippedReplyFallback : stripped;
+  const kept = /[\p{L}]|\d{2}/u.test(stripped) ? stripped : strippedReplyFallback;
   if (triage.kind === "none") {
     return { status: 200, body: { reply: withSafetySentence(kept), mocked: false, model } };
   }
