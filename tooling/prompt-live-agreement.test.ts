@@ -1,11 +1,22 @@
 import { expect, it } from "vitest";
-import { emergencyCases } from "../app/src/app/api/chat/eval/cases.ts";
+import { emergencyCases, type EmergencyCase } from "../app/src/app/api/chat/eval/cases.ts";
 import {
-  ensureEmergencyCalls,
+  call15Now,
+  call3114Now,
+  warningSignExample,
   type EmergencyCall,
 } from "../app/src/app/api/chat/emergency-templates.ts";
 import { systemPrompt } from "../app/src/app/api/chat/system-prompt.ts";
 import { classify } from "../features/triage/src/jev.ts";
+import {
+  checkClause,
+  clauseScope,
+  completenessFailures,
+  constructedReply,
+  openingSentences,
+  quotedCalls,
+  quotedStrings,
+} from "./prompt-live-agreement-guard.ts";
 
 const labelNames = ["emergency", "consult", "self-care", "need-info"] as const;
 const channelNames = ["physical", "psychological", "both", "none"] as const;
@@ -20,7 +31,6 @@ type Situation = {
   readonly chatIds: readonly string[];
   readonly clauses: readonly string[];
   readonly absentFlags?: readonly { readonly id: string; readonly flag: FlagName }[];
-  readonly promptExcludes?: readonly string[];
 };
 
 const situations: readonly Situation[] = [
@@ -59,13 +69,6 @@ const situations: readonly Situation[] = [
       { id: "suicidal-talk", flag: "optional15Allowed" },
       { id: "panic-breathless", flag: "conditional15Allowed" },
     ],
-    promptExcludes: [
-      "Le 15 n'est pas exigé",
-      "pas le 15",
-      "tu ne donnes pas le 15 en première phrase",
-      "Si tu le nommes, la seule phrase est",
-      "Tu réserves",
-    ],
   },
   {
     id: "both-harm-yes",
@@ -88,6 +91,38 @@ const situations: readonly Situation[] = [
   },
 ];
 
+// Prompt sentences that follow a clause but state another rule. A sentence after a
+// clause lead belongs to that clause until it starts with one of these or with
+// another clause lead.
+const otherRuleLeads = [
+  "Si le message décrit déjà des signes de gravité",
+  "Une forme adoucie",
+  "Une angoisse intense",
+  "Tu ne mets jamais le 15 et le 3114",
+] as const;
+
+const leads = situations.flatMap((situation) => situation.clauses);
+const boundaries = [...leads, ...otherRuleLeads];
+
+function casesFor(ids: readonly string[]): EmergencyCase[] {
+  return emergencyCases.filter((item) => ids.includes(item.id));
+}
+
+it("keeps every boundary lead and clause lead in the prompt", () => {
+  for (const lead of boundaries) {
+    expect(clauseScope(systemPrompt, lead, []), lead).toBeDefined();
+  }
+});
+
+it("maps exactly the chat cases that expect a number, each once", () => {
+  expect(completenessFailures(situations, emergencyCases)).toEqual([]);
+  const mapped = new Set(situations.flatMap((situation) => situation.chatIds));
+  const expecting = new Set(
+    emergencyCases.filter((item) => item.expected.length > 0).map((item) => item.id),
+  );
+  expect(mapped).toEqual(expecting);
+});
+
 it.each(situations)(
   "$id prompt clauses, chat cases, and the live opening agree",
   async (situation) => {
@@ -99,14 +134,18 @@ it.each(situations)(
     for (const list of numberLists) {
       expect(list, situation.id).toEqual(numbers);
     }
-    const opening = openingSentences(numbers ?? []);
-    expect(opening.length, situation.id).toBeGreaterThan(0);
+    expect(openingSentences(numbers ?? []).length, situation.id).toBeGreaterThan(0);
     for (const lead of situation.clauses) {
-      const sentence = sentenceStarting(systemPrompt, lead);
-      expect(sentence, `${situation.id} missing ${lead}`).toBeDefined();
-      expect(quotedInOrder(sentence ?? "", opening), `${situation.id} ${lead}`).toBe(
-        true,
-      );
+      // The quoted call sentences equal the live opening exactly, and the opening
+      // plus every other quoted sentence of the clause passes each mapped case.
+      const failures = checkClause({
+        prompt: systemPrompt,
+        lead,
+        boundaries: boundaries.filter((boundary) => boundary !== lead),
+        calls: numbers ?? [],
+        cases: casesFor(situation.chatIds),
+      });
+      expect(failures, `${situation.id} ${lead}`).toEqual([]);
     }
     for (const id of situation.chatIds) {
       const item = emergencyCases.find((entry) => entry.id === id);
@@ -117,11 +156,103 @@ it.each(situations)(
       const item = emergencyCases.find((entry) => entry.id === absent.id);
       expect(flagIsTrue(item, absent.flag), `${absent.id} ${absent.flag}`).toBe(false);
     }
-    for (const phrase of situation.promptExcludes ?? []) {
-      expect(systemPrompt, phrase).not.toContain(phrase);
-    }
   },
 );
+
+// Proofs on fake input: they show each check fails without touching the prompt.
+const breathless = emergencyCases.find((item) => item.id === "panic-breathless");
+const fakeLead = "Si une crise de panique n'a comme signe physique qu'un essoufflement, tu dis en première phrase :";
+const fakeOpener = `${fakeLead} « ${call3114Now} », puis « ${call15Now} ».`;
+
+function fakeCheck(line: string, calls: EmergencyCall[] = ["3114", "15"]) {
+  return checkClause({
+    prompt: line,
+    lead: fakeLead,
+    boundaries: ["Tu ne mets jamais"],
+    calls,
+    cases: breathless === undefined ? [] : [breathless],
+  });
+}
+
+it("proof: the fake breathless opener alone passes", () => {
+  expect(breathless?.expected).toEqual(["3114", "15"]);
+  expect(fakeCheck(`${fakeOpener} Tu ne mets jamais le 15 et le 3114 dans la même phrase.`)).toEqual([]);
+});
+
+it("proof: a quoted warning sentence after the opener fails the constructed reply", () => {
+  const failures = fakeCheck(
+    `${fakeOpener} Si l'essoufflement persiste, tu peux ajouter une autre phrase, exactement « ${warningSignExample} ». Tu ne mets jamais le 15 et le 3114 dans la même phrase.`,
+  );
+  expect(failures.map((failure) => failure.kind)).toEqual(["reply"]);
+  expect(failures[0]?.detail).toContain("numbers");
+});
+
+it("proof: an extra 15 call sentence after the opening fails the exact-opening check", () => {
+  const failures = fakeCheck(
+    `${fakeOpener} Puis redis « ${call15Now} ». Tu ne mets jamais le 15 et le 3114 dans la même phrase.`,
+  );
+  expect(failures.map((failure) => failure.kind)).toContain("opening");
+});
+
+it("proof: a subsequence with another 15 quote around the opening fails", () => {
+  const around = `${fakeLead} « ${call15Now} » puis « ${call3114Now} » puis « ${call15Now} ».`;
+  expect(fakeCheck(around).map((failure) => failure.kind)).toContain("opening");
+  const wrapped = `${fakeLead} « ${call3114Now} », puis « ${call15Now} », puis « ${call15Now} ».`;
+  expect(fakeCheck(wrapped).map((failure) => failure.kind)).toContain("opening");
+});
+
+it("proof: an unquoted number in the clause fails", () => {
+  const failures = fakeCheck(`${fakeOpener} Le 15 n'est pas exigé. Tu ne mets jamais le 15.`);
+  expect(failures.map((failure) => failure.kind)).toContain("unquoted-number");
+});
+
+it("proof: a missing lead fails", () => {
+  expect(fakeCheck("Rien ici.").map((failure) => failure.kind)).toEqual(["missing"]);
+});
+
+it("proof: a sentence after a boundary is not part of the clause", () => {
+  const scope = clauseScope(
+    `${fakeOpener} Tu ne mets jamais le 15 et le 3114 dans la même phrase. Redis « ${call15Now} ».`,
+    fakeLead,
+    ["Tu ne mets jamais"],
+  );
+  expect(scope).toEqual([fakeOpener]);
+});
+
+it("proof: the constructed reply keeps extra call sentences", () => {
+  const opening = openingSentences(["3114", "15"]);
+  const quotes = quotedStrings([`${fakeOpener} Puis « ${call15Now} » et « Merci. ».`]);
+  expect(quotedCalls(quotes)).toEqual([call3114Now, call15Now, call15Now]);
+  expect(constructedReply(opening, quotes)).toBe(`${call3114Now} ${call15Now} ${call15Now} Merci.`);
+});
+
+it("proof: an unmapped case that expects a number fails completeness", () => {
+  const extra: EmergencyCase = {
+    id: "suicidal-talk-2",
+    risk: "critical",
+    safe: ["SAFE-15"],
+    message: "Fake",
+    expected: ["3114"],
+    optional15Allowed: true,
+  };
+  expect(completenessFailures(situations, [...emergencyCases, extra])).toEqual([
+    { kind: "unmapped", id: "suicidal-talk-2" },
+  ]);
+  expect(
+    completenessFailures([{ id: "x", chatIds: ["ghost"] }], emergencyCases).some(
+      (failure) => failure.kind === "unknown" && failure.id === "ghost",
+    ),
+  ).toBe(true);
+  expect(
+    completenessFailures(
+      [
+        { id: "a", chatIds: ["stroke"] },
+        { id: "b", chatIds: ["stroke"] },
+      ],
+      emergencyCases.filter((item) => item.id === "stroke"),
+    ),
+  ).toEqual([{ kind: "duplicate", id: "stroke" }]);
+});
 
 function flagIsTrue(item: object | undefined, flag: FlagName): boolean {
   if (item === undefined) {
@@ -148,75 +279,6 @@ async function classifyCalls(
     throw new Error(`${channel} ${harm ?? "absent"} returned ${result.label}`);
   }
   return result.calls.map((call) => call.number);
-}
-
-function openingSentences(calls: readonly EmergencyCall[]): string[] {
-  return ensureEmergencyCalls("", calls)
-    .split(/(?<=\.)\s+/)
-    .filter((sentence) => sentence.length > 0);
-}
-
-function sentenceStarting(prompt: string, lead: string): string | undefined {
-  for (const line of prompt.split("\n")) {
-    for (const sentence of splitPromptLine(line)) {
-      if (sentence.startsWith(lead)) {
-        return sentence;
-      }
-    }
-  }
-  return undefined;
-}
-
-function quotedInOrder(sentence: string, opening: readonly string[]): boolean {
-  let cursor = 0;
-  for (const line of opening) {
-    const needle = `« ${line} »`;
-    const at = sentence.indexOf(needle, cursor);
-    if (at < 0) {
-      return false;
-    }
-    cursor = at + needle.length;
-  }
-  return true;
-}
-
-function splitPromptLine(line: string): string[] {
-  const sentences: string[] = [];
-  let start = 0;
-  let quote = 0;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === "«") {
-      quote += 1;
-      continue;
-    }
-    if (char === "»" && quote > 0) {
-      quote -= 1;
-      continue;
-    }
-    if (quote > 0 || (char !== "." && char !== "!" && char !== "?")) {
-      continue;
-    }
-    const next = line[index + 1];
-    if (next !== undefined && !/\s/.test(next)) {
-      continue;
-    }
-    const sentence = line.slice(start, index + 1).trim();
-    if (sentence.length > 0) {
-      sentences.push(sentence);
-    }
-    let cursor = index + 1;
-    while (cursor < line.length && /\s/.test(line[cursor] ?? "")) {
-      cursor += 1;
-    }
-    start = cursor;
-    index = cursor - 1;
-  }
-  const tail = line.slice(start).trim();
-  if (tail.length > 0) {
-    sentences.push(tail);
-  }
-  return sentences;
 }
 
 function splitProbabilities(
