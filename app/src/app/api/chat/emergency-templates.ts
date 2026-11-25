@@ -539,7 +539,7 @@ function namedServices(sentence: string): Named {
   };
 }
 
-// The same rule as `isDuration15` in check.ts (lines 895-918), which that file does not export:
+// The same rule as `isDuration15` in check.ts (lines 912-935), which that file does not export:
 // a plain "15" or "quinze" after a duration cue and before a minutes or hours unit ("pendant 15
 // minutes"), or after "à" and before "h" ("à 15 h"), is no call. "le 15", "au 15" and "du 15"
 // stay calls. Keep the cues in step with check.ts.
@@ -577,7 +577,7 @@ function names15(text: string): boolean {
 
 // The checker scans the whole reply, so a 112 split across a newline or a sentence end ("1\n12")
 // and a joined "SOSMédecins" name a service though no single sentence does. Mirrors check.ts `scan`
-// (check.ts:822-829): 112 and SOS (with an optional "médecins" and any gap) on the whole text.
+// (check.ts:839-846): 112 and SOS (with an optional "médecins" and any gap) on the whole text.
 // Each match maps back to every sentence piece it touches, and those pieces are dropped. A match
 // that sits inside one exact refusal sentence is that refusal itself, so it stays.
 const wholeServicePatterns = [
