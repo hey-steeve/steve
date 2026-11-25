@@ -410,3 +410,15 @@ it("reads the line after a status line as its reply even when it starts with #",
   expect(report.text).toContain("sunday-throat PASS expected=[] found=[] ok\n# Reste chez toi.\n");
   expect(report.text).toContain("medication PASS expected=[] found=[] ok\n#\n");
 });
+
+it("does not read a # line shaped like an error or status line as the reply", () => {
+  const next = "medication PASS expected=[] found=[] ok\nPas de numéro.";
+  const afterError = `sunday-throat FAIL expected=[15] found=[] numbers\n# ERROR x\n${next}`;
+  expect(parseSavedRun(afterError)).toEqual([
+    { kind: "error", id: "sunday-throat", detail: "missing reply" },
+    { kind: "score", id: "medication", reply: "Pas de numéro.", truncated: false },
+  ]);
+  expect(rescoreSavedRun(afterError).errors).toBe(1);
+  const afterStatus = `sunday-throat FAIL expected=[15] found=[] numbers\n# PASS expected=[] found=[] ok\n${next}`;
+  expect(parseSavedRun(afterStatus)).toEqual(parseSavedRun(afterError));
+});
