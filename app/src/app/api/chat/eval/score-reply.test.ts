@@ -61,3 +61,11 @@ it("marks a run without a Jev key as triage off and says why openings are missin
 it("marks a run with a Jev key as triage on", () => {
   expect(triageStatusLine(true)).toBe("triage: on (JEV_API_KEY present)");
 });
+
+it.each([["​"], [" \n\t "], ["​ ​"]])(
+  "keeps a reply that is only the safety sentence behind an empty head %j",
+  (head) => {
+    const reply = `${head} ${emergencySafetySentence}`;
+    expect(withoutSafetySentence(reply)).toBe(reply);
+  },
+);

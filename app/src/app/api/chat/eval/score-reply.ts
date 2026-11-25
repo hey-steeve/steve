@@ -1,4 +1,4 @@
-import { emergencySafetySentence } from "../emergency-templates.ts";
+import { emergencySafetySentence, normalizeEmergencyText } from "../emergency-templates.ts";
 
 // With no usable triage, the route appends `emergencySafetySentence` to a 200 reply. The checker
 // has no expectation that accepts that sentence: it counts its 15 and 3114 as unexpected numbers.
@@ -14,7 +14,7 @@ export function withoutSafetySentence(reply: string): string {
   const head = text.slice(0, text.length - emergencySafetySentence.length);
   // A reply that is only the sentence is the route's fallback, not model text: keep it so the
   // checker fails it instead of passing an empty string.
-  if (head.trim().length === 0 || !/\s$/u.test(head)) {
+  if (normalizeEmergencyText(head).length === 0 || !/\s$/u.test(head)) {
     return reply;
   }
   return head.trimEnd();
