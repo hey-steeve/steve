@@ -60,8 +60,14 @@ it("ignores events once ended", () => {
   expect(reduceCall(ended, server({ type: "session.updated" }))).toBe(ended);
 });
 
-it("ends on a server error", () => {
-  expect(run(speaking.concat(server({ type: "error", message: "x" })))).toEqual({
+it("keeps an active call alive on a server error and preserves the error", () => {
+  const state = run(speaking.concat(server({ type: "error", message: "x" })));
+  expect(state.phase).toBe("active");
+  expect(state.phase === "active" && state.lastError).toBe("x");
+});
+
+it("fails the call on a server error while connecting", () => {
+  expect(run([{ type: "start" }, server({ type: "error", message: "x" })])).toEqual({
     phase: "ended",
     reason: "failed",
   });
@@ -93,8 +99,66 @@ it("does not need a response id when speech starts while listening", () => {
   expect(state.phase === "active" && state.activity).toBe("listening");
 });
 
-it("clears the response on done", () => {
-  const state = run(speaking.concat(server({ type: "response.done", responseId: "r1" })));
-  expect(state.phase === "active" && state.responseId).toBeUndefined();
-  expect(state.phase === "active" && state.activity).toBe("listening");
+it("clears generation on done but keeps playback until it drains", () => {
+  const done = run(speaking.concat(server({ type: "response.done", responseId: "r1" })));
+  expect(done.phase === "active" && done.responseId).toBeUndefined();
+  expect(done.phase === "active" && done.activity).toBe("speaking");
+  const drained = reduceCall(done, { type: "playbackDrained" });
+  expect(drained.phase === "active" && drained.playback).toBeUndefined();
+  expect(drained.phase === "active" && drained.activity).toBe("listening");
+});
+
+it("barge-in after response.done still cancels with item and played offset", () => {
+  const state = run(
+    speaking.concat(
+      server({ type: "response.done", responseId: "r1" }),
+      server({ type: "input.speech_started", itemId: "u1" }),
+    ),
+  );
+  expect(state.phase === "active" && state.cancel).toEqual({
+    responseId: "r1",
+    itemId: "i1",
+    playedMs: 480,
+  });
+});
+
+it("does not cancel after playback drained", () => {
+  const state = run(
+    speaking.concat(
+      server({ type: "response.done", responseId: "r1" }),
+      { type: "playbackDrained" },
+      server({ type: "input.speech_started", itemId: "u1" }),
+    ),
+  );
+  expect(state.phase === "active" && state.cancel).toBeUndefined();
+});
+
+it("ignores a stale delta from r1 once r2 is generating", () => {
+  const state = run(
+    speaking.concat(
+      server({ type: "response.created", responseId: "r2" }),
+      server({ type: "response.audio_delta", responseId: "r1", itemId: "i-stale", delta: "AA==" }),
+    ),
+  );
+  expect(state.phase === "active" && state.playback?.itemId).toBe("i1");
+  const paired = reduceCall(
+    state,
+    server({ type: "response.audio_delta", responseId: "r2", itemId: "i2", delta: "AA==" }),
+  );
+  expect(paired.phase === "active" && paired.playback).toEqual({
+    responseId: "r2",
+    itemId: "i2",
+    playedMs: 0,
+  });
+});
+
+it("a stale done(r1) does not clear r2", () => {
+  const state = run(
+    speaking.concat(
+      server({ type: "response.created", responseId: "r2" }),
+      server({ type: "response.done", responseId: "r1" }),
+    ),
+  );
+  expect(state.phase === "active" && state.responseId).toBe("r2");
+  expect(state.phase === "active" && state.generating).toBe(true);
 });

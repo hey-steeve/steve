@@ -48,16 +48,19 @@ const optId = (o: Obj, key: string): string | undefined | null => {
   return str(v) ?? null;
 };
 
-const nested = (o: Obj, key: string): Obj => {
+// A missing object is fine. A present non-object makes the event malformed.
+const nested = (o: Obj, key: string): Obj | null => {
   const v = o[key];
-  return isObj(v) ? v : {};
+  if (v === undefined) return {};
+  return isObj(v) ? v : null;
 };
 
 function parseObject(o: Obj): ServerEvent | undefined {
   const type = o["type"];
   switch (type) {
     case "session.created": {
-      const id = optId(nested(o, "session"), "id");
+      const session = nested(o, "session");
+      const id = session === null ? null : optId(session, "id");
       return id === null ? undefined : { type: type, sessionId: id };
     }
     case "session.updated":
@@ -78,10 +81,12 @@ function parseObject(o: Obj): ServerEvent | undefined {
     case "conversation.item.input_audio_transcription.updated":
     case "conversation.item.input_audio_transcription.completed": {
       const itemId = optId(o, "item_id");
-      const text = o["transcript"] ?? o["delta"];
+      const completed = type.endsWith(".completed");
+      // completed carries `transcript`. delta and updated carry their own text.
+      const text = completed ? o["transcript"] : (o["transcript"] ?? o["delta"]);
       if (itemId === null || typeof text !== "string") return undefined;
       return {
-        type: type.endsWith(".completed")
+        type: completed
           ? "input.transcription_completed"
           : "input.transcription_updated",
         itemId,
@@ -91,7 +96,8 @@ function parseObject(o: Obj): ServerEvent | undefined {
     case "response.created":
     case "response.done":
     case "response.cancelled": {
-      const responseId = optId(nested(o, "response"), "id");
+      const response = nested(o, "response");
+      const responseId = response === null ? null : optId(response, "id");
       return responseId === null ? undefined : { type, responseId };
     }
     case "response.output_audio.delta":
@@ -104,7 +110,8 @@ function parseObject(o: Obj): ServerEvent | undefined {
       return { type: "response.audio_delta", responseId, itemId, delta };
     }
     case "error": {
-      const message = str(nested(o, "error")["message"]);
+      const error = nested(o, "error");
+      const message = error === null ? undefined : str(error["message"]);
       return message === undefined ? undefined : { type, message };
     }
     default:

@@ -69,6 +69,15 @@ it("returns undefined for malformed, empty and unknown input", () => {
     { type: "input_audio_buffer.speech_started", item_id: 7 },
     { type: "conversation.item.input_audio_transcription.completed", item_id: "i" },
     { type: "error" },
+    { type: "response.done", response: 7 },
+    { type: "response.created", response: null },
+    { type: "response.cancelled", response: "r1" },
+    { type: "session.created", session: null },
+    { type: "session.created", session: "s1" },
+    { type: "error", error: "boom" },
+    { type: "conversation.item.input_audio_transcription.completed", item_id: "i", delta: "bon" },
+    { type: "conversation.item.input_audio_transcription.completed", transcript: 5 },
+    { type: "conversation.item.input_audio_transcription.delta", delta: 5 },
   ]) {
     expect(parseServerEvent(raw)).toBeUndefined();
   }
