@@ -424,25 +424,6 @@ export function checkEmergencyReplyForTest(
 
 type Kind = EmergencyNumber | "112" | "sos";
 
-export type NamedNumber = Kind;
-
-// The scorer's own number detection, exported so other guards read numbers the same
-// way. It normalizes like the scorer, scans in full mode, and drops a 15 that is a
-// duration or a clock time. Each number appears once, in order of first appearance.
-export function namedNumbers(text: string): NamedNumber[] {
-  const normalized = normalizeEmergencyText(text);
-  const spans = scan(normalized, true)
-    .filter((span) => !isDuration15(normalized, span))
-    .sort((left, right) => left.start - right.start);
-  const kinds: NamedNumber[] = [];
-  for (const span of spans) {
-    if (!kinds.includes(span.kind)) {
-      kinds.push(span.kind);
-    }
-  }
-  return kinds;
-}
-
 type Span = {
   readonly start: number;
   readonly end: number;
@@ -838,9 +819,6 @@ function scan(text: string, flexible: boolean): Span[] {
       "3114",
     );
     collect(spans, text, /(?<![0-9])3[^\p{L}\p{N}]*1[^\p{L}\p{N}]*1[^\p{L}\p{N}]*4(?![0-9])/gu, "3114");
-    // The tail of "trois mille cent quatorze". It runs after the longer phrase, so
-    // collect skips it there and the full phrase stays one span.
-    collect(spans, text, /(?<!\p{L})cent[^\p{L}\p{N}]*quatorze(?!\p{L})/gu, "3114");
     collect(spans, text, /(?<!\p{L})cent[^\p{L}\p{N}]*douze(?!\p{L})/gu, "112");
     collect(spans, text, /(?<![0-9])1[^\p{L}\p{N}]*1[^\p{L}\p{N}]*2(?![0-9])/gu, "112");
     collect(
@@ -866,7 +844,6 @@ function scan(text: string, flexible: boolean): Span[] {
   if (flexible) {
     collect(fifteen, masked, /(?<![0-9])1[^\p{L}\p{N}]*5(?![0-9])/gu, "15");
     collect(fifteen, text, /(?<!\p{L})quinze(?!\p{L})/gu, "15");
-    collect(fifteen, text, /(?<!\p{L})un[^\p{L}\p{N}]*cinq(?!\p{L})/gu, "15");
     collect(
       fifteen,
       text,
