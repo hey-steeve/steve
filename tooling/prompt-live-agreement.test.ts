@@ -2,8 +2,19 @@ import { expect, it } from "vitest";
 import { emergencyCases, type EmergencyCase } from "../app/src/app/api/chat/eval/cases.ts";
 import {
   call15Now,
+  call3114,
   call3114Now,
+  redirectMedication,
+  refusal112,
+  refusalMedication,
+  refusalSos,
+  warningSignBecomesDrowsy,
+  warningSignDrowsy,
   warningSignExample,
+  warningSignExampleIl,
+  warningSignHeadache,
+  warningSignPair,
+  warningSignTail,
   type EmergencyCall,
 } from "../app/src/app/api/chat/emergency-templates.ts";
 import { systemPrompt } from "../app/src/app/api/chat/system-prompt.ts";
@@ -13,9 +24,12 @@ import {
   clauseScope,
   completenessFailures,
   constructedReply,
+  numberSentenceFailures,
   openingSentences,
   quotedCalls,
   quotedStrings,
+  scopeBoundaries,
+  type NumberSentenceRule,
 } from "./prompt-live-agreement-guard.ts";
 
 const labelNames = ["emergency", "consult", "self-care", "need-info"] as const;
@@ -30,6 +44,9 @@ type Situation = {
   readonly harms: readonly Harm[];
   readonly chatIds: readonly string[];
   readonly clauses: readonly string[];
+  // How the general 15 sentence names this situation. Every situation whose live
+  // calls include 15 must be named there.
+  readonly generalPhrases: readonly string[];
   readonly absentFlags?: readonly { readonly id: string; readonly flag: FlagName }[];
 };
 
@@ -53,6 +70,7 @@ const situations: readonly Situation[] = [
     clauses: [
       "S'il n'y a pas de pensées suicidaires ni de détresse psychologique, tu dis en première phrase :",
     ],
+    generalPhrases: ["des signes de gravité", "un danger immédiat"],
   },
   {
     id: "psychological",
@@ -65,6 +83,7 @@ const situations: readonly Situation[] = [
       "Pour une crise de panique dont le seul signe physique est un essoufflement,",
       "Si une crise de panique n'a comme signe physique qu'un essoufflement, tu dis en première phrase :",
     ],
+    generalPhrases: ["des pensées suicidaires", "une crise de panique avec essoufflement"],
     absentFlags: [
       { id: "suicidal-talk", flag: "optional15Allowed" },
       { id: "panic-breathless", flag: "conditional15Allowed" },
@@ -78,6 +97,7 @@ const situations: readonly Situation[] = [
     clauses: [
       "Si une surdose ou une automutilation s'accompagne de pensées suicidaires ou de la détresse psychologique, tu dis en première phrase :",
     ],
+    generalPhrases: ["une surdose", "une automutilation"],
   },
   {
     id: "both-harm-no",
@@ -88,21 +108,125 @@ const situations: readonly Situation[] = [
       "Une crise de panique compte comme une détresse : avec une douleur thoracique ou un évanouissement, tu dis en première phrase",
       "Si un signe de gravité physique autre qu'un simple essoufflement,",
     ],
+    generalPhrases: ["des signes de gravité"],
   },
 ];
 
-// Prompt sentences that follow a clause but state another rule. A sentence after a
-// clause lead belongs to that clause until it starts with one of these or with
-// another clause lead.
-const otherRuleLeads = [
-  "Si le message décrit déjà des signes de gravité",
-  "Une forme adoucie",
-  "Une angoisse intense",
-  "Tu ne mets jamais le 15 et le 3114",
-] as const;
+// Prompt sentences that follow a clause, name no number, and still end its scope.
+// « tu peux appeler » is a quoted non-call sentence, so it must not join a clause.
+const otherLeads = ["Une forme adoucie"] as const;
+
+// Every prompt sentence that names a number and sits outside a mapped clause. A
+// sentence that is neither in a mapped clause nor here fails the guard. Each entry
+// states the numbers it names, its polarity, and the exact quoted sentences it
+// carries. The polarity is "required" when the sentence tells Jev to say a call
+// sentence, "forbidden" when it bans a number, and "conditional" when the number
+// depends on a sign, a situation, or a limit.
+const numberRules: readonly NumberSentenceRule[] = [
+  {
+    lead: "Tu ne donnes le 15 que pour une vraie urgence",
+    numbers: ["15"],
+    polarity: "conditional",
+    quotes: [],
+    includes: [
+      "vraie urgence",
+      "ou quand une règle ci-dessous l'exige",
+      ...situations.flatMap((situation) => situation.generalPhrases),
+    ],
+  },
+  {
+    lead: "Si le message décrit déjà des signes de gravité",
+    numbers: ["15"],
+    polarity: "required",
+    quotes: [call15Now],
+    includes: ["jamais seulement une phrase conditionnelle"],
+  },
+  {
+    lead: "Pour un symptôme courant comme la fièvre d'un enfant",
+    numbers: ["15"],
+    polarity: "conditional",
+    quotes: [],
+    includes: ["jamais par défaut"],
+  },
+  {
+    lead: "La phrase conditionnelle copie alors exactement",
+    numbers: ["15"],
+    polarity: "conditional",
+    quotes: [warningSignExampleIl, warningSignDrowsy, warningSignBecomesDrowsy],
+  },
+  {
+    lead: "Pour une liste de signes, tu copies exactement",
+    numbers: ["15"],
+    polarity: "conditional",
+    quotes: [warningSignExample, warningSignPair, warningSignHeadache],
+  },
+  {
+    lead: "Les signes sont positifs",
+    numbers: ["15"],
+    polarity: "conditional",
+    quotes: ["ou", warningSignTail],
+  },
+  {
+    lead: "Une angoisse intense",
+    numbers: ["3114"],
+    polarity: "conditional",
+    quotes: [call3114, call3114Now],
+    includes: ["sans pensée suicidaire et sans danger"],
+  },
+  {
+    lead: "Tu ne mets jamais le 15 et le 3114",
+    numbers: ["15", "3114"],
+    polarity: "forbidden",
+    quotes: [],
+    includes: ["dans la même phrase"],
+  },
+  {
+    lead: "Pour le 3114 puis le 15",
+    numbers: ["3114", "15"],
+    polarity: "required",
+    quotes: [call3114Now, call15Now],
+  },
+  {
+    lead: "Pour le 15 puis le 3114",
+    numbers: ["15", "3114"],
+    polarity: "required",
+    quotes: [call15Now, call3114],
+  },
+  {
+    lead: "Tu écris chaque numéro d'urgence",
+    numbers: ["15", "3114"],
+    polarity: "forbidden",
+    quotes: ["du 15", "le SAMU te dira", "les instructions du 15"],
+    includes: ["une seule fois"],
+  },
+  {
+    lead: "Les règles sur le 15 et le 3114 passent avant",
+    numbers: ["15", "3114"],
+    polarity: "required",
+    quotes: [],
+  },
+  {
+    lead: "Tu ne donnes jamais le 112 ni SOS Médecins",
+    numbers: ["112", "sos"],
+    polarity: "forbidden",
+    quotes: [],
+  },
+  {
+    lead: "Si tu les nommes, chaque phrase de ta réponse",
+    numbers: ["112", "sos"],
+    polarity: "forbidden",
+    quotes: [refusal112, refusalSos, refusalMedication, redirectMedication],
+  },
+  {
+    lead: "Si les règles du 15 ou du 3114 s'appliquent",
+    numbers: ["15", "3114"],
+    polarity: "required",
+    quotes: [],
+  },
+];
 
 const leads = situations.flatMap((situation) => situation.clauses);
-const boundaries = [...leads, ...otherRuleLeads];
+const boundaries = scopeBoundaries({ leads, others: otherLeads, rules: numberRules });
 
 function casesFor(ids: readonly string[]): EmergencyCase[] {
   return emergencyCases.filter((item) => ids.includes(item.id));
@@ -113,6 +237,179 @@ it("keeps every boundary lead and clause lead in the prompt", () => {
     expect(clauseScope(systemPrompt, lead, []), lead).toBeDefined();
   }
 });
+
+// The whole-prompt guard: each mapped clause, then every other sentence that names
+// a number. A prompt text goes in so a proof can mutate it without touching a file.
+async function agreementFailures(prompt: string): Promise<string[]> {
+  const failures: string[] = [];
+  for (const situation of situations) {
+    const calls = await callsFor(situation.channel, situation.harms[0] ?? "absent");
+    for (const lead of situation.clauses) {
+      for (const failure of checkClause({
+        prompt,
+        lead,
+        boundaries: boundaries.filter((boundary) => boundary !== lead),
+        calls,
+        cases: casesFor(situation.chatIds),
+      })) {
+        failures.push(`clause ${failure.kind}: ${failure.detail}`);
+      }
+    }
+  }
+  for (const failure of numberSentenceFailures({
+    prompt,
+    leads,
+    others: otherLeads,
+    rules: numberRules,
+  })) {
+    failures.push(`number-sentence ${failure.kind}: ${failure.detail}`);
+  }
+  return failures;
+}
+
+it("classifies every number sentence of the live prompt", async () => {
+  const failures = await agreementFailures(systemPrompt);
+  expect(failures, failures.join(" || ")).toEqual([]);
+});
+
+it("names every situation where Jev emits 15 in the general 15 sentence", async () => {
+  for (const situation of situations) {
+    const calls = await callsFor(situation.channel, situation.harms[0] ?? "absent");
+    expect(calls.includes("15"), situation.id).toBe(true);
+    expect(situation.generalPhrases.length, situation.id).toBeGreaterThan(0);
+    const general = clauseScope(systemPrompt, "Tu ne donnes le 15 que pour une vraie urgence", []);
+    for (const phrase of situation.generalPhrases) {
+      expect(general?.[0], `${situation.id} ${phrase}`).toContain(phrase);
+    }
+  }
+});
+
+function mutate(prompt: string, from: string, to: string): string {
+  expect(prompt.includes(from), `mutation anchor: ${from}`).toBe(true);
+  return prompt.replace(from, to);
+}
+
+const round1General =
+  "Tu ne donnes le 15 que pour une vraie urgence, c'est-à-dire des signes de gravité, une surdose, une automutilation ou un danger immédiat.";
+const generalSentence =
+  "Tu ne donnes le 15 que pour une vraie urgence ou quand une règle ci-dessous l'exige, c'est-à-dire des signes de gravité, une surdose, une automutilation, un danger immédiat, des pensées suicidaires ou une crise de panique avec essoufflement.";
+const softenedSentence =
+  "Une forme adoucie comme « tu peux appeler » n'est pas admise pour les pensées suicidaires, l'automutilation ou la détresse aiguë avec danger.";
+const angstSentence = `exactement « ${call3114} » ou « ${call3114Now} ».`;
+const redFlagOpener = `la première phrase est « ${call15Now} », jamais seulement`;
+const neverSame = "Tu ne mets jamais le 15 et le 3114 dans la même phrase.";
+const suicidalLead = "Pour des pensées suicidaires sans danger aigu, tu dis en première phrase :";
+
+const mutations: readonly { id: string; from: string; to: string; kind: string }[] = [
+  { id: "R1 round-1 general 15 sentence", from: generalSentence, to: round1General, kind: "number-sentence includes" },
+  {
+    id: "R2 breathless panic does not need 15",
+    from: softenedSentence,
+    to: `${softenedSentence} Pour une crise de panique avec essoufflement, le 15 n'est pas exigé.`,
+    kind: "number-sentence unclassified",
+  },
+  {
+    id: "R5 anxiety is told to give 15",
+    from: angstSentence,
+    to: `exactement « ${call3114} » ou « ${call3114Now} », puis « ${call15Now} ».`,
+    kind: "number-sentence numbers",
+  },
+  {
+    id: "R6 red-flag opener gives 3114",
+    from: redFlagOpener,
+    to: `la première phrase est « ${call3114} », jamais seulement`,
+    kind: "number-sentence quotes",
+  },
+  {
+    id: "R7 suicidal thoughts need only 3114",
+    from: neverSame,
+    to: `${neverSame} Pour des pensées suicidaires sans danger aigu, « ${call3114} » suffit.`,
+    kind: "number-sentence unclassified",
+  },
+  {
+    id: "R3 un-cinq inside the suicidal clause",
+    from: `${suicidalLead} « ${call3114Now} », puis « ${call15Now} ».`,
+    to: `${suicidalLead} « ${call3114Now} », puis « ${call15Now} ». Le numéro un-cinq n'est pas exigé.`,
+    kind: "clause unquoted-number",
+  },
+  {
+    id: "R4 spaced 1 5 inside the suicidal clause",
+    from: `${suicidalLead} « ${call3114Now} », puis « ${call15Now} ».`,
+    to: `${suicidalLead} « ${call3114Now} », puis « ${call15Now} ». Le 1 5 n'est pas exigé.`,
+    kind: "clause unquoted-number",
+  },
+];
+
+it.each(mutations)("mutation $id turns the agreement guard red", async (mutation) => {
+  const failures = await agreementFailures(mutate(systemPrompt, mutation.from, mutation.to));
+  expect(failures.length, mutation.id).toBeGreaterThan(0);
+  expect(
+    failures.some((failure) => failure.startsWith(mutation.kind)),
+    `${mutation.id}: ${failures.join(" || ")}`,
+  ).toBe(true);
+});
+
+it("proof: an unclassified number sentence outside every clause and the table fails", () => {
+  const prompt = "Intro sans numéro. Le 15 n'est pas exigé. Fin.";
+  const failures = numberSentenceFailures({ prompt, leads: [], others: [], rules: [] });
+  expect(failures.map((failure) => failure.kind)).toEqual(["unclassified"]);
+  expect(failures[0]?.sentence).toBe("Le 15 n'est pas exigé.");
+});
+
+it("proof: a table rule fails on a wrong number set, quote, polarity, or phrase", () => {
+  const rule: NumberSentenceRule = {
+    lead: "Pour l'angoisse",
+    numbers: ["3114"],
+    polarity: "conditional",
+    quotes: [call3114],
+    includes: ["sans danger"],
+  };
+  const run = (line: string) =>
+    numberSentenceFailures({ prompt: line, leads: [], others: [], rules: [rule] }).map(
+      (failure) => failure.kind,
+    );
+  expect(run(`Pour l'angoisse sans danger, dis « ${call3114} ».`)).toEqual([]);
+  expect(run(`Pour l'angoisse sans danger, dis « ${call3114} » puis le 15.`)).toEqual(["numbers"]);
+  expect(run(`Pour l'angoisse sans danger, dis « ${call3114Now} ».`)).toEqual(["quotes"]);
+  expect(run(`Pour l'angoisse, dis « ${call3114} ».`)).toEqual(["includes"]);
+  expect(run(`Pour l'angoisse sans danger, le 3114 n'est pas exigé, dis « ${call3114} ».`)).toEqual([
+    "polarity",
+  ]);
+  expect(
+    numberSentenceFailures({ prompt: "Rien.", leads: [], others: [], rules: [rule] }).map(
+      (failure) => failure.kind,
+    ),
+  ).toEqual(["stale-rule"]);
+});
+
+it("proof: a forbidden rule fails when it quotes a call sentence", () => {
+  const rule: NumberSentenceRule = {
+    lead: "Jamais le 15",
+    numbers: ["15"],
+    polarity: "forbidden",
+    quotes: [call15Now],
+  };
+  expect(
+    numberSentenceFailures({
+      prompt: `Jamais le 15, sauf « ${call15Now} ».`,
+      leads: [],
+      others: [],
+      rules: [rule],
+    }).map((failure) => failure.kind),
+  ).toEqual(["polarity"]);
+});
+
+it("proof: a mapped clause keeps its own sentences out of the table check", () => {
+  const prompt = `${fakeOpener} Tu ne mets jamais le 15 et le 3114 dans la même phrase.`;
+  const rule: NumberSentenceRule = {
+    lead: "Tu ne mets jamais",
+    numbers: ["15", "3114"],
+    polarity: "forbidden",
+    quotes: [],
+  };
+  expect(numberSentenceFailures({ prompt, leads: [fakeLead], others: [], rules: [rule] })).toEqual([]);
+});
+
 
 it("maps exactly the chat cases that expect a number, each once", () => {
   expect(completenessFailures(situations, emergencyCases)).toEqual([]);
@@ -145,7 +442,10 @@ it.each(situations)(
         calls: numbers ?? [],
         cases: casesFor(situation.chatIds),
       });
-      expect(failures, `${situation.id} ${lead}`).toEqual([]);
+      expect(
+        failures,
+        `${situation.id} ${lead}: ${failures.map((failure) => `${failure.kind} ${failure.detail}`).join(" || ")}`,
+      ).toEqual([]);
     }
     for (const id of situation.chatIds) {
       const item = emergencyCases.find((entry) => entry.id === id);

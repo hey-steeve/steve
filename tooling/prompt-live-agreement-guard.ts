@@ -1,9 +1,14 @@
 import {
+  call15Now,
   callSentences,
   ensureEmergencyCalls,
   type EmergencyCall,
 } from "../app/src/app/api/chat/emergency-templates.ts";
-import { checkEmergencyReply } from "../app/src/app/api/chat/eval/check.ts";
+import {
+  checkEmergencyReply,
+  namedNumbers,
+  type NamedNumber,
+} from "../app/src/app/api/chat/eval/check.ts";
 import type { EmergencyCase } from "../app/src/app/api/chat/eval/cases.ts";
 
 export type GuardSituation = {
@@ -18,7 +23,6 @@ export type ClauseFailure = {
 };
 
 const quotePattern = /«\s*([^»]*?)\s*»/g;
-const unquotedNumber = /(?<![\p{L}\d])(15|3114|112|samu|quinze)(?![\p{L}\d])/iu;
 
 export function splitPromptLine(line: string): string[] {
   const sentences: string[] = [];
@@ -65,31 +69,54 @@ export function openingSentences(calls: readonly EmergencyCall[]): string[] {
     .filter((sentence) => sentence.length > 0);
 }
 
+type SentenceRange = {
+  readonly line: number;
+  readonly from: number;
+  readonly to: number;
+};
+
 // The clause is its lead sentence plus the sentences that follow it in the same
 // prompt line, up to the next sentence that starts another clause or another rule.
 // A new sentence after the lead therefore belongs to the clause until the table
 // names it as a separate rule, so an unknown quoted sentence fails closed.
+function clauseRange(
+  lines: readonly (readonly string[])[],
+  lead: string,
+  boundaries: readonly string[],
+): SentenceRange | undefined {
+  for (const [line, sentences] of lines.entries()) {
+    const at = sentences.findIndex((sentence) => sentence.startsWith(lead));
+    if (at < 0) {
+      continue;
+    }
+    let to = at + 1;
+    while (to < sentences.length) {
+      const sentence = sentences[to] ?? "";
+      if (boundaries.some((boundary) => sentence.startsWith(boundary))) {
+        break;
+      }
+      to += 1;
+    }
+    return { line, from: at, to };
+  }
+  return undefined;
+}
+
+function promptSentences(prompt: string): string[][] {
+  return prompt.split("\n").map(splitPromptLine);
+}
+
 export function clauseScope(
   prompt: string,
   lead: string,
   boundaries: readonly string[],
 ): string[] | undefined {
-  for (const line of prompt.split("\n")) {
-    const sentences = splitPromptLine(line);
-    const at = sentences.findIndex((sentence) => sentence.startsWith(lead));
-    if (at < 0) {
-      continue;
-    }
-    const scope = [sentences[at] ?? ""];
-    for (const sentence of sentences.slice(at + 1)) {
-      if (boundaries.some((boundary) => sentence.startsWith(boundary))) {
-        break;
-      }
-      scope.push(sentence);
-    }
-    return scope;
+  const lines = promptSentences(prompt);
+  const range = clauseRange(lines, lead, boundaries);
+  if (range === undefined) {
+    return undefined;
   }
-  return undefined;
+  return (lines[range.line] ?? []).slice(range.from, range.to);
 }
 
 export function quotedStrings(sentences: readonly string[]): string[] {
@@ -159,7 +186,7 @@ export function checkClause(input: {
   }
   for (const sentence of scope) {
     const bare = sentence.replace(quotePattern, " ");
-    if (unquotedNumber.test(bare)) {
+    if (namedNumbers(bare).length > 0) {
       failures.push({
         kind: "unquoted-number",
         lead,
@@ -218,6 +245,152 @@ export function completenessFailures(
   for (const id of mapped) {
     if (!expecting.has(id)) {
       failures.push({ kind: "unknown", id });
+    }
+  }
+  return failures;
+}
+
+export type NumberPolarity = "required" | "forbidden" | "conditional";
+
+export type NumberSentenceRule = {
+  readonly lead: string;
+  readonly numbers: readonly NamedNumber[];
+  readonly polarity: NumberPolarity;
+  readonly quotes: readonly string[];
+  readonly includes?: readonly string[];
+};
+
+export type NumberSentenceFailure = {
+  readonly kind: "unclassified" | "stale-rule" | "numbers" | "quotes" | "polarity" | "includes";
+  readonly sentence: string;
+  readonly detail: string;
+};
+
+// Every sentence that ends a clause scope: the mapped leads, the leads of other
+// rules, and the leads of the number-sentence table.
+export function scopeBoundaries(input: {
+  readonly leads: readonly string[];
+  readonly others: readonly string[];
+  readonly rules: readonly NumberSentenceRule[];
+}): string[] {
+  return [...new Set([...input.leads, ...input.others, ...input.rules.map((rule) => rule.lead)])];
+}
+
+// A sentence that retracts a call inside a sentence that is not a ban.
+const retraction =
+  /pas exig|pas obligatoire|pas nécessaire|pas requis|pas besoin|suffit|facultatif|optionnel|inutile/u;
+
+function sameSet(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((item) => right.includes(item));
+}
+
+function polarityDetail(rule: NumberSentenceRule, sentence: string): string | undefined {
+  const quotes = quotedStrings([sentence]);
+  if (rule.polarity === "forbidden") {
+    return quotes.some(isCallTemplate)
+      ? "a forbidden sentence quotes a call sentence"
+      : undefined;
+  }
+  if (retraction.test(sentence)) {
+    return "a sentence that is not a ban retracts a call";
+  }
+  if (rule.polarity === "required") {
+    return quotes.every(isCallTemplate)
+      ? undefined
+      : "a required sentence quotes something that is not a call sentence";
+  }
+  return quotes.includes(call15Now)
+    ? "a conditional sentence quotes the unconditional 15 call"
+    : undefined;
+}
+
+function ruleFailures(rule: NumberSentenceRule, sentence: string): NumberSentenceFailure[] {
+  const failures: NumberSentenceFailure[] = [];
+  const named = namedNumbers(sentence);
+  if (!sameSet(named, rule.numbers)) {
+    failures.push({
+      kind: "numbers",
+      sentence,
+      detail: `names [${named.join(",")}], expected [${rule.numbers.join(",")}]: ${sentence}`,
+    });
+  }
+  const quotes = quotedStrings([sentence]);
+  if (!sameList(quotes, rule.quotes)) {
+    failures.push({
+      kind: "quotes",
+      sentence,
+      detail: `quotes [${quotes.join(" | ")}], expected [${rule.quotes.join(" | ")}]: ${sentence}`,
+    });
+  }
+  for (const phrase of rule.includes ?? []) {
+    if (!sentence.includes(phrase)) {
+      failures.push({
+        kind: "includes",
+        sentence,
+        detail: `missing "${phrase}": ${sentence}`,
+      });
+    }
+  }
+  const polarity = polarityDetail(rule, sentence);
+  if (polarity !== undefined) {
+    failures.push({ kind: "polarity", sentence, detail: `${polarity}: ${sentence}` });
+  }
+  return failures;
+}
+
+// Fail closed over the whole prompt. A sentence that names a number, in any form
+// the shared detector reads, must sit inside a mapped clause (checkClause scores
+// it) or match a table rule by its lead and pass that rule. Anything else fails.
+export function numberSentenceFailures(input: {
+  readonly prompt: string;
+  readonly leads: readonly string[];
+  readonly others: readonly string[];
+  readonly rules: readonly NumberSentenceRule[];
+}): NumberSentenceFailure[] {
+  const { prompt, leads, others, rules } = input;
+  const boundaries = scopeBoundaries({ leads, others, rules });
+  const lines = promptSentences(prompt);
+  const covered = new Set<string>();
+  for (const lead of leads) {
+    const range = clauseRange(
+      lines,
+      lead,
+      boundaries.filter((boundary) => boundary !== lead),
+    );
+    if (range === undefined) {
+      continue;
+    }
+    for (let at = range.from; at < range.to; at += 1) {
+      covered.add(`${range.line}:${at}`);
+    }
+  }
+  const failures: NumberSentenceFailure[] = [];
+  const used = new Set<NumberSentenceRule>();
+  for (const [line, sentences] of lines.entries()) {
+    for (const [at, sentence] of sentences.entries()) {
+      if (namedNumbers(sentence).length === 0 || covered.has(`${line}:${at}`)) {
+        continue;
+      }
+      const rule = rules.find((candidate) => sentence.startsWith(candidate.lead));
+      if (rule === undefined) {
+        failures.push({
+          kind: "unclassified",
+          sentence,
+          detail: `a number sentence outside every mapped clause and the table: ${sentence}`,
+        });
+        continue;
+      }
+      used.add(rule);
+      failures.push(...ruleFailures(rule, sentence));
+    }
+  }
+  for (const rule of rules) {
+    if (!used.has(rule)) {
+      failures.push({
+        kind: "stale-rule",
+        sentence: rule.lead,
+        detail: `no number sentence starts with the table lead: ${rule.lead}`,
+      });
     }
   }
   return failures;
