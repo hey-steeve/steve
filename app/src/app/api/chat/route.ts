@@ -220,11 +220,20 @@ async function completeWithOpenRouter(
   }
 }
 
-const listMarkerLine = /^(?:\d+[.)]|\p{L}[.)]|[-\u2022*])?$/u;
+const blankGlyphs = /[\p{Cf}\u2800\u3164\u115F\u1160\uFFA0]/gu;
+const listMarkerLine =
+  /^(?:\d+[.)]|[a-z]{1,2}[.)]|(?:i{1,3}|iv|vi{0,3}|ix|x{1,2}i{0,2})[.)]|[-\u2022*])?$/u;
 
-// True when every line is blank or a lone list marker such as "10.", "a)", "-", "•" or "*".
+// Folds a line the way the emergency checks do, then drops invisible and blank glyphs.
+function visibleLine(line: string): string {
+  return normalizeEmergencyText(line).replace(blankGlyphs, "").trim();
+}
+
+// True when every line is blank or a lone list marker such as "10.", "a)", "ii)", "-", "•" or "*".
 function isMarkerOnly(text: string): boolean {
-  return text.split(/\r\n?|\n|[\u2028\u2029]/u).every((line) => listMarkerLine.test(line.trim()));
+  return text
+    .split(/\r\n?|\n|[\u2028\u2029]/u)
+    .every((line) => listMarkerLine.test(visibleLine(line)));
 }
 
 function isBareEmergencyNumber(text: string): boolean {
@@ -247,7 +256,7 @@ function modelReply(
   // emergency number the model kept ("15.", "3114.") stays, even in full-width digits.
   // A text with no letter at all ("." or "—") is punctuation only and falls back too.
   const stripped = withoutOtherServices(completion.reply);
-  const hasNoWords = isMarkerOnly(stripped) || !/\p{L}/u.test(stripped);
+  const hasNoWords = isMarkerOnly(stripped) || !/\p{L}/u.test(stripped.replace(blankGlyphs, ""));
   const kept = keepNonUrgentReply(
     hasNoWords && !isBareEmergencyNumber(stripped) ? strippedReplyFallback : stripped,
   );

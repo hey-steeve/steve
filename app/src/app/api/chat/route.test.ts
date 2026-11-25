@@ -1406,6 +1406,12 @@ it.each([
   ["…"],
   ["1.\n-\n a) "],
   ["  \n* \n"],
+  ["a\u200B)"],
+  ["ii)"],
+  ["xii."],
+  ["a\uFF09"],
+  ["\u2800-"],
+  ["\u3164\n1."],
 ])(
   "answers a kept text of only list markers %j with the stripped-reply fallback",
   async (modelText) => {
