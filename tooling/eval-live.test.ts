@@ -118,5 +118,53 @@ function blocksUnlessEnabled(script: string): boolean {
 }
 
 function requiresMain(script: string): boolean {
-  return script.includes("refs/heads/main") && /GITHUB_REF|github\.ref/.test(script);
+  const lines = script.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!isUnequalMainRef(lines[index]?.trim() ?? "")) {
+      continue;
+    }
+    if (branchSkipsAndExits(lines, index + 1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isUnequalMainRef(line: string): boolean {
+  return (
+    line.startsWith("if ") &&
+    line.includes("!=") &&
+    line.includes("refs/heads/main") &&
+    /GITHUB_REF|github\.ref/.test(line)
+  );
+}
+
+function branchSkipsAndExits(lines: readonly string[], start: number): boolean {
+  let depth = 1;
+  let writesSkip = false;
+  let exits = false;
+  for (let index = start; index < lines.length; index += 1) {
+    const trimmed = lines[index]?.trim() ?? "";
+    if (trimmed.startsWith("if ")) {
+      depth += 1;
+      continue;
+    }
+    if (trimmed === "fi" || trimmed.startsWith("fi;") || trimmed.startsWith("fi ")) {
+      depth -= 1;
+      if (depth === 0) {
+        return writesSkip && exits;
+      }
+      continue;
+    }
+    if (depth !== 1) {
+      continue;
+    }
+    if (trimmed.includes("skip=true")) {
+      writesSkip = true;
+    }
+    if (/(?:^|[;&|])\s*exit\s+0(?:\s|$)/.test(trimmed)) {
+      exits = true;
+    }
+  }
+  return false;
 }

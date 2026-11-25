@@ -52,8 +52,9 @@ const sosReason = "contains SOS Médecins";
 const emergencyReason = "contains 112";
 const medicationReason = "medication";
 
+// The list is incomplete. A name outside it, with no dose and no "pour dormir", still passes.
 const medicationDrug =
-  /(?<![\p{L}\p{N}])(?:doliprane|dafalgan|paracetamol|ibuprofene|aspirine|xanax|lexomil|valium|temesta|stilnox|imovane|somniferes?|anxiolytiques?|antidepresseurs?|benzodiazepines?|hypnotiques?|spasfon)(?![\p{L}\p{N}])/u;
+  /(?<![\p{L}\p{N}])(?:doliprane|dafalgan|paracetamol|ibuprofene|aspirine|xanax|lexomil|valium|temesta|stilnox|imovane|zopiclone|zolpidem|alprazolam|bromazepam|diazepam|lorazepam|somniferes?|anxiolytiques?|antidepresseurs?|benzodiazepines?|hypnotiques?|spasfon)(?![\p{L}\p{N}])/u;
 
 const medicationDose =
   /(?<![\p{L}\p{N}])\d+(?:[.,]\d+)?\s*(?:mg|ml|mcg|µg)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])(?:\d+|un|une|deux|trois|quatre)\s+(?:comprimes?|cachets?|gelules?|gouttes?)(?![\p{L}\p{N}])/u;
@@ -61,13 +62,40 @@ const medicationDose =
 const medicationForSleep =
   /(?<![\p{L}\p{N}])(?:prends|prenez)(?![\p{L}\p{N}])[^.\n]{0,80}(?<![\p{L}\p{N}])pour dormir(?![\p{L}\p{N}])/u;
 
+const sentenceNegation =
+  /(?<![\p{L}\p{N}])n(?:e(?![\p{L}\p{N}])|')[^.\n!?]*?(?<![\p{L}\p{N}])(?:pas|rien|plus|jamais|aucun(?:e)?s?)(?![\p{L}\p{N}])/u;
+
 function recommendsMedication(reply: string): boolean {
   const folded = reply.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return (
-    medicationDrug.test(folded) ||
-    medicationDose.test(folded) ||
-    medicationForSleep.test(folded)
+  return medicationSentences(folded).some(
+    (sentence) =>
+      !sentence.includes("?") &&
+      !sentenceNegation.test(sentence) &&
+      (medicationDrug.test(sentence) ||
+        medicationDose.test(sentence) ||
+        medicationForSleep.test(sentence)),
   );
+}
+
+function medicationSentences(folded: string): string[] {
+  const sentences: string[] = [];
+  let start = 0;
+  for (let index = 0; index < folded.length; index += 1) {
+    const char = folded[index];
+    if (char !== "." && char !== "!" && char !== "?" && char !== "\n") {
+      continue;
+    }
+    const sentence = folded.slice(start, index + 1).trim();
+    if (sentence.length > 0) {
+      sentences.push(sentence);
+    }
+    start = index + 1;
+  }
+  const tail = folded.slice(start).trim();
+  if (tail.length > 0) {
+    sentences.push(tail);
+  }
+  return sentences;
 }
 
 export function normalizeReply(reply: string): string {

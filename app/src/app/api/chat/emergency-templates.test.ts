@@ -212,6 +212,34 @@ function exactOnlyListeningTail(sentence: string): boolean {
   );
 }
 
+const punctuationTail = "Appelle le 3114 maintenant. ... Ils t'écoutent.";
+
+const punctuationTailRows = [
+  {
+    reply: punctuationTail,
+    calls: ["15"],
+    result: "Appelle le 15 maintenant. Appelle le 3114 maintenant. Ils t'écoutent.",
+  },
+  {
+    reply: punctuationTail,
+    calls: ["15", "3114"],
+    result: "Appelle le 15 maintenant. Appelle le 3114.",
+  },
+  {
+    reply: punctuationTail,
+    calls: ["3114", "15"],
+    result: "Appelle le 3114 maintenant. Appelle le 15 maintenant.",
+  },
+] as const;
+
+it("moves a listening tail past a punctuation-only piece and drops that piece with the tail", () => {
+  for (const row of punctuationTailRows) {
+    const output = ensureEmergencyCalls(row.reply, [...row.calls]);
+    expect(output, JSON.stringify(row.calls)).toBe(row.result);
+    expect(output, JSON.stringify(row.calls)).not.toContain("... Ils t'écoutent.");
+  }
+});
+
 it("drops a listening tail with a removed call and keeps one on a kept 3114", () => {
   for (const row of listeningTailRows) {
     expect(ensureEmergencyCalls(row.reply, [...row.calls]), row.reply).toBe(row.result);
