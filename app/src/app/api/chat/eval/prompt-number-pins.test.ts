@@ -1,6 +1,11 @@
 import { expect, it } from "vitest";
 import { systemPrompt } from "../system-prompt.ts";
-import { promptNumberPinFailures, type PromptNumberRow } from "./prompt-number-pins.ts";
+import { detectEmergencyNumbers } from "./check.ts";
+import {
+  promptNumberPinFailures,
+  type PromptNumberRow,
+  splitSentences,
+} from "./prompt-number-pins.ts";
 import { promptNumberPinRows } from "./prompt-number-pin-rows.ts";
 
 const staleFailure = (sentence: string): string =>
@@ -282,9 +287,165 @@ it.each(noSplitCases)("does not report a split for $name", ({ text, rows, failur
   expect(promptNumberPinFailures(text, rows)).toEqual(failures);
 });
 
+const notOneToOne = (index: number, excerpt: string): string =>
+  `prompt is not 1:1 under emergency normalization at index ${index}: "${excerpt}"`;
+
 it("fails closed when normalization changes the prompt length", () => {
   expect(promptNumberPinFailures("Attends… Appelle le 15.", [])).toEqual([
-    "prompt changes length under emergency normalization, so detected numbers cannot be mapped to sentences",
+    notOneToOne(7, "… Appelle le 15."),
+  ]);
+});
+
+const romanRepro = [
+  "Règles.",
+  ...Array.from({ length: 10 }, (_, offset) => `  - règle ${offset + 1}.`),
+  "Tu refuses les appels au SOS.",
+  "Médecins… voir… voir… voir… voir…",
+].join("\n");
+const sosRow: PromptNumberRow = {
+  sentence: "Tu refuses les appels au SOS.",
+  numbers: ["sos"],
+};
+
+it("fails closed on the indentation plus ellipsis repro that shifted spans into a sentence", () => {
+  expect(romanRepro.length).toBe(normalizedLengthOf(romanRepro));
+  expect(promptNumberPinFailures(romanRepro, [sosRow])).toEqual([
+    notOneToOne(9, " - règle 1.\\n  - règl"),
+  ]);
+});
+
+it("fails closed on a zero-width space pair cancelled by a ligature", () => {
+  const text = "\u200B\u200BTu refuses les appels au SOS.\nMédecinsﬃ";
+  expect(text.length).toBe(normalizedLengthOf(text));
+  expect(promptNumberPinFailures(text, [sosRow])).toEqual([
+    notOneToOne(0, "\\u200B\\u200BTu refuses les app"),
+  ]);
+});
+
+function normalizedLengthOf(text: string): number {
+  return detectEmergencyNumbers(text).normalized.length;
+}
+
+type OneToOneCase = {
+  readonly name: string;
+  readonly text: string;
+  readonly index: number;
+  readonly excerpt: string;
+  readonly sameLength: boolean;
+};
+
+const oneToOneCases: readonly OneToOneCase[] = [
+  { name: "double space and a ligature", text: "Tu  dis ﬀ.", index: 3, excerpt: " dis ﬀ.", sameLength: true },
+  { name: "indentation and an ellipsis", text: "a\n   b…", index: 3, excerpt: "  b…", sameLength: true },
+  { name: "ZWSP and soft hyphen and an ellipsis", text: "a\u200B\u00ADb…", index: 1, excerpt: "\\u200B\\u00ADb…", sameLength: true },
+  { name: "a composing mark pair and an ellipsis", text: "e\u0301e\u0301…", index: 0, excerpt: "e\\u0301e\\u0301…", sameLength: true },
+  { name: "a stripped combining mark pair and an ellipsis", text: "x\u0301y\u0301…", index: 1, excerpt: "\\u0301y\\u0301…", sameLength: true },
+  { name: "a no-break space", text: "Appelle\u00A0le 15.", index: 7, excerpt: "\\u00A0le 15.", sameLength: true },
+  { name: "fullwidth digits", text: "Appelle le １５.", index: 11, excerpt: "１５.", sameLength: true },
+  { name: "leading whitespace", text: " Appelle le 15.", index: 0, excerpt: " Appelle le 15.", sameLength: false },
+  { name: "trailing whitespace", text: "Appelle le 15. ", index: 14, excerpt: " ", sameLength: false },
+  { name: "a CRLF line break", text: "Appelle.\r\nOk.", index: 8, excerpt: "\\r\\nOk.", sameLength: false },
+  { name: "a letter whose lower case is two code units", text: "Appelle İ 15.", index: 8, excerpt: "İ 15.", sameLength: false },
+];
+
+it.each(oneToOneCases)(
+  "fails closed when $name breaks the 1:1 normalization",
+  ({ text, index, excerpt, sameLength }) => {
+    if (sameLength) {
+      expect(text.length).toBe(normalizedLengthOf(text));
+    }
+    expect(promptNumberPinFailures(text, [])).toEqual([notOneToOne(index, excerpt)]);
+  },
+);
+
+type LineBreakCase = {
+  readonly name: string;
+  readonly text: string;
+  readonly failures: readonly string[];
+};
+
+const lineBreakCases: readonly LineBreakCase[] = [
+  { name: "LS", text: "Appelle le 1\u20285.", failures: [notOneToOne(12, "\\u20285.")] },
+  { name: "PS", text: "Appelle le 1\u20295.", failures: [notOneToOne(12, "\\u20295.")] },
+  { name: "CR", text: "Appelle le 1\r5.", failures: [notOneToOne(12, "\\r5.")] },
+  { name: "CRLF", text: "Appelle le 1\r\n5.", failures: [notOneToOne(12, "\\r\\n5.")] },
+  {
+    name: "an unclosed « that hides the full stop",
+    text: "« Appelle le 1. 5.",
+    failures: [`unclosed « at index 0: "« Appelle le 1. 5."`],
+  },
+  {
+    name: "an unclosed « on a line that ends at a newline",
+    text: "« Appelle le 15.\nOk.",
+    failures: [`unclosed « at index 0: "« Appelle le 15.\\nOk."`],
+  },
+  {
+    name: "a stray »",
+    text: "Appelle » le 15.",
+    failures: [`stray » at index 8: "» le 15."`],
+  },
+];
+
+it.each(lineBreakCases)("fails closed on $name even with an exact row", ({ text, failures }) => {
+  const row: PromptNumberRow = { sentence: text, numbers: ["15"] };
+  expect(promptNumberPinFailures(text, [row])).toEqual(failures);
+});
+
+it("keeps failing the plain split control as a split", () => {
+  expect(promptNumberPinFailures("Appelle le 1. 5.", [])).toEqual([splitFailure("1. 5", "15")]);
+});
+
+const splitterTexts = (text: string): readonly string[] =>
+  splitSentences(text).sentences.map((sentence) => sentence.text);
+
+it.each([
+  { name: "LS", text: "Appelle le 1\u20285." },
+  { name: "PS", text: "Appelle le 1\u20295." },
+  { name: "CR", text: "Appelle le 1\r5." },
+  { name: "CRLF", text: "Appelle le 1\r\n5." },
+  { name: "LF", text: "Appelle le 1\n5." },
+])("splits a sentence at every shared line break: $name", ({ text }) => {
+  expect(splitterTexts(text)).toEqual(["Appelle le 1", "5."]);
+  expect(splitSentences(text).problems).toEqual([]);
+});
+
+it.each([
+  {
+    name: "LS",
+    text: "« Appelle\u2028le 15. » ok.",
+    open: "« Appelle\\u2028le 15. » o",
+    stray: 17,
+  },
+  {
+    name: "PS",
+    text: "« Appelle\u2029le 15. » ok.",
+    open: "« Appelle\\u2029le 15. » o",
+    stray: 17,
+  },
+  { name: "CR", text: "« Appelle\rle 15. » ok.", open: "« Appelle\\rle 15. » o", stray: 17 },
+  {
+    name: "CRLF",
+    text: "« Appelle\r\nle 15. » ok.",
+    open: "« Appelle\\r\\nle 15. » ",
+    stray: 18,
+  },
+])("resets the quote depth at a line break: $name", ({ text, open, stray }) => {
+  expect(splitterTexts(text)).toEqual(["« Appelle", "le 15.", "» ok."]);
+  expect(splitSentences(text).problems).toEqual([
+    `unclosed « at index 0: "${open}"`,
+    `stray » at index ${stray}: "» ok."`,
+  ]);
+});
+
+it("reports the outermost « that stays open at the end of the text", () => {
+  expect(splitSentences("« a « b » c.").problems).toEqual([`unclosed « at index 0: "« a « b » c."`]);
+});
+
+it("fails when a duplicated row copies the first row", () => {
+  const [first] = promptNumberPinRows;
+  expect(first).toBeDefined();
+  expect(promptNumberPinFailures(systemPrompt, [first ?? sosRow, ...promptNumberPinRows])).toEqual([
+    outOfOrderFailure(first?.sentence ?? ""),
   ]);
 });
 

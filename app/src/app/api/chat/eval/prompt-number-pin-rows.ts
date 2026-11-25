@@ -98,4 +98,3 @@ export const promptNumberPinRows: readonly PromptNumberRow[] = [
     numbers: ["15", "3114"],
   },
 ];
-
