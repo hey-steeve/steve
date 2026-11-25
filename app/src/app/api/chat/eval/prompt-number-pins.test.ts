@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { call15Now, call3114, call3114Now } from "../emergency-templates.ts";
 import { systemPrompt } from "../system-prompt.ts";
@@ -494,4 +495,16 @@ it("checks order only among rows that matched exactly once", () => {
     unpinnedFailure(["15"], row15.sentence),
     unpinnedFailure(["15"], row15.sentence),
   ]);
+});
+
+it("keeps the pin rows literal: no import from the copy module and no interpolated copy constants", () => {
+  const source = readFileSync(
+    new URL("./prompt-number-pin-rows.ts", import.meta.url),
+    "utf8",
+  );
+  const copyImports = source.match(/^\s*import\b[^;]*emergency-templates[^;]*;/gm) ?? [];
+  const namedImports =
+    source.match(/^\s*import\b[^;]*\b(call15Now|call3114Now|call3114)\b[^;]*;/gm) ?? [];
+  const interpolations = source.match(/\$\{\s*(call15Now|call3114Now|call3114)\s*\}/g) ?? [];
+  expect([...copyImports, ...namedImports, ...interpolations]).toEqual([]);
 });

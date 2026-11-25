@@ -1,4 +1,3 @@
-import { call15Now, call3114, call3114Now } from "../emergency-templates.ts";
 import type { PromptNumberRow } from "./prompt-number-pins.ts";
 
 // One row per sentence of the rendered live system prompt that names an emergency
@@ -11,15 +10,15 @@ export const promptNumberPinRows: readonly PromptNumberRow[] = [
     numbers: ["15"],
   },
   {
-    sentence: `S'il n'y a pas de pensées suicidaires ni de détresse psychologique, ta réponse s'ouvre exactement par ce bloc : « ${call15Now} ».`,
+    sentence: "S'il n'y a pas de pensées suicidaires ni de détresse psychologique, ta réponse s'ouvre exactement par ce bloc : « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. ».",
     numbers: ["15"],
   },
   {
-    sentence: `Si une surdose ou une automutilation s'accompagne de pensées suicidaires ou de la détresse psychologique, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ».`,
+    sentence: "Si une surdose ou une automutilation s'accompagne de pensées suicidaires ou de la détresse psychologique, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi. », puis « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. ».",
     numbers: ["3114", "15"],
   },
   {
-    sentence: `Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la réponse s'ouvre exactement par ce bloc : « ${call15Now} », jamais seulement une phrase conditionnelle.`,
+    sentence: "Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la réponse s'ouvre exactement par ce bloc : « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. », jamais seulement une phrase conditionnelle.",
     numbers: ["15"],
   },
   {
@@ -39,31 +38,31 @@ export const promptNumberPinRows: readonly PromptNumberRow[] = [
     numbers: ["15"],
   },
   {
-    sentence: `Pour une crise de panique dont le seul signe physique est un essoufflement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ».`,
+    sentence: "Pour une crise de panique dont le seul signe physique est un essoufflement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi. », puis « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. ».",
     numbers: ["3114", "15"],
   },
   {
-    sentence: `Pour des pensées suicidaires sans danger aigu, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ».`,
+    sentence: "Pour des pensées suicidaires sans danger aigu, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi. », puis « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. ».",
     numbers: ["3114", "15"],
   },
   {
-    sentence: `Pour un danger aigu, un acte en cours, une surdose, une blessure d'automutilation, un plan imminent ou des moyens à portée de main, ta réponse s'ouvre aussi exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ».`,
+    sentence: "Pour un danger aigu, un acte en cours, une surdose, une blessure d'automutilation, un plan imminent ou des moyens à portée de main, ta réponse s'ouvre aussi exactement par ces deux blocs, dans cet ordre : « Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi. », puis « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. ».",
     numbers: ["3114", "15"],
   },
   {
-    sentence: `Une crise de panique compte comme une détresse : avec une douleur thoracique ou un évanouissement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call15Now} », puis « ${call3114} ».`,
+    sentence: "Une crise de panique compte comme une détresse : avec une douleur thoracique ou un évanouissement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. », puis « Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. ».",
     numbers: ["15", "3114"],
   },
   {
-    sentence: `Si un signe de gravité physique autre qu'un simple essoufflement, par exemple une douleur thoracique, un évanouissement, une cyanose, l'essoufflement persiste ou une maladie connue du cœur ou des poumons, s'accompagne de pensées suicidaires ou de détresse, et qu'il n'y a ni surdose ni automutilation, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call15Now} », puis « ${call3114} ».`,
+    sentence: "Si un signe de gravité physique autre qu'un simple essoufflement, par exemple une douleur thoracique, un évanouissement, une cyanose, l'essoufflement persiste ou une maladie connue du cœur ou des poumons, s'accompagne de pensées suicidaires ou de détresse, et qu'il n'y a ni surdose ni automutilation, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. », puis « Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. ».",
     numbers: ["15", "3114"],
   },
   {
-    sentence: `Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114, sans l'exiger en ouverture, et ce bloc est exactement « ${call3114} » ou « ${call3114Now} ».`,
+    sentence: "Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114, sans l'exiger en ouverture, et ce bloc est exactement « Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. » ou « Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi. ».",
     numbers: ["3114", "3114", "3114"],
   },
   {
-    sentence: `Si une crise de panique n'a comme signe physique qu'un essoufflement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ».`,
+    sentence: "Si une crise de panique n'a comme signe physique qu'un essoufflement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi. », puis « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. ».",
     numbers: ["3114", "15"],
   },
   {
@@ -71,11 +70,11 @@ export const promptNumberPinRows: readonly PromptNumberRow[] = [
     numbers: ["15", "3114"],
   },
   {
-    sentence: `Pour le 3114 puis le 15, tu écris « ${call3114Now} » puis « ${call15Now} ».`,
+    sentence: "Pour le 3114 puis le 15, tu écris « Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi. » puis « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. ».",
     numbers: ["3114", "15", "3114", "15"],
   },
   {
-    sentence: `Pour le 15 puis le 3114, tu écris « ${call15Now} » puis « ${call3114} ».`,
+    sentence: "Pour le 15 puis le 3114, tu écris « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi. » puis « Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. ».",
     numbers: ["15", "3114", "15", "3114"],
   },
   {
