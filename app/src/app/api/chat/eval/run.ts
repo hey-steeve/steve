@@ -1,8 +1,8 @@
 import {
   checkEmergencyReply,
   encodeSavedReply,
+  formatEmergencyScoreLine,
   normalizeReply,
-  type EmergencyCheck,
 } from "./check.ts";
 import { caseMessages, emergencyCases } from "./cases.ts";
 import {
@@ -20,15 +20,6 @@ const cannedReply =
 
 function write(line: string): void {
   process.stdout.write(`${line}\n`);
-}
-
-function formatNumbers(numbers: readonly string[]): string {
-  return `[${numbers.join(",")}]`;
-}
-
-function formatLine(id: string, result: EmergencyCheck): string {
-  const mark = result.pass ? "PASS" : "FAIL";
-  return `${id} ${mark} expected=${formatNumbers(result.expected)} found=${formatNumbers(result.found)} ${result.reason}`;
 }
 
 async function postMessage(item: (typeof emergencyCases)[number]): Promise<RouteClass> {
@@ -80,13 +71,14 @@ for (const [index, item] of emergencyCases.entries()) {
     optional3114Allowed:
       "optional3114Allowed" in item && item.optional3114Allowed,
     optional15Allowed: "optional15Allowed" in item && item.optional15Allowed,
+    forbidMedication: "forbidMedication" in item && item.forbidMedication,
   });
   if (result.pass) {
     passed += 1;
   } else {
     failed += 1;
   }
-  write(formatLine(item.id, result));
+  write(formatEmergencyScoreLine(item.id, result));
   write(encodeSavedReply(reply));
   write("");
 }

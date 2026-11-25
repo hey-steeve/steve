@@ -4,7 +4,7 @@ import { emergencyCases } from "./cases.ts";
 import {
   checkEmergencyReply,
   decodeSavedReply,
-  type EmergencyCheck,
+  formatEmergencyScoreLine,
 } from "./check.ts";
 import { evalExitCode, formatEvalSummary } from "./classify.ts";
 
@@ -165,13 +165,14 @@ export function rescoreSavedRun(text: string): RescoreReport {
       optional3114Allowed:
         "optional3114Allowed" in item && item.optional3114Allowed,
       optional15Allowed: "optional15Allowed" in item && item.optional15Allowed,
+      forbidMedication: "forbidMedication" in item && item.forbidMedication,
     });
     if (result.pass) {
       passed += 1;
     } else {
       failed += 1;
     }
-    lines.push(formatScoreLine(entry.id, result));
+    lines.push(formatEmergencyScoreLine(entry.id, result));
     lines.push(entry.reply);
     lines.push("");
   }
@@ -191,11 +192,6 @@ function formatErrorLine(id: string, detail: string): string {
     return `${id} ERROR`;
   }
   return `${id} ERROR ${detail}`;
-}
-
-function formatScoreLine(id: string, result: EmergencyCheck): string {
-  const mark = result.pass ? "PASS" : "FAIL";
-  return `${id} ${mark} expected=[${result.expected.join(",")}] found=[${result.found.join(",")}] ${result.reason}`;
 }
 
 function isCliEntry(): boolean {
