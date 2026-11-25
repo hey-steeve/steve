@@ -1363,15 +1363,29 @@ it("adds the safety sentence once to a reply that has no triage", async () => {
   expect(replyText(await response.json())).toBe(withSentence);
 });
 
-it("turns a model reply that only names 112 into a 502 with the safety sentence", async () => {
+it("answers a model reply that only names 112 with the fixed safety sentence", async () => {
   const fetchMock = triageFetch(
     () => Response.json(jevBody("consult", 0.74, "none")),
     "Appelle le 112.",
   );
   vi.stubGlobal("fetch", fetchMock);
   const response = await post(history);
-  expect(response.status).toBe(502);
-  expect(await response.json()).toEqual({ error: fallbackError });
+  expect(response.status).toBe(200);
+  expect(replyText(await response.json())).toBe(emergencySafetySentence);
+});
+
+it("keeps the 3114 offer button on a stripped-only reply", async () => {
+  const fetchMock = triageFetch(
+    () => Response.json(jevBody("consult", 0.74, "psychological")),
+    "Appelle plutôt le 112. Appelle SOS Médecins.",
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    reply: emergencySafetySentence,
+    calls: [{ type: "call", number: "3114" }],
+  });
 });
 
 it("keeps a 3114 offer non-urgent on a 502 and keeps the call button", async () => {

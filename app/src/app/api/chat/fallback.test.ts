@@ -8,7 +8,7 @@ import {
   type EmergencyCall,
 } from "./emergency-templates.js";
 import { checkEmergencyReply } from "./eval/check.js";
-import { fallbackText, upstreamError, withSafetySentence } from "./fallback.js";
+import { fallbackText, strippedReplyFallback, upstreamError, withSafetySentence } from "./fallback.js";
 
 type Case = {
   readonly name: string;
@@ -85,4 +85,8 @@ it("adds the safety sentence last, once, and within the message cap", () => {
   expect(capped.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
   expect(capped.endsWith(emergencySafetySentence)).toBe(true);
   expect(capped.startsWith("Une phrase. Une phrase.")).toBe(true);
+});
+
+it("replaces a stripped-only reply with exactly the safety sentence", () => {
+  expect(strippedReplyFallback).toBe(emergencySafetySentence);
 });

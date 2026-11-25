@@ -557,7 +557,64 @@ it("removes the refusal sentences too, since the checker fails them beside other
   const output = ensureEmergencyCalls(reply, ["15"]);
   expect(output).toBe(`${call15Now} Reste calme.`);
   expect(checkEmergencyReply(output, ["15"]).pass).toBe(true);
-  expect(withoutOtherServices(reply)).toBe("Reste calme.");
+  // Without an emergency opening the exact refusals stay. See the test below.
+  expect(withoutOtherServices(reply)).toBe(reply);
+});
+
+it("keeps the exact refusal sentences on a turn without an emergency opening", () => {
+  const refusals = `${refusal112} ${refusalSos}`;
+  expect(withoutOtherServices(refusals)).toBe(refusals);
+  expect(withoutOtherServices(refusal112)).toBe(refusal112);
+  expect(withoutOtherServices(refusalSos)).toBe(refusalSos);
+  expect(withoutOtherServices(refusals.toUpperCase())).toBe(refusals.toUpperCase());
+  expect(withoutOtherServices(refusal112.replace("'", "\u2019"))).toBe(
+    refusal112.replace("'", "\u2019"),
+  );
+  expect(withoutOtherServices(`${refusal112} Appelle SOS Médecins. Reste calme.`)).toBe(
+    `${refusal112} Reste calme.`,
+  );
+  expect(withoutOtherServices("Je ne te donne pas le 112, mais appelle-le.")).toBe("");
+  expect(ensureEmergencyCalls(refusals, ["3114"])).toBe(refusals);
+  expect(checkEmergencyReply(refusals, []).pass).toBe(true);
+});
+
+it("still strips the refusal sentences when the opening carries the 15", () => {
+  const refusals = `${refusal112} ${refusalSos}`;
+  expect(ensureEmergencyCalls(refusals, ["15"])).toBe(call15Now);
+  expect(ensureEmergencyCalls(refusals, ["3114", "15"])).toBe(`${call3114Now} ${call15Now}`);
+});
+
+it("keeps a sentence whose only 15 is a duration or a clock time that the checker accepts", () => {
+  const sentences = [
+    "Reste près de lui pendant 15 minutes.",
+    "Attends 15 minutes avant de bouger.",
+    "Le médecin passe dans 15 minutes.",
+    "Il est sorti à 15 h.",
+    "Il dort depuis quinze minutes.",
+  ];
+  for (const sentence of sentences) {
+    for (const calls of [["15"], ["3114", "15"], ["15", "3114"]] as const) {
+      const output = ensureEmergencyCalls(`${sentence} Reste calme.`, [...calls]);
+      expect(output, `${calls.join(",")} ${sentence}`).toContain(sentence);
+      const checked = checkEmergencyReply(output, [...calls]);
+      expect(checked.pass, `${calls.join(",")} ${output} ${checked.reason}`).toBe(true);
+    }
+  }
+});
+
+it("still strips a sentence whose 15 is a call, even beside a duration", () => {
+  const calls = ["15"] as const;
+  for (const sentence of [
+    "Appelle le 15 pendant 15 minutes.",
+    "Pendant 15 minutes, appelle le 15.",
+    "Rappelle le 15 dans 15 minutes.",
+    "Appelle le SAMU dans 15 minutes.",
+    "Reste 1,5 minute près de lui.",
+    "Reste près de lui pendant le 15 minutes.",
+  ]) {
+    const output = ensureEmergencyCalls(`${sentence} Reste calme.`, [...calls]);
+    expect(output, sentence).toBe(`${call15Now} Reste calme.`);
+  }
 });
 
 it("only removes 112 and SOS Médecins sentences on a turn without an emergency opening", () => {

@@ -4,8 +4,11 @@ import {
   call15Now,
   call3114Now,
   emergencySafetySentence,
+  refusal112,
+  refusalSos,
 } from "./emergency-templates.js";
 import { checkEmergencyReply, type EmergencyNumber } from "./eval/check.js";
+import { withoutSafetySentence } from "./eval/score-reply.js";
 import { POST } from "./route.js";
 import { resetTriageLog } from "./triage-log.js";
 
@@ -38,6 +41,8 @@ type ModelOutcome = {
   readonly text?: string;
   // The model text names its own 15 on purpose. See `ownsNumbers`.
   readonly namesOwn15?: true;
+  // The model text is the two exact refusal sentences the prompt asks for. See `withoutRefusals`.
+  readonly refusalsOnly?: true;
 };
 
 const jevOutcomes: readonly JevOutcome[] = [
@@ -106,6 +111,8 @@ const plain = "Reste au chaud.";
 const with112 = `Appelle plutôt le 112. ${plain}`;
 const withSos = `Appelle SOS Médecins. ${plain}`;
 const withSecond15 = `${call15Now} Appelle le 15. ${plain}`;
+const refusalsOnly = `${refusal112} ${refusalSos}`;
+const strippedOnly = "Appelle plutôt le 112. Appelle SOS Médecins.";
 
 const modelOutcomes: readonly ModelOutcome[] = [
   { id: "ok plain", respond: () => completion(plain), text: plain },
@@ -127,6 +134,13 @@ const modelOutcomes: readonly ModelOutcome[] = [
     text: withSecond15,
     namesOwn15: true,
   },
+  {
+    id: "ok refusals only",
+    respond: () => completion(refusalsOnly),
+    text: refusalsOnly,
+    refusalsOnly: true,
+  },
+  { id: "ok only stripped sentences", respond: () => completion(strippedOnly), text: strippedOnly },
 ];
 
 type Cell = { readonly jev: JevOutcome; readonly model: ModelOutcome };
@@ -149,17 +163,43 @@ function expectedNumbers(cell: Cell): Calls {
   return cell.jev.kind === "emergency" ? cell.jev.calls : [];
 }
 
-/** Model replies the route must turn into a 502 because nothing usable is left. */
-function modelFails(model: ModelOutcome): boolean {
-  return model.text === undefined || strippedOf112OrSos(model.text).length === 0;
+/** Model failures the route must turn into a 502: no usable model text at all. */
+function modelFails(cell: Cell): boolean {
+  return cell.model.text === undefined;
 }
 
-function strippedOf112OrSos(text: string): string {
+/**
+ * A non-urgent turn whose model text is only 112 or SOS sentences is not a failure. The route
+ * answers 200 with exactly the safety sentence and keeps the turn's calls. An emergency turn
+ * builds its opening from Jev's calls, so the text never matters there.
+ */
+function replacedBySafety(cell: Cell): boolean {
+  const text = cell.model.text;
+  return cell.jev.kind !== "emergency" && text !== undefined && keptOutsideServices(text).length === 0;
+}
+
+/** The 112 and SOS sentences go, except the two exact refusals the prompt asks for. */
+function keptOutsideServices(text: string): string {
   return text
     .split(/(?<=[.!?])\s+/u)
-    .filter((sentence) => !/112|SOS/iu.test(sentence))
+    .filter((sentence) => isRefusal(sentence) || !/112|SOS/iu.test(sentence))
     .join(" ")
     .trim();
+}
+
+function isRefusal(sentence: string): boolean {
+  return sentence === refusal112 || sentence === refusalSos;
+}
+
+/**
+ * The refusals name 112 and SOS Médecins on purpose, so the "contains" probes look past them.
+ * A cell that is not a refusals-only reply on a non-emergency turn gets no such pass.
+ */
+function withoutRefusals(cell: Cell, text: string): string {
+  if (cell.jev.kind === "emergency" || cell.model.refusalsOnly !== true) {
+    return text;
+  }
+  return text.replace(refusal112, "").replace(refusalSos, "");
 }
 
 /**
@@ -167,10 +207,16 @@ function strippedOf112OrSos(text: string): string {
  * "En cas d'urgence, appelle le 15." is neither a call template nor an exact warning,
  * so it counts as an unexpected 15 for every expected list. (A test below pins this.)
  * The safety sentence is therefore asserted by exact presence, and the checker scores
- * the rest of the text. Emergency cells carry no safety sentence and are scored whole.
+ * the rest of the text. The eval runner cuts the sentence the same way, through the
+ * shared `withoutSafetySentence`. Emergency cells carry no safety sentence and are scored whole.
  */
 function scoredText(text: string): string {
-  return text.replace(emergencySafetySentence, "").replace(/\s+/gu, " ").trim();
+  if (text.endsWith(upstreamError)) {
+    // A 502 text opens with the safety sentence, so it is cut off the front part.
+    const head = text.slice(0, text.length - upstreamError.length).trim();
+    return `${withoutSafetySentence(head)} ${upstreamError}`.trim();
+  }
+  return withoutSafetySentence(text);
 }
 
 /**
@@ -185,7 +231,8 @@ function ownsNumbers(cell: Cell): boolean {
 function violations(cell: Cell, seen: Observed): string[] {
   const found: string[] = [];
   const emergency = cell.jev.kind === "emergency";
-  const failed = modelFails(cell.model);
+  const failed = modelFails(cell);
+  const probed = withoutRefusals(cell, seen.text);
   const wantStatus = failed ? 502 : 200;
   if (seen.status !== wantStatus) {
     found.push(`status ${seen.status}, want ${wantStatus}`);
@@ -193,17 +240,21 @@ function violations(cell: Cell, seen: Observed): string[] {
   if (seen.text === upstreamError) {
     found.push("bare unavailability text");
   }
-  if (/(?<![0-9])112(?![0-9])/u.test(seen.text)) {
+  if (/(?<![0-9])112(?![0-9])/u.test(probed)) {
     found.push("contains 112");
   }
-  if (/sos/iu.test(seen.text)) {
+  if (/sos/iu.test(probed)) {
     found.push("contains SOS");
   }
   if (cell.jev.kind === "offer" && (seen.text.includes(call3114Now) || /3114[^.]*maintenant/u.test(seen.text))) {
     found.push("offer turned urgent");
   }
   const hasSafety = seen.text.includes(emergencySafetySentence);
-  const wantSafety = !emergency && (failed || cell.jev.kind === "no-triage");
+  const replaced = replacedBySafety(cell);
+  const wantSafety = !emergency && (failed || replaced || cell.jev.kind === "no-triage");
+  if (replaced && seen.status === 200 && seen.text !== emergencySafetySentence) {
+    found.push("stripped reply is not exactly the safety sentence");
+  }
   if (wantSafety && !hasSafety) {
     found.push("missing safety sentence");
   }
@@ -261,10 +312,15 @@ describe("every Jev outcome times every model outcome", () => {
   }
 });
 
-it("covers 10 Jev outcomes and 9 model outcomes", () => {
+it("covers 10 Jev outcomes and 11 model outcomes", () => {
   expect(jevOutcomes).toHaveLength(10);
-  expect(modelOutcomes).toHaveLength(9);
-  expect(cells).toHaveLength(90);
+  expect(modelOutcomes).toHaveLength(11);
+  expect(cells).toHaveLength(110);
+});
+
+it("keeps the refusals-only and stripped-only columns apart", () => {
+  expect(keptOutsideServices(refusalsOnly)).toBe(refusalsOnly);
+  expect(keptOutsideServices(strippedOnly)).toBe("");
 });
 
 it("pins that the checker accepts no expectation for the safety sentence", () => {
@@ -307,6 +363,21 @@ describe("mutation proof: the table reports a broken fallback", () => {
         cell.jev.kind === "offer" && seen.status === 502
           ? { ...seen, text: `${call3114Now} ${upstreamError}` }
           : seen,
+    },
+    {
+      name: "a stripped-only reply becomes a 502",
+      mutate: (cell, seen) =>
+        replacedBySafety(cell) && seen.status === 200
+          ? { ...seen, status: 502, text: `${emergencySafetySentence} ${upstreamError}` }
+          : seen,
+    },
+    {
+      name: "a stripped-only reply becomes empty",
+      mutate: (cell, seen) => (replacedBySafety(cell) && seen.status === 200 ? { ...seen, text: "" } : seen),
+    },
+    {
+      name: "a stripped-only reply loses its calls",
+      mutate: (cell, seen) => (replacedBySafety(cell) && seen.status === 200 ? { ...seen, calls: undefined } : seen),
     },
     {
       name: "112 slips back into a reply",

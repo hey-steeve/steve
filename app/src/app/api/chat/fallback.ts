@@ -20,6 +20,11 @@ export function fallbackText(emergency: readonly EmergencyCall[] | undefined): s
   return `${emergencySafetySentence} ${upstreamError}`;
 }
 
+// The 200 reply of a non-urgent turn whose model text is only 112 or SOS sentences. Those are
+// stripped, nothing is left, and the turn is not a model failure: the person gets the safety
+// sentence and keeps the turn's call buttons.
+export const strippedReplyFallback = emergencySafetySentence;
+
 // A 200 reply on a turn with no usable triage (missing key, throw, http, timeout, network, or a
 // malformed body). Nobody classified the message, so the reply must carry the safety sentence.
 // It goes last: the prompt wants a call sentence from the model first, and a generic line in

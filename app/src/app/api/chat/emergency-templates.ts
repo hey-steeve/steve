@@ -190,6 +190,8 @@ const closedListeningTails = new Set([
   normalizeEmergencyText("Ils t'écoutent jour et nuit."),
 ]);
 
+const normRefusal112 = normalizeEmergencyText(refusal112);
+const normRefusalSos = normalizeEmergencyText(refusalSos);
 const exactCallTemplates = new Set([norm15Now, norm3114Now, norm3114]);
 
 // The live path owns the numbers of a turn flagged by Jev. It keeps the model text only when that
@@ -220,12 +222,18 @@ export function ensureEmergencyCalls(
 
 // For a turn Jev did not flag, the model text stays as written except sentences that name 112
 // or SOS Médecins. Steve never routes there. A 15 or 3114 in the model text stays: on a turn Jev
-// under-triaged, the model is the second net.
+// under-triaged, the model is the second net. The two exact refusal sentences also stay: the
+// prompt asks for them when the person asks for 112 or SOS Médecins, and the checker accepts them
+// alone on a turn with no expected call. A refusal beside free text is a model fault the eval
+// reports. Only an emergency opening strips them, see `ensureEmergencyCalls`.
 export function withoutOtherServices(reply: string): string {
   const pieces = rawPieces(reply);
   const dropped = new Set<number>();
   for (let index = 0; index < pieces.length; index += 1) {
     const sentence = pieces[index]?.sentence ?? "";
+    if (isRefusalSentence(sentence)) {
+      continue;
+    }
     const names = namedServices(sentence);
     if (names.has112 || names.hasSos) {
       dropped.add(index);
@@ -236,6 +244,11 @@ export function withoutOtherServices(reply: string): string {
   }
   dropOrphans(pieces, dropped);
   return keptRaw(pieces, dropped).trim();
+}
+
+function isRefusalSentence(sentence: string): boolean {
+  const normalized = normalizeEmergencyText(sentence);
+  return normalized === normRefusal112 || normalized === normRefusalSos;
 }
 
 function templatesFor(calls: readonly EmergencyCall[]): string[] {
@@ -467,9 +480,10 @@ function pattern(source: string): RegExp {
   return new RegExp(source, "u");
 }
 
+// A match is blanked to spaces of the same length, so a later match keeps its offset.
 function masked(text: string, patterns: readonly RegExp[]): string {
   return patterns.reduce(
-    (rest, item) => rest.replace(new RegExp(item.source, "gu"), " "),
+    (rest, item) => rest.replace(new RegExp(item.source, "gu"), (hit) => " ".repeat(hit.length)),
     text,
   );
 }
@@ -493,7 +507,11 @@ function matchesAny(text: string, patterns: readonly RegExp[]): boolean {
   return patterns.some((item) => item.test(text));
 }
 
-// The same spellings the eval checker scans for, so a sentence this file keeps cannot trip it.
+// Close to the spellings the eval checker scans for (check.ts `scan`), but not identical: the
+// checker folds "SOS Médecins" into one span and takes `1,5` as a 15, as this file does. The
+// duration and clock rule below is the checker's. Stripping more than the checker rejects is the
+// safe side. A sentence kept here that the checker rejects would be the unsafe side, and the
+// emergency-templates tests run every kept output through `checkEmergencyReply` to rule it out.
 function namedServices(sentence: string): Named {
   const text = normalizeEmergencyText(sentence);
   const rest = masked(text, [...patterns3114, ...patterns112, ...patternsSos]);
@@ -501,8 +519,44 @@ function namedServices(sentence: string): Named {
     has3114: matchesAny(text, patterns3114),
     has112: matchesAny(text, patterns112),
     hasSos: matchesAny(text, patternsSos),
-    has15: matchesAny(rest, patterns15),
+    has15: names15(rest),
   };
+}
+
+// The same rule as `isDuration15` in check.ts (lines 895-918), which that file does not export:
+// a plain "15" or "quinze" after a duration cue and before a minutes or hours unit ("pendant 15
+// minutes"), or after "à" and before "h" ("à 15 h"), is no call. "le 15", "au 15" and "du 15"
+// stay calls. Keep the cues in step with check.ts.
+const durationCue =
+  /(?:^|[^\p{L}])(?:attendez|attendons|attendent|attends|attend|patientons|patientent|patientez|patientes|patiente|pendant|dans|depuis)[^\S\n]*$/u;
+const clockCue = /(?:^|[^\p{L}])(?:à|a)[^\S\n]*$/u;
+const blockedArticle = /(?:^|[^\p{L}])(?:le|au|du)[^\S\n]*$/u;
+const durationUnit = /^[^\S\n]*(?:minutes?|mins?|mn|heures?)(?!\p{L})/u;
+const clockUnit = /^[^\S\n]*h(?!\p{L})/u;
+
+function isDurationUse(text: string, start: number, end: number): boolean {
+  if (!/^(?:15|quinze)$/u.test(text.slice(start, end))) {
+    return false;
+  }
+  const newline = text.lastIndexOf("\n", start - 1);
+  const before = text.slice(newline + 1, start);
+  if (blockedArticle.test(before)) {
+    return false;
+  }
+  const after = text.slice(end);
+  if (durationCue.test(before) && durationUnit.test(after)) {
+    return true;
+  }
+  return clockCue.test(before) && clockUnit.test(after);
+}
+
+function names15(text: string): boolean {
+  return patterns15.some((item) =>
+    [...text.matchAll(new RegExp(item.source, "gu"))].some((hit) => {
+      const start = hit.index ?? 0;
+      return !isDurationUse(text, start, start + hit[0].length);
+    }),
+  );
 }
 
 function namesNumber(sentence: string): boolean {

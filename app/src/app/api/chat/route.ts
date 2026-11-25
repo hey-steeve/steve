@@ -15,7 +15,7 @@ import {
   type ChatTurn,
 } from "../../../chat/request";
 import { ensureEmergencyCalls, withoutOtherServices } from "./emergency-templates";
-import { fallbackText, withSafetySentence } from "./fallback";
+import { fallbackText, strippedReplyFallback, withSafetySentence } from "./fallback";
 import { openRouterModel } from "./openrouter-model";
 import { systemPrompt } from "./system-prompt";
 import { recordTriageLog } from "./triage-log";
@@ -226,11 +226,10 @@ function modelReply(
     );
     return { status: 200, body: { reply, mocked: false, model, calls: triage.calls } };
   }
-  // Steve never routes to 112 or SOS Médecins. Nothing usable left means a failed model.
-  const kept = withoutOtherServices(completion.reply);
-  if (kept.length === 0) {
-    return modelFailure(triage);
-  }
+  // Steve never routes to 112 or SOS Médecins. Nothing left after the strip is not a failed
+  // model: the turn is non-urgent, so it gets the fixed safety sentence and keeps its calls.
+  const stripped = withoutOtherServices(completion.reply);
+  const kept = stripped.length === 0 ? strippedReplyFallback : stripped;
   if (triage.kind === "none") {
     return { status: 200, body: { reply: withSafetySentence(kept), mocked: false, model } };
   }
