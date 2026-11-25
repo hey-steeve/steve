@@ -1206,19 +1206,14 @@ it("omits the exact 15 sentence when the success-path guard is disabled", async 
     const disabled = await post(history);
     expect(disabled.status).toBe(200);
     const disabledBody: unknown = await disabled.json();
+    // The final gate also builds its opening through the disabled guard, so nothing is spoken.
     expect(disabledBody).toEqual({
-      reply: row.model,
+      reply: "",
       mocked: false,
       model: "openai/gpt-6.1-terra",
       calls: item.calls,
     });
-    expect(parseChatReply(disabledBody)).toEqual({
-      kind: "ok",
-      reply: row.model,
-      mocked: false,
-      model: "openai/gpt-6.1-terra",
-      calls: item.calls,
-    });
+    expect(replyText(disabledBody).startsWith(call15Now)).toBe(false);
 
     mockedEnsure.mockImplementation(realEnsure);
     const enabledMock = triageFetch(() => Response.json(classifyPayload(item)), row.model);
@@ -1388,6 +1383,28 @@ it.each([
   expect(text).toContain(emergencySafetySentence);
   expect(text).not.toMatch(/^\s*(?:\d+\.|-)/u);
 });
+
+it.each([["Appelle le 1\nAppelle le 112.\n12."], ["Appelle le 1\n5."], ["Appelle le 31\n14."]])("never lets the stripper build a reply the checker rejects from %j on an emergency", async (modelText) => {
+  const fetchMock = triageFetch(() => Response.json(jevBody("emergency", 0.91, "physical")), modelText);
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(checkEmergencyReply(replyText(body), ["15"]).pass).toBe(true);
+});
+
+it.each([["Appelle le 1\nAppelle le 112.\n12."], ["Appelle le 1\n5."], ["Appelle le 31\n14."]])(
+  "never shows 112 or SOS Médecins from %j on a non-urgent turn",
+  async (modelText) => {
+    const fetchMock = triageFetch(() => Response.json(jevBody("need-info", 0.74, "none")), modelText);
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await post(history);
+    expect(response.status).toBe(200);
+    const reason = checkEmergencyReply(replyText(await response.json()), []).reason;
+    expect(reason).not.toContain("112");
+    expect(reason).not.toContain("SOS");
+  },
+);
 
 it("keeps the 3114 offer button on a stripped-only reply", async () => {
   const fetchMock = triageFetch(

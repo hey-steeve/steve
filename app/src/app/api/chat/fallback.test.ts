@@ -8,7 +8,15 @@ import {
   type EmergencyCall,
 } from "./emergency-templates.js";
 import { checkEmergencyReply } from "./eval/check.js";
-import { fallbackText, strippedReplyFallback, upstreamError, withSafetySentence } from "./fallback.js";
+import { ensureEmergencyCalls, withoutOtherServices } from "./emergency-templates.js";
+import {
+  fallbackText,
+  finalEmergencyReply,
+  keepNonUrgentReply,
+  strippedReplyFallback,
+  upstreamError,
+  withSafetySentence,
+} from "./fallback.js";
 
 type Case = {
   readonly name: string;
@@ -89,4 +97,72 @@ it("adds the safety sentence last, once, and within the message cap", () => {
 
 it("replaces a stripped-only reply with exactly the safety sentence", () => {
   expect(strippedReplyFallback).toBe(emergencySafetySentence);
+});
+
+// Model texts a review found surviving the heuristic stripper with a bad final emergency reply.
+const reviewExamples: readonly { readonly text: string; readonly numbers: readonly EmergencyCall[] }[] = [
+  { text: "Appelle le 1\nAppelle le 112.\n12.", numbers: ["15"] },
+  { text: "Appelle le 1\n5.", numbers: ["3114", "15"] },
+  { text: "Appelle le 31\n14.", numbers: ["15", "3114"] },
+];
+
+const passesAnything: typeof checkEmergencyReply = (_reply, expected) => ({
+  pass: true,
+  expected,
+  found: [],
+  reason: "ok",
+});
+
+function gatedEmergency(
+  gate: (reply: string, numbers: readonly EmergencyCall[]) => string,
+): string[] {
+  const failures: string[] = [];
+  for (const item of reviewExamples) {
+    const reply = gate(ensureEmergencyCalls(item.text, item.numbers), item.numbers);
+    if (!checkEmergencyReply(reply, item.numbers).pass) {
+      failures.push(item.text);
+    }
+  }
+  return failures;
+}
+
+it("builds an opening-only reply that passes the checker for every emergency order", () => {
+  for (const numbers of [["15"], ["3114", "15"], ["15", "3114"]] as const) {
+    expect(checkEmergencyReply(ensureEmergencyCalls("", numbers), numbers).pass).toBe(true);
+  }
+});
+
+it("gates a final emergency reply the checker rejects down to the opening only", () => {
+  expect(gatedEmergency((reply, numbers) => finalEmergencyReply(reply, numbers))).toEqual([]);
+  for (const item of reviewExamples) {
+    const reply = ensureEmergencyCalls(item.text, item.numbers);
+    const gated = finalEmergencyReply(reply, item.numbers);
+    expect(gated === reply || gated === ensureEmergencyCalls("", item.numbers)).toBe(true);
+  }
+});
+
+it("leaves a final emergency reply the checker accepts untouched", () => {
+  const reply = ensureEmergencyCalls("Reste avec lui.", ["15"]);
+  expect(finalEmergencyReply(reply, ["15"])).toBe(reply);
+});
+
+it("fails the emergency examples when the gate is an identity", () => {
+  const identity = (reply: string): string => reply;
+  expect(gatedEmergency(identity).length).toBeGreaterThan(0);
+  const passing = (reply: string, numbers: readonly EmergencyCall[]): string =>
+    finalEmergencyReply(reply, numbers, passesAnything);
+  expect(gatedEmergency(passing).length).toBeGreaterThan(0);
+});
+
+it("replaces a non-urgent reply that carries 112 or SOS Médecins with the safety sentence", () => {
+  const joined = withoutOtherServices("Appelle le 1\nAppelle le 112.\n12.");
+  expect(keepNonUrgentReply(`${joined} Appelle le 112.`)).toBe(strippedReplyFallback);
+  expect(keepNonUrgentReply("Appelle SOS Médecins.")).toBe(strippedReplyFallback);
+  expect(keepNonUrgentReply("Appelle le 112 ou le 15.")).toBe(strippedReplyFallback);
+});
+
+it("keeps a non-urgent reply that only fails for other reasons", () => {
+  expect(keepNonUrgentReply("Appelle le 15.")).toBe("Appelle le 15.");
+  expect(keepNonUrgentReply("Repose-toi.")).toBe("Repose-toi.");
+  expect(keepNonUrgentReply("Appelle le 112.", passesAnything)).toBe("Appelle le 112.");
 });

@@ -5,6 +5,7 @@ import {
   normalizeEmergencyText,
   type EmergencyCall,
 } from "./emergency-templates.ts";
+import { checkEmergencyReply } from "./eval/check.ts";
 
 export const upstreamError = "Le service de chat est indisponible. Réessayez.";
 
@@ -24,6 +25,28 @@ export function fallbackText(emergency: readonly EmergencyCall[] | undefined): s
 // stripped, nothing is left, and the turn is not a model failure: the person gets the safety
 // sentence and keeps the turn's call buttons.
 export const strippedReplyFallback = emergencySafetySentence;
+
+// Final gate on an emergency reply. The heuristic stripper can still join or split digits into a
+// 112 or lose the order of the numbers. The eval checker is the judge: a reply it rejects is
+// replaced by the deterministic opening alone, which the checker accepts for every order.
+// An optional 3114 is allowed: a physical 15 turn may keep the model's own 3114 sentence.
+export function finalEmergencyReply(
+  reply: string,
+  numbers: readonly EmergencyCall[],
+  check: typeof checkEmergencyReply = checkEmergencyReply,
+): string {
+  return check(reply, numbers, { optional3114Allowed: true }).pass ? reply : ensureEmergencyCalls("", numbers);
+}
+
+// Final gate on a non-urgent reply, after the strip. Only 112 and SOS Médecins are gated here.
+// A model's own 15 or 3114 is left to the prompt and the checker, which stay the second net.
+export function keepNonUrgentReply(
+  kept: string,
+  check: typeof checkEmergencyReply = checkEmergencyReply,
+): string {
+  const { reason } = check(kept, []);
+  return reason.includes("112") || reason.includes("SOS") ? strippedReplyFallback : kept;
+}
 
 // A 200 reply on a turn with no usable triage (missing key, throw, http, timeout, network, or a
 // malformed body). Nobody classified the message, so the reply must carry the safety sentence.

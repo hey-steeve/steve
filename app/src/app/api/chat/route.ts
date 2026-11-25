@@ -15,7 +15,13 @@ import {
   type ChatTurn,
 } from "../../../chat/request";
 import { ensureEmergencyCalls, withoutOtherServices } from "./emergency-templates";
-import { fallbackText, strippedReplyFallback, withSafetySentence } from "./fallback";
+import {
+  fallbackText,
+  finalEmergencyReply,
+  keepNonUrgentReply,
+  strippedReplyFallback,
+  withSafetySentence,
+} from "./fallback";
 import { openRouterModel } from "./openrouter-model";
 import { systemPrompt } from "./system-prompt";
 import { recordTriageLog } from "./triage-log";
@@ -220,10 +226,8 @@ function modelReply(
 ): ChatHttpResult {
   const model = completion.model;
   if (triage.kind === "emergency") {
-    const reply = ensureEmergencyCalls(
-      completion.reply,
-      triage.calls.map((call) => call.number),
-    );
+    const numbers = triage.calls.map((call) => call.number);
+    const reply = finalEmergencyReply(ensureEmergencyCalls(completion.reply, numbers), numbers);
     return { status: 200, body: { reply, mocked: false, model, calls: triage.calls } };
   }
   // Steve never routes to 112 or SOS Médecins. Nothing left after the strip is not a failed
@@ -231,7 +235,9 @@ function modelReply(
   // Leftover list markers such as "1." or "-" count as nothing too. A bare number of two digits
   // or more ("15.", "3114.") is an emergency number the model kept, so it stays.
   const stripped = withoutOtherServices(completion.reply);
-  const kept = /[\p{L}]|\d{2}/u.test(stripped) ? stripped : strippedReplyFallback;
+  const kept = keepNonUrgentReply(
+    /[\p{L}]|\d{2}/u.test(stripped) ? stripped : strippedReplyFallback,
+  );
   if (triage.kind === "none") {
     return { status: 200, body: { reply: withSafetySentence(kept), mocked: false, model } };
   }
