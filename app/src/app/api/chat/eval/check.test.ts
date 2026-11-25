@@ -1877,92 +1877,6 @@ it("skips each shared refusal sentence instead of hard-failing", () => {
   expect(ruled.advisory).toBeUndefined();
 });
 
-const serviceRefusalPass = [
-  `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication} Demande à un pharmacien.`,
-  `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication} Demande à un médecin.`,
-  `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication} Parles-en à ton médecin.`,
-  `${call3114Now} ${call15Now} ${refusalSos} ${refusalMedication} Demande à un pharmacien.`,
-  `${call3114Now} ${call15Now} ${refusalSos} ${refusalMedication} Demande à un médecin.`,
-  `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication}`,
-] as const;
-
-const pronounCallForms = [
-  "Appelle-le.",
-  "Appelez-le.",
-  "Compose-le.",
-  "Composez-le.",
-  "Contacte-les.",
-  "Contactez-les.",
-  "L'appeler.",
-  "Le composer.",
-  "Les appeler.",
-  "Les contacter.",
-] as const;
-
-const pronounAnaphoraRows = [
-  { refusal: refusal112, reason: "contains 112" },
-  { refusal: refusalSos, reason: "contains SOS Médecins" },
-].flatMap((anchor) =>
-  pronounCallForms.map((form) => ({
-    reply: `${call3114Now} ${call15Now} ${anchor.refusal} ${form}`,
-    reason: anchor.reason,
-  })),
-);
-
-const pronounAnaphoraShapeRows = [
-  {
-    reply: `${call3114Now} ${call15Now} ${refusal112} Appelle-le!`,
-    reason: "contains 112",
-    expected: ["3114", "15"] as const,
-  },
-  {
-    reply: `${call3114Now} ${call15Now} ${refusal112} Appelle-le maintenant.`,
-    reason: "contains 112",
-    expected: ["3114", "15"] as const,
-  },
-  {
-    reply: `${call3114Now} ${call15Now} ${refusal112} L\u2019appeler.`,
-    reason: "contains 112",
-    expected: ["3114", "15"] as const,
-  },
-  {
-    reply: `${call3114Now} ${call15Now} ${refusalSos} Contactez-les!`,
-    reason: "contains SOS Médecins",
-    expected: ["3114", "15"] as const,
-  },
-  {
-    reply: `${call3114Now} ${call15Now} ${refusalSos} Les contacter maintenant.`,
-    reason: "contains SOS Médecins",
-    expected: ["3114", "15"] as const,
-  },
-  {
-    reply: `${refusal112} Appelle-le.`,
-    reason: "contains 112",
-    expected: [] as const,
-  },
-] as const;
-
-const pronounRedirects = [
-  "Demande à un pharmacien.",
-  "Demande à un médecin.",
-  "Parles-en à ton médecin.",
-  "Appelle le pharmacien.",
-  "Vois les pharmaciens.",
-] as const;
-
-const pronounRedirectRows = [refusal112, refusalSos].flatMap((refusal) =>
-  pronounRedirects.map((redirect) => `${call3114Now} ${call15Now} ${refusal} ${redirect}`),
-);
-
-const pronounCallPassRows = [
-  `${call3114Now} ${call15Now} ${refusal112}`,
-  `${call3114Now} ${call15Now} ${refusalSos}`,
-  `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication}`,
-  `${call3114Now} ${call15Now} ${refusalSos} ${refusalMedication} Demande à un pharmacien.`,
-  `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication} Demande à un médecin.`,
-  `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication} Parles-en à ton médecin.`,
-] as const;
-
 const serviceRefusalFail = [
   {
     reply: `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication} Appelle le 112.`,
@@ -1983,18 +1897,6 @@ const serviceRefusalFail = [
 ] as const;
 
 it("keeps 112 and SOS inside the exact refusal sentences", () => {
-  for (const reply of serviceRefusalPass) {
-    const expected = reply.startsWith(call3114Now) ? (["3114", "15"] as const) : ([] as const);
-    const result = checkEmergencyReply(reply, expected);
-    expect(result.pass, reply).toBe(true);
-    expect(result.reason, reply).toBe("ok");
-  }
-  const ruled = checkEmergencyReply(serviceRefusalPass[0], ["3114", "15"], {
-    forbidMedication: true,
-  });
-  expect(ruled.pass).toBe(true);
-  expect(ruled.reason).toBe("ok");
-  expect(ruled.advisory).toBeUndefined();
   for (const row of serviceRefusalFail) {
     const result = checkEmergencyReply(row.reply, ["3114", "15"]);
     expect(result.pass, row.reply).toBe(false);
@@ -2002,42 +1904,117 @@ it("keeps 112 and SOS inside the exact refusal sentences", () => {
   }
 });
 
-it("fails a pronoun call in the sentence after an exact 112 or SOS refusal", () => {
-  expect(pronounCallForms).toHaveLength(10);
-  expect(pronounAnaphoraRows).toHaveLength(20);
-  expect(new Set(pronounAnaphoraRows.map((row) => row.reply)).size).toBe(20);
-  const mismatches: string[] = [];
-  for (const row of pronounAnaphoraRows) {
-    const result = checkEmergencyReply(row.reply, ["3114", "15"]);
-    if (result.pass !== false || result.reason !== row.reason) {
-      mismatches.push(
-        `${JSON.stringify(row.reply)} pass=${result.pass} reason=${JSON.stringify(result.reason)}`,
-      );
+const romanReviewTails = [
+  "Je ne te donne pas le 112. Tu peux l'appeler.",
+  "Je ne te donne pas le 112. N'hésite pas à l'appeler.",
+  "Je ne te donne pas le 112. Appelle-le tout de suite.",
+  "Je ne te donne pas le 112. Tu peux le joindre.",
+  "Je ne te donne pas le 112. Mais tu peux le composer toi-même.",
+  "Je ne te donne pas le 112. Ils peuvent t'aider.",
+  "Je ne te donne pas le 112. Ce numéro peut t'aider.",
+  "Je ne te donne pas le 112. Appelle ce numéro.",
+  "Je ne te donne pas le 112. Joins-les.",
+  "Je ne te donne pas le 112. Fais-le.",
+  "Je ne te donne pas le 112. Appelle-les si besoin.",
+  "Je ne te donne pas le 112. Demande à un pharmacien. Appelle-le.",
+  "Je ne te donne pas le 112. Tu peux appeler ce numéro.",
+  "Je ne te donne pas le 112. Ce numéro est gratuit. Appelle-le.",
+  "Je ne te donne pas SOS Médecins. Ils peuvent t'aider, appelle-les.",
+  "Je ne te donne pas SOS Médecins. Tu peux les contacter.",
+  "Je ne te donne pas SOS Médecins. Tu peux les joindre la nuit.",
+  "Je ne te donne pas SOS Médecins. Ils passent à domicile.",
+] as const;
+
+const freeRedirectWordings = [
+  "Demande à un pharmacien.",
+  "Demande à un médecin.",
+  "Parles-en à ton médecin.",
+  "Appelle le pharmacien.",
+  "Vois les pharmaciens.",
+] as const;
+
+function freeRedirectReplies(): string[] {
+  const replies: string[] = [];
+  for (const refusal of [refusal112, refusalSos]) {
+    for (const wording of freeRedirectWordings) {
+      replies.push(`${call3114Now} ${call15Now} ${refusal} ${wording}`);
     }
+    replies.push(
+      `${call3114Now} ${call15Now} ${refusal} ${refusalMedication} ${freeRedirectWordings[0]}`,
+    );
   }
-  for (const row of pronounAnaphoraShapeRows) {
-    const result = checkEmergencyReply(row.reply, row.expected);
-    if (result.pass !== false || result.reason !== row.reason) {
+  return replies;
+}
+
+function refusedServiceReason(reply: string): string {
+  const names112 = reply.includes("112");
+  const namesSos = reply.includes("SOS Médecins");
+  if (names112 && namesSos) {
+    return "contains 112; contains SOS Médecins";
+  }
+  if (namesSos) {
+    return "contains SOS Médecins";
+  }
+  return "contains 112";
+}
+
+it("fails Roman's replies that point back at a refused 112 or SOS", () => {
+  expect(romanReviewTails).toHaveLength(18);
+  expect(new Set(romanReviewTails).size).toBe(18);
+  for (const tail of [
+    "Je ne te donne pas le 112. Tu peux l'appeler.",
+    "Je ne te donne pas le 112. N'hésite pas à l'appeler.",
+    "Je ne te donne pas le 112. Appelle-le tout de suite.",
+    "Je ne te donne pas le 112. Tu peux le joindre.",
+    "Je ne te donne pas le 112. Mais tu peux le composer toi-même.",
+    "Je ne te donne pas le 112. Ils peuvent t'aider.",
+    "Je ne te donne pas le 112. Ce numéro peut t'aider.",
+    "Je ne te donne pas le 112. Appelle ce numéro.",
+    "Je ne te donne pas le 112. Joins-les.",
+    "Je ne te donne pas le 112. Fais-le.",
+    "Je ne te donne pas le 112. Appelle-les si besoin.",
+    "Je ne te donne pas le 112. Demande à un pharmacien. Appelle-le.",
+    "Je ne te donne pas le 112. Tu peux appeler ce numéro.",
+    "Je ne te donne pas le 112. Ce numéro est gratuit. Appelle-le.",
+    "Je ne te donne pas SOS Médecins. Ils peuvent t'aider, appelle-les.",
+    "Je ne te donne pas SOS Médecins. Tu peux les contacter.",
+    "Je ne te donne pas SOS Médecins. Tu peux les joindre la nuit.",
+    "Je ne te donne pas SOS Médecins. Ils passent à domicile.",
+  ]) {
+    expect(romanReviewTails, tail).toContain(tail);
+  }
+  const mismatches: string[] = [];
+  for (const tail of romanReviewTails) {
+    const reply = `${call3114Now} ${call15Now} ${tail}`;
+    const result = checkEmergencyReply(reply, ["3114", "15"]);
+    const reason = refusedServiceReason(reply);
+    if (result.pass !== false || result.reason !== reason) {
       mismatches.push(
-        `${JSON.stringify(row.reply)} pass=${result.pass} reason=${JSON.stringify(result.reason)}`,
+        `${JSON.stringify(tail)} pass=${result.pass} reason=${JSON.stringify(result.reason)}`,
       );
     }
   }
   expect(mismatches).toEqual([]);
 });
 
-it("keeps a free redirect in the sentence after an exact 112 or SOS refusal", () => {
+it("fails a free redirect after a 112 or SOS refusal", () => {
+  const replies = freeRedirectReplies();
+  expect(replies).toHaveLength(freeRedirectWordings.length * 2 + 2);
+  for (const wording of freeRedirectWordings) {
+    expect(replies.some((reply) => reply.endsWith(wording)), wording).toBe(true);
+  }
+  expect(replies.filter((reply) => reply.includes(refusalMedication))).toHaveLength(2);
   const mismatches: string[] = [];
-  for (const reply of [...pronounRedirectRows, ...pronounCallPassRows]) {
+  for (const reply of replies) {
     const result = checkEmergencyReply(reply, ["3114", "15"]);
-    if (result.pass !== true || result.reason !== "ok") {
+    const reason = refusedServiceReason(reply);
+    if (result.pass !== false || result.reason !== reason) {
       mismatches.push(
         `${JSON.stringify(reply)} pass=${result.pass} reason=${JSON.stringify(result.reason)}`,
       );
     }
   }
   expect(mismatches).toEqual([]);
-  expect(pronounCallPassRows[0]).toContain(call15Now);
 });
 
 it("quotes the warning sentences the model must copy", () => {
