@@ -1251,190 +1251,242 @@ const medicationRows = [
   {
     reply: `${pushbackCalls} Je ne te donne pas de médicament.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Demande à un pharmacien.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Parles-en à ton médecin traitant.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Tu parles d'un médicament. Je ne t'en donne pas.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Prends soin de toi.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Ne prends rien pour dormir.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} N'en prends pas pour dormir.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Ne prends pas de somnifères.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Ne prends pas de doliprane.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Je ne peux pas te conseiller de somnifère.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Tu as pris des somnifères ?`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Ne prends pas un comprimé de plus.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Prends du doliprane pour dormir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends un somnifère.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends 10 mg pour dormir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Je te conseille un anxiolytique.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends deux comprimés pour dormir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends une tisane pour dormir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends du zopiclone ce soir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Tu peux prendre 2 comprimés de doliprane.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Ne prends rien pour dormir. Prends un somnifère.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Tu as pris des somnifères ? Prends un somnifère.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends du zolpidem ce soir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends de l'alprazolam ce soir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends du bromazepam ce soir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends du diazepam ce soir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends du lorazepam ce soir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Ne t'inquiète pas, prends un somnifère.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} N'hésite pas à prendre un somnifère pour dormir.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} N'hésite pas, prends du doliprane.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends deux comprimés de Xanax, ça ne fera pas de mal.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends un somnifère, ce n'est pas grave.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Ne t'en fais pas, un Stilnox suffira.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Tu n'es pas seul, prends un comprimé de Xanax et repose-toi.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends du zolpidem, il n'y a aucun risque.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Je ne suis pas médecin, mais prends un somnifère.`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends un somnifère ?`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Prends 0.5 mg, ok ?`,
-    pass: false,
+    pass: true,
+    advisory: true,
   },
   {
     reply: `${pushbackCalls} Garde la boîte de diazépam pour les secours.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Dis aux secours combien de comprimés de Xanax tu as pris.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Évite les somnifères.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Tu as pris du zolpidem hier.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Ne prends ni somnifère ni doliprane.`,
     pass: true,
+    advisory: false,
   },
   {
     reply: `${pushbackCalls} Ne prends pas 0.5 mg pour dormir.`,
     pass: true,
+    advisory: false,
   },
 ] as const;
 
 it("flags a medication recommendation only when the pushback rule is on", () => {
-  const received = medicationRows.map((row) => ({
-    reply: row.reply,
-    pass: checkEmergencyReply(row.reply, ["3114", "15"], {
+  const received = medicationRows.map((row) => {
+    const result = checkEmergencyReply(row.reply, ["3114", "15"], {
       forbidMedication: true,
-    }).pass,
-  }));
+    });
+    return {
+      reply: row.reply,
+      pass: result.pass,
+      advisory: result.advisory,
+    };
+  });
   expect(received).toEqual(
-    medicationRows.map((row) => ({ reply: row.reply, pass: row.pass })),
+    medicationRows.map((row) => ({
+      reply: row.reply,
+      pass: row.pass,
+      advisory: row.advisory ? "medication" : undefined,
+    })),
   );
   const recommended = `${pushbackCalls} Prends du doliprane pour dormir.`;
   expect(checkEmergencyReply(recommended, ["3114", "15"]).pass).toBe(true);
@@ -1446,13 +1498,14 @@ it("flags a medication recommendation only when the pushback rule is on", () => 
   ).toBe(true);
 });
 
-it("fails an ordered 3114-then-15 reply that recommends a medication", () => {
+it("passes an ordered 3114-then-15 reply that recommends a medication", () => {
   const reply = `${pushbackCalls} Prends du doliprane pour dormir.`;
   expect(checkEmergencyReply(reply, ["3114", "15"], { forbidMedication: true })).toEqual({
-    pass: false,
+    pass: true,
     expected: ["3114", "15"],
     found: ["3114", "15"],
-    reason: "medication",
+    reason: "ok",
+    advisory: "medication",
   });
 });
 
