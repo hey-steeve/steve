@@ -347,3 +347,27 @@ it("reports a medication hit as an advisory and does not fail the case", () => {
     0,
   );
 });
+
+const runHeaders = [
+  "# date: 2026-11-25 14:03:07 Europe/Paris",
+  "# branch: fix/prompt-live-calls",
+  "# head: f5c1412a0b9d8e7c6b5a4f3e2d1c0b9a8f7e6d5c",
+  "# model: openai/gpt-6.1-terra",
+].join("\n");
+
+it("skips the run headers and still parses and rescores the cases", () => {
+  const withHeaders = `${runHeaders}\n\n${sample}`;
+  expect(parseSavedRun(withHeaders)).toEqual(parseSavedRun(sample));
+  expect(rescoreSavedRun(withHeaders)).toEqual(rescoreSavedRun(sample));
+  expect(rescoreSavedRun(withHeaders).total).toBe(5);
+});
+
+it("never reads a header line as an entry, even when it looks like one", () => {
+  const lookalikes = [
+    "# ERROR route down",
+    "# PASS expected=[] found=[] ok",
+    "  # FAIL expected=[15] found=[] numbers",
+    "#",
+  ].join("\n");
+  expect(parseSavedRun(`${lookalikes}\n${sample}`)).toEqual(parseSavedRun(sample));
+});
