@@ -63,7 +63,7 @@ The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Lang
 
 `Turn` fields are `sessionId`, `turnId`, `channel`, and `text`. `channel` is `voice` or `text`.
 
-`state` is `Turn.text` for the last 6 turns, oldest first, with the current turn last. `sessionId`, `turnId`, `target`, `intent`, and `channel` stay out of `state`.
+`state` is `Turn.text` for every turn, oldest first, joined by a newline, with the current turn last. The state holds about `triageStateCharBudget` (8000) characters. The budget is a cap, counting every newline, except a lone current turn longer than it, which is sent whole and alone. Above the cap, the latest turns fill up to half the budget, and the first turns take only the room left, as whole turns. The middle turns are dropped. The rule reads position and length only, never meaning. `sessionId`, `turnId`, `target`, `intent`, and `channel` stay out of `state`.
 
 Emergency copies `calls` in the order `ClassifyResult` gives. Consult, self-care, and genuine need-info copy `calls` when that result has them. Those decisions omit `calls` when the result has none.
 

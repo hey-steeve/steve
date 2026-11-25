@@ -108,6 +108,9 @@ function triageFields(decision: TriageDecision): LiveTriage {
   return {};
 }
 
+// Every user turn goes to `triageTurn`. The request is already bounded by `chatRequestLimits`
+// (40 messages, 4000 characters each), and `triageTurn` applies the state character budget.
+// Assistant turns stay out: the classifier reads what the person said.
 function chatHandoff(messages: readonly ChatTurn[]): Handoff<readonly Turn[]> {
   const sessionId = "chat";
   const turns: Turn[] = [];

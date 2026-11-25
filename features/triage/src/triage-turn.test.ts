@@ -1,6 +1,7 @@
 import { expect, expectTypeOf, it } from "vitest";
 import type { Handoff, Turn, TurnChannel } from "@steve/shared";
 import {
+  triageStateCharBudget,
   triageTurn,
   type ClassifyResult,
   type EmergencyCalls,
@@ -96,8 +97,28 @@ it("accepts a care_request handoff and classifies its current turn text", async 
   expect(decision).toEqual({ label: "self-care" });
 });
 
-it("classifies the last 6 turns when the handoff includes earlier turns", async () => {
-  const earlierTexts = [
+async function stateSeen(handoff: Handoff<readonly Turn[]>): Promise<string> {
+  const seen: string[] = [];
+  await triageTurn({
+    handoff,
+    classify: async ({ state }) => {
+      seen.push(state);
+      return { label: "self-care", probability: 0.7 };
+    },
+  });
+  const state = seen[0];
+  if (state === undefined) {
+    throw new Error("classify was not called");
+  }
+  return state;
+}
+
+function earlier(texts: readonly string[]): Turn[] {
+  return texts.map((text, index) => demoTurn(text, `turn-earlier-${index + 1}`));
+}
+
+it("sends every turn when the conversation fits the character budget", async () => {
+  const texts = [
     "Hier matin, j'avais un peu mal à la gorge.",
     "À midi, la douleur était toujours légère.",
     "Le soir, je toussais sans fièvre.",
@@ -107,26 +128,115 @@ it("classifies the last 6 turns when the handoff includes earlier turns", async 
     "À midi, je bois de l'eau et je me repose.",
     "Cet après-midi, rien de nouveau, juste la toux.",
   ] as const;
-  const earlierTurns = earlierTexts.map((text, index) => demoTurn(text, `turn-earlier-${index + 1}`));
+  const state = await stateSeen(careHandoff(currentText, earlier(texts)));
+  expect(state).toBe([...texts, currentText].join("\n"));
+});
+
+it("keeps a risk sentence from more than 6 user turns back", async () => {
+  const risk = "Hier soir j'ai pensé à en finir.";
+  const calm = Array.from({ length: 9 }, (_, index) => `Rien de nouveau, message ${index + 1}.`);
+  const state = await stateSeen(careHandoff(currentText, earlier([risk, ...calm])));
+  expect(state).toContain(risk);
+  expect(state.split("\n")).toHaveLength(11);
+  expect(state.endsWith(currentText)).toBe(true);
+});
+
+it("passes a risk sentence 7 turns back to the classifier", async () => {
+  const risk = "Je n'ai plus envie de vivre.";
+  const turns = earlier([risk, ...Array.from({ length: 6 }, (_, index) => `Suite ${index + 1}.`)]);
   const seen: string[] = [];
-  await triageTurn({
-    handoff: careHandoff(currentText, earlierTurns),
+  const decision = await triageTurn({
+    handoff: careHandoff(currentText, turns),
     classify: async ({ state }) => {
       seen.push(state);
-      return { label: "self-care", probability: 0.7 };
+      return state.includes(risk)
+        ? { label: "emergency", probability: 0.95, calls: [{ type: "call", number: "3114" }, { type: "call", number: "15" }] }
+        : { label: "self-care", probability: 0.7 };
     },
   });
+  expect(decision).toEqual({
+    label: "emergency",
+    calls: [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ],
+  });
+  expect(seen).toHaveLength(1);
+});
 
-  expect(seen).toEqual([
-    [
-      "Cette nuit, j'ai peu dormi à cause de la toux.",
-      "Ce matin, je me sens fatigué, sans gêne forte.",
-      "À 10 h, la toux est restée sèche.",
-      "À midi, je bois de l'eau et je me repose.",
-      "Cet après-midi, rien de nouveau, juste la toux.",
-      currentText,
-    ].join("\n"),
-  ]);
+it("keeps both the first turns and the latest turns when the budget is exceeded", async () => {
+  const half = triageStateCharBudget / 2;
+  const first = `Premier: j'ai des idées noires. ${"a".repeat(half - 80)}`;
+  const second = `Deuxième: ${"b".repeat(half - 80)}`;
+  const middle = `Milieu perdu: ${"c".repeat(half - 80)}`;
+  const nearLast = `Avant-dernier: ${"d".repeat(half - 80)}`;
+  const state = await stateSeen(
+    careHandoff(currentText, earlier([first, second, middle, nearLast])),
+  );
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget + 1);
+  expect(state.startsWith(first)).toBe(true);
+  expect(state.endsWith(`${nearLast}\n${currentText}`)).toBe(true);
+  expect(state).not.toContain("Milieu perdu");
+  expect(state).not.toContain("Deuxième");
+});
+
+it("keeps the previous turn when it fits, even if it is over half the budget with the current turn", async () => {
+  const first = `Premier: ${"a".repeat(1000)}`;
+  const bulkyMiddle = `Milieu: ${"b".repeat(7000)}`;
+  const previous = `Précédent: j'ai des idées noires. ${"c".repeat(3980)}`;
+  const state = await stateSeen(careHandoff(currentText, earlier([first, bulkyMiddle, previous])));
+  expect(state).toBe([first, previous, currentText].join("\n"));
+  expect(state.length).toBeLessThan(triageStateCharBudget);
+});
+
+it("drops only the middle turns that do not fit and keeps the first and the previous turn", async () => {
+  const first = `Premier: ${"a".repeat(3000)}`;
+  const middle = `Milieu: ${"b".repeat(3000)}`;
+  const previous = `Précédent: ${"c".repeat(3000)}`;
+  const state = await stateSeen(careHandoff(currentText, earlier([first, middle, previous])));
+  expect(state).toBe([first, previous, currentText].join("\n"));
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget + 1);
+});
+
+it("keeps the current turn whole even when it alone exceeds the budget", async () => {
+  const long = `Dernier message: ${"z".repeat(triageStateCharBudget + 500)}`;
+  const state = await stateSeen(careHandoff(long, earlier(["Un.", "Deux."])));
+  expect(state).toBe(long);
+});
+
+it("counts the newline between the head and the tail in the budget", async () => {
+  const texts = ["a".repeat(3999), "b", "c".repeat(3999)];
+  const state = await stateSeen(careHandoff("d".repeat(3999), earlier(texts)));
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget);
+});
+
+it("does not floor the head at half the budget when the current turn is large", async () => {
+  const current = "z".repeat(7999);
+  const state = await stateSeen(careHandoff(current, earlier(["a".repeat(4000)])));
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget);
+  expect(state).toBe(current);
+});
+
+it("never exceeds the budget unless the current turn is alone over it", async () => {
+  const lengths = [1, 10, 999, 1500, 2999, 3000, 3999, 4000, 4001, 5000, 7998, 7999];
+  for (const first of lengths) {
+    for (const second of lengths) {
+      for (const current of lengths) {
+        const turns = earlier(["a".repeat(first), "b".repeat(second), "c".repeat(first)]);
+        const state = await stateSeen(careHandoff("d".repeat(current), turns));
+        expect(state.length).toBeLessThanOrEqual(triageStateCharBudget);
+      }
+    }
+  }
+});
+
+it("never repeats a turn when head and tail meet", async () => {
+  const bulky = Array.from({ length: 6 }, (_, index) => `${index}:${"x".repeat(1500)}`);
+  const state = await stateSeen(careHandoff(currentText, earlier(bulky)));
+  const lines = state.split("\n");
+  expect(new Set(lines).size).toBe(lines.length);
+  expect(lines[0]?.startsWith("0:")).toBe(true);
+  expect(lines.at(-1)).toBe(currentText);
 });
 
 it("keeps a short history and leaves the summary out of the classifier state", async () => {

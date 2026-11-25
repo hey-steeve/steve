@@ -14,7 +14,13 @@ export type {
   TriageChannel,
   TriageLabel,
 } from "./types.ts";
-export { consultGuidance, needInfoGuidance, triageGuidances, triageTurn } from "./triage-turn.ts";
+export {
+  consultGuidance,
+  needInfoGuidance,
+  triageGuidances,
+  triageStateCharBudget,
+  triageTurn,
+} from "./triage-turn.ts";
 export type {
   TriageClassifier,
   TriageDecision,

@@ -23,6 +23,7 @@ import {
 import { triageCases } from "../features/triage/eval/cases.ts";
 import { triageGateFailed, type TriageSample } from "../features/triage/eval/metrics.ts";
 import { classify } from "../features/triage/src/jev.ts";
+import { triageTurn } from "../features/triage/src/triage-turn.ts";
 import type {
   ClassifyResult,
   EmergencyNumber as TriageNumber,
@@ -76,6 +77,7 @@ type ProductionFn =
   | "triageGateFailed"
   | "checkEmergencyReply"
   | "ensureEmergencyCalls"
+  | "triageTurn"
   | "evalExitCode";
 
 type PayloadLoad = () => Response | Promise<Response>;
@@ -95,6 +97,9 @@ type GuardExample = {
   readonly samples?: readonly TriageSample[];
   readonly status?: EvalStatus;
   readonly calls?: readonly EmergencyCall[];
+  // triageTurn: the earlier user turns, oldest first, and the sentence that must reach the state.
+  readonly earlierTurns?: readonly string[];
+  readonly mustReach?: string;
   readonly probes?: readonly ClassifyProbe[];
   readonly loads?: readonly PayloadLoad[];
   readonly expectedNumbers?: readonly TriageNumber[];
@@ -115,6 +120,11 @@ type CheckedExample =
       readonly through: readonly ["ensureEmergencyCalls"];
       readonly reply: string;
       readonly calls: readonly EmergencyCall[];
+    }
+  | {
+      readonly through: readonly ["triageTurn"];
+      readonly earlierTurns: readonly string[];
+      readonly mustReach: string;
     }
   | {
       readonly through: readonly ["classify"];
@@ -523,6 +533,12 @@ function declaredFunctionGap(example: GuardExample): string | undefined {
   ) {
     return "declares ensureEmergencyCalls but the example never calls it.";
   }
+  if (
+    through.includes("triageTurn") &&
+    (example.earlierTurns === undefined || example.mustReach === undefined)
+  ) {
+    return "declares triageTurn but the example never calls it.";
+  }
   return undefined;
 }
 
@@ -548,6 +564,9 @@ async function exampleProblem(example: GuardExample): Promise<string | undefined
   }
   if (sameThrough(example, ["ensureEmergencyCalls"])) {
     return ensureProblem(example);
+  }
+  if (sameThrough(example, ["triageTurn"])) {
+    return stateWindowProblem(example);
   }
   return "declares no production function.";
 }
@@ -687,6 +706,36 @@ function ensureProblem(example: GuardExample): string | undefined {
     return undefined;
   }
   return "ensureEmergencyCalls did not prefix 3114 then 15.";
+}
+
+async function stateWindowProblem(example: GuardExample): Promise<string | undefined> {
+  const turns = [...(example.earlierTurns ?? []), "Message actuel."].map((text, index) => ({
+    sessionId: "safety-rules",
+    turnId: `turn-${index}`,
+    channel: "text" as const,
+    text,
+  }));
+  const current = turns[turns.length - 1];
+  if (current === undefined || example.mustReach === undefined) {
+    return "declares triageTurn but the example never calls it.";
+  }
+  let seen = "";
+  await triageTurn({
+    handoff: {
+      sessionId: current.sessionId,
+      turnId: current.turnId,
+      target: "triage",
+      intent: "care_request",
+      data: turns,
+    },
+    classify: async ({ state }) => {
+      seen = state;
+      return { label: "self-care", probability: 0.7 };
+    },
+  });
+  return seen.includes(example.mustReach)
+    ? undefined
+    : "triageTurn dropped the earlier risk sentence from the classifier state.";
 }
 
 function classifyRejected(reject: ClassifyReject, result: ClassifyResult): boolean {
@@ -1126,6 +1175,23 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
         through: ["ensureEmergencyCalls"],
         reply: "Reste avec moi.",
         calls: ["3114", "15"],
+      },
+    ],
+    [
+      "SAFE-32",
+      {
+        through: ["triageTurn"],
+        earlierTurns: [
+          "J'ai des idées noires.",
+          "Un.",
+          "Deux.",
+          "Trois.",
+          "Quatre.",
+          "Cinq.",
+          "Six.",
+          "Sept.",
+        ],
+        mustReach: "J'ai des idées noires.",
       },
     ],
   ]);

@@ -1325,6 +1325,35 @@ it("sends only user turns to classify", async () => {
   expect(sent["state"]).toBe("J'ai mal à la gorge.\nDepuis ce matin.");
 });
 
+it("sends a risk sentence from 7 or more user turns back to Jev", async () => {
+  const risk = "Hier soir j'ai pensé à en finir.";
+  const messages: { role: "user" | "assistant"; content: string }[] = [];
+  const userTexts = [risk, ...Array.from({ length: 8 }, (_, index) => `Rien de nouveau ${index + 1}.`)];
+  for (const [index, content] of userTexts.entries()) {
+    if (index > 0) {
+      messages.push({ role: "assistant", content: "D'accord, dis-m'en plus." });
+    }
+    messages.push({ role: "user", content });
+  }
+  const fetchMock = triageFetch(() => Response.json(jevBody("emergency", 0.91, "psychological")));
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post({ messages });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    calls: [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ],
+  });
+  const sent: unknown = JSON.parse(String(jevFetchCall(fetchMock)?.[1]?.body));
+  expect(isRecord(sent)).toBe(true);
+  if (!isRecord(sent)) {
+    return;
+  }
+  expect(sent["state"]).toBe(userTexts.join("\n"));
+});
+
+
 it("passes JEV_MODEL through to the classifier request", async () => {
   vi.stubEnv("JEV_MODEL", "  jev-test-model  ");
   const fetchMock = triageFetch(() => Response.json(jevBody("self-care", 0.7, "none")));
