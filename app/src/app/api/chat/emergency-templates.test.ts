@@ -97,7 +97,8 @@ const rows = [
   {
     reply: `« ${call15Now} »`,
     calls: ["15"],
-    result: `${call15Now} « ${call15Now} »`,
+    // The quoted 15 and closing sentences are lone block sentences and go.
+    result: `${call15Now} « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. »`,
   },
   {
     reply: "",
@@ -515,11 +516,11 @@ it("opens with a full multi-sentence block and keeps a correct opening in place"
 it("does not treat a sentence taken from inside a block as a whole block", () => {
   const partial = "Je reste avec toi.";
   expect(ensureEmergencyCalls(`${partial} Reste calme.`, ["15"])).toBe(
-    `${call15Now} ${partial} Reste calme.`,
+    `${call15Now} Reste calme.`,
   );
   const cut = "Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque.";
   expect(ensureEmergencyCalls(`${cut} Reste calme.`, ["15"])).toBe(
-    `${call15Now} ${cut} Reste calme.`,
+    `${call15Now} Reste calme.`,
   );
 });
 
@@ -629,4 +630,63 @@ it("does not treat a U+FEFF-split ellipsis as a complete 3114 opening", () => {
   const fixed = ensureEmergencyCalls(`${split} ${call15Now}`, ["3114", "15"]);
   expect(fixed.startsWith(`${call3114Now} ${call15Now}`)).toBe(true);
   expect(checkEmergencyReply(fixed, ["3114", "15"]).found).toEqual(["3114", "15"]);
+});
+
+const keep = "Garde ton téléphone.";
+const [call15First = "", call15Number = "", call15Last = ""] = splitSentences(call15Now);
+const call3114NowSentences = splitSentences(call3114Now);
+
+function splitSentences(text: string): string[] {
+  return text.match(/[^.!?]+[.!?]/gu)?.map((sentence) => sentence.trim()) ?? [];
+}
+
+const loneRows = [
+  { name: "number sentence leading", calls: ["15"], reply: `${call15Number} ${keep}`, result: `${call15Now} ${keep}` },
+  { name: "short number sentence", calls: ["15"], reply: `Appelle le 15 maintenant. ${keep}`, result: `${call15Now} ${keep}` },
+  { name: "short number sentence only", calls: ["15"], reply: "Appelle le 15 maintenant.", result: call15Now },
+  { name: "first sentence at start", calls: ["15"], reply: `${call15First} ${keep}`, result: `${call15Now} ${keep}` },
+  { name: "first sentence in middle", calls: ["15"], reply: `${keep} ${call15First} Reste calme.`, result: `${call15Now} ${keep} Reste calme.` },
+  { name: "first sentence at end", calls: ["15"], reply: `${keep} ${call15First}`, result: `${call15Now} ${keep}` },
+  { name: "last sentence at start", calls: ["15"], reply: `${call15Last} ${keep}`, result: `${call15Now} ${keep}` },
+  { name: "last sentence in middle", calls: ["15"], reply: `${keep} ${call15Last} Reste calme.`, result: `${call15Now} ${keep} Reste calme.` },
+  { name: "last sentence at end", calls: ["15"], reply: `${keep} ${call15Last}`, result: `${call15Now} ${keep}` },
+  { name: "mid-reply number repeat", calls: ["15"], reply: `${keep} ${call15Number} Reste calme.`, result: `${call15Now} ${keep} Reste calme.` },
+  { name: "3114 sentence at start", calls: ["15", "3114"], reply: `${call3114NowSentences[0]} ${keep}`, result: `${call15Now} ${call3114} ${keep}` },
+  { name: "3114 number sentence in middle", calls: ["15", "3114"], reply: `${keep} ${call3114NowSentences[2]} Reste calme.`, result: `${call15Now} ${call3114} ${keep} Reste calme.` },
+  { name: "3114 last sentence at end", calls: ["15", "3114"], reply: `${keep} ${call3114NowSentences[3]}`, result: `${call15Now} ${call3114} ${keep}` },
+  { name: "cut 3114 sentence", calls: ["15", "3114"], reply: `Tu peux appeler le 3114. ${keep}`, result: `${call15Now} ${call3114} ${keep}` },
+  { name: "15 sentence with 3114 listed", calls: ["15", "3114"], reply: `${keep} ${call15Number}`, result: `${call15Now} ${call3114} ${keep}` },
+  { name: "drop between digits", calls: ["15"], reply: `Appelle le 1\n${call15Number}\n12.`, result: null },
+] as const;
+
+it("drops a lone block sentence when the opening is prefixed", () => {
+  for (const row of loneRows) {
+    const fixed = ensureEmergencyCalls(row.reply, row.calls);
+    if (row.result === null) {
+      expect(detectEmergencyNumbers(fixed).spans.some((span) => span.kind === "112"), row.name).toBe(false);
+      expect(fixed.startsWith(call15Now), row.name).toBe(true);
+    } else {
+      expect(fixed, row.name).toBe(row.result);
+    }
+  }
+});
+
+function occurrences(text: string, part: string): number {
+  return text.split(part).length - 1;
+}
+
+it("never repeats a lone sentence of any block after the required opening", () => {
+  const callLists = [["15"], ["15", "3114"]] as const;
+  const sentences = [call15Now, call3114Now, call3114].flatMap(splitSentences);
+  for (const calls of callLists) {
+    const opening = calls.map((call) => (call === "15" ? call15Now : call3114)).join(" ");
+    for (const sentence of sentences) {
+      const fixed = ensureEmergencyCalls(`${sentence} ${keep}`, calls);
+      expect(fixed.startsWith(opening), `${calls.join()} ${sentence}`).toBe(true);
+      // A [15]-only reply keeps the model's own 3114 wording, once.
+      const is3114Only = calls.length === 1 && !call15Now.includes(sentence);
+      const allowed = occurrences(opening, sentence) + (is3114Only ? 1 : 0);
+      expect(occurrences(fixed, sentence), `${calls.join()} ${sentence}`).toBeLessThanOrEqual(allowed);
+    }
+  }
 });

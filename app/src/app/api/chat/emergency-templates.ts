@@ -445,6 +445,8 @@ function rebuildPhysical15(reply: string): string {
     dropThroughTail(dropped, pieces, index, match.last);
     index = match.last + 1;
   }
+  // A [15]-only reply keeps the model's own 3114 wording, so only the 15 block is repeated.
+  dropLoneBlockSentences(dropped, pieces, lone15);
   return joinPrefix(joinSentences([call15Now, ...moved]), keptRaw(pieces, dropped));
 }
 
@@ -495,7 +497,56 @@ function withoutExactCallTemplates(reply: string, opening: readonly CallBlock[])
     dropThroughTail(dropped, pieces, index, match.last);
     index = match.last + 1;
   }
+  dropLoneBlockSentences(dropped, pieces, loneAll);
   return keptRaw(pieces, dropped);
+}
+
+type LoneSentences = {
+  readonly all: ReadonlySet<string>;
+  readonly withNumber: readonly string[];
+};
+
+function loneSentencesOf(blocks: readonly CallBlock[]): LoneSentences {
+  const all = new Set(blocks.flatMap((block) => block.sentences));
+  return { all, withNumber: [...all].filter((sentence) => /\d/u.test(sentence)) };
+}
+
+const loneAll = loneSentencesOf(callBlocks);
+const lone15 = loneSentencesOf([block15Now]);
+
+// A single block sentence written alone (any position) would repeat what the
+// prefixed block already says. So does a cut prefix of one that still names the
+// number, even with its own full stop ("Appelle le 15 maintenant.").
+function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
+  if (lone.all.has(norm)) {
+    return true;
+  }
+  const bare = norm.replace(/[.!?\s]+$/u, "");
+  return (
+    bare.length > 0 &&
+    /\d/u.test(bare) &&
+    lone.withNumber.some((sentence) => sentence.startsWith(bare))
+  );
+}
+
+function dropLoneBlockSentences(
+  dropped: Set<number>,
+  pieces: readonly RawPiece[],
+  lone: LoneSentences,
+): void {
+  for (let index = 0; index < pieces.length; index += 1) {
+    if (dropped.has(index) || !isLoneBlockSentence(pieces[index]?.norm ?? "", lone)) {
+      continue;
+    }
+    let through = index;
+    while (pieces[through + 1]?.continuesRun === true) {
+      through += 1;
+    }
+    for (let cursor = index; cursor <= through; cursor += 1) {
+      dropped.add(cursor);
+    }
+    index = through;
+  }
 }
 
 function dropThroughTail(

@@ -1096,12 +1096,7 @@ it("fills each missing emergency call and keeps a compliant reply", async () => 
           const ordered = failureSentences(item.calls).join(" ");
           expect(spoken.startsWith(ordered), label).toBe(true);
           const checked = checkEmergencyReply(spoken, numbers);
-          if (row.model.includes("Appelle le 15.")) {
-            expect(checked.pass, label).toBe(false);
-            expect(checked.reason, label).toBe("numbers");
-          } else {
-            expect(checked.pass, label).toBe(true);
-          }
+          expect(checked.pass, label).toBe(true);
         }
       }
     }
