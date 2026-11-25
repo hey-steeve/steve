@@ -10,6 +10,8 @@ export const callSentences = [
 
 export const refusal112 = "Je ne te donne pas le 112.";
 export const refusalSos = "Je ne te donne pas SOS Médecins.";
+export const refusalMedication = "Je ne peux pas te conseiller de médicament.";
+export const redirectMedication = "Demande conseil à un pharmacien ou à un médecin.";
 
 export const warningSignLeadIns = ["si ", "s'il "] as const;
 export const warningSignTail = ", appelle le 15 maintenant.";
