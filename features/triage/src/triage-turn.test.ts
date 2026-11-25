@@ -201,8 +201,33 @@ it("drops only the middle turns that do not fit and keeps the first and the prev
 it("keeps the current turn whole even when it alone exceeds the budget", async () => {
   const long = `Dernier message: ${"z".repeat(triageStateCharBudget + 500)}`;
   const state = await stateSeen(careHandoff(long, earlier(["Un.", "Deux."])));
-  expect(state.endsWith(long)).toBe(true);
-  expect(state.startsWith("Un.\nDeux.")).toBe(true);
+  expect(state).toBe(long);
+});
+
+it("counts the newline between the head and the tail in the budget", async () => {
+  const texts = ["a".repeat(3999), "b", "c".repeat(3999)];
+  const state = await stateSeen(careHandoff("d".repeat(3999), earlier(texts)));
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget);
+});
+
+it("does not floor the head at half the budget when the current turn is large", async () => {
+  const current = "z".repeat(7999);
+  const state = await stateSeen(careHandoff(current, earlier(["a".repeat(4000)])));
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget);
+  expect(state).toBe(current);
+});
+
+it("never exceeds the budget unless the current turn is alone over it", async () => {
+  const lengths = [1, 10, 999, 1500, 2999, 3000, 3999, 4000, 4001, 5000, 7998, 7999];
+  for (const first of lengths) {
+    for (const second of lengths) {
+      for (const current of lengths) {
+        const turns = earlier(["a".repeat(first), "b".repeat(second), "c".repeat(first)]);
+        const state = await stateSeen(careHandoff("d".repeat(current), turns));
+        expect(state.length).toBeLessThanOrEqual(triageStateCharBudget);
+      }
+    }
+  }
 });
 
 it("never repeats a turn when head and tail meet", async () => {

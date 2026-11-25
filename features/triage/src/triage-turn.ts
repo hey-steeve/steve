@@ -53,8 +53,9 @@ export type TriageDecision =
 // and the latest ones are what they say now. Any budget the first turns leave unused goes back to
 // older latest turns, so a turn is never dropped while keeping it fits (a fixed half for each side
 // wasted unused head room and could drop the turn right before the current one). The middle is
-// dropped as whole turns, and no turn is cut. The current turn is always kept whole, even alone over
-// budget. No text is read to decide what stays. The rule is position and length only.
+// dropped as whole turns, and no turn is cut. Every newline is counted, and the first turns only get
+// the room left after the latest turns, so the state never exceeds the budget. The one exception is
+// a current turn that alone exceeds it: it is kept whole and nothing else is sent. No text is read to decide what stays. The rule is position and length only.
 export const triageStateCharBudget = 8_000;
 
 function stateText(turns: readonly Turn[]): string {
@@ -73,8 +74,8 @@ function stateText(turns: readonly Turn[]): string {
     tailStart -= 1;
   }
 
-  // A current turn over half the budget still leaves the first turns up to half.
-  const headLimit = Math.max(triageStateCharBudget - tailUsed, half);
+  // The head gets only the room left after the tail and the newline that joins them.
+  const headLimit = triageStateCharBudget - tailUsed - 1;
   let headEnd = 0;
   let headUsed = 0;
   while (headEnd < tailStart) {
@@ -87,7 +88,11 @@ function stateText(turns: readonly Turn[]): string {
   }
 
   // Leftover budget goes to more recent turns, contiguous with the tail, newest first.
-  while (tailStart > headEnd && headUsed + tailUsed + lengthAt(tailStart - 1) + 1 <= triageStateCharBudget) {
+  const joinCost = (): number => (headEnd === 0 ? 0 : 1);
+  while (
+    tailStart > headEnd &&
+    headUsed + joinCost() + tailUsed + lengthAt(tailStart - 1) + 1 <= triageStateCharBudget
+  ) {
     tailUsed += lengthAt(tailStart - 1) + 1;
     tailStart -= 1;
   }
