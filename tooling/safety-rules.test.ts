@@ -185,9 +185,27 @@ it("rejects a case whose SAFE id list is empty", () => {
   expect(problems.some((problem) => problem.includes("no SAFE id"))).toBe(true);
 });
 
+it("rejects a choice payload whose probabilities sum to 1.7", () => {
+  const skewed = splitProbabilities(labelNames, "consult", 0.7);
+  skewed["diagnosis"] = 0.7;
+  const problems = payloadProbabilityProblems({
+    answers: { label: choiceAnswer("diagnosis", skewed) },
+  });
+  expect(problems.some((problem) => problem.includes("sum to"))).toBe(true);
+});
+
+it("keeps every coverage stub on a valid probability distribution", () => {
+  checkedExamples();
+  const problems = stubPayloads.flatMap((payload, index) =>
+    payloadProbabilityProblems(payload).map((problem) => `payload ${index}: ${problem}`),
+  );
+  expect(problems).toEqual([]);
+});
+
 it("rejects a classify row whose example passes fixed arrays to the gate", async () => {
+  const rowId = jevCallOrderIds[0];
   const passedToGate: GuardExample = {
-    through: ["classify", "triageGateFailed"],
+    through: jevCallOrderThrough,
     samples: [fixedGateSample],
   };
   const classifyOnly: GuardExample = {
@@ -198,8 +216,8 @@ it("rejects a classify row whose example passes fixed arrays to the gate", async
   expect(declaredFunctionGap(classifyOnly) ?? "").toContain("never calls classify");
   const problems: string[] = [];
   await checkCheckedExamples(
-    [checkedRow("SAFE-05")],
-    new Map([["SAFE-05", passedToGate]]),
+    [checkedRow(rowId)],
+    new Map([[rowId, passedToGate]]),
     problems,
   );
   expect(problems.some((problem) => problem.includes("never calls classify"))).toBe(true);
@@ -746,15 +764,77 @@ function classifyExample(reject: ClassifyReject, load: PayloadLoad): CheckedExam
   };
 }
 
+const jevCallOrderThrough = ["classify", "triageGateFailed"] as const;
+
+const jevCallOrderIds = ["SAFE-05", "SAFE-06", "SAFE-07", "SAFE-08"] as const;
+
 function orderExample(
   expectedNumbers: readonly TriageNumber[],
   loads: readonly PayloadLoad[],
 ): CheckedExample {
-  return { through: ["classify", "triageGateFailed"], expectedNumbers, loads };
+  return { through: jevCallOrderThrough, expectedNumbers, loads };
 }
 
+const stubPayloads: unknown[] = [];
+
 function jsonPayload(payload: unknown): PayloadLoad {
+  stubPayloads.push(payload);
   return () => Response.json(payload);
+}
+
+const probabilityTolerance = 1e-9;
+
+function payloadProbabilityProblems(payload: unknown): string[] {
+  const problems: string[] = [];
+  walkChoiceAnswers(payload, problems);
+  return problems;
+}
+
+function walkChoiceAnswers(value: unknown, problems: string[]): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      walkChoiceAnswers(item, problems);
+    }
+    return;
+  }
+  if (!isPlainRecord(value)) {
+    return;
+  }
+  if (value["type"] === "choice") {
+    const problem = choiceProbabilityProblem(value);
+    if (problem !== undefined) {
+      problems.push(problem);
+    }
+  }
+  for (const child of Object.values(value)) {
+    walkChoiceAnswers(child, problems);
+  }
+}
+
+function choiceProbabilityProblem(answer: Record<string, unknown>): string | undefined {
+  const choice = answer["choice"];
+  const probabilities = answer["probabilities"];
+  if (typeof choice !== "string" || !isPlainRecord(probabilities)) {
+    return "choice answer has no probability map";
+  }
+  if (!(choice in probabilities)) {
+    return `choice ${choice} has no probability`;
+  }
+  let sum = 0;
+  for (const value of Object.values(probabilities)) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+      return "probability is not a finite non-negative number";
+    }
+    sum += value;
+  }
+  if (Math.abs(sum - 1) > probabilityTolerance) {
+    return `probabilities sum to ${sum}`;
+  }
+  return undefined;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function splitProbabilities(
@@ -782,6 +862,34 @@ function choiceAnswer(
   return { type: "choice", choice, confidence: 0.2, probabilities };
 }
 
+function labelProbabilities(input: {
+  readonly label: string;
+  readonly labelP: number;
+  readonly emergencyP?: number;
+}): Record<string, number> {
+  if (input.emergencyP === undefined) {
+    return splitProbabilities(labelNames, input.label, input.labelP);
+  }
+  const pins: Record<string, number> = { emergency: input.emergencyP };
+  if (input.label !== "emergency") {
+    pins[input.label] = Math.min(input.labelP, 1 - input.emergencyP);
+  }
+  const free = labelNames.filter((name) => pins[name] === undefined);
+  let pinnedSum = 0;
+  for (const name of labelNames) {
+    const pinned = pins[name];
+    if (pinned !== undefined) {
+      pinnedSum += pinned;
+    }
+  }
+  const rest = free.length === 0 ? 0 : (1 - pinnedSum) / free.length;
+  const probabilities: Record<string, number> = {};
+  for (const name of labelNames) {
+    probabilities[name] = pins[name] ?? rest;
+  }
+  return probabilities;
+}
+
 function jevPayload(input: {
   readonly label: string;
   readonly labelP: number;
@@ -789,12 +897,9 @@ function jevPayload(input: {
   readonly emergencyP?: number;
   readonly overdoseOrSelfHarm?: "yes" | "no";
 }): unknown {
-  const labelProbabilities = splitProbabilities(labelNames, input.label, input.labelP);
-  if (input.emergencyP !== undefined) {
-    labelProbabilities["emergency"] = input.emergencyP;
-  }
+  const labelDistribution = labelProbabilities(input);
   const answers: Record<string, unknown> = {
-    label: choiceAnswer(input.label, labelProbabilities),
+    label: choiceAnswer(input.label, labelDistribution),
     channel: choiceAnswer(input.channel, splitProbabilities(channelNames, input.channel, 0.9)),
   };
   if (input.overdoseOrSelfHarm !== undefined) {
@@ -807,6 +912,39 @@ function jevPayload(input: {
     model: "jev-1.14.0",
     answers,
   };
+}
+
+function jevCallOrderRows(): readonly {
+  readonly id: (typeof jevCallOrderIds)[number];
+  readonly expectedNumbers: readonly TriageNumber[];
+  readonly loads: readonly PayloadLoad[];
+}[] {
+  return [
+    {
+      id: "SAFE-05",
+      expectedNumbers: ["3114", "15"],
+      loads: [
+        emergencyLoad("psychological", "yes"),
+        emergencyLoad("psychological", "no"),
+        emergencyLoad("psychological"),
+      ],
+    },
+    {
+      id: "SAFE-06",
+      expectedNumbers: ["3114", "15"],
+      loads: [emergencyLoad("both", "yes")],
+    },
+    {
+      id: "SAFE-07",
+      expectedNumbers: ["15", "3114"],
+      loads: [emergencyLoad("both", "no")],
+    },
+    {
+      id: "SAFE-08",
+      expectedNumbers: ["15"],
+      loads: [emergencyLoad("physical", "yes")],
+    },
+  ];
 }
 
 function emergencyLoad(channel: string, harm?: "yes" | "no"): PayloadLoad {
@@ -842,9 +980,11 @@ function hangUntilAbort(signal: AbortSignal | null | undefined): Promise<Respons
 }
 
 function checkedExamples(): ReadonlyMap<string, CheckedExample> {
-  const diagnosis = splitProbabilities(labelNames, "consult", 0.7);
-  diagnosis["diagnosis"] = 0.7;
-  return new Map<string, CheckedExample>([
+  stubPayloads.length = 0;
+  const httpErrorPayload = { answers: {} };
+  stubPayloads.push(httpErrorPayload);
+  const diagnosis = splitProbabilities(["diagnosis", ...labelNames], "diagnosis", 0.7);
+  const examples = new Map<string, CheckedExample>([
     [
       "SAFE-01",
       classifyExample(
@@ -883,20 +1023,6 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
       ),
     ],
     [
-      "SAFE-05",
-      orderExample(
-        ["3114", "15"],
-        [
-          emergencyLoad("psychological", "yes"),
-          emergencyLoad("psychological", "no"),
-          emergencyLoad("psychological"),
-        ],
-      ),
-    ],
-    ["SAFE-06", orderExample(["3114", "15"], [emergencyLoad("both", "yes")])],
-    ["SAFE-07", orderExample(["15", "3114"], [emergencyLoad("both", "no")])],
-    ["SAFE-08", orderExample(["15"], [emergencyLoad("physical", "yes")])],
-    [
       "SAFE-09",
       classifyExample(
         { kind: "need-info", reason: "malformed" },
@@ -919,7 +1045,7 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
           },
           {
             reject: { kind: "need-info", reason: "http" },
-            fetch: async () => Response.json({ answers: {} }, { status: 500 }),
+            fetch: async () => Response.json(httpErrorPayload, { status: 500 }),
           },
           {
             reject: { kind: "need-info", reason: "network" },
@@ -967,14 +1093,17 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
       "SAFE-14",
       replyExample(`Reste calme. ${call3114Now} ${call15Now}`, ["3114", "15"], "numbers"),
     ],
-    ["SAFE-15", replyExample(call3114, ["3114"], "numbers", { optional15Allowed: true })],
+    [
+      "SAFE-15",
+      replyExample(`Reste calme. ${call3114Now} ${call15Now}`, ["3114", "15"], "numbers"),
+    ],
     [
       "SAFE-16",
       replyExample(`Reste calme. ${call15Now} ${call3114}`, ["15", "3114"], "numbers"),
     ],
     [
       "SAFE-17",
-      replyExample(call3114Now, ["3114"], "numbers", { conditional15Allowed: true }),
+      replyExample(`Reste calme. ${call3114Now} ${call15Now}`, ["3114", "15"], "numbers"),
     ],
     ["SAFE-18", replyExample(call15Now, [], "numbers", { conditional15Allowed: true })],
     [
@@ -1000,4 +1129,8 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
       },
     ],
   ]);
+  for (const row of jevCallOrderRows()) {
+    examples.set(row.id, orderExample(row.expectedNumbers, row.loads));
+  }
+  return examples;
 }

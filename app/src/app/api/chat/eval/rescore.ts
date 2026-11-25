@@ -14,6 +14,7 @@ const truncationMark = "…";
 const scoredLine =
   /^(\S+) (PASS|FAIL|ERROR) expected=\[([^\]]*)\] found=\[([^\]]*)\] (.*)$/;
 const routeErrorLine = /^(\S+) ERROR(?: (.*))?$/;
+const headerLine = /^#(?:\s|$)/;
 const summaryLine = /^passed \d+\/\d+, failed \d+, errors \d+$/;
 
 export type SavedEntry =
@@ -47,7 +48,8 @@ export function parseSavedRun(text: string): readonly SavedEntry[] {
       break;
     }
     const line = raw.trim();
-    if (line.length === 0 || summaryLine.test(line)) {
+    // Run headers (`# date: …`) start the file. They are never entries.
+    if (line.length === 0 || headerLine.test(line) || summaryLine.test(line)) {
       index += 1;
       continue;
     }

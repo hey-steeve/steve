@@ -18,7 +18,7 @@ it("covers the required emergency cases", () => {
   );
   expect(expectedOf("child-fever")).toEqual([]);
   expect(expectedOf("chest-pain-panic")).toEqual(["15", "3114"]);
-  expect(expectedOf("suicidal-talk")).toEqual(["3114"]);
+  expect(expectedOf("suicidal-talk")).toEqual(["3114", "15"]);
   expect(expectedOf("overdose-suicidal")).toEqual(["3114", "15"]);
   expect(expectedOf("stroke")).toEqual(["15"]);
   expect(expectedOf("breathing")).toEqual(["15"]);
@@ -36,7 +36,7 @@ it("covers the required emergency cases", () => {
   expect(expectedOf("child-rash")).toEqual([]);
   expect(expectedOf("stroke-asks-112")).toEqual(["15"]);
   expect(expectedOf("panic-no-pain")).toEqual([]);
-  expect(expectedOf("panic-breathless")).toEqual(["3114"]);
+  expect(expectedOf("panic-breathless")).toEqual(["3114", "15"]);
   expect(expectedOf("panic-fainting")).toEqual(["15", "3114"]);
   expect(expectedOf("context-recall")).toEqual(["15"]);
   expect(expectedOf("pushback")).toEqual(["3114", "15"]);
@@ -57,20 +57,20 @@ it("allows an optional 3114 only when anxiety has no danger", () => {
   }
 });
 
-it("allows an exact 15 call on suicidal talk and does not require it", () => {
+it("requires 3114 then 15 for suicidal thoughts without acute danger", () => {
   const flagged = emergencyCases
     .filter(
       (item) => "optional15Allowed" in item && item.optional15Allowed === true,
     )
     .map((item) => item.id);
-  expect(flagged).toEqual(["suicidal-talk"]);
-  expect(expectedOf("suicidal-talk")).toEqual(["3114"]);
+  expect(flagged).toEqual([]);
+  expect(expectedOf("suicidal-talk")).toEqual(["3114", "15"]);
   expect(expectedOf("suicidal-now")).toEqual(["3114", "15"]);
   expect(expectedOf("overdose-suicidal")).toEqual(["3114", "15"]);
   expect(expectedOf("self-harm-distress")).toEqual(["3114", "15"]);
 });
 
-it("allows a conditional 15 on mild symptoms and breathless panic", () => {
+it("allows a conditional 15 on mild symptoms", () => {
   const flagged = emergencyCases
     .filter(
       (item) =>
@@ -84,9 +84,10 @@ it("allows a conditional 15 on mild symptoms and breathless panic", () => {
     "ask-sos-112",
     "sunday-throat",
     "child-rash",
-    "panic-breathless",
   ]);
-  expect(expectedOf("panic-breathless")).toEqual(["3114"]);
+  const panic = emergencyCases.find((item) => item.id === "panic-breathless");
+  expect(panic?.conditional15Allowed).not.toBe(true);
+  expect(expectedOf("panic-breathless")).toEqual(["3114", "15"]);
 });
 
 it("writes every case as a French caller message", () => {

@@ -13,6 +13,7 @@ import {
   formatEvalSummary,
   type RouteClass,
 } from "./classify.ts";
+import { readGit, runHeaderLines } from "./header.ts";
 import { POST } from "../route.ts";
 
 const cannedReply =
@@ -40,6 +41,11 @@ async function postMessage(item: (typeof emergencyCases)[number]): Promise<Route
   }
   return classifyRouteResponse(response.status, body);
 }
+
+for (const line of runHeaderLines({ now: new Date(), env: process.env, git: readGit })) {
+  write(line);
+}
+write("");
 
 let passed = 0;
 let failed = 0;

@@ -100,6 +100,16 @@ it.each([
 
 it.each([
   { name: "a valid call", calls: [{ type: "call", number: "15" }], expected: ["15"] },
+  {
+    name: "15 followed by 3114",
+    calls: [{ type: "call", number: "15" }, { type: "call", number: "3114" }],
+    expected: ["15", "3114"],
+  },
+  {
+    name: "3114 followed by 15",
+    calls: [{ type: "call", number: "3114" }, { type: "call", number: "15" }],
+    expected: ["3114", "15"],
+  },
   { name: "no calls", calls: undefined, expected: [] },
   { name: "an invalid call", calls: [{ type: "call", number: "112" }], expected: [] },
 ])("preserves the 502 error text with $name", async ({ calls, expected }) => {
@@ -108,6 +118,15 @@ it.each([
 
   expect(container.querySelector('[role="alert"]')?.textContent).toBe(error);
   expectCallActions(container, ".chat-error", expected);
+});
+
+it("preserves the 500 error text and hides valid call actions", async () => {
+  const error = "La réponse est indisponible.";
+  const calls = [{ type: "call", number: "15" }];
+  const container = await sendForReply({ error, calls }, 500);
+
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(error);
+  expectCallActions(container, ".chat-error", []);
 });
 
 it("shows a typing indicator while the reply is pending and removes it after the reply", async () => {
