@@ -10,9 +10,13 @@ export type EndReason =
 export type CallActivity = "listening" | "speaking";
 
 export type PlaybackCancel = {
+  // Truncation target: the audible response and item, with the played offset.
   readonly responseId: string | undefined;
   readonly itemId: string | undefined;
   readonly playedMs: number;
+  // Response still generating when it differs from the audible one. The hook
+  // sends response.cancel for it.
+  readonly generatingResponseId?: string | undefined;
 };
 
 export type Playback = {
@@ -45,6 +49,12 @@ export type CallEvent =
   | { readonly type: "start" }
   | { readonly type: "connected" }
   | { readonly type: "setMuted"; readonly muted: boolean }
+  // The audible item changed. The hook reports it for JSON and binary audio.
+  | {
+      readonly type: "playbackStarted";
+      readonly responseId: string;
+      readonly itemId: string | undefined;
+    }
   | { readonly type: "playback"; readonly playedMs: number }
   // The hook's local audio queue is empty.
   | { readonly type: "playbackDrained" }
@@ -81,18 +91,23 @@ const matches = (current: string | undefined, id: string | undefined) =>
 function reduceActive(state: Active, event: ServerEvent): CallState {
   switch (event.type) {
     case "input.speech_started": {
-      if (state.activity !== "speaking") return { ...state, cancel: undefined };
+      if (state.activity !== "speaking") return state;
+      // The truncation target is the audible item, not the generating response.
+      const audibleId = state.playback?.responseId ?? state.responseId;
+      const fresh: PlaybackCancel = {
+        responseId: audibleId,
+        itemId: state.playback?.itemId,
+        playedMs: state.playback?.playedMs ?? 0,
+        generatingResponseId:
+          state.responseId !== audibleId ? state.responseId : undefined,
+      };
       return {
         ...state,
         activity: "listening",
         generating: false,
         responseId: undefined,
         playback: undefined,
-        cancel: {
-          responseId: state.playback?.responseId ?? state.responseId,
-          itemId: state.playback?.itemId,
-          playedMs: state.playback?.playedMs ?? 0,
-        },
+        cancel: state.playback ? fresh : (state.cancel ?? fresh),
       };
     }
     case "response.created":
@@ -100,20 +115,19 @@ function reduceActive(state: Active, event: ServerEvent): CallState {
         ...state,
         generating: true,
         responseId: event.responseId,
-        cancel: undefined,
       });
     case "response.audio_delta": {
       // Late deltas of a finished or cut response must not restart playback.
       if (!state.generating) return state;
       if (!matches(state.responseId, event.responseId)) return state;
-      const itemId = event.itemId ?? state.playback?.itemId;
-      const same = state.playback?.itemId === itemId;
+      // Another item may still be audible. playbackStarted switches to the new one.
+      if (state.playback) return state;
       return withActivity({
         ...state,
         playback: {
           responseId: state.responseId ?? event.responseId,
-          itemId,
-          playedMs: same ? (state.playback?.playedMs ?? 0) : 0,
+          itemId: event.itemId,
+          playedMs: 0,
         },
       });
     }
@@ -123,7 +137,6 @@ function reduceActive(state: Active, event: ServerEvent): CallState {
         ...state,
         generating: false,
         responseId: undefined,
-        cancel: undefined,
       });
     case "response.cancelled": {
       const genMatch = matches(state.responseId, event.responseId);
@@ -133,7 +146,10 @@ function reduceActive(state: Active, event: ServerEvent): CallState {
         generating: genMatch ? false : state.generating,
         responseId: genMatch ? undefined : state.responseId,
         playback: playMatch ? undefined : state.playback,
-        cancel: undefined,
+        cancel:
+          state.cancel && matches(state.cancel.responseId, event.responseId)
+            ? undefined
+            : state.cancel,
       });
     }
     case "error":
@@ -157,13 +173,29 @@ export function reduceCall(state: CallState, event: CallEvent): CallState {
       return state;
     case "active":
       if (event.type === "setMuted") return { ...state, muted: event.muted };
+      if (event.type === "playbackStarted") {
+        // A late start from the response that was just cut must not revive it.
+        if (state.cancel?.responseId === event.responseId) return state;
+        const same =
+          state.playback?.responseId === event.responseId &&
+          state.playback.itemId === event.itemId;
+        return withActivity({
+          ...state,
+          playback: {
+            responseId: event.responseId,
+            itemId: event.itemId,
+            playedMs: same ? (state.playback?.playedMs ?? 0) : 0,
+          },
+        });
+      }
       if (event.type === "playback") {
         if (!state.playback) return state;
         const playedMs = Math.max(0, event.playedMs);
         return { ...state, playback: { ...state.playback, playedMs } };
       }
       if (event.type === "playbackDrained") {
-        return withActivity({ ...state, playback: undefined });
+        // Draining also acknowledges a pending barge-in: the hook flushed.
+        return withActivity({ ...state, playback: undefined, cancel: undefined });
       }
       return event.type === "server" ? reduceActive(state, event.event) : state;
   }

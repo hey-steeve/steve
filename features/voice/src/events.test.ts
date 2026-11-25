@@ -44,9 +44,9 @@ it("parses well-formed events", () => {
     type: "response.done",
     responseId: "r1",
   });
-  expect(parseServerEvent({ type: "response.cancelled" })).toEqual({
+  expect(parseServerEvent({ type: "response.cancelled", response: { id: "r1" } })).toEqual({
     type: "response.cancelled",
-    responseId: undefined,
+    responseId: "r1",
   });
   expect(parseServerEvent({ type: "error", error: { message: "boom" } })).toEqual({
     type: "error",
@@ -72,6 +72,12 @@ it("returns undefined for malformed, empty and unknown input", () => {
     { type: "response.done", response: 7 },
     { type: "response.created", response: null },
     { type: "response.cancelled", response: "r1" },
+    { type: "session.created" },
+    { type: "response.done" },
+    { type: "response.done", response: {} },
+    { type: "response.done", response: { id: "" } },
+    { type: "response.created" },
+    { type: "response.cancelled", response: {} },
     { type: "session.created", session: null },
     { type: "session.created", session: "s1" },
     { type: "error", error: "boom" },

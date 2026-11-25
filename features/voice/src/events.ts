@@ -19,18 +19,15 @@ export type ServerEvent =
       readonly itemId: string | undefined;
       readonly text: string;
     }
-  | { readonly type: "response.created"; readonly responseId: string | undefined }
+  | { readonly type: "response.created"; readonly responseId: string }
   | {
       readonly type: "response.audio_delta";
       readonly responseId: string | undefined;
       readonly itemId: string | undefined;
       readonly delta: string;
     }
-  | { readonly type: "response.done"; readonly responseId: string | undefined }
-  | {
-      readonly type: "response.cancelled";
-      readonly responseId: string | undefined;
-    }
+  | { readonly type: "response.done"; readonly responseId: string }
+  | { readonly type: "response.cancelled"; readonly responseId: string }
   | { readonly type: "error"; readonly message: string };
 
 type Obj = { readonly [key: string]: unknown };
@@ -59,9 +56,10 @@ function parseObject(o: Obj): ServerEvent | undefined {
   const type = o["type"];
   switch (type) {
     case "session.created": {
-      const session = nested(o, "session");
-      const id = session === null ? null : optId(session, "id");
-      return id === null ? undefined : { type: type, sessionId: id };
+      const session = o["session"];
+      if (!isObj(session)) return undefined;
+      const id = optId(session, "id");
+      return id === null ? undefined : { type, sessionId: id };
     }
     case "session.updated":
       return { type };
@@ -96,9 +94,9 @@ function parseObject(o: Obj): ServerEvent | undefined {
     case "response.created":
     case "response.done":
     case "response.cancelled": {
-      const response = nested(o, "response");
-      const responseId = response === null ? null : optId(response, "id");
-      return responseId === null ? undefined : { type, responseId };
+      const response = o["response"];
+      const responseId = isObj(response) ? str(response["id"]) : undefined;
+      return responseId === undefined ? undefined : { type, responseId };
     }
     case "response.output_audio.delta":
     case "response.audio.delta": {
