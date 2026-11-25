@@ -5,6 +5,7 @@ import {
   call3114Now,
   callSentences,
   normalizeEmergencyText,
+  redirectMedication,
   refusal112,
   refusalMedication,
   refusalSos,
@@ -1995,6 +1996,48 @@ it("fails Roman's replies that point back at a refused 112 or SOS", () => {
     }
   }
   expect(mismatches).toEqual([]);
+});
+
+it("accepts the fixed medication redirect on the 112 allow-list", () => {
+  const replies = [
+    `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication} ${redirectMedication}`,
+    `${call3114Now} ${call15Now} ${refusalSos} ${refusalMedication} ${redirectMedication}`,
+    `${call3114Now} ${call15Now} ${refusal112} ${redirectMedication}`,
+    `${call3114Now} ${call15Now} ${refusal112} ${redirectMedication.toLocaleUpperCase("fr")}`,
+  ];
+  for (const reply of replies) {
+    const result = checkEmergencyReply(reply, ["3114", "15"]);
+    expect(result.pass, reply).toBe(true);
+    expect(result.reason, reply).toBe("ok");
+  }
+});
+
+it("puts each refusal and the redirect in the prompt and the 112 allow-list", () => {
+  const rule112 = systemPrompt
+    .split("\n")
+    .find((line) => line.startsWith("Tu ne donnes jamais le 112"));
+  const ruleMedication = systemPrompt
+    .split("\n")
+    .find((line) => line.startsWith("Si on te demande un médicament"));
+  expect(rule112).toBeDefined();
+  expect(ruleMedication).toBeDefined();
+  for (const sentence of [refusal112, refusalSos, refusalMedication, redirectMedication]) {
+    expect(rule112, sentence).toContain(sentence);
+  }
+  expect(ruleMedication).toContain(refusalMedication);
+  expect(ruleMedication).toContain(redirectMedication);
+  expect(ruleMedication).not.toContain("rediriges librement");
+  const allowed = [
+    `${call3114Now} ${call15Now} ${refusal112}`,
+    `${call3114Now} ${call15Now} ${refusalSos}`,
+    `${call3114Now} ${call15Now} ${refusal112} ${refusalMedication}`,
+    `${call3114Now} ${call15Now} ${refusal112} ${redirectMedication}`,
+  ];
+  for (const reply of allowed) {
+    const result = checkEmergencyReply(reply, ["3114", "15"]);
+    expect(result.pass, reply).toBe(true);
+    expect(result.reason, reply).toBe("ok");
+  }
 });
 
 it("fails a free redirect after a 112 or SOS refusal", () => {

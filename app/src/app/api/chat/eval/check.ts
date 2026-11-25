@@ -4,6 +4,7 @@ import {
   call3114Now,
   callSentences,
   normalizeEmergencyText,
+  redirectMedication,
   refusal112,
   refusalMedication,
   refusalSos,
@@ -528,6 +529,15 @@ function scoreReply(
     }
     if (
       isRefusal(sentence, refusalMedication, mode) &&
+      !names.has15 &&
+      !names.has3114 &&
+      !names.has112 &&
+      !names.hasSos
+    ) {
+      continue;
+    }
+    if (
+      isRefusal(sentence, redirectMedication, mode) &&
       !names.has15 &&
       !names.has3114 &&
       !names.has112 &&
