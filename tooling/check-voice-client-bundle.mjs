@@ -1,6 +1,7 @@
 // Fails when the client bundle could expose the xAI API key.
 // Usage: node tooling/check-voice-client-bundle.mjs [dir]. Default: app/.next/static.
-// Reports the kind of leak and the file only, never the matched text.
+// Scans file contents and relative paths. Reports the kind of leak and the file only,
+// never the matched text; path segments that match a rule are redacted.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,16 +25,28 @@ function* walk(dir) {
   }
 }
 
+function redactPath(relative) {
+  return relative
+    .split(path.sep)
+    .map((segment) => (checks.some((check) => check.test(segment)) ? "[redacted]" : segment))
+    .join("/");
+}
+
 export function scanBundle(dir) {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     return { missing: true, findings: [] };
   }
   const findings = [];
   for (const file of walk(dir)) {
+    const relative = path.relative(dir, file);
+    const shown = redactPath(relative);
     const text = readFileSync(file, "latin1");
     for (const check of checks) {
+      if (check.test(relative)) {
+        findings.push({ kind: `${check.kind} (in path)`, file: shown });
+      }
       if (check.test(text)) {
-        findings.push({ kind: check.kind, file: path.relative(dir, file) });
+        findings.push({ kind: check.kind, file: shown });
       }
     }
   }

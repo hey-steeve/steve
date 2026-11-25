@@ -44,7 +44,7 @@ export async function mintVoiceSecret(options: MintOptions): Promise<VoiceSecret
     if (!response.ok) {
       return { kind: "upstream" };
     }
-    const secret = readSecret(await response.json());
+    const secret = readSecret(await response.json(), options.apiKey, options.now);
     return secret === null ? { kind: "upstream" } : { kind: "ok", secret };
   } catch {
     return { kind: "upstream" };
@@ -58,17 +58,25 @@ export function mockSecret(now: () => number): VoiceSecret {
   };
 }
 
-function readSecret(payload: unknown): VoiceSecret | null {
+function readSecret(payload: unknown, apiKey: string, now: () => number): VoiceSecret | null {
   if (typeof payload !== "object" || payload === null) {
     return null;
   }
-  const value: unknown = Reflect.get(payload, "value");
+  const rawValue: unknown = Reflect.get(payload, "value");
   const expiresAt: unknown = Reflect.get(payload, "expires_at");
-  if (typeof value !== "string" || value.length === 0) {
+  if (typeof rawValue !== "string") {
+    return null;
+  }
+  const value = rawValue.trim();
+  if (value.length === 0 || value.includes(apiKey)) {
     return null;
   }
   if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) {
     return null;
   }
-  return { value, expires_at: Math.floor(expiresAt) };
+  const expiry = Math.floor(expiresAt);
+  if (expiry <= Math.floor(now() / 1000)) {
+    return null;
+  }
+  return { value, expires_at: expiry };
 }

@@ -40,21 +40,40 @@ it("fails a tree that contains the key name and reports the file", () => {
   const dir = fixture({ "chunks/ok.js": "1", "chunks/bad.js": "process.env.XAI_API_KEY" });
   const result = scan(dir);
   expect(result.status).toBe(1);
-  expect(result.output).toContain("key name");
-  expect(result.output).toContain("bad.js");
-  expect(result.output).not.toContain("process.env");
+  expect(result.output.includes("key name")).toBe(true);
+  expect(result.output.includes("bad.js")).toBe(true);
+  expect(result.output.includes("process.env")).toBe(false);
 });
 
 it("fails a tree that contains a key value and does not print it", () => {
   const dir = fixture({ "chunks/leak.js": `var k="${canary}";` });
   const result = scan(dir);
   expect(result.status).toBe(1);
-  expect(result.output).toContain("key value");
-  expect(result.output).toContain("leak.js");
+  expect(result.output.includes("key value")).toBe(true);
+  expect(result.output.includes("leak.js")).toBe(true);
   expect(result.output.includes(canary)).toBe(false);
 });
 
 it("fails when the scan directory is missing", () => {
   const dir = fixture({});
   expect(scan(path.join(dir, "absent")).status).toBe(1);
+});
+
+it("fails when the key appears only in an asset filename", () => {
+  const dir = fixture({ [`media/${canary}.png`]: "harmless" });
+  const result = scan(dir);
+  expect(result.status).toBe(1);
+  expect(result.output.includes("key value")).toBe(true);
+});
+
+it("redacts a key-bearing filename and directory from the scanner output", () => {
+  const dir = fixture({
+    [`${canary}/inner.js`]: "1",
+    [`chunks/XAI_API_KEY-${canary}.js`]: "1",
+  });
+  const result = scan(dir);
+  expect(result.status).toBe(1);
+  expect(result.output.includes(canary)).toBe(false);
+  expect(result.output.includes("XAI_API_KEY")).toBe(false);
+  expect(result.output.includes("[redacted]")).toBe(true);
 });

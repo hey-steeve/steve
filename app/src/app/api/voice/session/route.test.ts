@@ -66,7 +66,8 @@ it("returns the minted secret with exactly value and expires_at in live mode", a
   expect(response.status).toBe(200);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
   const body = await readObject(response.clone());
-  expect(body).toEqual({ value: upstreamToken, expires_at: 1_900_000_000 });
+  expect(body["value"] === upstreamToken).toBe(true);
+  expect(body["expires_at"]).toBe(1_900_000_000);
   expect(Object.keys(body).sort()).toEqual(["expires_at", "value"]);
   expect((await response.text()).includes(canary)).toBe(false);
   expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -74,10 +75,9 @@ it("returns the minted secret with exactly value and expires_at in live mode", a
   expect(call.url).toBe(clientSecretsUrl);
   expect(call.url).toBe("https://api.x.ai/v1/realtime/client_secrets");
   expect(call.init.method).toBe("POST");
-  expect(call.init.headers).toEqual({
-    Authorization: `Bearer ${canary}`,
-    "Content-Type": "application/json",
-  });
+  const headers: unknown = call.init.headers;
+  const expectedHeaders = { Authorization: `Bearer ${canary}`, "Content-Type": "application/json" };
+  expect(JSON.stringify(headers) === JSON.stringify(expectedHeaders)).toBe(true);
   expect(clientSecretTtlSeconds).toBe(300);
   const sent: unknown = JSON.parse(String(call.init.body));
   expect(sent).toEqual({ expires_after: { seconds: 300 } });
@@ -155,13 +155,19 @@ const invalidPayloads: readonly (readonly [string, Response])[] = [
   ["a missing expires_at", upstreamJson({ value: upstreamToken })],
   ["a non-JSON body", new Response(`not json ${rawUpstreamBody}`, { status: 200 })],
   ["a JSON null", upstreamJson(null)],
+  ["a whitespace-only value", upstreamJson({ value: "  \t ", expires_at: 1_900_000_000 })],
+  ["an expired expires_at", upstreamJson({ value: upstreamToken, expires_at: 1_000 })],
+  ["a non-finite expires_at", upstreamJson({ value: upstreamToken, expires_at: 1e999 })],
+  ["the API key as value", upstreamJson({ value: canary, expires_at: 1_900_000_000 })],
+  ["a value containing the API key", upstreamJson({ value: `pre-${canary}-post`, expires_at: 1_900_000_000 })],
 ];
 
 for (const [name, payload] of invalidPayloads) {
   it(`returns an error status for ${name} without leaking the key`, async () => {
     stubFetch(payload);
     const response = await POST();
-    expect([502, 503]).toContain(response.status);
+    expect(response.status).toBe(502);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     await expectNoLeak(response);
   });
 }
