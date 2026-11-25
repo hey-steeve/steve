@@ -83,7 +83,7 @@ On model failure, a list that includes 15 uses `ensureEmergencyCalls("", numbers
 
 When Jev returns both numbers, both sentences are shown live. The order follows the call list.
 
-The route test classifies a psychological emergency (`app/src/app/api/chat/route.test.ts:881`). The model text is `Reste avec moi.` (`route.test.ts:885`). The reply starts with `call3114Now`, then `call15Now` (`route.test.ts:906-914`). The 502 text for `[3114, 15]` is `call3114Now`, then `call15Now`, then the upstream error (`route.test.ts:1246-1248`). `ensureEmergencyCalls` prefixes the same pair onto `Reste au chaud.` (fixture row `emergency-templates.test.ts:20-24`, assertion `emergency-templates.test.ts:159-162`, both in `app/src/app/api/chat/`).
+The route test classifies a psychological emergency (`app/src/app/api/chat/route.test.ts:885`). The model text is `Reste avec moi.` (`route.test.ts:889`). The reply starts with `call3114Now`, then `call15Now` (`route.test.ts:910-918`). The 502 text for `[3114, 15]` is `call3114Now`, then `call15Now`, then the upstream error (`route.test.ts:1245-1247`). `ensureEmergencyCalls` prefixes the same pair onto `Reste au chaud.` (fixture row `emergency-templates.test.ts:21-24`, assertion `emergency-templates.test.ts:170`, both in `app/src/app/api/chat/`).
 
 `requiredSentences` is what the checker requires at the start of a reply (`app/src/app/api/chat/eval/check.ts:709-730`). That function scores eval replies. It does not prefix the live reply.
 
