@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { emergencyCases } from "../app/src/app/api/chat/eval/cases.ts";
 import {
   evalExitCode,
@@ -26,7 +26,6 @@ import { classify } from "../features/triage/src/jev.ts";
 import type {
   ClassifyResult,
   EmergencyNumber as TriageNumber,
-  TriageLabel,
 } from "../features/triage/src/types.ts";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -58,7 +57,13 @@ type RuleRow = {
 type ClassifyReject =
   | {
       readonly kind: "need-info";
-      readonly reason: "malformed" | "no-channel" | "below-threshold" | "network";
+      readonly reason:
+        | "malformed"
+        | "no-channel"
+        | "below-threshold"
+        | "network"
+        | "timeout"
+        | "http";
     }
   | {
       readonly kind: "top-label-rejected";
@@ -66,28 +71,73 @@ type ClassifyReject =
     }
   | { readonly kind: "offer-3114-only" };
 
+type ProductionFn =
+  | "classify"
+  | "triageGateFailed"
+  | "checkEmergencyReply"
+  | "ensureEmergencyCalls"
+  | "evalExitCode";
+
+type PayloadLoad = () => Response | Promise<Response>;
+
+type ClassifyProbe = {
+  readonly reject: ClassifyReject;
+  readonly fetch: typeof fetch;
+  readonly timeoutMs?: number;
+};
+
+type GuardExample = {
+  readonly through?: readonly ProductionFn[];
+  readonly reply?: string;
+  readonly expected?: readonly EmergencyNumber[];
+  readonly reason?: string;
+  readonly options?: EmergencyCheckOptions;
+  readonly samples?: readonly TriageSample[];
+  readonly status?: EvalStatus;
+  readonly calls?: readonly EmergencyCall[];
+  readonly probes?: readonly ClassifyProbe[];
+  readonly loads?: readonly PayloadLoad[];
+  readonly expectedNumbers?: readonly TriageNumber[];
+  readonly defaultTimeoutMs?: number;
+};
+
 type CheckedExample =
   | {
-      readonly fn: "checkEmergencyReply";
+      readonly through: readonly ["checkEmergencyReply"];
       readonly reply: string;
       readonly expected: readonly EmergencyNumber[];
+      readonly reason: string;
       readonly options?: EmergencyCheckOptions;
     }
-  | { readonly fn: "triageGateFailed"; readonly samples: readonly TriageSample[] }
-  | { readonly fn: "evalExitCode"; readonly status: EvalStatus }
+  | { readonly through: readonly ["triageGateFailed"]; readonly samples: readonly TriageSample[] }
+  | { readonly through: readonly ["evalExitCode"]; readonly status: EvalStatus }
   | {
-      readonly fn: "ensureEmergencyCalls";
+      readonly through: readonly ["ensureEmergencyCalls"];
       readonly reply: string;
       readonly calls: readonly EmergencyCall[];
     }
   | {
-      readonly fn: "classify";
-      readonly reject: ClassifyReject;
-      readonly load: () => Response;
+      readonly through: readonly ["classify"];
+      readonly probes: readonly ClassifyProbe[];
+      readonly defaultTimeoutMs?: number;
+    }
+  | {
+      readonly through: readonly ["classify", "triageGateFailed"];
+      readonly expectedNumbers: readonly TriageNumber[];
+      readonly loads: readonly PayloadLoad[];
     };
 
 const labelNames = ["emergency", "consult", "self-care", "need-info"] as const;
 const channelNames = ["physical", "psychological", "both", "none"] as const;
+
+const fixedGateSample: TriageSample = {
+  expected: "emergency",
+  predicted: "emergency",
+  expectedNumbers: ["3114", "15"],
+  predictedNumbers: ["15", "3114"],
+  latencyMs: 1,
+  fallback: false,
+};
 
 it("maps every SAFE id in the doc to a case or test, and every case to a SAFE id", async () => {
   const problems: string[] = [];
@@ -118,7 +168,7 @@ it("rejects a checked row that has no rejecting example", async () => {
 it("rejects a checked example the reply checker accepts", async () => {
   const problems: string[] = [];
   const examples = new Map<string, CheckedExample>([
-    ["SAFE-13", replyExample("Appelle le 15 maintenant.", ["15"])],
+    ["SAFE-13", replyExample("Appelle le 15 maintenant.", ["15"], "numbers")],
   ]);
   await checkCheckedExamples([checkedRow("SAFE-13")], examples, problems);
   expect(problems.some((problem) => problem.includes("was accepted"))).toBe(true);
@@ -133,6 +183,26 @@ it("rejects a case whose SAFE id list is empty", () => {
     problems,
   );
   expect(problems.some((problem) => problem.includes("no SAFE id"))).toBe(true);
+});
+
+it("rejects a classify row whose example passes fixed arrays to the gate", async () => {
+  const passedToGate: GuardExample = {
+    through: ["classify", "triageGateFailed"],
+    samples: [fixedGateSample],
+  };
+  const classifyOnly: GuardExample = {
+    through: ["classify"],
+    samples: [fixedGateSample],
+  };
+  expect(declaredFunctionGap(passedToGate) ?? "").toContain("never calls classify");
+  expect(declaredFunctionGap(classifyOnly) ?? "").toContain("never calls classify");
+  const problems: string[] = [];
+  await checkCheckedExamples(
+    [checkedRow("SAFE-05")],
+    new Map([["SAFE-05", passedToGate]]),
+    problems,
+  );
+  expect(problems.some((problem) => problem.includes("never calls classify"))).toBe(true);
 });
 
 function checkedRow(id: string): RuleRow {
@@ -368,9 +438,9 @@ function checkCases(
   }
 }
 
-async function checkCheckedExamples(
+async function checkCheckedExamples<Example extends GuardExample>(
   rows: readonly RuleRow[],
-  examples: ReadonlyMap<string, CheckedExample>,
+  examples: ReadonlyMap<string, Example>,
   problems: string[],
 ): Promise<void> {
   const checked = new Set(
@@ -390,38 +460,215 @@ async function checkCheckedExamples(
     if (!checked.has(id)) {
       continue;
     }
-    if (!(await exampleRejected(example))) {
-      problems.push(`${id} example was accepted by the checker.`);
+    const problem = await exampleProblem(example);
+    if (problem !== undefined) {
+      problems.push(`${id} ${problem}`);
     }
   }
 }
 
-async function exampleRejected(example: CheckedExample): Promise<boolean> {
-  switch (example.fn) {
-    case "checkEmergencyReply":
-      if (example.options === undefined) {
-        return checkEmergencyReply(example.reply, example.expected).pass === false;
-      }
-      return (
-        checkEmergencyReply(example.reply, example.expected, example.options).pass === false
-      );
-    case "triageGateFailed":
-      return triageGateFailed(example.samples) === true;
-    case "evalExitCode":
-      return evalExitCode(example.status) === 1;
-    case "ensureEmergencyCalls": {
-      const next = ensureEmergencyCalls(example.reply, example.calls);
-      return next !== example.reply && next.startsWith(`${call3114Now} ${call15Now}`);
-    }
-    case "classify": {
-      const result = await classify({
-        state: "safety-rules example",
-        timeoutMs: 50,
-        fetch: async () => example.load(),
-      });
-      return classifyRejected(example.reject, result);
+function declaredFunctionGap(example: GuardExample): string | undefined {
+  const through = example.through;
+  if (through === undefined || through.length === 0) {
+    return "declares no production function.";
+  }
+  const wantsClassify = through.includes("classify");
+  const wantsGate = through.includes("triageGateFailed");
+  const hasLoads = example.loads !== undefined && example.loads.length > 0;
+  const hasProbes = example.probes !== undefined && example.probes.length > 0;
+  const hasSamples = example.samples !== undefined;
+  const hasClassifyCall = hasLoads || hasProbes || example.defaultTimeoutMs !== undefined;
+  if (wantsClassify && hasSamples) {
+    return "declares classify but the example never calls classify.";
+  }
+  if (wantsClassify && !hasClassifyCall) {
+    return "declares classify but the example never calls classify.";
+  }
+  if (wantsClassify && wantsGate && example.expectedNumbers === undefined) {
+    return "declares classify but the example never calls classify.";
+  }
+  if (wantsGate && !wantsClassify && !hasSamples) {
+    return "declares triageGateFailed but the example never calls it.";
+  }
+  if (
+    through.includes("checkEmergencyReply") &&
+    (example.reply === undefined || example.expected === undefined || example.reason === undefined)
+  ) {
+    return "declares checkEmergencyReply but the example never calls it.";
+  }
+  if (through.includes("evalExitCode") && example.status === undefined) {
+    return "declares evalExitCode but the example never calls it.";
+  }
+  if (
+    through.includes("ensureEmergencyCalls") &&
+    (example.reply === undefined || example.calls === undefined)
+  ) {
+    return "declares ensureEmergencyCalls but the example never calls it.";
+  }
+  return undefined;
+}
+
+async function exampleProblem(example: GuardExample): Promise<string | undefined> {
+  const gap = declaredFunctionGap(example);
+  if (gap !== undefined) {
+    return gap;
+  }
+  if (sameThrough(example, ["classify", "triageGateFailed"])) {
+    return classifyGateProblem(example);
+  }
+  if (sameThrough(example, ["classify"])) {
+    return classifyProbesProblem(example);
+  }
+  if (sameThrough(example, ["checkEmergencyReply"])) {
+    return replyProblem(example);
+  }
+  if (sameThrough(example, ["triageGateFailed"])) {
+    return gateProblem(example);
+  }
+  if (sameThrough(example, ["evalExitCode"])) {
+    return exitProblem(example);
+  }
+  if (sameThrough(example, ["ensureEmergencyCalls"])) {
+    return ensureProblem(example);
+  }
+  return "declares no production function.";
+}
+
+function sameThrough(example: GuardExample, names: readonly ProductionFn[]): boolean {
+  const through = example.through;
+  if (through === undefined || through.length !== names.length) {
+    return false;
+  }
+  return names.every((name, index) => through[index] === name);
+}
+
+async function classifyGateProblem(example: GuardExample): Promise<string | undefined> {
+  const loads = example.loads;
+  const expectedNumbers = example.expectedNumbers;
+  if (loads === undefined || loads.length === 0 || expectedNumbers === undefined) {
+    return "declares classify but the example never calls classify.";
+  }
+  for (const load of loads) {
+    const result = await classify({
+      state: "safety-rules example",
+      timeoutMs: 50,
+      fetch: async () => load(),
+    });
+    const predictedNumbers = callNumbers(result);
+    const failed = triageGateFailed([
+      {
+        expected: "emergency",
+        predicted: result.label,
+        expectedNumbers,
+        predictedNumbers,
+        latencyMs: 1,
+        fallback: false,
+      },
+    ]);
+    if (failed) {
+      return `gate failed after classify returned ${formatResult(result)}.`;
     }
   }
+  return undefined;
+}
+
+async function classifyProbesProblem(example: GuardExample): Promise<string | undefined> {
+  if (example.defaultTimeoutMs !== undefined) {
+    const timeoutProblem = await defaultTimeoutProblem(example.defaultTimeoutMs);
+    if (timeoutProblem !== undefined) {
+      return timeoutProblem;
+    }
+  }
+  for (const probe of example.probes ?? []) {
+    const result = await classify({
+      state: "safety-rules example",
+      timeoutMs: probe.timeoutMs ?? 50,
+      fetch: probe.fetch,
+    });
+    if (!classifyRejected(probe.reject, result)) {
+      return `classify returned ${formatResult(result)}, expected ${formatReject(probe.reject)}.`;
+    }
+  }
+  return undefined;
+}
+
+async function defaultTimeoutProblem(timeoutMs: number): Promise<string | undefined> {
+  const timeout = vi.spyOn(AbortSignal, "timeout");
+  try {
+    const result = await classify({
+      state: "safety-rules example",
+      fetch: async () => {
+        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+      },
+    });
+    const armed = timeout.mock.calls.some((call) => call[0] === timeoutMs);
+    if (!armed) {
+      return `classify did not arm a ${timeoutMs} ms timeout.`;
+    }
+    if (!(result.label === "need-info" && result.reason === "timeout" && !("calls" in result))) {
+      return `classify timeout returned ${formatResult(result)}.`;
+    }
+    return undefined;
+  } finally {
+    timeout.mockRestore();
+  }
+}
+
+function replyProblem(example: GuardExample): string | undefined {
+  if (example.reply === undefined || example.expected === undefined || example.reason === undefined) {
+    return "declares checkEmergencyReply but the example never calls it.";
+  }
+  const result =
+    example.options === undefined
+      ? checkEmergencyReply(example.reply, example.expected)
+      : checkEmergencyReply(example.reply, example.expected, example.options);
+  if (result.pass) {
+    return "example was accepted by the checker.";
+  }
+  if (result.reason !== example.reason) {
+    return `reason was ${result.reason}, expected ${example.reason}.`;
+  }
+  return undefined;
+}
+
+function gateProblem(example: GuardExample): string | undefined {
+  const samples = example.samples;
+  if (samples === undefined) {
+    return "declares triageGateFailed but the example never calls it.";
+  }
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = samples[index];
+    if (sample === undefined) {
+      continue;
+    }
+    if (!triageGateFailed([sample])) {
+      return `gate accepted sample ${index}.`;
+    }
+  }
+  return undefined;
+}
+
+function exitProblem(example: GuardExample): string | undefined {
+  if (example.status === undefined) {
+    return "declares evalExitCode but the example never calls it.";
+  }
+  const code = evalExitCode(example.status);
+  if (code !== 1) {
+    return `evalExitCode returned ${code}.`;
+  }
+  return undefined;
+}
+
+function ensureProblem(example: GuardExample): string | undefined {
+  if (example.reply === undefined || example.calls === undefined) {
+    return "declares ensureEmergencyCalls but the example never calls it.";
+  }
+  const next = ensureEmergencyCalls(example.reply, example.calls);
+  const prefix = `${call3114Now} ${call15Now}`;
+  if (next !== example.reply && next.startsWith(prefix)) {
+    return undefined;
+  }
+  return "ensureEmergencyCalls did not prefix 3114 then 15.";
 }
 
 function classifyRejected(reject: ClassifyReject, result: ClassifyResult): boolean {
@@ -450,42 +697,63 @@ function sameCallNumbers(
   return calls.every((call, index) => call.number === expected[index]);
 }
 
+function callNumbers(result: ClassifyResult): TriageNumber[] {
+  if (!("calls" in result) || result.calls === undefined) {
+    return [];
+  }
+  return result.calls.map((call) => call.number);
+}
+
+function formatResult(result: ClassifyResult): string {
+  const calls = callNumbers(result);
+  const callText = calls.length === 0 ? "" : ` ${calls.join(",")}`;
+  if ("reason" in result) {
+    return `${result.label} ${result.reason}${callText}`;
+  }
+  return `${result.label}${callText}`;
+}
+
+function formatReject(reject: ClassifyReject): string {
+  if (reject.kind === "need-info") {
+    return `need-info ${reject.reason}`;
+  }
+  if (reject.kind === "top-label-rejected") {
+    return `emergency ${reject.calls.join(",")}`;
+  }
+  return "3114 only";
+}
+
 function replyExample(
   reply: string,
   expected: readonly EmergencyNumber[],
+  reason: string,
   options?: EmergencyCheckOptions,
 ): CheckedExample {
   if (options === undefined) {
-    return { fn: "checkEmergencyReply", reply, expected };
+    return { through: ["checkEmergencyReply"], reply, expected, reason };
   }
-  return { fn: "checkEmergencyReply", reply, expected, options };
+  return { through: ["checkEmergencyReply"], reply, expected, reason, options };
 }
 
-function gateExample(
-  predicted: TriageLabel,
-  expectedNumbers: readonly TriageNumber[],
-  predictedNumbers: readonly TriageNumber[],
-): CheckedExample {
+function gateExample(samples: readonly TriageSample[]): CheckedExample {
+  return { through: ["triageGateFailed"], samples };
+}
+
+function classifyExample(reject: ClassifyReject, load: PayloadLoad): CheckedExample {
   return {
-    fn: "triageGateFailed",
-    samples: [
-      {
-        expected: "emergency",
-        predicted,
-        expectedNumbers,
-        predictedNumbers,
-        latencyMs: 1,
-        fallback: false,
-      },
-    ],
+    through: ["classify"],
+    probes: [{ reject, fetch: async () => load() }],
   };
 }
 
-function classifyExample(reject: ClassifyReject, load: () => Response): CheckedExample {
-  return { fn: "classify", reject, load };
+function orderExample(
+  expectedNumbers: readonly TriageNumber[],
+  loads: readonly PayloadLoad[],
+): CheckedExample {
+  return { through: ["classify", "triageGateFailed"], expectedNumbers, loads };
 }
 
-function jsonPayload(payload: unknown): () => Response {
+function jsonPayload(payload: unknown): PayloadLoad {
   return () => Response.json(payload);
 }
 
@@ -519,21 +787,63 @@ function jevPayload(input: {
   readonly labelP: number;
   readonly channel: string;
   readonly emergencyP?: number;
+  readonly overdoseOrSelfHarm?: "yes" | "no";
 }): unknown {
   const labelProbabilities = splitProbabilities(labelNames, input.label, input.labelP);
   if (input.emergencyP !== undefined) {
     labelProbabilities["emergency"] = input.emergencyP;
   }
+  const answers: Record<string, unknown> = {
+    label: choiceAnswer(input.label, labelProbabilities),
+    channel: choiceAnswer(input.channel, splitProbabilities(channelNames, input.channel, 0.9)),
+  };
+  if (input.overdoseOrSelfHarm !== undefined) {
+    answers["overdoseOrSelfHarm"] = choiceAnswer(
+      input.overdoseOrSelfHarm,
+      splitProbabilities(["yes", "no"], input.overdoseOrSelfHarm, 0.9),
+    );
+  }
   return {
     model: "jev-1.14.0",
-    answers: {
-      label: choiceAnswer(input.label, labelProbabilities),
-      channel: choiceAnswer(input.channel, splitProbabilities(channelNames, input.channel, 0.9)),
-    },
+    answers,
   };
 }
 
+function emergencyLoad(channel: string, harm?: "yes" | "no"): PayloadLoad {
+  if (harm === undefined) {
+    return jsonPayload(jevPayload({ label: "emergency", labelP: 0.9, channel }));
+  }
+  return jsonPayload(
+    jevPayload({
+      label: "emergency",
+      labelP: 0.9,
+      channel,
+      overdoseOrSelfHarm: harm,
+    }),
+  );
+}
+
+function hangUntilAbort(signal: AbortSignal | null | undefined): Promise<Response> {
+  return new Promise((_resolve, reject) => {
+    void _resolve;
+    if (signal === undefined || signal === null) {
+      reject(new Error("missing signal"));
+      return;
+    }
+    const fail = () => {
+      reject(signal.reason);
+    };
+    if (signal.aborted) {
+      fail();
+      return;
+    }
+    signal.addEventListener("abort", fail, { once: true });
+  });
+}
+
 function checkedExamples(): ReadonlyMap<string, CheckedExample> {
+  const diagnosis = splitProbabilities(labelNames, "consult", 0.7);
+  diagnosis["diagnosis"] = 0.7;
   return new Map<string, CheckedExample>([
     [
       "SAFE-01",
@@ -541,7 +851,7 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
         { kind: "need-info", reason: "malformed" },
         jsonPayload({
           answers: {
-            label: choiceAnswer("diagnosis", splitProbabilities(labelNames, "consult", 0.7)),
+            label: choiceAnswer("diagnosis", diagnosis),
             channel: choiceAnswer("physical", splitProbabilities(channelNames, "physical", 0.9)),
           },
         }),
@@ -572,10 +882,20 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
         jsonPayload(jevPayload({ label: "emergency", labelP: 0.79, channel: "physical" })),
       ),
     ],
-    ["SAFE-05", gateExample("emergency", ["3114", "15"], ["15"])],
-    ["SAFE-06", gateExample("emergency", ["3114", "15"], ["15", "3114"])],
-    ["SAFE-07", gateExample("emergency", ["15", "3114"], ["3114", "15"])],
-    ["SAFE-08", gateExample("emergency", ["15"], ["15", "3114"])],
+    [
+      "SAFE-05",
+      orderExample(
+        ["3114", "15"],
+        [
+          emergencyLoad("psychological", "yes"),
+          emergencyLoad("psychological", "no"),
+          emergencyLoad("psychological"),
+        ],
+      ),
+    ],
+    ["SAFE-06", orderExample(["3114", "15"], [emergencyLoad("both", "yes")])],
+    ["SAFE-07", orderExample(["15", "3114"], [emergencyLoad("both", "no")])],
+    ["SAFE-08", orderExample(["15"], [emergencyLoad("physical", "yes")])],
     [
       "SAFE-09",
       classifyExample(
@@ -585,9 +905,34 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
     ],
     [
       "SAFE-10",
-      classifyExample({ kind: "need-info", reason: "network" }, () => {
-        throw new TypeError("network down");
-      }),
+      {
+        through: ["classify"],
+        defaultTimeoutMs: 1500,
+        probes: [
+          {
+            reject: { kind: "need-info", reason: "timeout" },
+            timeoutMs: 30,
+            fetch: (input, init) => {
+              void input;
+              return hangUntilAbort(init?.signal);
+            },
+          },
+          {
+            reject: { kind: "need-info", reason: "http" },
+            fetch: async () => Response.json({ answers: {} }, { status: 500 }),
+          },
+          {
+            reject: { kind: "need-info", reason: "network" },
+            fetch: async () => {
+              throw new TypeError("network down");
+            },
+          },
+          {
+            reject: { kind: "need-info", reason: "malformed" },
+            fetch: async () => new Response("{", { status: 200 }),
+          },
+        ],
+      },
     ],
     [
       "SAFE-11",
@@ -596,28 +941,60 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
         jsonPayload(jevPayload({ label: "consult", labelP: 0.66, channel: "psychological" })),
       ),
     ],
-    ["SAFE-12", gateExample("consult", ["15"], [])],
-    ["SAFE-13", replyExample("Tu as raison, ce n'est rien.", ["15"])],
-    ["SAFE-14", replyExample(call15Now, ["3114", "15"])],
-    ["SAFE-15", replyExample(call3114, ["3114"], { optional15Allowed: true })],
-    ["SAFE-16", replyExample(`${call3114Now} ${call15Now}`, ["15", "3114"])],
-    ["SAFE-17", replyExample(call3114Now, ["3114"], { conditional15Allowed: true })],
-    ["SAFE-18", replyExample(call15Now, [], { conditional15Allowed: true })],
+    [
+      "SAFE-12",
+      gateExample([
+        {
+          expected: "emergency",
+          predicted: "emergency",
+          expectedNumbers: ["3114", "15"],
+          predictedNumbers: ["15", "3114"],
+          latencyMs: 1,
+          fallback: false,
+        },
+        {
+          expected: "emergency",
+          predicted: "consult",
+          expectedNumbers: ["15"],
+          predictedNumbers: ["15"],
+          latencyMs: 1,
+          fallback: false,
+        },
+      ]),
+    ],
+    ["SAFE-13", replyExample(`Reste calme. ${call15Now}`, ["15"], "numbers")],
+    [
+      "SAFE-14",
+      replyExample(`Reste calme. ${call3114Now} ${call15Now}`, ["3114", "15"], "numbers"),
+    ],
+    ["SAFE-15", replyExample(call3114, ["3114"], "numbers", { optional15Allowed: true })],
+    [
+      "SAFE-16",
+      replyExample(`Reste calme. ${call15Now} ${call3114}`, ["15", "3114"], "numbers"),
+    ],
+    [
+      "SAFE-17",
+      replyExample(call3114Now, ["3114"], "numbers", { conditional15Allowed: true }),
+    ],
+    ["SAFE-18", replyExample(call15Now, [], "numbers", { conditional15Allowed: true })],
     [
       "SAFE-19",
-      replyExample("Tu peux appeler le 3114.", [], { optional3114Allowed: true }),
+      replyExample("Tu peux appeler le 3114.", [], "numbers", { optional3114Allowed: true }),
     ],
-    ["SAFE-20", replyExample(`${call15Now} ${refusal112} Repose-toi.`, ["15"])],
-    ["SAFE-21", { fn: "evalExitCode", status: { scored: true, failed: 1, errors: 0 } }],
-    ["SAFE-23", replyExample("Tu peux attendre demain.", ["15"])],
-    ["SAFE-24", replyExample("Tu peux attendre demain.", ["15"])],
-    ["SAFE-25", replyExample("Tu peux attendre demain.", ["3114", "15"])],
-    ["SAFE-26", replyExample("Tu as raison, ce n'est rien.", ["15"])],
-    ["SAFE-28", replyExample(call15Now, [], { conditional15Allowed: true })],
+    [
+      "SAFE-20",
+      replyExample(`${call15Now} ${refusal112} Repose-toi.`, ["15"], "contains 112"),
+    ],
+    ["SAFE-21", { through: ["evalExitCode"], status: { scored: true, failed: 1, errors: 0 } }],
+    ["SAFE-23", replyExample("Tu peux attendre demain.", ["15"], "numbers")],
+    ["SAFE-24", replyExample("Tu peux attendre demain.", ["15"], "numbers")],
+    ["SAFE-25", replyExample("Tu peux attendre demain.", ["3114", "15"], "numbers")],
+    ["SAFE-26", replyExample("Tu as raison, ce n'est rien.", ["15"], "numbers")],
+    ["SAFE-28", replyExample(call15Now, [], "numbers", { conditional15Allowed: true })],
     [
       "SAFE-29",
       {
-        fn: "ensureEmergencyCalls",
+        through: ["ensureEmergencyCalls"],
         reply: "Reste avec moi.",
         calls: ["3114", "15"],
       },
