@@ -1358,6 +1358,17 @@ it("adds the safety sentence once to a reply that has no triage", async () => {
   expect(replyText(await response.json())).toBe(withSentence);
 });
 
+it("gates the clipped no-triage text, not the text before the clip", async () => {
+  const room = chatRequestLimits.maxMessageChars - emergencySafetySentence.length - 1;
+  const lead = "Appelle le 112";
+  const long = `${"mot ".repeat(Math.ceil(room / 4)).slice(0, room - lead.length)}${lead}0 maintenant`;
+  const fetchMock = triageFetch(() => new Response("upstream", { status: 500 }), long);
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(200);
+  expect(replyText(await response.json())).toBe(emergencySafetySentence);
+});
+
 it("answers a model reply that only names 112 with the fixed safety sentence", async () => {
   const fetchMock = triageFetch(
     () => Response.json(jevBody("consult", 0.74, "none")),

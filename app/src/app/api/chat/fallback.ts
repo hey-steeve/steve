@@ -3,6 +3,8 @@ import {
   emergencySafetySentence,
   ensureEmergencyCalls,
   normalizeEmergencyText,
+  refusal112,
+  refusalSos,
   type EmergencyCall,
 } from "./emergency-templates.ts";
 import { checkEmergencyReply } from "./eval/check.ts";
@@ -44,8 +46,28 @@ export function keepNonUrgentReply(
   kept: string,
   check: typeof checkEmergencyReply = checkEmergencyReply,
 ): string {
-  const { reason } = check(kept, []);
+  const { reason } = check(withoutSentences(kept, [refusal112, refusalSos]), []);
   return reason.includes("112") || reason.includes("SOS") ? strippedReplyFallback : kept;
+}
+
+// The gate for the exact text a no-triage 200 sends: after the clip and the appended safety
+// sentence. That sentence is removed by exact match before the 112 and SOS check.
+export function finalNoTriageReply(
+  kept: string,
+  check: typeof checkEmergencyReply = checkEmergencyReply,
+): string {
+  const final = withSafetySentence(kept);
+  const rest = final.split(emergencySafetySentence).join(" ");
+  return keepNonUrgentReply(rest, check) === rest ? final : strippedReplyFallback;
+}
+
+// Drops whole sentences equal to one of `drop` (exact match after normalization).
+function withoutSentences(text: string, drop: readonly string[]): string {
+  const dropped = drop.map(normalizeEmergencyText);
+  const sentences = text.match(/[^.!?]+[.!?]*\s*/gu) ?? [text];
+  return sentences
+    .filter((sentence) => !dropped.includes(normalizeEmergencyText(sentence).trim()))
+    .join("");
 }
 
 // A 200 reply on a turn with no usable triage (missing key, throw, http, timeout, network, or a

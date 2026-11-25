@@ -5,6 +5,8 @@ import {
   call3114,
   call3114Now,
   emergencySafetySentence,
+  refusal112,
+  refusalSos,
   type EmergencyCall,
 } from "./emergency-templates.js";
 import { checkEmergencyReply } from "./eval/check.js";
@@ -12,6 +14,7 @@ import { ensureEmergencyCalls, withoutOtherServices } from "./emergency-template
 import {
   fallbackText,
   finalEmergencyReply,
+  finalNoTriageReply,
   keepNonUrgentReply,
   strippedReplyFallback,
   upstreamError,
@@ -165,4 +168,34 @@ it("keeps a non-urgent reply that only fails for other reasons", () => {
   expect(keepNonUrgentReply("Appelle le 15.")).toBe("Appelle le 15.");
   expect(keepNonUrgentReply("Repose-toi.")).toBe("Repose-toi.");
   expect(keepNonUrgentReply("Appelle le 112.", passesAnything)).toBe("Appelle le 112.");
+});
+
+it("keeps exact 112 and SOS refusal sentences next to advice", () => {
+  const withRefusal = `${refusal112} Consulte ton médecin.`;
+  expect(keepNonUrgentReply(withRefusal)).toBe(withRefusal);
+  const withSos = `${refusalSos} Consulte ton médecin.`;
+  expect(keepNonUrgentReply(withSos)).toBe(withSos);
+  expect(keepNonUrgentReply(`${refusal112} Appelle le 112.`)).toBe(strippedReplyFallback);
+});
+
+// A reply with no sentence end in its head, so the clip cuts "1120" down to "112".
+function clippedTo112(): string {
+  const room = chatRequestLimits.maxMessageChars - emergencySafetySentence.length - 1;
+  const lead = "Appelle le 112";
+  return `${"mot ".repeat(Math.ceil(room / 4)).slice(0, room - lead.length)}${lead}0 maintenant`;
+}
+
+it("gates the final no-triage text after the clip and the safety sentence", () => {
+  const reply = clippedTo112();
+  expect(keepNonUrgentReply(reply)).toBe(reply);
+  expect(withSafetySentence(reply)).toContain("Appelle le 112 ");
+  expect(finalNoTriageReply(reply)).toBe(emergencySafetySentence);
+  expect(finalNoTriageReply("Reste au chaud.")).toBe(`Reste au chaud. ${emergencySafetySentence}`);
+});
+
+it("fails the clip case when the gate runs before the clip", () => {
+  const gateFirst = (reply: string): string => withSafetySentence(keepNonUrgentReply(reply));
+  const text = gateFirst(clippedTo112());
+  expect(text.replace(emergencySafetySentence, "")).toContain("Appelle le 112");
+  expect(text).not.toBe(emergencySafetySentence);
 });

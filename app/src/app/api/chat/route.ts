@@ -20,7 +20,7 @@ import {
   finalEmergencyReply,
   keepNonUrgentReply,
   strippedReplyFallback,
-  withSafetySentence,
+  finalNoTriageReply,
 } from "./fallback";
 import { openRouterModel } from "./openrouter-model";
 import { systemPrompt } from "./system-prompt";
@@ -252,7 +252,7 @@ function modelReply(
     hasNoWords && !isBareEmergencyNumber(stripped) ? strippedReplyFallback : stripped,
   );
   if (triage.kind === "none") {
-    return { status: 200, body: { reply: withSafetySentence(kept), mocked: false, model } };
+    return { status: 200, body: { reply: finalNoTriageReply(kept), mocked: false, model } };
   }
   const body = { reply: kept, mocked: false, model };
   if (triage.calls === undefined) {
