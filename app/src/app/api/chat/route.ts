@@ -14,7 +14,8 @@ import {
   type ChatHttpResult,
   type ChatTurn,
 } from "../../../chat/request";
-import { call3114Now, ensureEmergencyCalls } from "./emergency-templates";
+import { ensureEmergencyCalls, withoutOtherServices } from "./emergency-templates";
+import { fallbackText, withSafetySentence } from "./fallback";
 import { openRouterModel } from "./openrouter-model";
 import { systemPrompt } from "./system-prompt";
 import { recordTriageLog } from "./triage-log";
@@ -27,7 +28,6 @@ const openRouterReasoning = {
   effort: "low",
   exclude: true,
 } as const;
-const upstreamError = "Le service de chat est indisponible. Réessayez.";
 const invalidJsonError = "JSON invalide.";
 const tooLargeError = "Requête trop volumineuse.";
 const unsupportedTypeError = "Type de contenu non pris en charge.";
@@ -61,16 +61,24 @@ export async function POST(request: Request): Promise<Response> {
   return Response.json(result.body, { status: result.status });
 }
 
-type LiveTriage = {
-  readonly guidance?: string;
-  readonly calls?: EmergencyCalls;
-};
+// What the chat route knows about the turn.
+// - none: Jev gave no usable triage (missing key, throw, http, timeout, network, malformed).
+// - emergency: Jev flagged an emergency. `calls` always holds 15, in Jev's order.
+// - orientation: consult, self-care or need-info. `calls` is only a 3114 offer. It stays non-urgent.
+type LiveTriage =
+  | { readonly kind: "none" }
+  | { readonly kind: "emergency"; readonly calls: EmergencyCalls }
+  | {
+      readonly kind: "orientation";
+      readonly guidance?: string;
+      readonly calls?: EmergencyCalls;
+    };
 
 async function triageLive(messages: readonly ChatTurn[]): Promise<LiveTriage> {
   const jevKey = envString("JEV_API_KEY");
   if (jevKey === undefined) {
     recordTriageLog({ cause: "no-triage", reason: "missing-key" });
-    return {};
+    return { kind: "none" };
   }
   const jevModel = envString("JEV_MODEL");
   const decision = await triageTurn({
@@ -94,20 +102,29 @@ async function triageLive(messages: readonly ChatTurn[]): Promise<LiveTriage> {
 }
 
 function triageFields(decision: TriageDecision): LiveTriage {
+  if (decision.label === "emergency") {
+    return { kind: "emergency", calls: decision.calls };
+  }
   const guidance = "guidance" in decision ? decision.guidance?.text : undefined;
   const calls = decision.calls;
+  if (decision.label === "need-info" && guidance === undefined && calls === undefined) {
+    return { kind: "none" };
+  }
   if (guidance !== undefined && calls !== undefined) {
-    return { guidance, calls };
+    return { kind: "orientation", guidance, calls };
   }
   if (guidance !== undefined) {
-    return { guidance };
+    return { kind: "orientation", guidance };
   }
   if (calls !== undefined) {
-    return { calls };
+    return { kind: "orientation", calls };
   }
-  return {};
+  return { kind: "orientation" };
 }
 
+// Every user turn goes to `triageTurn`. The request is already bounded by `chatRequestLimits`
+// (40 messages, 4000 characters each), and `triageTurn` applies the state character budget.
+// Assistant turns stay out: the classifier reads what the person said.
 function chatHandoff(messages: readonly ChatTurn[]): Handoff<readonly Turn[]> {
   const sessionId = "chat";
   const turns: Turn[] = [];
@@ -176,7 +193,10 @@ async function completeWithOpenRouter(
         model,
         max_tokens: maxCompletionTokens,
         reasoning: openRouterReasoning,
-        messages: providerMessages(messages, triage.guidance),
+        messages: providerMessages(
+          messages,
+          triage.kind === "orientation" ? triage.guidance : undefined,
+        ),
       }),
       signal: AbortSignal.timeout(upstreamTimeoutMs),
     });
@@ -188,42 +208,50 @@ async function completeWithOpenRouter(
     if (completion === null) {
       return modelFailure(triage);
     }
-    const calls = triage.calls;
-    const reply =
-      calls === undefined
-        ? completion.reply
-        : ensureEmergencyCalls(
-            completion.reply,
-            calls.map((call) => call.number),
-          );
-    const body = {
-      reply,
-      mocked: false,
-      model: completion.model,
-    };
-    if (calls === undefined) {
-      return { status: 200, body };
-    }
-    return { status: 200, body: { ...body, calls } };
+    return modelReply(triage, completion);
   } catch {
     return modelFailure(triage);
   }
 }
 
-function modelFailure(triage: LiveTriage): ChatHttpResult {
-  const calls = triage.calls;
-  if (calls === undefined) {
-    return { status: 502, body: { error: upstreamError } };
+function modelReply(
+  triage: LiveTriage,
+  completion: { readonly reply: string; readonly model: string },
+): ChatHttpResult {
+  const model = completion.model;
+  if (triage.kind === "emergency") {
+    const reply = ensureEmergencyCalls(
+      completion.reply,
+      triage.calls.map((call) => call.number),
+    );
+    return { status: 200, body: { reply, mocked: false, model, calls: triage.calls } };
   }
-  const numbers = calls.map((call) => call.number);
-  const spoken = numbers.includes("15") ? ensureEmergencyCalls("", numbers) : call3114Now;
-  return {
-    status: 502,
-    body: {
-      error: `${spoken} ${upstreamError}`,
-      calls,
-    },
-  };
+  // Steve never routes to 112 or SOS Médecins. Nothing usable left means a failed model.
+  const kept = withoutOtherServices(completion.reply);
+  if (kept.length === 0) {
+    return modelFailure(triage);
+  }
+  if (triage.kind === "none") {
+    return { status: 200, body: { reply: withSafetySentence(kept), mocked: false, model } };
+  }
+  const body = { reply: kept, mocked: false, model };
+  if (triage.calls === undefined) {
+    return { status: 200, body };
+  }
+  return { status: 200, body: { ...body, calls: triage.calls } };
+}
+
+// The 502 keeps the `calls` the client renders as buttons. The text comes from `fallbackText`.
+function modelFailure(triage: LiveTriage): ChatHttpResult {
+  if (triage.kind === "none") {
+    return { status: 502, body: { error: fallbackText(undefined) } };
+  }
+  const numbers = triage.calls?.map((call) => call.number);
+  const error = fallbackText(triage.kind === "emergency" ? numbers : undefined);
+  if (triage.calls === undefined) {
+    return { status: 502, body: { error } };
+  }
+  return { status: 502, body: { error, calls: triage.calls } };
 }
 
 function providerMessages(messages: readonly ChatTurn[], guidance: string | undefined) {

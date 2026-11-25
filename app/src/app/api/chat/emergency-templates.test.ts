@@ -4,8 +4,12 @@ import {
   call15Now,
   call3114,
   call3114Now,
+  emergencySafetySentence,
   ensureEmergencyCalls,
   normalizeEmergencyText,
+  refusal112,
+  refusalSos,
+  withoutOtherServices,
 } from "./emergency-templates.ts";
 
 const rows = [
@@ -78,8 +82,7 @@ const rows = [
   {
     reply: "Si l'essoufflement persiste, appelle le 15 maintenant.",
     calls: ["15"],
-    result:
-      "Appelle le 15 maintenant. Si l'essoufflement persiste, appelle le 15 maintenant.",
+    result: "Appelle le 15 maintenant.",
   },
   {
     reply: "Appelle le 3114.",
@@ -89,12 +92,12 @@ const rows = [
   {
     reply: "Oui, appelle le 15 maintenant.",
     calls: ["15"],
-    result: "Appelle le 15 maintenant. Oui, appelle le 15 maintenant.",
+    result: "Appelle le 15 maintenant.",
   },
   {
     reply: "« Appelle le 15 maintenant. »",
     calls: ["15"],
-    result: "Appelle le 15 maintenant. « Appelle le 15 maintenant. »",
+    result: "Appelle le 15 maintenant.",
   },
   {
     reply: "",
@@ -261,36 +264,6 @@ const tonightWarning = "Ils t'écoutent 24h/24, mais ne reste pas seul ce soir."
 
 const mustKeepRows = [
   {
-    reply: `Appelle le 3114. ${breathingWarning}`,
-    calls: ["15", "3114"],
-    result: `Appelle le 15 maintenant. Appelle le 3114. ${breathingWarning}`,
-  },
-  {
-    reply: `Appelle le 3114 maintenant. ${breathingWarning}`,
-    calls: ["3114", "15"],
-    result: `Appelle le 3114 maintenant. Appelle le 15 maintenant. ${breathingWarning}`,
-  },
-  {
-    reply: `Appelle le 3114. ${breathingWarning}`,
-    calls: ["15"],
-    result: `Appelle le 15 maintenant. Appelle le 3114. ${breathingWarning}`,
-  },
-  {
-    reply: `Appelle le 3114. ${painWarning}`,
-    calls: ["15", "3114"],
-    result: `Appelle le 15 maintenant. Appelle le 3114. ${painWarning}`,
-  },
-  {
-    reply: `Appelle le 3114 maintenant. ${painWarning}`,
-    calls: ["3114", "15"],
-    result: `Appelle le 3114 maintenant. Appelle le 15 maintenant. ${painWarning}`,
-  },
-  {
-    reply: `Appelle le 3114. ${painWarning}`,
-    calls: ["15"],
-    result: `Appelle le 15 maintenant. Appelle le 3114. ${painWarning}`,
-  },
-  {
     reply: `Appelle le 3114. ${worsenWarning}`,
     calls: ["15", "3114"],
     result: `Appelle le 15 maintenant. Appelle le 3114. ${worsenWarning}`,
@@ -412,9 +385,16 @@ const modelPunctuationRows = [
   },
 ] as const;
 
+const namesANumber = /(?<![0-9])(?:15|3114|112)(?![0-9])|sos|samu|quinze/;
+
 function keptBodySentence(sentence: string): boolean {
   const normalized = normalizeEmergencyText(sentence);
-  return !exactCallTemplateNorms.has(normalized) && !closedListeningTails.has(normalized);
+  return (
+    !exactCallTemplateNorms.has(normalized) &&
+    !closedListeningTails.has(normalized) &&
+    !namesANumber.test(normalized) &&
+    /[\p{L}\p{N}]/u.test(normalized)
+  );
 }
 
 it("keeps every sentence that is not an exact call template or a closed listening tail", () => {
@@ -481,4 +461,118 @@ it("passes the emergency checker after it puts calls in order", () => {
     const result = ensureEmergencyCalls(reply, calls);
     expect(checkEmergencyReply(result, [...calls]).pass, result).toBe(true);
   }
+});
+
+// The live path owns the numbers of a flagged turn. These rows are what the old path let through.
+const strippedRows = [
+  { reply: "Appelle plutôt le 112.", calls: ["15"], result: call15Now },
+  { reply: "Appelle SOS Médecins.", calls: ["15"], result: call15Now },
+  { reply: "Appelle S.O.S Médecins. Reste calme.", calls: ["15"], result: `${call15Now} Reste calme.` },
+  { reply: "Appelez le cent douze. Reste calme.", calls: ["15"], result: `${call15Now} Reste calme.` },
+  { reply: "Appelle le 1 1 2. Reste calme.", calls: ["15"], result: `${call15Now} Reste calme.` },
+  { reply: "Appelez le 15.", calls: ["15"], result: call15Now },
+  { reply: "Appelle le SAMU. Reste calme.", calls: ["15"], result: `${call15Now} Reste calme.` },
+  { reply: "Appelle le quinze. Reste calme.", calls: ["15"], result: `${call15Now} Reste calme.` },
+  { reply: `${call15Now} Appelle le 15. Reste calme.`, calls: ["15"], result: `${call15Now} Reste calme.` },
+  {
+    reply: `${call15Now} ${call15Now} Reste calme.`,
+    calls: ["15"],
+    result: `${call15Now} Reste calme.`,
+  },
+  {
+    reply: "Le 3114 est gratuit. Reste calme.",
+    calls: ["15"],
+    result: `${call15Now} Reste calme.`,
+  },
+  {
+    reply: "Appelle le 112. Appelle SOS Médecins. Appelle le 15.",
+    calls: ["3114", "15"],
+    result: `${call3114Now} ${call15Now}`,
+  },
+  {
+    reply: `${call3114Now} ${call15Now} Appelle le 15. Reste calme.`,
+    calls: ["3114", "15"],
+    result: `${call3114Now} ${call15Now} Reste calme.`,
+  },
+  {
+    reply: `${call15Now} ${call3114} Appelez le 15, ou le 112. Reste calme.`,
+    calls: ["15", "3114"],
+    result: `${call15Now} ${call3114} Reste calme.`,
+  },
+  { reply: "Bois 1.5 litre d'eau. Reste calme.", calls: ["15"], result: `${call15Now} Reste calme.` },
+  { reply: "Appelle le 112. Reste calme.", calls: ["3114"], result: "Reste calme." },
+  { reply: "Appelle SOS Médecins.", calls: ["3114"], result: "" },
+  { reply: "Reste calme. Appelle le 15.", calls: ["3114"], result: "Reste calme. Appelle le 15." },
+] as const;
+
+it("strips every other sentence that names 112, SOS Médecins or a second 15", () => {
+  for (const row of strippedRows) {
+    expect(ensureEmergencyCalls(row.reply, [...row.calls]), row.reply).toBe(row.result);
+  }
+});
+
+it("drops advice that names the 15 again, even after a listening tail", () => {
+  for (const warning of [breathingWarning, painWarning]) {
+    expect(ensureEmergencyCalls(`Appelle le 3114. ${warning}`, ["15", "3114"]), warning).toBe(
+      `${call15Now} ${call3114}`,
+    );
+    expect(ensureEmergencyCalls(`Appelle le 3114. ${warning}`, ["3114", "15"]), warning).toBe(
+      `${call3114Now} ${call15Now}`,
+    );
+  }
+});
+
+it("makes every live output pass the emergency checker", () => {
+  const modelTexts = [
+    "Reste calme.",
+    "Appelle plutôt le 112. Reste calme.",
+    "Appelle SOS Médecins. Reste calme.",
+    "S.O.S Médecins peut venir. Reste calme.",
+    "Appelle le cent douze.",
+    "Appelle le 1-1-2.",
+    "Appelle le SAMU. Reste calme.",
+    "Appelle le quinze.",
+    "Si ça empire, appelle le 15 maintenant. Reste calme.",
+    "Appelle le 15. Appelle le 15. Reste calme.",
+    `${call15Now} ${call15Now}`,
+    "Le 15 est joignable. Le 3114 aussi. Reste calme.",
+    "Appelle le 3114, puis le 15.",
+    "Bois 1.5 litre d'eau. Reste calme.",
+    "Reste calme.\nAppelle le 112.\nRespire lentement.",
+    "",
+  ];
+  const orders = [["15"], ["3114", "15"], ["15", "3114"]] as const;
+  for (const calls of orders) {
+    for (const text of modelTexts) {
+      const output = ensureEmergencyCalls(text, [...calls]);
+      const checked = checkEmergencyReply(output, [...calls]);
+      expect(checked.pass, `${calls.join(",")} ${JSON.stringify(text)} -> ${JSON.stringify(output)} ${checked.reason}`).toBe(true);
+    }
+  }
+});
+
+it("removes the refusal sentences too, since the checker fails them beside other text", () => {
+  const reply = `${refusal112} ${refusalSos} Reste calme.`;
+  expect(checkEmergencyReply(`${call15Now} ${reply}`, ["15"]).pass).toBe(false);
+  const output = ensureEmergencyCalls(reply, ["15"]);
+  expect(output).toBe(`${call15Now} Reste calme.`);
+  expect(checkEmergencyReply(output, ["15"]).pass).toBe(true);
+  expect(withoutOtherServices(reply)).toBe("Reste calme.");
+});
+
+it("only removes 112 and SOS Médecins sentences on a turn without an emergency opening", () => {
+  expect(withoutOtherServices("Reste calme.")).toBe("Reste calme.");
+  expect(withoutOtherServices("Appelle le 112. Reste calme.")).toBe("Reste calme.");
+  expect(withoutOtherServices("Reste calme. Appelle SOS Médecins.")).toBe("Reste calme.");
+  expect(withoutOtherServices("Appelle le 112.")).toBe("");
+  expect(withoutOtherServices("Si ça empire, appelle le 15 maintenant.")).toBe(
+    "Si ça empire, appelle le 15 maintenant.",
+  );
+  expect(withoutOtherServices("Le rendez-vous est à 11 h 2.")).toBe("Le rendez-vous est à 11 h 2.");
+});
+
+it("states the safety sentence once, with the 15 and then the 3114", () => {
+  expect(emergencySafetySentence).toBe(
+    "En cas d'urgence, appelle le 15. Si tu as des idées suicidaires, appelle le 3114.",
+  );
 });

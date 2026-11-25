@@ -1,12 +1,19 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { readCompletion } from "../../../chat/completion.js";
 import { chatRequestLimits } from "../../../chat/request.js";
+import { emergencySafetySentence } from "./emergency-templates.js";
 import { POST } from "./route.js";
 
 const canary = "test-openrouter-key-canary";
 const echo =
   "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
+// These tests run with no Jev key, so no turn has triage. The reply and the 502 carry the safety sentence.
+const fallbackError = `${emergencySafetySentence} ${upstreamError}`;
+
+function safe(reply: string): string {
+  return `${reply} ${emergencySafetySentence}`;
+}
 const history = {
   messages: [{ role: "user", content: "De garde" }],
 };
@@ -38,7 +45,7 @@ it("asks OpenRouter for low-effort reasoning and excludes it from the reply", as
   const response = await post(history);
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    reply: "Une pharmacie de garde.",
+    reply: safe("Une pharmacie de garde."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -98,7 +105,7 @@ it("trims a length-capped reply back to the last complete sentence", async () =>
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      reply: item.reply,
+      reply: safe(item.reply),
       mocked: false,
       model: "openai/gpt-6.1-terra",
     });
@@ -112,7 +119,7 @@ it("does not treat a line-start list number as a sentence end", async () => {
   });
   expect(kept.status).toBe(200);
   expect(await kept.json()).toEqual({
-    reply: "Première phrase.",
+    reply: safe("Première phrase."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -123,7 +130,7 @@ it("does not treat a line-start list number as a sentence end", async () => {
   });
   expect(throughItem.status).toBe(200);
   expect(await throughItem.json()).toEqual({
-    reply: "Voici les étapes :\n1. Appelle le médecin.",
+    reply: safe("Voici les étapes :\n1. Appelle le médecin."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -136,7 +143,7 @@ it("does not treat a line-start list number as a sentence end", async () => {
   expect(onlyMarker.status).toBe(502);
   expect(text).not.toContain("1.");
   expect(text).not.toContain(canary);
-  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+  expect(JSON.parse(text)).toEqual({ error: fallbackError });
 });
 
 it("drops a cut-off list item instead of leaving its marker", async () => {
@@ -148,7 +155,7 @@ it("drops a cut-off list item instead of leaving its marker", async () => {
   const response = await liveReply({ finish_reason: "length", content });
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    reply: ["Voici les étapes.", ...kept].join("\n"),
+    reply: safe(["Voici les étapes.", ...kept].join("\n")),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -161,7 +168,7 @@ it("keeps 15 when prose follows a list item", async () => {
   });
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    reply: "1. Fait.\nPuis non.\n15.",
+    reply: safe("1. Fait.\nPuis non.\n15."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -174,7 +181,7 @@ it("keeps 3114 when a length cut follows an unfinished list item", async () => {
   });
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    reply: "1. Si tu penses au suicide, appelle le\n3114.",
+    reply: safe("1. Si tu penses au suicide, appelle le\n3114."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -187,7 +194,7 @@ it("keeps a bare 3114 after a finished list item", async () => {
   });
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    reply: "1. Parlez-en à un proche.\n3114.",
+    reply: safe("1. Parlez-en à un proche.\n3114."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -208,7 +215,7 @@ it("keeps an emergency number on a length-capped reply", async () => {
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      reply: item.reply,
+      reply: safe(item.reply),
       mocked: false,
       model: "openai/gpt-6.1-terra",
     });
@@ -223,7 +230,7 @@ it("accepts any non-newline whitespace after a list marker", async () => {
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      reply: "Appelez demain.",
+      reply: safe("Appelez demain."),
       mocked: false,
       model: "openai/gpt-6.1-terra",
     });
@@ -235,7 +242,7 @@ it("accepts any non-newline whitespace after a list marker", async () => {
   });
   expect(continued.status).toBe(200);
   expect(await continued.json()).toEqual({
-    reply: "1. Fait.",
+    reply: safe("1. Fait."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -267,7 +274,7 @@ it("treats an indented number and dot as a sentence end", async () => {
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      reply: item.reply,
+      reply: safe(item.reply),
       mocked: false,
       model: "openai/gpt-6.1-terra",
     });
@@ -296,7 +303,7 @@ it("follows a list across a blank line", async () => {
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      reply: item.reply,
+      reply: safe(item.reply),
       mocked: false,
       model: "openai/gpt-6.1-terra",
     });
@@ -305,7 +312,7 @@ it("follows a list across a blank line", async () => {
 
 it("keeps a bare number at the end of a line", async () => {
   const cases = [
-    { content: "Appelle le\n112.", reply: "Appelle le\n112." },
+    { content: "Appelle le\n3114.", reply: "Appelle le\n3114." },
     { content: "Note.\n2.", reply: "Note.\n2." },
   ];
   for (const item of cases) {
@@ -315,7 +322,7 @@ it("keeps a bare number at the end of a line", async () => {
     });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      reply: item.reply,
+      reply: safe(item.reply),
       mocked: false,
       model: "openai/gpt-6.1-terra",
     });
@@ -332,7 +339,7 @@ it("returns the upstream error when finish_reason is content_filter", async () =
   expect(response.status).toBe(502);
   expect(text).not.toContain(content);
   expect(text).not.toContain(canary);
-  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+  expect(JSON.parse(text)).toEqual({ error: fallbackError });
 });
 
 it("returns the upstream error when a length-capped reply has no complete sentence", async () => {
@@ -346,7 +353,7 @@ it("returns the upstream error when a length-capped reply has no complete senten
     expect(response.status).toBe(502);
     expect(text).not.toContain(content);
     expect(text).not.toContain(canary);
-    expect(JSON.parse(text)).toEqual({ error: upstreamError });
+    expect(JSON.parse(text)).toEqual({ error: fallbackError });
   }
 });
 
@@ -357,7 +364,7 @@ it("returns the upstream error when finish_reason is error", async () => {
   expect(response.status).toBe(502);
   expect(text).not.toContain(content);
   expect(text).not.toContain(canary);
-  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+  expect(JSON.parse(text)).toEqual({ error: fallbackError });
 });
 
 it("returns the upstream error when choices is an object", async () => {
@@ -383,7 +390,7 @@ it("returns the upstream error when choices is an object", async () => {
   const text = await response.text();
   expect(response.status).toBe(502);
   expect(text).not.toContain("secret-fragment");
-  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+  expect(JSON.parse(text)).toEqual({ error: fallbackError });
 });
 
 it("returns the upstream error when the OpenRouter JSON omits choices", async () => {
@@ -405,7 +412,7 @@ it("returns the upstream error when the OpenRouter JSON omits choices", async ()
   expect(response.status).toBe(502);
   expect(text).not.toContain(canary);
   expect(text).not.toContain("secret-fragment");
-  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+  expect(JSON.parse(text)).toEqual({ error: fallbackError });
 });
 
 it("returns a stop reply unchanged, including a trailing fragment", async () => {
@@ -414,7 +421,7 @@ it("returns a stop reply unchanged, including a trailing fragment", async () => 
   const response = await liveReply({ finish_reason: "stop", content });
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    reply: content,
+    reply: safe(content),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -427,7 +434,7 @@ it("trims a length-capped reply at an intro sentence before a list", async () =>
   });
   expect(incomplete.status).toBe(200);
   expect(await incomplete.json()).toEqual({
-    reply: "Appelez le médecin.",
+    reply: safe("Appelez le médecin."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -438,7 +445,7 @@ it("trims a length-capped reply at an intro sentence before a list", async () =>
   });
   expect(completeItem.status).toBe(200);
   expect(await completeItem.json()).toEqual({
-    reply: "Voici les étapes.\n1. Appelle le médecin.",
+    reply: safe("Voici les étapes.\n1. Appelle le médecin."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -449,7 +456,7 @@ it("trims a length-capped reply at an intro sentence before a list", async () =>
   });
   expect(tabMarker.status).toBe(200);
   expect(await tabMarker.json()).toEqual({
-    reply: "Appelez demain.",
+    reply: safe("Appelez demain."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -462,7 +469,7 @@ it("treats CRLF like LF when trimming a length-capped reply", async () => {
   });
   expect(kept.status).toBe(200);
   expect(await kept.json()).toEqual({
-    reply: "Appelez demain.",
+    reply: safe("Appelez demain."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -473,7 +480,7 @@ it("treats CRLF like LF when trimming a length-capped reply", async () => {
   });
   expect(emergency.status).toBe(200);
   expect(await emergency.json()).toEqual({
-    reply: "Appelle le\r\n15.",
+    reply: safe("Appelle le\r\n15."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -485,7 +492,7 @@ it("returns the assistant text when finish_reason is missing", async () => {
   const response = await liveReply({ content });
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    reply: content,
+    reply: safe(content),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -498,7 +505,7 @@ it("returns the upstream error when assistant content is blank", async () => {
       const text = await response.text();
       expect(response.status).toBe(502);
       expect(text).not.toContain(canary);
-      expect(JSON.parse(text)).toEqual({ error: upstreamError });
+      expect(JSON.parse(text)).toEqual({ error: fallbackError });
     }
   }
 });
@@ -594,7 +601,7 @@ it("uses the requested model when OpenRouter sends an empty model string", async
   const text = await response.text();
   expect(text).not.toContain(canary);
   expect(JSON.parse(text)).toEqual({
-    reply: "D'accord.",
+    reply: safe("D'accord."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });

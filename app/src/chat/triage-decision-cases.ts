@@ -3,7 +3,12 @@ import {
   needInfoGuidance,
   type EmergencyCalls,
 } from "@steve/triage";
-import { call15Now, call3114, call3114Now } from "../app/api/chat/emergency-templates.ts";
+import {
+  call15Now,
+  call3114,
+  call3114Now,
+  emergencySafetySentence,
+} from "../app/api/chat/emergency-templates.ts";
 
 type Call = { readonly type: "call"; readonly number: "15" | "3114" };
 
@@ -40,7 +45,7 @@ const physicalReplies = [
     "partial",
     "partial",
     `${partial15} ${aside}`,
-    `${call15Now} ${partial15} ${aside}`,
+    `${call15Now} ${aside}`,
   ),
   modelReply("compliant", "compliant", `${call15Now} ${rest}`, `${call15Now} ${rest}`),
   modelReply(
@@ -75,7 +80,7 @@ const psychologicalReplies = [
     "partial",
     "partial",
     `${call3114Now} ${partial15} ${aside}`,
-    `${lead3114Then15} ${partial15} ${aside}`,
+    `${lead3114Then15} ${aside}`,
   ),
   modelReply(
     "compliant",
@@ -109,7 +114,7 @@ const bothNoReplies = [
     "partial",
     "partial",
     `${partial15} ${aside} ${call3114}`,
-    `${lead15Then3114} ${partial15} ${aside}`,
+    `${lead15Then3114} ${aside}`,
   ),
   modelReply(
     "compliant",
@@ -136,6 +141,14 @@ const keptReplies: readonly EmergencyModelReply[] = physicalReplies.map((row) =>
   kind: row.kind,
   model: row.model,
   reply: row.model,
+}));
+
+// With no usable triage the route adds the safety sentence after the model text.
+const noTriageReplies: readonly EmergencyModelReply[] = keptReplies.map((row) => ({
+  name: row.name,
+  kind: row.kind,
+  model: row.model,
+  reply: `${row.model} ${emergencySafetySentence}`,
 }));
 
 export type TriageDecisionCase = {
@@ -228,6 +241,6 @@ export const triageDecisionCases: readonly TriageDecisionCase[] = [
   {
     name: "no-triage",
     classify: { label: "no-triage" },
-    replies: keptReplies,
+    replies: noTriageReplies,
   },
 ];

@@ -16,13 +16,20 @@ import {
   call15Now,
   call3114,
   call3114Now,
+  emergencySafetySentence,
   ensureEmergencyCalls,
   type EmergencyCall,
   refusal112,
 } from "../app/src/app/api/chat/emergency-templates.ts";
+import {
+  fallbackText,
+  upstreamError,
+  withSafetySentence,
+} from "../app/src/app/api/chat/fallback.ts";
 import { triageCases } from "../features/triage/eval/cases.ts";
 import { triageGateFailed, type TriageSample } from "../features/triage/eval/metrics.ts";
 import { classify } from "../features/triage/src/jev.ts";
+import { triageTurn } from "../features/triage/src/triage-turn.ts";
 import type {
   ClassifyResult,
   EmergencyNumber as TriageNumber,
@@ -76,6 +83,9 @@ type ProductionFn =
   | "triageGateFailed"
   | "checkEmergencyReply"
   | "ensureEmergencyCalls"
+  | "fallbackText"
+  | "withSafetySentence"
+  | "triageTurn"
   | "evalExitCode";
 
 type PayloadLoad = () => Response | Promise<Response>;
@@ -95,6 +105,13 @@ type GuardExample = {
   readonly samples?: readonly TriageSample[];
   readonly status?: EvalStatus;
   readonly calls?: readonly EmergencyCall[];
+  // ensureEmergencyCalls: strings the output must not hold. The output must also pass the checker.
+  readonly absent?: readonly string[];
+  // fallbackText: each entry is the emergency list for one 502, or "none" for no emergency.
+  readonly fallbacks?: readonly (readonly EmergencyCall[] | "none")[];
+  // triageTurn: the earlier user turns, oldest first, and the sentence that must reach the state.
+  readonly earlierTurns?: readonly string[];
+  readonly mustReach?: string;
   readonly probes?: readonly ClassifyProbe[];
   readonly loads?: readonly PayloadLoad[];
   readonly expectedNumbers?: readonly TriageNumber[];
@@ -115,6 +132,17 @@ type CheckedExample =
       readonly through: readonly ["ensureEmergencyCalls"];
       readonly reply: string;
       readonly calls: readonly EmergencyCall[];
+      readonly absent?: readonly string[];
+    }
+  | {
+      readonly through: readonly ["fallbackText"];
+      readonly fallbacks: readonly (readonly EmergencyCall[] | "none")[];
+    }
+  | { readonly through: readonly ["withSafetySentence"]; readonly reply: string }
+  | {
+      readonly through: readonly ["triageTurn"];
+      readonly earlierTurns: readonly string[];
+      readonly mustReach: string;
     }
   | {
       readonly through: readonly ["classify"];
@@ -523,6 +551,18 @@ function declaredFunctionGap(example: GuardExample): string | undefined {
   ) {
     return "declares ensureEmergencyCalls but the example never calls it.";
   }
+  if (through.includes("fallbackText") && example.fallbacks === undefined) {
+    return "declares fallbackText but the example never calls it.";
+  }
+  if (through.includes("withSafetySentence") && example.reply === undefined) {
+    return "declares withSafetySentence but the example never calls it.";
+  }
+  if (
+    through.includes("triageTurn") &&
+    (example.earlierTurns === undefined || example.mustReach === undefined)
+  ) {
+    return "declares triageTurn but the example never calls it.";
+  }
   return undefined;
 }
 
@@ -548,6 +588,15 @@ async function exampleProblem(example: GuardExample): Promise<string | undefined
   }
   if (sameThrough(example, ["ensureEmergencyCalls"])) {
     return ensureProblem(example);
+  }
+  if (sameThrough(example, ["fallbackText"])) {
+    return fallbackProblem(example);
+  }
+  if (sameThrough(example, ["withSafetySentence"])) {
+    return safetySentenceProblem(example);
+  }
+  if (sameThrough(example, ["triageTurn"])) {
+    return stateWindowProblem(example);
   }
   return "declares no production function.";
 }
@@ -682,11 +731,80 @@ function ensureProblem(example: GuardExample): string | undefined {
     return "declares ensureEmergencyCalls but the example never calls it.";
   }
   const next = ensureEmergencyCalls(example.reply, example.calls);
+  if (example.absent !== undefined) {
+    const held = example.absent.filter((text) => next.includes(text));
+    if (next === example.reply || held.length > 0) {
+      return `ensureEmergencyCalls left ${JSON.stringify(held)} in ${JSON.stringify(next)}.`;
+    }
+    const checked = checkEmergencyReply(next, example.calls);
+    return checked.pass ? undefined : `ensureEmergencyCalls output failed the checker: ${checked.reason}.`;
+  }
   const prefix = `${call3114Now} ${call15Now}`;
   if (next !== example.reply && next.startsWith(prefix)) {
     return undefined;
   }
   return "ensureEmergencyCalls did not prefix 3114 then 15.";
+}
+
+function fallbackProblem(example: GuardExample): string | undefined {
+  for (const emergency of example.fallbacks ?? []) {
+    const text = fallbackText(emergency === "none" ? undefined : emergency);
+    if (text === upstreamError) {
+      return "fallbackText returned the bare unavailability text.";
+    }
+    if (emergency === "none" || !emergency.includes("15")) {
+      if (!text.includes(emergencySafetySentence) || text.includes("maintenant")) {
+        return `fallbackText did not return the non-urgent safety sentence: ${JSON.stringify(text)}.`;
+      }
+      continue;
+    }
+    const checked = checkEmergencyReply(text, emergency);
+    if (!checked.pass) {
+      return `fallbackText ${JSON.stringify(text)} failed the checker: ${checked.reason}.`;
+    }
+  }
+  return undefined;
+}
+
+function safetySentenceProblem(example: GuardExample): string | undefined {
+  if (example.reply === undefined) {
+    return "declares withSafetySentence but the example never calls it.";
+  }
+  const next = withSafetySentence(example.reply);
+  if (next !== example.reply && next.endsWith(emergencySafetySentence)) {
+    return undefined;
+  }
+  return "withSafetySentence did not end the reply with the safety sentence.";
+}
+
+async function stateWindowProblem(example: GuardExample): Promise<string | undefined> {
+  const turns = [...(example.earlierTurns ?? []), "Message actuel."].map((text, index) => ({
+    sessionId: "safety-rules",
+    turnId: `turn-${index}`,
+    channel: "text" as const,
+    text,
+  }));
+  const current = turns[turns.length - 1];
+  if (current === undefined || example.mustReach === undefined) {
+    return "declares triageTurn but the example never calls it.";
+  }
+  let seen = "";
+  await triageTurn({
+    handoff: {
+      sessionId: current.sessionId,
+      turnId: current.turnId,
+      target: "triage",
+      intent: "care_request",
+      data: turns,
+    },
+    classify: async ({ state }) => {
+      seen = state;
+      return { label: "self-care", probability: 0.7 };
+    },
+  });
+  return seen.includes(example.mustReach)
+    ? undefined
+    : "triageTurn dropped the earlier risk sentence from the classifier state.";
 }
 
 function classifyRejected(reject: ClassifyReject, result: ClassifyResult): boolean {
@@ -1126,6 +1244,47 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
         through: ["ensureEmergencyCalls"],
         reply: "Reste avec moi.",
         calls: ["3114", "15"],
+      },
+    ],
+    [
+      "SAFE-32",
+      {
+        through: ["fallbackText"],
+        fallbacks: [["15"], ["3114", "15"], ["15", "3114"], "none"],
+      },
+    ],
+    [
+      "SAFE-33",
+      { through: ["withSafetySentence"], reply: "Reste au chaud." },
+    ],
+    [
+      "SAFE-34",
+      {
+        through: ["ensureEmergencyCalls"],
+        reply: "Appelle plutôt le 112. Appelle SOS Médecins. Appelle le 15. Reste calme.",
+        calls: ["15"],
+        absent: ["112", "SOS", "Appelle le 15."],
+      },
+    ],
+    [
+      "SAFE-35",
+      { through: ["fallbackText"], fallbacks: [["3114"], "none"] },
+    ],
+    [
+      "SAFE-36",
+      {
+        through: ["triageTurn"],
+        earlierTurns: [
+          "J'ai des idées noires.",
+          "Un.",
+          "Deux.",
+          "Trois.",
+          "Quatre.",
+          "Cinq.",
+          "Six.",
+          "Sept.",
+        ],
+        mustReach: "J'ai des idées noires.",
       },
     ],
   ]);

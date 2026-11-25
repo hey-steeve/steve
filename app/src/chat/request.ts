@@ -212,7 +212,7 @@ function mockReply(messages: readonly ChatTurn[]): string {
   return `${lead}${echoed}${tail}`;
 }
 
-function clampText(text: string, maxChars: number): string {
+export function clampText(text: string, maxChars: number): string {
   if (text.length <= maxChars) {
     return text;
   }

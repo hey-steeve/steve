@@ -8,6 +8,7 @@ vi.mock("@steve/triage", async () => {
   };
 });
 
+import { emergencySafetySentence } from "./emergency-templates.js";
 import { POST } from "./route.js";
 import { systemPrompt } from "./system-prompt.js";
 import { readTriageLog, resetTriageLog } from "./triage-log.js";
@@ -53,7 +54,7 @@ it("logs a thrown classifier and still sends only the system prompt", async () =
   expect(text).not.toContain(canary);
   expect(text).not.toContain(jevCanary);
   expect(JSON.parse(text)).toEqual({
-    reply: "D'accord.",
+    reply: `D'accord. ${emergencySafetySentence}`,
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });

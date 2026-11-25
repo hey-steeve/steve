@@ -18,6 +18,7 @@ import {
   call15Now,
   call3114,
   call3114Now,
+  emergencySafetySentence,
   ensureEmergencyCalls,
   redirectMedication,
   refusal112,
@@ -41,6 +42,12 @@ const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const echo =
   "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
 const upstreamError = "Le service de chat est indisponible. Réessayez.";
+// Without a usable Jev answer, the 502 and the 200 reply both carry the safety sentence.
+const fallbackError = `${emergencySafetySentence} ${upstreamError}`;
+
+function safe(reply: string): string {
+  return `${reply} ${emergencySafetySentence}`;
+}
 
 const history = {
   messages: [{ role: "user", content: "De garde" }],
@@ -493,7 +500,7 @@ it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => 
   expect(response.status).toBe(200);
   expect(text).not.toContain(canary);
   expect(JSON.parse(text)).toEqual({
-    reply: "Une pharmacie de garde.",
+    reply: safe("Une pharmacie de garde."),
     mocked: false,
     model: "google/gemini-flash-001",
   });
@@ -537,7 +544,7 @@ it("defaults the model to openai/gpt-6.1-terra and falls back when OpenRouter om
   const blankText = await blankModel.text();
   expect(blankText).not.toContain(canary);
   expect(JSON.parse(blankText)).toEqual({
-    reply: "D'accord.",
+    reply: safe("D'accord."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -547,7 +554,7 @@ it("defaults the model to openai/gpt-6.1-terra and falls back when OpenRouter om
   const missingText = await missingModel.text();
   expect(missingText).not.toContain(canary);
   expect(JSON.parse(missingText)).toEqual({
-    reply: "D'accord.",
+    reply: safe("D'accord."),
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
@@ -606,7 +613,7 @@ it("returns 502 and drops the upstream body when OpenRouter fails", async () => 
     expect(response.status).toBe(502);
     expect(text).not.toContain(canary);
     expect(text).not.toContain("secret-fragment");
-    expect(JSON.parse(text)).toEqual({ error: upstreamError });
+    expect(JSON.parse(text)).toEqual({ error: fallbackError });
   }
 });
 
@@ -624,7 +631,7 @@ it("aborts the OpenRouter call and returns the upstream error on timeout", async
   expect(response.status).toBe(502);
   expect(text).not.toContain(canary);
   expect(text).not.toContain("TimeoutError");
-  expect(JSON.parse(text)).toEqual({ error: upstreamError });
+  expect(JSON.parse(text)).toEqual({ error: fallbackError });
   expect(timeout).toHaveBeenCalledWith(30_000);
   const timeoutIndex = timeout.mock.calls.findIndex((args) => args[0] === 30_000);
   const signal: unknown = timeout.mock.results[timeoutIndex]?.value;
@@ -812,11 +819,13 @@ it("caps a live reply at the message cap", async () => {
   const first = await post(history);
   expect(first.status).toBe(200);
   const payload = await first.json();
+  // No Jev key: the safety sentence is added and the model text is cut to leave room for it.
   expect(payload).toEqual({
-    reply: long.slice(0, chatRequestLimits.maxMessageChars),
+    reply: `${"b".repeat(chatRequestLimits.maxMessageChars - emergencySafetySentence.length - 1)} ${emergencySafetySentence}`,
     mocked: false,
     model: "openai/gpt-6.1-terra",
   });
+  expect(payload.reply).toHaveLength(chatRequestLimits.maxMessageChars);
 
   const follow = await post({
     messages: [
@@ -920,7 +929,7 @@ it("puts emergency calls on the reply and still calls the chat model", async () 
     "Appelez le 15.",
   );
   expect(body).toEqual({
-    reply: `${call15Now} Appelez le 15.`,
+    reply: call15Now,
     mocked: false,
     model: "openai/gpt-6.1-terra",
     calls: [{ type: "call", number: "15" }],
@@ -960,7 +969,7 @@ it("sends the plain system prompt when triage does not close", async () => {
     const response = await post(history);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      reply: "D'accord.",
+      reply: safe("D'accord."),
       mocked: false,
       model: "openai/gpt-6.1-terra",
     });
@@ -1008,7 +1017,7 @@ it("keeps calls and guidance for every triage decision", async () => {
     expect(response.status, item.name).toBe(200);
     const payload: unknown = await response.json();
     expectSystemMessages(providerMessages(fetchMock), item.guidance, item.name);
-    const reply = replyForDaccord(item.calls);
+    const reply = replyForDaccord(item);
     if (item.calls === undefined) {
       expect(payload, item.name).toEqual({
         reply,
@@ -1091,13 +1100,7 @@ it("fills each missing emergency call and keeps a compliant reply", async () => 
         } else {
           const ordered = failureSentences(item.calls).join(" ");
           expect(spoken.startsWith(ordered), label).toBe(true);
-          const checked = checkEmergencyReply(spoken, numbers);
-          if (row.model.includes("Appelle le 15.")) {
-            expect(checked.pass, label).toBe(false);
-            expect(checked.reason, label).toBe("numbers");
-          } else {
-            expect(checked.pass, label).toBe(true);
-          }
+          expect(checkEmergencyReply(spoken, numbers).pass, label).toBe(true);
         }
       }
     }
@@ -1249,7 +1252,14 @@ it("pins the 502 call sentences for 15 and 3114", () => {
   expect(failureText([{ number: "15" }, { number: "3114" }])).toBe(
     `${call15Now} ${call3114} ${upstreamError}`,
   );
-  expect(failureText([{ number: "3114" }])).toBe(`${call3114Now} ${upstreamError}`);
+});
+
+it("keeps a 3114 offer non-urgent when the model fails", () => {
+  const error = failureText([{ number: "3114" }]);
+  expect(error).toBe(fallbackError);
+  expect(error).not.toContain("maintenant");
+  expect(error).not.toContain(call3114Now);
+  expect(error).toContain(emergencySafetySentence);
 });
 
 it("keeps triage calls in order when the model fails", async () => {
@@ -1291,6 +1301,12 @@ it("keeps triage calls in order when the model fails", async () => {
       const payload: unknown = JSON.parse(text);
       const error = failureText(item.calls);
       expect(payload, label).toEqual({ error, calls: item.calls });
+      if (!item.calls.some((call) => call.number === "15")) {
+        // A 3114 offer keeps its call button, but the text stays non-urgent.
+        expect(error, label).toBe(fallbackError);
+        expect(error, label).not.toContain("maintenant");
+        continue;
+      }
       let cursor = 0;
       for (const sentence of failureSentences(item.calls)) {
         const at = error.indexOf(sentence, cursor);
@@ -1323,6 +1339,82 @@ it("sends only user turns to classify", async () => {
     return;
   }
   expect(sent["state"]).toBe("J'ai mal à la gorge.\nDepuis ce matin.");
+});
+
+it("never sends the bare unavailability text when Jev and the model both fail", async () => {
+  const fetchMock = vi.fn<typeof fetch>(async (input) =>
+    String(input) === JEV_URL
+      ? new Response("upstream", { status: 500 })
+      : new Response("upstream", { status: 503 }),
+  );
+  armLive();
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(502);
+  expect(await response.json()).toEqual({ error: fallbackError });
+});
+
+it("adds the safety sentence once to a reply that has no triage", async () => {
+  const withSentence = `Reste au chaud. ${emergencySafetySentence}`;
+  const fetchMock = triageFetch(() => new Response("upstream", { status: 500 }), withSentence);
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(200);
+  expect(replyText(await response.json())).toBe(withSentence);
+});
+
+it("turns a model reply that only names 112 into a 502 with the safety sentence", async () => {
+  const fetchMock = triageFetch(
+    () => Response.json(jevBody("consult", 0.74, "none")),
+    "Appelle le 112.",
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(502);
+  expect(await response.json()).toEqual({ error: fallbackError });
+});
+
+it("keeps a 3114 offer non-urgent on a 502 and keeps the call button", async () => {
+  const fetchMock = vi.fn<typeof fetch>(async (input) =>
+    String(input) === JEV_URL
+      ? Response.json(jevBody("consult", 0.85, "psychological"))
+      : new Response("upstream", { status: 503 }),
+  );
+  armLive();
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post(history);
+  expect(response.status).toBe(502);
+  const payload: unknown = await response.json();
+  expect(payload).toEqual({ error: fallbackError, calls: [{ type: "call", number: "3114" }] });
+  expect(JSON.stringify(payload)).not.toContain("maintenant");
+});
+
+it("sends a risk sentence from 7 or more user turns back to Jev", async () => {
+  const risk = "Hier soir j'ai pensé à en finir.";
+  const messages: { role: "user" | "assistant"; content: string }[] = [];
+  const userTexts = [risk, ...Array.from({ length: 8 }, (_, index) => `Rien de nouveau ${index + 1}.`)];
+  for (const [index, content] of userTexts.entries()) {
+    if (index > 0) {
+      messages.push({ role: "assistant", content: "D'accord, dis-m'en plus." });
+    }
+    messages.push({ role: "user", content });
+  }
+  const fetchMock = triageFetch(() => Response.json(jevBody("emergency", 0.91, "psychological")));
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post({ messages });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    calls: [
+      { type: "call", number: "3114" },
+      { type: "call", number: "15" },
+    ],
+  });
+  const sent: unknown = JSON.parse(String(jevFetchCall(fetchMock)?.[1]?.body));
+  expect(isRecord(sent)).toBe(true);
+  if (!isRecord(sent)) {
+    return;
+  }
+  expect(sent["state"]).toBe(userTexts.join("\n"));
 });
 
 it("passes JEV_MODEL through to the classifier request", async () => {
@@ -1462,8 +1554,12 @@ function expectSystemMessages(
   expect(messages, name).toEqual([prompt, { role: "system", content: guidance }, user]);
 }
 
-function replyForDaccord(calls: (typeof triageDecisionCases)[number]["calls"]): string {
+function replyForDaccord(item: (typeof triageDecisionCases)[number]): string {
   const model = "D'accord.";
+  const calls = item.calls;
+  if (item.classify.label === "no-triage") {
+    return safe(model);
+  }
   if (calls === undefined || !calls.some((call) => call.number === "15")) {
     return model;
   }
@@ -1500,6 +1596,9 @@ function physicalModelKeeps3114(
 }
 
 function failureText(calls: readonly { readonly number: "15" | "3114" }[]): string {
+  if (!calls.some((call) => call.number === "15")) {
+    return fallbackError;
+  }
   return `${failureSentences(calls).join(" ")} ${upstreamError}`;
 }
 
