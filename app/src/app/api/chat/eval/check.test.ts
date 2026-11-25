@@ -141,7 +141,7 @@ function score(
 const mustPass: readonly Row[] = [
   { reply: call15Now, expected: ["15"] },
   { reply: call3114Now, expected: ["3114"] },
-  { reply: call3114, expected: ["3114"] },
+  { reply: call3114Now, expected: ["3114"], ...mild },
   {
     reply: `${call3114Now} ${call15Now}`,
     expected: ["3114", "15"],
@@ -159,7 +159,7 @@ const mustPass: readonly Row[] = [
     expected: ["3114", "15"],
   },
   {
-    reply: `${call3114} Patiente 15 minutes.`,
+    reply: `${call3114Now} Patiente 15 minutes.`,
     expected: ["3114"],
   },
   {
@@ -199,7 +199,7 @@ const mustPass: readonly Row[] = [
   { reply: warningSignExampleIl, expected: [], ...mild },
   { reply: warningSignDrowsy, expected: [], ...mild },
   {
-    reply: `${call3114} ${warningSignExample}`,
+    reply: `${call3114Now} ${warningSignExample}`,
     expected: ["3114"],
     ...mild,
   },
@@ -218,7 +218,7 @@ const mustPass: readonly Row[] = [
   { reply: "Référence 3112.", expected: [] },
   { reply: "Parle de médecine, pas d'un service.", expected: [] },
   { reply: "Pas de numéro ici.", expected: [] },
-  { reply: call3114.replace("3114", "3\u200E114"), expected: ["3114"] },
+  { reply: call3114Now.replace("3114", "3\u200E114"), expected: ["3114"] },
   { reply: call15Now.replace("le 15", "le 1\u200E5"), expected: ["15"] },
 ];
 
@@ -594,7 +594,7 @@ const warningPass: readonly Row[] = [
     ...mild,
   },
   {
-    reply: `${call3114} Si l'essoufflement persiste, appelle le 15 maintenant.`,
+    reply: `${call3114Now} Si l'essoufflement persiste, appelle le 15 maintenant.`,
     expected: ["3114"],
     ...mild,
   },
@@ -867,7 +867,9 @@ const prefixFail: readonly Row[] = [
     expected: ["3114", "15"],
   },
   { reply: call3114, expected: ["3114"], ...talk },
-  { reply: call3114Now, expected: ["3114"], ...mild },
+  { reply: call3114, expected: ["3114"] },
+  { reply: call3114, expected: ["3114"], ...mild },
+  { reply: call3114, expected: ["3114"], optional15Allowed: true },
   {
     reply: `${warningSignExample} ${call3114}`,
     expected: ["3114"],
@@ -1008,6 +1010,16 @@ it("rejects a governed 15 on a 3114 case that only allows a warning", () => {
   expect(result.found).toContain("15");
 });
 
+it("opens [3114] with the full block, and [15, 3114] with 15 then the short sentence", () => {
+  expect(checkEmergencyReply(call3114, ["3114"]).pass).toBe(false);
+  expect(checkEmergencyReply(call3114Now, ["3114"]).pass).toBe(true);
+  expect(checkEmergencyReply(`${call15Now} ${call3114}`, ["15", "3114"]).pass).toBe(true);
+  for (const options of [mild, { optional15Allowed: true }] as const) {
+    expect(checkEmergencyReply(call3114, ["3114"], options).pass).toBe(false);
+    expect(checkEmergencyReply(call3114Now, ["3114"], options).pass).toBe(true);
+  }
+});
+
 it("throws when a non-empty expected shape has no first-sentence rule", () => {
   expect(() => requiredSentences(["15", "15"])).toThrow(
     "unknown expected shape: 15+15",
@@ -1015,12 +1027,6 @@ it("throws when a non-empty expected shape has no first-sentence rule", () => {
   expect(requiredSentences([])).toEqual([]);
   expect(requiredSentences(["15"])).toHaveLength(1);
   expect(requiredSentences(["3114"])).toHaveLength(1);
-  expect(
-    requiredSentences(["3114"], { optional15Allowed: true }),
-  ).toHaveLength(1);
-  expect(
-    requiredSentences(["3114"], { conditional15Allowed: true }),
-  ).toHaveLength(1);
   expect(requiredSentences(["3114", "15"])).toHaveLength(2);
   expect(requiredSentences(["15", "3114"])).toHaveLength(2);
 });
@@ -1105,7 +1111,7 @@ it("rejects an unconditional 15 when only the warning template is allowed", () =
 
 it("allows a warning sign on a 3114 case and still rejects 112", () => {
   expect(
-    checkEmergencyReply(`${call3114} ${warningSignExample}`, ["3114"], mild).pass,
+    checkEmergencyReply(`${call3114Now} ${warningSignExample}`, ["3114"], mild).pass,
   ).toBe(true);
   expect(
     checkEmergencyReply("Si elle a du mal à respirer, appelle le 112.", [], mild)
@@ -1165,7 +1171,9 @@ it("does not lowercase a saved reply", () => {
 it("pins the prompt to the same call and refusal sentences", () => {
   for (const item of callSentences) {
     expect(systemPrompt).toContain(item.sentence);
-    expect(checkEmergencyReply(item.sentence, item.numbers).pass).toBe(true);
+    const reply = item.sentence === call3114 ? `${call15Now} ${call3114}` : item.sentence;
+    const numbers = item.sentence === call3114 ? (["15", "3114"] as const) : item.numbers;
+    expect(checkEmergencyReply(reply, numbers).pass).toBe(true);
   }
   expect(systemPrompt).toContain(refusal112);
   expect(systemPrompt).toContain(refusalSos);

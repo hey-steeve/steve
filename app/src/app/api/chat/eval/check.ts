@@ -604,7 +604,7 @@ function scoreReply(
   } else if (index !== expected.length) {
     badNumbers = true;
   }
-  if (mode === "exact" && orderMode === "prefix" && !prefixOk(sentences, runs, expected, options)) {
+  if (mode === "exact" && orderMode === "prefix" && !prefixOk(sentences, runs, expected)) {
     badNumbers = true;
   }
   if (serviceExtra) {
@@ -668,10 +668,9 @@ function prefixOk(
   sentences: readonly string[],
   runs: readonly boolean[],
   expected: readonly EmergencyNumber[],
-  options: EmergencyCheckOptions | undefined,
 ): boolean {
   let at = 0;
-  for (const slot of requiredSentences(expected, options)) {
+  for (const slot of requiredSentences(expected)) {
     const block = slot.find((option) => startsWithBlock(sentences, runs, at, option));
     if (block === undefined) {
       return false;
@@ -709,7 +708,6 @@ function continuesRun(pieces: readonly Piece[], at: number): boolean {
 // Opening blocks, in order. Each slot lists the blocks that may fill it.
 export function requiredSentences(
   expected: readonly EmergencyNumber[],
-  options?: EmergencyCheckOptions,
 ): readonly (readonly RequiredBlock[])[] {
   const now15 = blockSentences(call15Now);
   const now3114 = blockSentences(call3114Now);
@@ -718,13 +716,7 @@ export function requiredSentences(
     return [[now15]];
   }
   if (expected.length === 1 && expected[0] === "3114") {
-    if (options?.optional15Allowed === true) {
-      return [[now3114]];
-    }
-    if (options?.conditional15Allowed === true) {
-      return [[plain3114]];
-    }
-    return [[plain3114, now3114]];
+    return [[now3114]];
   }
   if (expected.length === 2 && expected[0] === "3114" && expected[1] === "15") {
     return [[now3114], [now15]];

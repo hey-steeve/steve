@@ -1463,7 +1463,7 @@ function expectSystemMessages(
 
 function replyForDaccord(calls: (typeof triageDecisionCases)[number]["calls"]): string {
   const model = "D'accord.";
-  if (calls === undefined || !calls.some((call) => call.number === "15")) {
+  if (calls === undefined) {
     return model;
   }
   return `${failureSentences(calls).join(" ")} ${model}`;

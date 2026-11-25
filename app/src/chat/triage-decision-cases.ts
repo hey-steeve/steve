@@ -138,6 +138,13 @@ const keptReplies: readonly EmergencyModelReply[] = physicalReplies.map((row) =>
   reply: row.model,
 }));
 
+// A lone 3114 offer opens with the full call3114Now block, even off an emergency label.
+const offer3114Replies = [
+  modelReply("missing", "missing", rest, `${call3114Now} ${rest}`),
+  modelReply("compliant", "compliant", `${call3114Now} ${rest}`, `${call3114Now} ${rest}`),
+  modelReply("short-3114", "missing", `${call3114} ${rest}`, `${call3114Now} ${rest}`),
+] as const satisfies readonly EmergencyModelReply[];
+
 export type TriageDecisionCase = {
   readonly name: string;
   readonly guidance?: string;
@@ -193,7 +200,7 @@ export const triageDecisionCases: readonly TriageDecisionCase[] = [
     classify: { label: "consult", channel: "psychological", probability: 0.74 },
     calls: [offer3114] satisfies EmergencyCalls,
     guidance: consultGuidance.text,
-    replies: keptReplies,
+    replies: offer3114Replies,
   },
   {
     name: "consult",
@@ -205,7 +212,7 @@ export const triageDecisionCases: readonly TriageDecisionCase[] = [
     name: "self-care-3114",
     classify: { label: "self-care", channel: "psychological", probability: 0.7 },
     calls: [offer3114] satisfies EmergencyCalls,
-    replies: keptReplies,
+    replies: offer3114Replies,
   },
   {
     name: "self-care",
@@ -217,7 +224,7 @@ export const triageDecisionCases: readonly TriageDecisionCase[] = [
     classify: { label: "need-info", channel: "psychological", probability: 0.55 },
     calls: [offer3114] satisfies EmergencyCalls,
     guidance: needInfoGuidance.text,
-    replies: keptReplies,
+    replies: offer3114Replies,
   },
   {
     name: "need-info",

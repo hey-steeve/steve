@@ -340,7 +340,7 @@ export function ensureEmergencyCalls(
   reply: string,
   calls: readonly EmergencyCall[],
 ): string {
-  if (!calls.includes("15")) {
+  if (!calls.includes("15") && !is3114Only(calls)) {
     return reply;
   }
   if (keepsModel3114(calls)) {
@@ -363,7 +363,7 @@ function templatesFor(calls: readonly EmergencyCall[]): string[] {
     if (call === "15") {
       return call15Now;
     }
-    return index < first15 ? call3114Now : call3114;
+    return first15 === -1 || index < first15 ? call3114Now : call3114;
   });
 }
 
@@ -381,6 +381,10 @@ function startsWithBlocks(pieces: readonly RawPiece[], blocks: readonly CallBloc
     at = end + 1;
   }
   return true;
+}
+
+function is3114Only(calls: readonly EmergencyCall[]): boolean {
+  return calls.length === 1 && calls[0] === "3114";
 }
 
 function keepsModel3114(calls: readonly EmergencyCall[]): boolean {

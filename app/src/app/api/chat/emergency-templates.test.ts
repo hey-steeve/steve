@@ -76,7 +76,17 @@ const rows = [
   {
     reply: "Reste au chaud.",
     calls: ["3114"],
-    result: "Reste au chaud.",
+    result: `${call3114Now} Reste au chaud.`,
+  },
+  {
+    reply: `${call3114Now} Reste au chaud.`,
+    calls: ["3114"],
+    result: `${call3114Now} Reste au chaud.`,
+  },
+  {
+    reply: `${call3114} Reste au chaud.`,
+    calls: ["3114"],
+    result: `${call3114Now} Reste au chaud.`,
   },
   {
     reply: "Si l'essoufflement persiste, appelle le 15 maintenant.",
@@ -548,8 +558,8 @@ it("does not read a stretched final period as the end of a block", () => {
 
 it("does not read a stretched final period as the end of a 3114 block", () => {
   const stretched = `${call3114.slice(0, -1)}...`;
-  expect(checkEmergencyReply(call3114, ["3114"]).pass).toBe(true);
-  expect(checkEmergencyReply(stretched, ["3114"]).pass).toBe(false);
+  expect(checkEmergencyReply(`${call15Now} ${call3114}`, ["15", "3114"]).pass).toBe(true);
+  expect(checkEmergencyReply(`${call15Now} ${stretched}`, ["15", "3114"]).pass).toBe(false);
 });
 
 it("splits on a fullwidth period like the checker, so a reversed 15 stays single", () => {
@@ -654,6 +664,10 @@ const loneRows = [
   { name: "3114 sentence at start", calls: ["15", "3114"], reply: `${call3114NowSentences[0]} ${keep}`, result: `${call15Now} ${call3114} ${keep}` },
   { name: "3114 number sentence in middle", calls: ["15", "3114"], reply: `${keep} ${call3114NowSentences[2]} Reste calme.`, result: `${call15Now} ${call3114} ${keep} Reste calme.` },
   { name: "3114 last sentence at end", calls: ["15", "3114"], reply: `${keep} ${call3114NowSentences[3]}`, result: `${call15Now} ${call3114} ${keep}` },
+  { name: "3114 alone, short sentence", calls: ["3114"], reply: `${call3114} ${keep}`, result: `${call3114Now} ${keep}` },
+  { name: "3114 alone, block sentence in middle", calls: ["3114"], reply: `${keep} ${call3114NowSentences[2]} Reste calme.`, result: `${call3114Now} ${keep} Reste calme.` },
+  { name: "3114 alone, last sentence at end", calls: ["3114"], reply: `${keep} ${call3114NowSentences[3]}`, result: `${call3114Now} ${keep}` },
+  { name: "3114 alone, correct block kept", calls: ["3114"], reply: `${call3114Now} ${keep}`, result: `${call3114Now} ${keep}` },
   { name: "cut 3114 sentence", calls: ["15", "3114"], reply: `Tu peux appeler le 3114. ${keep}`, result: `${call15Now} ${call3114} ${keep}` },
   { name: "15 sentence with 3114 listed", calls: ["15", "3114"], reply: `${keep} ${call15Number}`, result: `${call15Now} ${call3114} ${keep}` },
   { name: "drop between digits", calls: ["15"], reply: `Appelle le 1\n${call15Number}\n12.`, result: null },
@@ -676,15 +690,18 @@ function occurrences(text: string, part: string): number {
 }
 
 it("never repeats a lone sentence of any block after the required opening", () => {
-  const callLists = [["15"], ["15", "3114"]] as const;
+  const callLists = [["15"], ["15", "3114"], ["3114"]] as const;
   const sentences = [call15Now, call3114Now, call3114].flatMap(splitSentences);
   for (const calls of callLists) {
-    const opening = calls.map((call) => (call === "15" ? call15Now : call3114)).join(" ");
+    const opening =
+      calls[0] === "3114" && calls.length === 1
+        ? call3114Now
+        : calls.map((call) => (call === "15" ? call15Now : call3114)).join(" ");
     for (const sentence of sentences) {
       const fixed = ensureEmergencyCalls(`${sentence} ${keep}`, calls);
       expect(fixed.startsWith(opening), `${calls.join()} ${sentence}`).toBe(true);
       // A [15]-only reply keeps the model's own 3114 wording, once.
-      const is3114Only = calls.length === 1 && !call15Now.includes(sentence);
+      const is3114Only = calls[0] === "15" && calls.length === 1 && !call15Now.includes(sentence);
       const allowed = occurrences(opening, sentence) + (is3114Only ? 1 : 0);
       expect(occurrences(fixed, sentence), `${calls.join()} ${sentence}`).toBeLessThanOrEqual(allowed);
     }
