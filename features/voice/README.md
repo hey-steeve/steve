@@ -2,16 +2,18 @@
 
 ## Role
 
-`@steve/voice` holds the pure in-app live-call logic: session config, event parsing, call-state reducer, and audio helpers.
-The app owns the routes, the hook, and the UI.
+Planned: `@steve/voice` will hold the pure in-app live-call logic: session config, event parsing, call-state reducer, and audio helpers. None of it is implemented yet.
+Planned: the app will own the routes, the hook, and the UI.
 `voice` decides nothing.
 
 ## Does
 
-- Builds the pinned `grok-voice-3.0` session config, with voice `eve` and a French language hint.
-- Parses Realtime events.
-- Reduces call state, including barge-in.
-- Encodes and decodes PCM16.
+Planned, not implemented yet. `src/index.ts` is still `export {};`.
+
+- Will build the pinned `grok-voice-3.0` session config, with voice `eve` and a French language hint.
+- Will parse Realtime events.
+- Will reduce call state, including barge-in.
+- Will encode and decode PCM16.
 - Twilio is out of scope for this demo. Phone calls come later.
 
 ## Does not
@@ -22,29 +24,31 @@ The app owns the routes, the hook, and the UI.
 
 ## Inputs and outputs
 
-- The config input is injected instructions and tuning.
-- The events are typed server events.
-- The output is call state and PCM16 helpers.
-- The contracts land in this package in the next PR.
+Planned:
+
+- The config input will be injected instructions and tuning.
+- The events will be typed server events.
+- The output will be call state and PCM16 helpers.
+- The contracts will land in this package in the next PR.
 
 ## Depends on
 
-Nothing but the package itself, for the demo core. The app imports the public index.
-`@steve/shared` is allowed later, if a shared contract is added in its own PR.
+Planned: nothing but the package itself, for the demo core. The app will import the public index.
+`@steve/shared` will be allowed later, if a shared contract is added in its own PR.
 
 ## Rules
 
 - `voice` decides nothing.
 - Never diagnose.
-- Safety: Jev classifies each user transcript. On an emergency, Steve says the exact 15 / 3114 sentences and the call buttons show. Follow Jev's call order; when 3114 follows 15, reuse `call3114` (no new sentence).
+- Planned: Jev will classify each user transcript. On an emergency that includes 15, Steve will say the exact sentences from `emergency-templates.ts` in Jev's order: `call15Now` for 15, `call3114Now` for a 3114 before 15, and `call3114` for a 3114 after 15. The call buttons will show.
 
 ## Demo and production
 
-The Friday demo is an in-app browser call over xAI Realtime, in the same thread.
-The browser opens a WebSocket to xAI with an ephemeral token minted server-side.
-A call lasts 10 minutes at most.
-`STEVE_VOICE_LIVE=1` enables a live token mint in the app. Any other value keeps a mock session.
-`XAI_API_KEY` is server-only. It never reaches the client.
+Planned: the Saturday 28 Nov demo will be an in-app browser call over xAI Realtime, in the same thread.
+The browser will open a WebSocket to xAI with an ephemeral token minted server-side.
+A call will last 10 minutes at most.
+`STEVE_VOICE_LIVE=1` will enable a live token mint in the app. Any other value will keep a mock session.
+`XAI_API_KEY` will be server-only. It will never reach the client.
 
 ## Glossary
 
@@ -56,7 +60,7 @@ A call lasts 10 minutes at most.
 - **TTFA**: time to first audio.
 - **Forced sentence**: an exact sentence Steve must say.
 - **Safety sidecar**: Jev on each user transcript.
-- **Call bar**: the floating bar with mute, hang-up, and transcript toggle.
+- **Call bar**: planned. The floating bar with mute, hang-up, and transcript toggle.
 - **Turn** with channel `"voice"`, **Handoff**: as in the [shared README](../../shared/README.md). **Jev** and **EmergencyCalls** belong to `@steve/triage` (see the [triage README](../triage/README.md)).
 
 ## Resources
@@ -70,4 +74,4 @@ A call lasts 10 minutes at most.
 
 ## Status
 
-In progress for the Friday in-app demo. Twilio later.
+In progress for the Saturday 28 Nov in-app demo. Twilio later.
