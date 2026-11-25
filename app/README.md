@@ -56,7 +56,7 @@ When the route calls OpenRouter, it sends the French system prompt in `system-pr
 
 The response `model` is the `model` string from the OpenRouter JSON, the id of the model that ran. When that string is missing or empty, the response `model` is the id the route sent.
 
-The route aborts the OpenRouter call after 30 seconds. Each case below returns HTTP 502. With no triage calls, the body is `{ "error": "Le service de chat est indisponible. Réessayez." }`. With triage calls, the body also includes `calls` in that order. The `error` string starts with one sentence per call, in that same order, then the unavailable sentence. The sentence for 15 is `Appelle le 15 maintenant.` The sentence for a 3114 before that 15, and for a 3114 when the list has no 15, is `Appelle le 3114 maintenant.` The sentence for a 3114 after that 15 is `Appelle le 3114.`
+The route aborts the OpenRouter call after 30 seconds. Each case below returns HTTP 502. With no triage calls, the body is `{ "error": "Le service de chat est indisponible. Réessayez." }`. With triage calls, the body also includes `calls` in that order. The `error` string starts with the exact required block for each call, in that same order, then the unavailable sentence. The block for 15 is `call15Now`. The block for a 3114 before that 15, and for a 3114 when the list has no 15, is `call3114Now`. The block for a 3114 after that 15 is `call3114`. The constants live in `src/app/api/chat/emergency-templates.ts`.
 
 - OpenRouter responds with a status outside 2xx.
 - The call throws a network error.
