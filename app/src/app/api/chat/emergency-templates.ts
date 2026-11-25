@@ -178,7 +178,11 @@ export function normalizeEmergencyText(text: string): string {
 const norm15Now = normalizeEmergencyText(call15Now);
 const norm3114Now = normalizeEmergencyText(call3114Now);
 const norm3114 = normalizeEmergencyText(call3114);
-const normListeningPrefix = normalizeEmergencyText("Ils t'écoutent");
+const closedListeningTails = new Set([
+  normalizeEmergencyText("Ils t'écoutent"),
+  normalizeEmergencyText("Ils t'écoutent."),
+  normalizeEmergencyText("Ils t'écoutent jour et nuit."),
+]);
 
 const exactCallTemplates = new Set([norm15Now, norm3114Now, norm3114]);
 
@@ -345,14 +349,7 @@ function isExact3114Text(normalized: string): boolean {
 }
 
 function isListeningTailText(normalized: string): boolean {
-  if (normalized === normListeningPrefix) {
-    return true;
-  }
-  if (!normalized.startsWith(normListeningPrefix)) {
-    return false;
-  }
-  const next = normalized[normListeningPrefix.length];
-  return next !== undefined && !/\p{L}/u.test(next);
+  return closedListeningTails.has(normalized);
 }
 
 function listeningTailAfter(pieces: readonly RawPiece[], index: number): number | undefined {
