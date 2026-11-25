@@ -554,6 +554,31 @@ it("defaults the model to openai/gpt-6.1-terra and falls back when OpenRouter om
   }
 });
 
+it("sends a valid OPENROUTER_MODEL and falls back when the format is wrong", async () => {
+  const cases = [
+    ["openai/gpt-6.1-terra", "openai/gpt-6.1-terra"],
+    ["gpt-6.1-terra", "openai/gpt-6.1-terra"],
+    ["openai/", "openai/gpt-6.1-terra"],
+    ["/gpt-6.1-terra", "openai/gpt-6.1-terra"],
+    ["openai/gpt 6.1", "openai/gpt-6.1-terra"],
+  ] as const;
+  for (const [configured, model] of cases) {
+    vi.stubEnv("STEVE_CHAT_LIVE", "1");
+    vi.stubEnv("OPENROUTER_API_KEY", canary);
+    vi.stubEnv("OPENROUTER_MODEL", configured);
+    const fetchMock = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        choices: [{ message: { content: "D'accord." } }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await post(history);
+    expect(response.status).toBe(200);
+    const call = fetchMock.mock.calls.find((item) => String(item[0]) === openRouterUrl);
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ model });
+  }
+});
+
 it("returns 502 and drops the upstream body when OpenRouter fails", async () => {
   const replies = [
     () => new Response(`upstream ${canary} secret-fragment`, { status: 503 }),

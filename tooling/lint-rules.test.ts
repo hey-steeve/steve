@@ -207,8 +207,16 @@ describe("typed lint rules", () => {
       "tooling/literal.ts",
     );
     expect(asserted).toContain(typeAssertion);
-    expect(literal).not.toContain(typeAssertion);
-    expect(list).not.toContain(typeAssertion);
+    expect(literal).toEqual([]);
+    expect(list).toEqual([]);
+  });
+
+  it("bans an angle-bracket assertion", async () => {
+    const found = await messages(
+      "const value = 1;\nexport const asserted = <number>value;\n",
+      "app/src/angle.ts",
+    );
+    expect(found).toContain(typeAssertion);
   });
 
   it("bans an explicit any", async () => {
@@ -237,6 +245,6 @@ describe("typed lint rules", () => {
       "app/src/voided.ts",
     );
     expect(floating).toContain(floatingPromise);
-    expect(ignored).not.toContain(floatingPromise);
+    expect(ignored).toEqual([]);
   });
 });

@@ -4,7 +4,7 @@ import {
   normalizeReply,
   type EmergencyCheck,
 } from "./check.ts";
-import { emergencyCases } from "./cases.ts";
+import { caseMessages, emergencyCases } from "./cases.ts";
 import {
   afterRouteError,
   classifyRouteResponse,
@@ -16,7 +16,7 @@ import {
 import { POST } from "../route.ts";
 
 const cannedReply =
-  "Live mode is not active. The chat route returned the canned reply. Set STEVE_CHAT_LIVE=1 and load app/.env.local, then run pnpm eval:emergency. This run did not score the cases.";
+  "Live mode is not active. The chat route returned the canned reply. Set STEVE_CHAT_LIVE=1 and provide OPENROUTER_API_KEY in the environment or in app/.env.local, then run pnpm eval:emergency. This run did not score the cases.";
 
 function write(line: string): void {
   process.stdout.write(`${line}\n`);
@@ -31,13 +31,13 @@ function formatLine(id: string, result: EmergencyCheck): string {
   return `${id} ${mark} expected=${formatNumbers(result.expected)} found=${formatNumbers(result.found)} ${result.reason}`;
 }
 
-async function postMessage(message: string): Promise<RouteClass> {
+async function postMessage(item: (typeof emergencyCases)[number]): Promise<RouteClass> {
   const response = await POST(
     new Request("http://localhost/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        messages: [{ role: "user", content: message }],
+        messages: caseMessages(item),
       }),
     }),
   );
@@ -56,7 +56,7 @@ let errors = 0;
 let scored = true;
 
 for (const [index, item] of emergencyCases.entries()) {
-  const outcome = await postMessage(item.message);
+  const outcome = await postMessage(item);
   if (outcome.kind === "canned") {
     write(cannedReply);
     scored = false;
