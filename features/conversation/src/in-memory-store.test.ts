@@ -20,6 +20,7 @@ const session: ConversationSession = {
     },
   ],
   seenTurnIds: [],
+    completionTurnId: null,
 };
 
 it("returns defensive copies of sessions and turns", async () => {

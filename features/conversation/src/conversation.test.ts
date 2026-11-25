@@ -6,6 +6,7 @@ import {
   type Conversation,
   type ConversationStore,
   type ConversationTurnResult,
+  type RequestIntent,
   type RequestUnderstandingProvider,
 } from "./index.js";
 
@@ -66,6 +67,20 @@ function handleUnknown(
   return Reflect.apply(conversation.handleTurn, conversation, [input]);
 }
 
+function expectTriageHandoff(
+  result: ConversationTurnResult,
+  sourceText: string,
+): void {
+  if (result.outcome !== "handled" && result.outcome !== "failed") {
+    throw new Error("Validated turn did not produce a handoff");
+  }
+  expect(result.handoff.target).toBe("triage");
+  expect(result.handoff.data.at(-1)).toMatchObject({
+    sessionId: "session-1",
+    text: sourceText,
+  });
+}
+
 it("creates a stable session with a French greeting", async () => {
   const { conversation, dependencies } = await startedConversation([]);
   const stored = await dependencies.store.get("session-1");
@@ -86,6 +101,7 @@ it("creates a stable session with a French greeting", async () => {
       },
     ],
     seenTurnIds: [],
+    completionTurnId: null,
   });
 
   const second = await conversation.startSession({ channel: "voice" });
@@ -117,12 +133,15 @@ it("understands a care request and produces a non-medical triage handoff", async
     sessionId: "session-1",
     turnId: "text-turn-1",
     intent: "care_request",
-    data: {
-      channel: "text",
-      summary: "Recherche d'un rendez-vous généraliste",
-      sourceText: "Je cherche un généraliste",
-      completeAfterTriage: false,
-    },
+    data: [
+      {
+        sessionId: "session-1",
+        turnId: "text-turn-1",
+        channel: "text",
+        text: "Je cherche un généraliste",
+      },
+    ],
+    completeAfterTriage: false,
   });
   expect(result.session.version).toBe(1);
   expect(result.session.turns.map((turn) => turn.id)).toEqual([
@@ -156,7 +175,7 @@ it("uses the same core for a voice document request and a general question", asy
   expect(text.outcome).toBe("handled");
   if (voice.outcome === "handled" && text.outcome === "handled") {
     expect(voice.handoff.target).toBe("triage");
-    expect(voice.handoff.data.channel).toBe("voice");
+    expect(voice.handoff.data.at(-1)?.channel).toBe("voice");
     expect(text.handoff.target).toBe("triage");
     expect(text.session.turns).toHaveLength(5);
   }
@@ -220,12 +239,224 @@ it("hands a goodbye that mentions a symptom to triage before completion", async 
       intent: "end_conversation",
       sessionId: "session-1",
       turnId: "turn-goodbye",
-      data: { completeAfterTriage: true },
+      completeAfterTriage: true,
     },
     nextAction: "handoff",
-    session: { status: "active" },
+    session: {
+      status: "awaiting_triage",
+      completionTurnId: "turn-goodbye",
+    },
   });
+  if (ended.outcome === "handled") {
+    expect(ended.handoff.data.at(-1)?.text).toBe(
+      "Merci, au revoir, j'ai aussi mal à la poitrine",
+    );
+    expect(ended.response.text).not.toContain("est terminée");
+  }
   expect(understand).toHaveBeenCalledTimes(1);
+});
+
+it.each<{
+  readonly intent: RequestIntent;
+  readonly sourceText: string;
+}>([
+  { intent: "care_request", sourceText: "Je cherche un médecin" },
+  { intent: "document_request", sourceText: "Je dépose un document" },
+  { intent: "general_question", sourceText: "Que dois-je faire ensuite ?" },
+  { intent: "unsupported", sourceText: "Je ne sais pas quoi demander" },
+  { intent: "end_conversation", sourceText: "Merci, au revoir" },
+])("hands $intent to triage with the source turn", async ({ intent, sourceText }) => {
+  const { conversation } = await startedConversation([
+    { intent, summary: `Résumé pour ${intent}` },
+  ]);
+  const result = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: `turn-${intent}`,
+    channel: "text",
+    text: sourceText,
+  });
+
+  expectTriageHandoff(result, sourceText);
+});
+
+it.each<{
+  readonly name: string;
+  readonly sourceText: string;
+  readonly run: () => Promise<ConversationTurnResult>;
+}>([
+  {
+    name: "provider failure",
+    sourceText: "Demande avec provider indisponible",
+    async run() {
+      const { conversation } = await startedConversation([
+        new Error("provider unavailable"),
+      ]);
+      return conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-provider-failure",
+        channel: "text",
+        text: "Demande avec provider indisponible",
+      });
+    },
+  },
+  {
+    name: "timeout",
+    sourceText: "Demande qui expire",
+    async run() {
+      vi.useFakeTimers();
+      try {
+        const fixture = testDependencies([]);
+        const conversation = createConversation({
+          ...fixture.dependencies,
+          understanding: {
+            understand() {
+              return new Promise(() => undefined);
+            },
+          },
+        });
+        await conversation.startSession({ channel: "text" });
+        const pending = conversation.handleTurn({
+          sessionId: "session-1",
+          turnId: "turn-timeout-table",
+          channel: "text",
+          text: "Demande qui expire",
+        });
+        await vi.advanceTimersByTimeAsync(
+          conversationLimits.understandingTimeoutMs,
+        );
+        return await pending;
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  },
+  {
+    name: "invalid provider output",
+    sourceText: "Demande avec sortie invalide",
+    async run() {
+      const { conversation } = await startedConversation([{ unexpected: true }]);
+      return conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-invalid-output",
+        channel: "text",
+        text: "Demande avec sortie invalide",
+      });
+    },
+  },
+  {
+    name: "id failure",
+    sourceText: "Demande avec identifiant indisponible",
+    async run() {
+      const fixture = testDependencies([
+        { intent: "care_request", summary: "Demande comprise" },
+      ]);
+      let assistantCall = 0;
+      const conversation = createConversation({
+        ...fixture.dependencies,
+        ids: {
+          ...fixture.dependencies.ids,
+          assistantTurnId() {
+            assistantCall += 1;
+            return assistantCall === 1 ? "assistant-start" : " ";
+          },
+        },
+      });
+      await conversation.startSession({ channel: "text" });
+      return conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-id-failure",
+        channel: "text",
+        text: "Demande avec identifiant indisponible",
+      });
+    },
+  },
+  {
+    name: "clock failure",
+    sourceText: "Demande avec horloge indisponible",
+    async run() {
+      const fixture = testDependencies([
+        { intent: "care_request", summary: "Demande comprise" },
+      ]);
+      let clockCall = 0;
+      const conversation = createConversation({
+        ...fixture.dependencies,
+        clock: {
+          now() {
+            clockCall += 1;
+            return clockCall < 3 ? "2026-11-25T12:00:00.000Z" : "invalid";
+          },
+        },
+      });
+      await conversation.startSession({ channel: "text" });
+      return conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-clock-failure",
+        channel: "text",
+        text: "Demande avec horloge indisponible",
+      });
+    },
+  },
+  {
+    name: "storage failure",
+    sourceText: "Demande avec stockage indisponible",
+    async run() {
+      const store: ConversationStore = {
+        async get() {
+          throw new Error("store unavailable");
+        },
+        async save() {
+          throw new Error("store unavailable");
+        },
+      };
+      const fixture = testDependencies([], store);
+      return createConversation(fixture.dependencies).handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-storage-failure",
+        channel: "text",
+        text: "Demande avec stockage indisponible",
+      });
+    },
+  },
+])("hands $name to triage with the source turn", async ({ run, sourceText }) => {
+  const result = await run();
+
+  expect(result.outcome).toBe("failed");
+  expectTriageHandoff(result, sourceText);
+});
+
+it("completes a goodbye after triage and rejects later turns", async () => {
+  const { conversation } = await startedConversation([
+    { intent: "end_conversation", summary: "Fin demandée" },
+  ]);
+  const goodbye = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-goodbye-complete",
+    channel: "text",
+    text: "Au revoir",
+  });
+  if (goodbye.outcome !== "handled") {
+    throw new Error("Goodbye was not handled");
+  }
+
+  const completed = await conversation.completeSession({
+    sessionId: goodbye.handoff.sessionId,
+    turnId: goodbye.handoff.turnId,
+  });
+  const later = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-after-completion",
+    channel: "text",
+    text: "Un autre message",
+  });
+
+  expect(completed).toMatchObject({
+    outcome: "completed",
+    session: { status: "completed", completionTurnId: "turn-goodbye-complete" },
+  });
+  expect(later).toMatchObject({
+    outcome: "rejected",
+    code: "session_completed",
+  });
 });
 
 it("rejects malformed, empty and oversized input without calling the provider", async () => {
