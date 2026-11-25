@@ -4,7 +4,7 @@ Ten features. The detail is in each README. The common contracts are in the [sha
 
 - [voice](voice/README.md) connects Twilio to the voice provider, carries the audio, and decides nothing.
 - [conversation](conversation/README.md) runs the conversation, by voice or by text, then hands off.
-- [triage](triage/README.md) classifies each turn and orients toward a practitioner type and a delay.
+- [triage](triage/README.md) classifies each turn as emergency, consult, self-care, or need-info.
 - [directory](directory/README.md) finds practitioners in the public Annuaire Santé, and does not book.
 - [booking](booking/README.md) calls the chosen practice and returns a confirmed or refused slot.
 - [agenda](agenda/README.md) records only confirmed appointments.
@@ -16,8 +16,8 @@ Ten features. The detail is in each README. The common contracts are in the [sha
 ## Rules
 
 - Never diagnose.
-- Emergency routing (15, 3114, never 112 or SOS Médecins) is defined only in `app/src/app/api/chat/system-prompt.ts`.
-- `app/src/app/api/chat/route.test.ts` rejects only the literals `Dans le doute, appelle le 15.` and `appelle le 116 117`.
+- The patient-facing 15 and 3114 wording stays in `app/src/app/api/chat/system-prompt.ts`. Triage carries the numbers as call data. Steve does not route to 112 or SOS Médecins.
+- `app/src/app/api/chat/route.test.ts` rejects `Dans le doute, appelle le 15.` and `appelle le 116 117`. The same file checks the system prompt and each triage guidance string with one matcher. The matcher applies NFC, strips accents, turns Unicode spaces into a space, turns apostrophes into `'`, and lowercases. It then flags `ne`, `n'`, `pas`, `jamais`, `sans`, or a word starting with `evit` within 32 characters of `15`, `3114`, or `samu`. It also flags `ne pas appeler`. Approved sentences in the system prompt are allowlisted. The live prompt passes. Both guidance strings pass. An injected variant fails.
 - Steve does not book a 15 or 3114 referral.
 - Nothing enters the agenda without confirmation from the practice.
 - Reminders cover only appointments that are in the agenda.
@@ -51,7 +51,6 @@ stateDiagram-v2
   s0: Incoming call
   s1: Steve greets and listens
   s2: Triage in progress
-  s3: Confirmation question
   s4: Practitioner search
   s5: Document or question
   s6: Practitioner choice
@@ -65,15 +64,12 @@ stateDiagram-v2
   [*] --> s0
   s0 --> s1: The patient calls
   s1 --> s2: The patient explains the request
-  s2 --> s3: Possible 15 or 3114 referral
+  s2 --> s8: 15 or 3114 referral
   s2 --> s4: Not urgent [appointment request]
   s2 --> s5: Not urgent [document or question]
-  s3 --> s4: The patient denies the emergency [appointment request]
-  s3 --> s8: Confirmed 15 or 3114 referral
-  s3 --> s5: The patient denies the emergency [document or question]
   s4 --> s6: Steve suggests nearby practitioners
   s5 --> s7: Steve files or summarizes the document
-  s6 --> s3: The patient describes a serious symptom [triage on every turn]
+  s6 --> s8: The patient describes a serious symptom [triage on every turn]
   s6 --> s9: The patient chooses a practitioner
   s7 --> s10: Steve recaps and hangs up
   s8 --> s10: Steve gives the order of 15 and 3114 in app/src/app/api/chat/system-prompt.ts and hangs up
@@ -82,12 +78,10 @@ stateDiagram-v2
   s11 --> s13: Steve records the appointment in the agenda
   s12 --> s6: Steve suggests another practitioner [fewer than 2 tries]
   s13 --> s7: Steve schedules the reminders
-  s3 --> s6: The patient denies the emergency [practitioner choice in progress]
   s12 --> s7: Steve gives up [2 practices refused]
   class s0 blue
   class s1 blue
   class s2 yellow
-  class s3 yellow
   class s4 teal
   class s5 tan
   class s6 teal

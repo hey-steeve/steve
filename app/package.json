@@ -6,11 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "typecheck": "next typegen && pnpm --dir .. exec tsc --noEmit -p app",
-    "test": "pnpm --dir .. exec vitest run --passWithNoTests app"
+    "test": "pnpm --dir .. exec vitest run --passWithNoTests app",
+    "eval:emergency": "STEVE_CHAT_LIVE=1 node --env-file-if-exists=.env.local --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/run.ts",
+    "eval:rescore": "node --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/rescore.ts"
   },
   "dependencies": {
     "@steve/profile": "workspace:*",
     "@steve/shared": "workspace:*",
+    "@steve/triage": "workspace:*",
     "next": "^16.4.6",
     "open-bot-avatar": "^0.3.0",
     "react": "^19.3.1",

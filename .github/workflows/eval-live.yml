@@ -1,0 +1,131 @@
+name: Live eval
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  emergency-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check live eval gate
+        id: preflight
+        env:
+          LIVE_EVAL_ENABLED: ${{ vars.LIVE_EVAL_ENABLED }}
+          GITHUB_REF: ${{ github.ref }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ "$LIVE_EVAL_ENABLED" != "true" ]; then
+            echo "LIVE_EVAL_ENABLED is not true. Skipping emergency-gate."
+            echo "::notice::LIVE_EVAL_ENABLED is not true. Skipping emergency-gate."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Live eval runs only on refs/heads/main. Skipping emergency-gate."
+            echo "::notice::Live eval runs only on refs/heads/main. Skipping emergency-gate."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "OPENROUTER_API_KEY is not set. Skipping emergency-gate."
+            echo "::notice::OPENROUTER_API_KEY is not set. Skipping emergency-gate."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        if: steps.preflight.outputs.skip != 'true'
+        uses: actions/checkout@v7
+      - name: Install pnpm
+        if: steps.preflight.outputs.skip != 'true'
+        uses: pnpm/action-setup@v6
+      - name: Set up Node
+        if: steps.preflight.outputs.skip != 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install dependencies
+        if: steps.preflight.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Run emergency eval
+        if: steps.preflight.outputs.skip != 'true'
+        env:
+          STEVE_CHAT_LIVE: "1"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+        run: |
+          set -o pipefail
+          pnpm eval:emergency | tee emergency-eval.txt
+      - name: Upload emergency eval
+        if: always() && steps.preflight.outputs.skip == 'false'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: emergency-gate
+          path: emergency-eval.txt
+
+  triage-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check live eval gate
+        id: preflight
+        env:
+          LIVE_EVAL_ENABLED: ${{ vars.LIVE_EVAL_ENABLED }}
+          GITHUB_REF: ${{ github.ref }}
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+        run: |
+          if [ "$LIVE_EVAL_ENABLED" != "true" ]; then
+            echo "LIVE_EVAL_ENABLED is not true. Skipping triage-eval."
+            echo "::notice::LIVE_EVAL_ENABLED is not true. Skipping triage-eval."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Live eval runs only on refs/heads/main. Skipping triage-eval."
+            echo "::notice::Live eval runs only on refs/heads/main. Skipping triage-eval."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$JEV_API_KEY" ]; then
+            echo "JEV_API_KEY is not set. Skipping triage-eval."
+            echo "::notice::JEV_API_KEY is not set. Skipping triage-eval."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        if: steps.preflight.outputs.skip != 'true'
+        uses: actions/checkout@v7
+      - name: Install pnpm
+        if: steps.preflight.outputs.skip != 'true'
+        uses: pnpm/action-setup@v6
+      - name: Set up Node
+        if: steps.preflight.outputs.skip != 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install dependencies
+        if: steps.preflight.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Run triage eval
+        if: steps.preflight.outputs.skip != 'true'
+        env:
+          JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
+          JEV_MODEL: ${{ vars.JEV_MODEL }}
+        run: |
+          set -o pipefail
+          pnpm eval:triage | tee triage-eval.txt
+      - name: Upload triage eval
+        if: always() && steps.preflight.outputs.skip == 'false'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: triage-eval
+          path: triage-eval.txt

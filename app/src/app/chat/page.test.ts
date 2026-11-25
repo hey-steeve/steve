@@ -315,7 +315,7 @@ it("renders an assistant bubble without a model label, a speak button, or a foot
       Response.json({
         reply: "Tu peux contacter le secrétariat.",
         mocked: false,
-        model: "google/gemini-3.8-flash",
+        model: "openai/gpt-6.1-terra",
       }),
     ),
   );
@@ -1554,11 +1554,10 @@ it("scrolls smoothly to the bottom and hides the pill when the new-message pill 
   const requested: ScrollToOptions[] = [];
   function scrollTo(options?: ScrollToOptions): void;
   function scrollTo(x: number, y: number): void;
-  function scrollTo(options?: ScrollToOptions | number, y?: number): void {
+  function scrollTo(options?: ScrollToOptions | number, _y?: number): void {
     if (typeof options === "object" && options !== null) {
       requested.push(options);
     }
-    void y;
   }
   session.thread.scrollTo = scrollTo;
   try {
