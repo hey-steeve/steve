@@ -36,7 +36,7 @@ Nothing but the package itself, for the demo core. The app imports the public in
 
 - `voice` decides nothing.
 - Never diagnose.
-- Safety: Jev classifies each user transcript. On an emergency, Steve says the exact 15 / 3114 sentences and the call buttons show. Use `call3114` after 15, with no new sentence.
+- Safety: Jev classifies each user transcript. On an emergency, Steve says the exact 15 / 3114 sentences and the call buttons show. Follow Jev's call order; when 3114 follows 15, reuse `call3114` (no new sentence).
 
 ## Demo and production
 
