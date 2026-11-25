@@ -396,7 +396,9 @@ function rawPieces(reply: string): RawPiece[] {
     }
     const slice = reply.slice(start, atEnd ? reply.length : end + 1);
     const sentence = slice.trim().replace(/[.!?]+$/u, (run) => run[0] ?? ".");
-    if (!/^[.!?]+$/u.test(sentence)) {
+    const bare = slice.trim();
+    const punctuationOnly = /^[.!?]+$/u.test(sentence);
+    if (!punctuationOnly || bare.length > 1) {
       pieces.push({ raw: slice, sentence });
     }
     if (atEnd) {

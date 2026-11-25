@@ -95,28 +95,134 @@ function readModel(body: unknown): string | undefined {
 }
 
 function emergencyPhysical(): unknown {
+  return jevBody("emergency", "physical", "no");
+}
+
+const gateRows = [
+  {
+    id: "missing",
+    item: emergencyItem("missing", ["3114", "15"]),
+    body: jevBody("emergency", "physical", "no"),
+    gateFailed: true,
+    exitCode: 1 as const,
+  },
+  {
+    id: "extra",
+    item: emergencyItem("extra", ["15"]),
+    body: jevBody("emergency", "both", "no"),
+    gateFailed: true,
+    exitCode: 1 as const,
+  },
+  {
+    id: "swapped",
+    item: emergencyItem("swapped", ["15", "3114"]),
+    body: jevBody("emergency", "psychological", "no"),
+    gateFailed: true,
+    exitCode: 1 as const,
+  },
+  {
+    id: "wrong-number",
+    item: emergencyItem("wrong-number", ["15"]),
+    body: jevBody("emergency", "psychological", "yes"),
+    gateFailed: true,
+    exitCode: 1 as const,
+  },
+  {
+    id: "exact-15",
+    item: emergencyItem("exact-15", ["15"]),
+    body: jevBody("emergency", "physical", "no"),
+    gateFailed: false,
+    exitCode: 0 as const,
+  },
+  {
+    id: "exact-15-3114",
+    item: emergencyItem("exact-15-3114", ["15", "3114"]),
+    body: jevBody("emergency", "both", "no"),
+    gateFailed: false,
+    exitCode: 0 as const,
+  },
+  {
+    id: "exact-3114-15",
+    item: emergencyItem("exact-3114-15", ["3114", "15"]),
+    body: jevBody("emergency", "psychological", "no"),
+    gateFailed: false,
+    exitCode: 0 as const,
+  },
+  {
+    id: "non-emergency-miss",
+    item: {
+      id: "non-emergency-miss",
+      state: "synthetic",
+      label: "consult",
+      numbers: [],
+    },
+    body: jevBody("self-care", "none", "no"),
+    gateFailed: false,
+    exitCode: 0 as const,
+  },
+] as const satisfies readonly {
+  readonly id: string;
+  readonly item: TriageEvalCase;
+  readonly body: unknown;
+  readonly gateFailed: boolean;
+  readonly exitCode: 0 | 1;
+}[];
+
+it("fails the gate unless every emergency case matches the ordered calls list", async () => {
+  const received = [];
+  for (const row of gateRows) {
+    const outcome = await evaluateTriage({
+      cases: [row.item],
+      timeoutMs: 20,
+      fetch: async () => Response.json(row.body),
+    });
+    received.push({
+      id: row.id,
+      recall: reportLine(outcome.report, "emergency recall"),
+      gateFailed: outcome.gateFailed,
+      exitCode: outcome.exitCode,
+    });
+  }
+  expect(received).toEqual(
+    gateRows.map((row) => ({
+      id: row.id,
+      recall: "emergency recall 1.000",
+      gateFailed: row.gateFailed,
+      exitCode: row.exitCode,
+    })),
+  );
+});
+
+function reportLine(report: string, prefix: string): string {
+  const line = report.split("\n").find((item) => item.startsWith(prefix));
+  return line ?? "";
+}
+
+function emergencyItem(
+  id: string,
+  numbers: readonly ["15"] | readonly ["3114", "15"] | readonly ["15", "3114"],
+): TriageEvalCase {
+  return { id, state: "synthetic", label: "emergency", numbers };
+}
+
+function jevBody(
+  label: "emergency" | "consult" | "self-care" | "need-info",
+  channel: "physical" | "psychological" | "both" | "none",
+  harm: "yes" | "no",
+): unknown {
   return {
     answers: {
-      label: {
-        type: "choice",
-        choice: "emergency",
-        probabilities: {
-          emergency: 0.9,
-          consult: 0.04,
-          "self-care": 0.03,
-          "need-info": 0.03,
-        },
-      },
-      channel: {
-        type: "choice",
-        choice: "physical",
-        probabilities: {
-          physical: 0.9,
-          psychological: 0.04,
-          both: 0.03,
-          none: 0.03,
-        },
-      },
+      label: choice(label, ["emergency", "consult", "self-care", "need-info"]),
+      channel: choice(channel, ["physical", "psychological", "both", "none"]),
+      overdoseOrSelfHarm: choice(harm, ["yes", "no"]),
     },
   };
+}
+
+function choice(selected: string, options: readonly string[]): unknown {
+  const probabilities: Record<string, number> = {};
+  for (const option of options) {
+    probabilities[option] = option === selected ? 0.91 : 0.03;
+  }
+  return { type: "choice", choice: selected, probabilities };
 }

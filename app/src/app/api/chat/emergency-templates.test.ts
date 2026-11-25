@@ -374,6 +374,14 @@ const modelPunctuationRows = [
     reply: "Si ça empire... Respire lentement… Tu es en sécurité ?!",
     calls: ["15"],
   },
+  {
+    reply: "Reste au chaud. ... Si ça empire.",
+    calls: ["15"],
+  },
+  {
+    reply: "Reste au chaud. ?! Si ça empire.",
+    calls: ["15"],
+  },
 ] as const;
 
 function keptBodySentence(sentence: string): boolean {
@@ -388,25 +396,27 @@ it("keeps every sentence that is not an exact call template or a closed listenin
     ...mustKeepRows,
     ...modelPunctuationRows,
   ];
+  const missing: string[] = [];
   for (const row of guarded) {
     const output = ensureEmergencyCalls(row.reply, [...row.calls]);
     const pool = helperSentences(output);
     for (const sentence of helperSentences(row.reply).filter(keptBodySentence)) {
       const at = pool.indexOf(sentence);
-      expect(
-        at,
-        [
-          `missing ${JSON.stringify(sentence)}`,
-          `calls ${JSON.stringify(row.calls)}`,
-          `input ${JSON.stringify(row.reply)}`,
-          `output ${JSON.stringify(output)}`,
-        ].join("\n"),
-      ).toBeGreaterThanOrEqual(0);
-      if (at >= 0) {
-        pool.splice(at, 1);
+      if (at < 0) {
+        missing.push(
+          [
+            `missing ${JSON.stringify(sentence)}`,
+            `calls ${JSON.stringify(row.calls)}`,
+            `input ${JSON.stringify(row.reply)}`,
+            `output ${JSON.stringify(output)}`,
+          ].join("\n"),
+        );
+        continue;
       }
+      pool.splice(at, 1);
     }
   }
+  expect(missing).toEqual([]);
 });
 
 const doubledPunctuation = /[.!?]{2}/;

@@ -165,6 +165,7 @@ export function rescoreSavedRun(text: string): RescoreReport {
       optional3114Allowed:
         "optional3114Allowed" in item && item.optional3114Allowed,
       optional15Allowed: "optional15Allowed" in item && item.optional15Allowed,
+      forbidMedication: "forbidMedication" in item && item.forbidMedication,
     });
     if (result.pass) {
       passed += 1;

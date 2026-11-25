@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 import { classify } from "../src/jev.ts";
 import type { ClassifyResult, EmergencyNumber } from "../src/types.ts";
 import { triageCases, type TriageEvalCase } from "./cases.ts";
-import { formatTriageReport, scoreTriage, type TriageSample } from "./metrics.ts";
+import {
+  formatTriageReport,
+  scoreTriage,
+  triageGateFailed,
+  type TriageSample,
+} from "./metrics.ts";
 
 const skipReport = "JEV_API_KEY is not set. Skipping triage eval.\n";
 
@@ -54,8 +59,7 @@ export async function evaluateTriage(input: {
     });
   }
   const metrics = scoreTriage(samples);
-  const emergencyCount = input.cases.filter((item) => item.label === "emergency").length;
-  const gateFailed = emergencyCount > 0 && metrics.emergencyRecall !== 1;
+  const gateFailed = triageGateFailed(samples);
   return {
     exitCode: gateFailed ? 1 : 0,
     report: formatTriageReport(metrics, gateFailed),
