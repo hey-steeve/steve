@@ -2,16 +2,18 @@
 
 ## Role
 
-`@steve/voice` holds the pure in-app live-call primitives: session config, event parsing, the call-state reducer (including barge-in), and PCM16 helpers.
+Planned: `@steve/voice` will hold the pure in-app live-call logic: session config, event parsing, call-state reducer, and audio helpers. None of it is implemented yet.
 Planned: the app will own the routes, the hook, and the UI.
 `voice` decides nothing.
 
 ## Does
 
-- Builds the pinned `grok-voice-3.0` session config, with voice `eve` and a French language hint.
-- Parses Realtime events.
-- Reduces call state, including barge-in.
-- Encodes and decodes PCM16.
+Planned, not implemented yet. `src/index.ts` is still `export {};`.
+
+- Will build the pinned `grok-voice-3.0` session config, with voice `eve` and a French language hint.
+- Will parse Realtime events.
+- Will reduce call state, including barge-in.
+- Will encode and decode PCM16.
 - Twilio is out of scope for this demo. Phone calls come later.
 
 ## Does not
@@ -22,14 +24,16 @@ Planned: the app will own the routes, the hook, and the UI.
 
 ## Inputs and outputs
 
-- The config input is injected instructions and tuning.
-- The events are typed server events.
-- The output is call state and PCM16 helpers.
-- The contracts live in this package. The public index exports them.
+Planned:
+
+- The config input will be injected instructions and tuning.
+- The events will be typed server events.
+- The output will be call state and PCM16 helpers.
+- The contracts will land in this package in the next PR.
 
 ## Depends on
 
-Nothing but the package itself, for the demo core. The public index exports the contracts. Planned: the app will import the public index.
+Planned: nothing but the package itself, for the demo core. The app will import the public index.
 `@steve/shared` will be allowed later, if a shared contract is added in its own PR.
 
 ## Rules

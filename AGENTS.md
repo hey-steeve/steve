@@ -16,7 +16,7 @@ The demo core is `@steve/shared`, `@steve/voice`, `@steve/conversation`, `@steve
 
 Each directory under `features/` is one package. The packages, in order, are `@steve/voice`, `@steve/conversation`, `@steve/triage`, `@steve/directory`, `@steve/booking`, `@steve/agenda`, `@steve/profile`, `@steve/vault`, `@steve/reminders`, and `@steve/inbox`.
 
-`@steve/voice` holds the in-app live-call primitives over xAI Realtime (`grok-voice-3.0`): session config, event parsing, the call-state reducer, and PCM16 helpers. Planned: the live call in the app, with audio going both ways in a browser session, is later. The app hook is not built yet. Voice decides nothing. Twilio phone calls come later.
+Planned: `@steve/voice` will hold the in-app live call over xAI Realtime (`grok-voice-3.0`). Audio will go both ways. Voice decides nothing. Twilio phone calls come later.
 
 `@steve/conversation` runs one conversation, by voice or by text. Text means the app chat. SMS and email come later, through inbox. The flow stays the same. Conversation greets, understands, and hands off. It does not triage. It does not book.
 

@@ -2,7 +2,7 @@
 
 Ten features. The detail is in each README. The common contracts are in the [shared README](../shared/README.md).
 
-- [voice](voice/README.md) holds the in-app live-call primitives over xAI Realtime and decides nothing. The live call in the app is planned. Twilio comes later.
+- [voice](voice/README.md) will carry the in-app live call over xAI Realtime (planned) and decides nothing. Twilio comes later.
 - [conversation](conversation/README.md) runs the conversation, by voice or by text, then hands off.
 - [triage](triage/README.md) classifies each turn as emergency, consult, self-care, or need-info.
 - [directory](directory/README.md) finds practitioners in the public Annuaire Santé, and does not book.
