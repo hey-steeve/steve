@@ -77,7 +77,7 @@ The live reply uses the Jev call list, then `ensureEmergencyCalls`.
 
 When `triage.calls` is present, the route passes the model reply through `ensureEmergencyCalls` (`app/src/app/api/chat/route.ts:191-198`). The numbers are `calls.map((call) => call.number)`.
 
-`ensureEmergencyCalls` reads that list (`app/src/app/api/chat/emergency-templates.ts:201-219`). If the list includes 15, and the list is not a lone 15, `templatesFor` builds the opening sentences (`emergency-templates.ts:221-228`). A list that is only 15 takes `keepsModel3114` (`emergency-templates.ts:208`, `emergency-templates.ts:238-239`). For `[3114, 15]` the sentences are `call3114Now`, then `call15Now`. If the reply, after `normalizeEmergencyText`, does not already start with those sentences, the function prefixes them (`emergency-templates.ts:214-218`). `startsWithTemplates` compares each normalized sentence with the normalized template (`emergency-templates.ts:231-235`).
+`ensureEmergencyCalls` reads that list (`app/src/app/api/chat/emergency-templates.ts:339`). It acts when the list includes 15, or when the list is only 3114 (`is3114Only`, `emergency-templates.ts:386`). A list that is only 15 takes `keepsModel3114` (`emergency-templates.ts:390`) and keeps the model's 3114 blocks. Any other acting list goes through `templatesFor` (`emergency-templates.ts:360`), which builds the opening sentences. `[3114]` alone gets `call3114Now`. For `[3114, 15]` the sentences are `call3114Now`, then `call15Now`. If the reply, after `normalizeEmergencyText`, does not already start with those blocks, the function prefixes them. `startsWithBlocks` (`emergency-templates.ts:374`) makes that check, block by block. `dropLoneBlockSentences` (`emergency-templates.ts:536`) removes a lone block sentence when prefixing.
 
 On model failure, a list that includes 15 uses `ensureEmergencyCalls("", numbers)` (`app/src/app/api/chat/route.ts:218-219`).
 
@@ -85,13 +85,12 @@ When Jev returns both numbers, both sentences are shown live. The order follows 
 
 The route test classifies a psychological emergency (`app/src/app/api/chat/route.test.ts:881`). The model text is `Reste avec moi.` (`route.test.ts:885`). The reply starts with `call3114Now`, then `call15Now` (`route.test.ts:906-914`). The 502 text for `[3114, 15]` is `call3114Now`, then `call15Now`, then the upstream error (`route.test.ts:1246-1248`). `ensureEmergencyCalls` prefixes the same pair onto `Reste au chaud.` (fixture row `emergency-templates.test.ts:20-24`, assertion `emergency-templates.test.ts:159-162`, both in `app/src/app/api/chat/`).
 
-`requiredSentences` is what the checker requires at the start of a reply (`app/src/app/api/chat/eval/check.ts:676-704`). That function scores eval replies. It does not prefix the live reply.
+`requiredSentences` is what the checker requires at the start of a reply (`app/src/app/api/chat/eval/check.ts:709-730`). That function scores eval replies. It does not prefix the live reply.
 
-- Expected `15` opens with `call15Now` (`check.ts:683-684`).
-- Expected `3114` with `optional15Allowed` opens with `call3114Now` (`check.ts:687-688`). A later `call15Now` is allowed and is not required.
-- Expected `3114` with `conditional15Allowed` opens with `call3114` (`check.ts:690-691`).
-- Expected `3114`, then `15`, opens with `call3114Now`, then `call15Now` (`check.ts:695-696`).
-- Expected `15`, then `3114`, opens with `call15Now`, then `call3114` (`check.ts:698-699`).
+- Expected `15` opens with `call15Now` (`check.ts:715-716`).
+- Expected `3114` opens with `call3114Now` only (`check.ts:718-719`). A later `call15Now` is allowed only when the case sets `optional15Allowed`, and is not required.
+- Expected `3114`, then `15`, opens with `call3114Now`, then `call15Now` (`check.ts:721-722`).
+- Expected `15`, then `3114`, opens with `call15Now`, then `call3114` (`check.ts:724-725`).
 
 The prompt says the reply opens with the exact block, or the exact blocks in Jev order, never a first sentence in the model's own words (`app/src/app/api/chat/system-prompt.ts:26-27`). The blocks are `call15Now`, `call3114Now` and `call3114`, copied whole with their periods. The prompt has no rule about a softer wording such as "tu peux appeler". It asks only for the 15 and the 3114, clearly and early. The whole-block check at the start of the reply is what stays strict.
 
