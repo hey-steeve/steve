@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { systemPrompt } from "../system-prompt.ts";
-import { detectEmergencyNumbers } from "./check.ts";
+import { type DetectedKind, detectEmergencyNumbers } from "./check.ts";
 import {
   promptNumberPinFailures,
   type PromptNumberRow,
@@ -222,6 +222,32 @@ it.each(splitCases)("fails closed when $name splits a number", ({ text, span, ki
   expect(promptNumberPinFailures(text, [])).toEqual([splitFailure(span, kind)]);
 });
 
+type MarkInSpanCase = {
+  readonly text: string;
+  readonly span: string;
+  readonly kind: DetectedKind;
+};
+
+// The reply checker splits at these marks, so a span that holds one must fail even when
+// the pin splitter keeps it inside one sentence and an exact row matches that sentence.
+const markInSpanCases: readonly MarkInSpanCase[] = [
+  { text: "Appelle le 1.5.", span: "1.5", kind: "15" },
+  { text: "« Appelle le 1. 5. »", span: "1. 5", kind: "15" },
+  { text: "« Appelle le 1.5. »", span: "1.5", kind: "15" },
+  { text: "Appelle le 3.114.", span: "3.114", kind: "3114" },
+  { text: "Appelle le 1!5.", span: "1!5", kind: "15" },
+  // A decimal point is no exception: the reply checker splits there too.
+  { text: "Bois 1.5 litre.", span: "1.5", kind: "15" },
+];
+
+it.each(markInSpanCases)(
+  "fails closed when a sentence mark sits inside the number span of $text",
+  ({ text, span, kind }) => {
+    const failures = promptNumberPinFailures(text, [{ sentence: text, numbers: [kind] }]);
+    expect(failures[0]).toBe(splitFailure(span, kind));
+  },
+);
+
 type NoSplitCase = {
   readonly name: string;
   readonly text: string;
@@ -262,12 +288,6 @@ const noSplitCases: readonly NoSplitCase[] = [
     text: "Tu dis : « Appelle le 15 maintenant. ». Puis tu attends.",
     rows: [{ sentence: "Tu dis : « Appelle le 15 maintenant. ».", numbers: ["15"] }],
     failures: [],
-  },
-  {
-    name: "a decimal point is not a boundary",
-    text: "Bois 1.5 litre.",
-    rows: [],
-    failures: [unpinnedFailure(["15"], "Bois 1.5 litre.")],
   },
   {
     name: "a number sentence with no row",

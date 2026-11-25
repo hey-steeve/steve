@@ -128,6 +128,10 @@ export function splitSentences(text: string): SentenceSplit {
   return { sentences, problems };
 }
 
+function hasSentenceMark(text: string): boolean {
+  return [...text].some((char) => /[.!?]/u.test(char) || lineBreakChars.includes(char));
+}
+
 // Failure order: split numbers, then entries per row in row order (stale, duplicate,
 // numbers mismatch, then out of order), then unpinned sentences in prompt order.
 // Order is checked only among rows that matched exactly once. Each such row must sit
@@ -151,9 +155,12 @@ export function promptNumberPinFailures(
     const owner = sentences.find(
       (sentence) => span.start >= sentence.start && span.end <= sentence.end,
     );
-    if (owner === undefined) {
+    const raw = promptText.slice(span.start, span.end);
+    // The reply checker splits at any mark or line break, with no quote or whitespace
+    // rule, so a span holding one is split even when it sits inside one pinned sentence.
+    if (owner === undefined || hasSentenceMark(raw)) {
       failures.push(
-        `split across sentences: "${promptText.slice(span.start, span.end)}" (${span.kind}) crosses a sentence boundary`,
+        `split across sentences: "${raw}" (${span.kind}) crosses a sentence boundary`,
       );
       continue;
     }
