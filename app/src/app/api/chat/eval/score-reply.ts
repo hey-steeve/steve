@@ -14,7 +14,7 @@ export function withoutSafetySentence(reply: string): string {
   const head = text.slice(0, text.length - emergencySafetySentence.length);
   // A reply that is only the sentence is the route's fallback, not model text: keep it so the
   // checker fails it instead of passing an empty string.
-  if (normalizeEmergencyText(head).length === 0 || !/\s$/u.test(head)) {
+  if (normalizeEmergencyText(head).replace(/[\p{Cf}\u2800\u3164\u115F\u1160\uFFA0]/gu, "").trim().length === 0 || !/\s$/u.test(head)) {
     return reply;
   }
   return head.trimEnd();

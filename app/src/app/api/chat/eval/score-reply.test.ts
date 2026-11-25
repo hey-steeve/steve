@@ -62,7 +62,7 @@ it("marks a run with a Jev key as triage on", () => {
   expect(triageStatusLine(true)).toBe("triage: on (JEV_API_KEY present)");
 });
 
-it.each([["​"], [" \n\t "], ["​ ​"]])(
+it.each([["​"], [" \n\t "], ["​ ​"], ["\u2800"], ["\u3164"], ["\u115F\u1160\uFFA0"]])(
   "keeps a reply that is only the safety sentence behind an empty head %j",
   (head) => {
     const reply = `${head} ${emergencySafetySentence}`;
