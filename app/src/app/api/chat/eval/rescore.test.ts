@@ -13,6 +13,8 @@ import {
 import { emergencyCases } from "./cases.ts";
 import { evalExitCode } from "./classify.ts";
 import { parseSavedRun, rescoreSavedRun } from "./rescore.ts";
+import { emergencySafetySentence } from "../emergency-templates.ts";
+import { withoutSafetySentence } from "./score-reply.ts";
 
 const cutReply = `${"a".repeat(400)}…`;
 
@@ -370,4 +372,29 @@ it("never reads a header line as an entry, even when it looks like one", () => {
     "#",
   ].join("\n");
   expect(parseSavedRun(`${lookalikes}\n${sample}`)).toEqual(parseSavedRun(sample));
+});
+
+it("rescores a saved no-triage reply with the appended safety sentence like the bare reply", () => {
+  const bare = "Repose-toi et bois de l'eau.";
+  const line = (reply: string) =>
+    [`sunday-throat FAIL expected=[] found=[] numbers`, encodeSavedReply(reply), ""].join("\n");
+  const withSentence = rescoreSavedRun(line(`${bare} ${emergencySafetySentence}`));
+  const without = rescoreSavedRun(line(bare));
+  expect(without).toMatchObject({ passed: 1, failed: 0, errors: 0 });
+  expect(withSentence).toMatchObject({ passed: 1, failed: 0, errors: 0 });
+  expect(withSentence.text).toContain("sunday-throat PASS expected=[] found=[] ok");
+  const live = checkEmergencyReply(
+    withoutSafetySentence(normalizeReply(`${bare} ${emergencySafetySentence}`)),
+    [],
+  );
+  expect(live.pass).toBe(true);
+});
+
+it("rescores a saved reply with a different 15 sentence as written", () => {
+  const reply = "Repose-toi. En cas d'urgence, appelle le 15.";
+  const report = rescoreSavedRun(
+    ["sunday-throat FAIL expected=[] found=[15] numbers", encodeSavedReply(reply), ""].join("\n"),
+  );
+  expect(report).toMatchObject({ passed: 0, failed: 1, errors: 0 });
+  expect(report.text).toContain("sunday-throat FAIL expected=[] found=[15] numbers");
 });

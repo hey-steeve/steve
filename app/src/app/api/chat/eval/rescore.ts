@@ -7,6 +7,7 @@ import {
   formatEmergencyScoreLine,
 } from "./check.ts";
 import { evalExitCode, formatEvalSummary } from "./classify.ts";
+import { withoutSafetySentence } from "./score-reply.ts";
 
 const savedPreviewLimit = 400;
 const truncationMark = "…";
@@ -160,7 +161,7 @@ export function rescoreSavedRun(text: string): RescoreReport {
       lines.push("");
       continue;
     }
-    const reply = decodeSavedReply(entry.reply);
+    const reply = withoutSafetySentence(decodeSavedReply(entry.reply));
     const result = checkEmergencyReply(reply, item.expected, {
       conditional15Allowed:
         "conditional15Allowed" in item && item.conditional15Allowed,

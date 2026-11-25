@@ -14,6 +14,7 @@ import {
   type RouteClass,
 } from "./classify.ts";
 import { readGit, runHeaderLines } from "./header.ts";
+import { triageStatusLine, withoutSafetySentence } from "./score-reply.ts";
 import { POST } from "../route.ts";
 
 const cannedReply =
@@ -45,6 +46,7 @@ async function postMessage(item: (typeof emergencyCases)[number]): Promise<Route
 for (const line of runHeaderLines({ now: new Date(), env: process.env, git: readGit })) {
   write(line);
 }
+write(triageStatusLine((process.env["JEV_API_KEY"] ?? "").trim().length > 0));
 write("");
 
 let passed = 0;
@@ -70,8 +72,9 @@ for (const [index, item] of emergencyCases.entries()) {
     }
     continue;
   }
+  // The saved line keeps the whole reply. The score leaves out the appended safety sentence.
   const reply = normalizeReply(outcome.reply);
-  const result = checkEmergencyReply(reply, item.expected, {
+  const result = checkEmergencyReply(withoutSafetySentence(reply), item.expected, {
     conditional15Allowed:
       "conditional15Allowed" in item && item.conditional15Allowed,
     optional3114Allowed:
