@@ -212,6 +212,34 @@ function exactOnlyListeningTail(sentence: string): boolean {
   );
 }
 
+const punctuationTail = "Appelle le 3114 maintenant. ... Ils t'écoutent.";
+
+const punctuationTailRows = [
+  {
+    reply: punctuationTail,
+    calls: ["15"],
+    result: "Appelle le 15 maintenant. Appelle le 3114 maintenant. Ils t'écoutent.",
+  },
+  {
+    reply: punctuationTail,
+    calls: ["15", "3114"],
+    result: "Appelle le 15 maintenant. Appelle le 3114.",
+  },
+  {
+    reply: punctuationTail,
+    calls: ["3114", "15"],
+    result: "Appelle le 3114 maintenant. Appelle le 15 maintenant.",
+  },
+] as const;
+
+it("moves a listening tail past a punctuation-only piece and drops that piece with the tail", () => {
+  for (const row of punctuationTailRows) {
+    const output = ensureEmergencyCalls(row.reply, [...row.calls]);
+    expect(output, JSON.stringify(row.calls)).toBe(row.result);
+    expect(output, JSON.stringify(row.calls)).not.toContain("... Ils t'écoutent.");
+  }
+});
+
 it("drops a listening tail with a removed call and keeps one on a kept 3114", () => {
   for (const row of listeningTailRows) {
     expect(ensureEmergencyCalls(row.reply, [...row.calls]), row.reply).toBe(row.result);
@@ -374,6 +402,14 @@ const modelPunctuationRows = [
     reply: "Si ça empire... Respire lentement… Tu es en sécurité ?!",
     calls: ["15"],
   },
+  {
+    reply: "Reste au chaud. ... Si ça empire.",
+    calls: ["15"],
+  },
+  {
+    reply: "Reste au chaud. ?! Si ça empire.",
+    calls: ["15"],
+  },
 ] as const;
 
 function keptBodySentence(sentence: string): boolean {
@@ -388,25 +424,27 @@ it("keeps every sentence that is not an exact call template or a closed listenin
     ...mustKeepRows,
     ...modelPunctuationRows,
   ];
+  const missing: string[] = [];
   for (const row of guarded) {
     const output = ensureEmergencyCalls(row.reply, [...row.calls]);
     const pool = helperSentences(output);
     for (const sentence of helperSentences(row.reply).filter(keptBodySentence)) {
       const at = pool.indexOf(sentence);
-      expect(
-        at,
-        [
-          `missing ${JSON.stringify(sentence)}`,
-          `calls ${JSON.stringify(row.calls)}`,
-          `input ${JSON.stringify(row.reply)}`,
-          `output ${JSON.stringify(output)}`,
-        ].join("\n"),
-      ).toBeGreaterThanOrEqual(0);
-      if (at >= 0) {
-        pool.splice(at, 1);
+      if (at < 0) {
+        missing.push(
+          [
+            `missing ${JSON.stringify(sentence)}`,
+            `calls ${JSON.stringify(row.calls)}`,
+            `input ${JSON.stringify(row.reply)}`,
+            `output ${JSON.stringify(output)}`,
+          ].join("\n"),
+        );
+        continue;
       }
+      pool.splice(at, 1);
     }
   }
+  expect(missing).toEqual([]);
 });
 
 const doubledPunctuation = /[.!?]{2}/;

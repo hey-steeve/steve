@@ -354,8 +354,9 @@ function isListeningTailText(normalized: string): boolean {
 
 function listeningTailAfter(pieces: readonly RawPiece[], index: number): number | undefined {
   for (let cursor = index + 1; cursor < pieces.length; cursor += 1) {
-    const sentence = pieces[cursor]?.sentence ?? "";
-    if (sentence.length === 0) {
+    const piece = pieces[cursor];
+    const sentence = piece?.sentence ?? "";
+    if (sentence.length === 0 || isPunctuationOnlyPiece(piece)) {
       continue;
     }
     if (isListeningTailText(normalizeEmergencyText(sentence))) {
@@ -364,6 +365,13 @@ function listeningTailAfter(pieces: readonly RawPiece[], index: number): number 
     return undefined;
   }
   return undefined;
+}
+
+function isPunctuationOnlyPiece(piece: RawPiece | undefined): boolean {
+  if (piece === undefined) {
+    return false;
+  }
+  return /^[.!?]+$/u.test(piece.raw.trim());
 }
 
 type RawPiece = {
@@ -396,7 +404,9 @@ function rawPieces(reply: string): RawPiece[] {
     }
     const slice = reply.slice(start, atEnd ? reply.length : end + 1);
     const sentence = slice.trim().replace(/[.!?]+$/u, (run) => run[0] ?? ".");
-    if (!/^[.!?]+$/u.test(sentence)) {
+    const bare = slice.trim();
+    const punctuationOnly = /^[.!?]+$/u.test(sentence);
+    if (!punctuationOnly || bare.length > 1) {
       pieces.push({ raw: slice, sentence });
     }
     if (atEnd) {

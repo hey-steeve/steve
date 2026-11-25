@@ -37,6 +37,21 @@ export function percentileMs(latencies: readonly number[], percentile: number): 
   return sorted[index] ?? 0;
 }
 
+export function triageGateFailed(samples: readonly TriageSample[]): boolean {
+  for (const sample of samples) {
+    if (sample.expected !== "emergency") {
+      continue;
+    }
+    if (
+      sample.predicted !== "emergency" ||
+      !sameNumbers(sample.expectedNumbers, sample.predictedNumbers)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function scoreTriage(samples: readonly TriageSample[]): TriageMetrics {
   const confusion = emptyConfusion();
   let emergencyCount = 0;

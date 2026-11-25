@@ -16,11 +16,18 @@ jobs:
         id: preflight
         env:
           LIVE_EVAL_ENABLED: ${{ vars.LIVE_EVAL_ENABLED }}
+          GITHUB_REF: ${{ github.ref }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           if [ "$LIVE_EVAL_ENABLED" != "true" ]; then
             echo "LIVE_EVAL_ENABLED is not true. Skipping emergency-gate."
             echo "::notice::LIVE_EVAL_ENABLED is not true. Skipping emergency-gate."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Live eval runs only on refs/heads/main. Skipping emergency-gate."
+            echo "::notice::Live eval runs only on refs/heads/main. Skipping emergency-gate."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -70,11 +77,18 @@ jobs:
         id: preflight
         env:
           LIVE_EVAL_ENABLED: ${{ vars.LIVE_EVAL_ENABLED }}
+          GITHUB_REF: ${{ github.ref }}
           JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
         run: |
           if [ "$LIVE_EVAL_ENABLED" != "true" ]; then
             echo "LIVE_EVAL_ENABLED is not true. Skipping triage-eval."
             echo "::notice::LIVE_EVAL_ENABLED is not true. Skipping triage-eval."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Live eval runs only on refs/heads/main. Skipping triage-eval."
+            echo "::notice::Live eval runs only on refs/heads/main. Skipping triage-eval."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
