@@ -100,9 +100,10 @@ const withActivity = (state: Active): Active => ({
       : "listening",
 });
 
-// An event without an id applies to whatever is current.
-const matches = (current: string | undefined, id: string | undefined) =>
-  id === undefined || current === undefined || current === id;
+// BC-45: a missing id is never a wildcard. An event binds to the current
+// response only when it names that exact response.
+const isCurrent = (current: string | undefined, id: string | undefined) =>
+  current !== undefined && id === current;
 
 function reduceActive(state: Active, event: ServerEvent): CallState {
   switch (event.type) {
@@ -116,7 +117,9 @@ function reduceActive(state: Active, event: ServerEvent): CallState {
         (state.playback
           ? {
               responseId: audibleId,
-              itemId: state.playback.itemId,
+              itemId:
+                state.playback.itemId ??
+                (state.responseId === audibleId ? state.generatingItemId : undefined),
               playedMs: state.playback.playedMs,
             }
           : { responseId: audibleId, itemId: state.generatingItemId, playedMs: 0 });
@@ -155,15 +158,38 @@ function reduceActive(state: Active, event: ServerEvent): CallState {
             : state.playback,
       };
     case "response.audio_delta": {
+      // BC-46: a delta of the audible response fills a missing playback item
+      // id. It never replaces a known id and never resets the offset.
+      const { playback } = state;
+      if (
+        playback &&
+        playback.itemId === undefined &&
+        event.itemId !== undefined &&
+        isCurrent(playback.responseId, event.responseId) &&
+        (state.responseId !== event.responseId ||
+          state.generatingItemId === undefined ||
+          state.generatingItemId === event.itemId)
+      ) {
+        return { ...state, playback: { ...playback, itemId: event.itemId } };
+      }
       // Late deltas of a finished or cut response must not restart playback.
       if (!state.generating) return state;
-      if (!matches(state.responseId, event.responseId)) return state;
+      if (!isCurrent(state.responseId, event.responseId)) return state;
+      // An item that is not the announced one is stale. A missing item id
+      // falls back to the announced item of this response.
+      if (
+        event.itemId !== undefined &&
+        state.generatingItemId !== undefined &&
+        event.itemId !== state.generatingItemId
+      ) {
+        return state;
+      }
       // Another item may still be audible. playbackStarted switches to the new one.
       if (state.playback) return state;
       return withActivity({
         ...state,
         playback: {
-          responseId: state.responseId ?? event.responseId,
+          responseId: state.responseId,
           itemId: event.itemId ?? state.generatingItemId,
           playedMs: 0,
           generation: state.generation,
@@ -171,7 +197,7 @@ function reduceActive(state: Active, event: ServerEvent): CallState {
       });
     }
     case "response.done":
-      if (!matches(state.responseId, event.responseId)) return state;
+      if (!isCurrent(state.responseId, event.responseId)) return state;
       return withActivity({
         ...state,
         generating: false,
@@ -180,7 +206,7 @@ function reduceActive(state: Active, event: ServerEvent): CallState {
       });
     case "response.cancelled": {
       // Ends server generation only. Local barge-in state clears on flush ack.
-      if (!matches(state.responseId, event.responseId)) return state;
+      if (!isCurrent(state.responseId, event.responseId)) return state;
       return withActivity({
         ...state,
         generating: false,
@@ -219,18 +245,23 @@ export function reduceCall(state: CallState, event: CallEvent): CallState {
         ) {
           return state;
         }
+        // BC-46: an omitted id keeps the known one. Only a different known id
+        // switches item and resets the offset.
+        const current =
+          state.playback?.responseId === event.responseId ? state.playback : undefined;
         const itemId =
           event.itemId ??
+          current?.itemId ??
           (state.responseId === event.responseId ? state.generatingItemId : undefined);
-        const same =
-          state.playback?.responseId === event.responseId &&
-          state.playback.itemId === itemId;
+        const sameItem =
+          current !== undefined &&
+          (current.itemId === undefined || current.itemId === itemId);
         return withActivity({
           ...state,
           playback: {
             responseId: event.responseId,
             itemId,
-            playedMs: same ? (state.playback?.playedMs ?? 0) : 0,
+            playedMs: sameItem ? current.playedMs : 0,
             generation: event.generation,
           },
         });

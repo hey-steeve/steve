@@ -122,3 +122,15 @@ it("session.updated keeps instructions and session id and rejects a missing or n
     expect(parseServerEvent(raw)).toBeUndefined();
   }
 });
+
+it("BC-45: rejects output_item.added without response_id or item id, and done/cancelled without response id", () => {
+  for (const raw of [
+    { type: "response.output_item.added", item: { id: "i1" } },
+    { type: "response.output_item.added", response_id: "r1" },
+    { type: "response.output_item.added", response_id: "r1", item: {} },
+    { type: "response.done", response: {} },
+    { type: "response.cancelled" },
+  ]) {
+    expect(parseServerEvent(raw)).toBeUndefined();
+  }
+});
