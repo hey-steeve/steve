@@ -17,6 +17,7 @@ export type {
 export {
   consultGuidance,
   needInfoGuidance,
+  triageGuidances,
   triageStateCharBudget,
   triageTurn,
 } from "./triage-turn.ts";

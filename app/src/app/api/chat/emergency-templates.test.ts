@@ -1,11 +1,14 @@
 import { expect, it } from "vitest";
 import { checkEmergencyReply } from "./eval/check.ts";
 import {
+  apostropheChars,
   call15Now,
   call3114,
   call3114Now,
   emergencySafetySentence,
   ensureEmergencyCalls,
+  foldApostrophes,
+  lineBreakChars,
   normalizeEmergencyText,
   refusal112,
   refusalSos,
@@ -662,4 +665,22 @@ it("keeps the exact refusals while stripping a split 112 beside them", () => {
     `${refusal112} Reste calme.`,
   );
   expect(withoutOtherServices(`${refusalSos} Appelle SOSMédecins.`)).toBe(refusalSos);
+});
+
+it("normalizes every shared apostrophe variant to a plain apostrophe", () => {
+  expect([...apostropheChars]).toHaveLength(12);
+  for (const char of apostropheChars) {
+    expect(foldApostrophes(`a${char}b`), char).toBe("a'b");
+    // NFKC turns U+00B4 into a space before the fold runs, so it never reaches it.
+    const expected = char === "\u00B4" ? "a b" : "a'b";
+    expect(normalizeEmergencyText(`a${char}b`), char).toBe(expected);
+  }
+});
+
+it("normalizes every shared line break to a newline and CRLF to one", () => {
+  expect([...lineBreakChars]).toHaveLength(4);
+  for (const char of lineBreakChars) {
+    expect(normalizeEmergencyText(`a${char}b`), JSON.stringify(char)).toBe("a\nb");
+  }
+  expect(normalizeEmergencyText("a\r\nb")).toBe("a\nb");
 });

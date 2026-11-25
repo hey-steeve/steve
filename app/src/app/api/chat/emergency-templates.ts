@@ -168,15 +168,25 @@ function mapDecimalDigits(text: string): string {
   });
 }
 
+// One definition each for the apostrophe variants and the line breaks that the
+// normalization folds. The prompt number pins read these too, so they cannot drift.
+export const apostropheChars = "'\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\u02B9\u00B4`\uFF07";
+export const lineBreakChars = "\n\r\u2028\u2029";
+
+const apostrophePattern = new RegExp(`[${apostropheChars}]`, "g");
+const lineBreakPattern = new RegExp(`\r\n|[${lineBreakChars}]`, "g");
+
+export function foldApostrophes(text: string): string {
+  return text.replace(apostrophePattern, "'");
+}
+
 export function normalizeEmergencyText(text: string): string {
   const compat = foldDigitSymbols(text.normalize("NFKC"));
   const stripped = compat.replace(/\p{M}/gu, "").replace(/\p{Cf}/gu, "");
-  return mapDecimalDigits(stripped)
-    .replace(/['\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\u02B9\u00B4`\uFF07]/g, "'")
+  return foldApostrophes(mapDecimalDigits(stripped))
     .replace(/\u00A0/g, " ")
     .toLowerCase()
-    .replace(/\r\n?/g, "\n")
-    .replace(/[\u2028\u2029]/g, "\n")
+    .replace(lineBreakPattern, "\n")
     .replace(/[^\S\n]+/g, " ")
     .trim();
 }
