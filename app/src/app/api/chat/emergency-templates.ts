@@ -175,9 +175,16 @@ export function normalizeEmergencyText(text: string): string {
     .trim();
 }
 
-const exactCallTemplates = new Set(
-  [call15Now, call3114Now, call3114].map((template) => normalizeEmergencyText(template)),
-);
+const norm15Now = normalizeEmergencyText(call15Now);
+const norm3114Now = normalizeEmergencyText(call3114Now);
+const norm3114 = normalizeEmergencyText(call3114);
+const closedListeningTails = new Set([
+  normalizeEmergencyText("Ils t'écoutent"),
+  normalizeEmergencyText("Ils t'écoutent."),
+  normalizeEmergencyText("Ils t'écoutent jour et nuit."),
+]);
+
+const exactCallTemplates = new Set([norm15Now, norm3114Now, norm3114]);
 
 export function ensureEmergencyCalls(
   reply: string,
@@ -186,20 +193,17 @@ export function ensureEmergencyCalls(
   if (!calls.includes("15")) {
     return reply;
   }
+  if (keepsModel3114(calls)) {
+    if (physical15OpeningSettled(reply)) {
+      return reply;
+    }
+    return rebuildPhysical15(reply);
+  }
   const templates = templatesFor(calls);
   if (startsWithTemplates(reply, templates)) {
     return reply;
   }
-  const prefix = templates.join(" ");
-  const body = withoutExactCallTemplates(reply);
-  const trimmed = body.trim();
-  if (trimmed.length === 0) {
-    return prefix;
-  }
-  if (/^\s*\n/.test(body)) {
-    return `${prefix}${body.trimEnd()}`;
-  }
-  return `${prefix} ${trimmed}`;
+  return joinPrefix(templates.join(" "), withoutExactCallTemplates(reply));
 }
 
 function templatesFor(calls: readonly EmergencyCall[]): string[] {
@@ -219,8 +223,156 @@ function startsWithTemplates(reply: string, templates: readonly string[]): boole
   );
 }
 
+function keepsModel3114(calls: readonly EmergencyCall[]): boolean {
+  return calls.length === 1 && calls[0] === "15";
+}
+
+function physical15OpeningSettled(reply: string): boolean {
+  const sentences = splitExact(normalizeEmergencyText(reply));
+  if (sentences[0] !== norm15Now) {
+    return false;
+  }
+  let index = 1;
+  while (index < sentences.length && isExact3114Text(sentences[index] ?? "")) {
+    index += 1;
+    if (isListeningTailText(sentences[index] ?? "")) {
+      index += 1;
+    }
+  }
+  for (let cursor = index; cursor < sentences.length; cursor += 1) {
+    if (isExact3114Text(sentences[cursor] ?? "")) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function rebuildPhysical15(reply: string): string {
+  const pieces = rawPieces(reply);
+  const moved: string[] = [];
+  const dropped = new Set<number>();
+  for (let index = 0; index < pieces.length; index += 1) {
+    const sentence = pieces[index]?.sentence ?? "";
+    if (sentence.length === 0) {
+      continue;
+    }
+    if (isExact3114(sentence)) {
+      moved.push(sentence);
+      const tailAt = listeningTailAfter(pieces, index);
+      if (tailAt !== undefined) {
+        moved.push(pieces[tailAt]?.sentence ?? "");
+      }
+      dropThroughTail(dropped, pieces, index);
+      continue;
+    }
+    if (exactCallTemplates.has(normalizeEmergencyText(sentence))) {
+      dropThroughTail(dropped, pieces, index);
+    }
+  }
+  return joinPrefix(joinSentences([call15Now, ...moved]), keptRaw(pieces, dropped));
+}
+
 function withoutExactCallTemplates(reply: string): string {
+  const pieces = rawPieces(reply);
+  const dropped = new Set<number>();
+  for (let index = 0; index < pieces.length; index += 1) {
+    const sentence = pieces[index]?.sentence ?? "";
+    if (sentence.length === 0 || !exactCallTemplates.has(normalizeEmergencyText(sentence))) {
+      continue;
+    }
+    dropThroughTail(dropped, pieces, index);
+  }
+  return keptRaw(pieces, dropped);
+}
+
+function dropThroughTail(
+  dropped: Set<number>,
+  pieces: readonly RawPiece[],
+  index: number,
+): void {
+  dropped.add(index);
+  const tailAt = listeningTailAfter(pieces, index);
+  if (tailAt === undefined) {
+    return;
+  }
+  for (let cursor = index + 1; cursor <= tailAt; cursor += 1) {
+    dropped.add(cursor);
+  }
+}
+
+function keptRaw(pieces: readonly RawPiece[], dropped: ReadonlySet<number>): string {
   let kept = "";
+  for (let index = 0; index < pieces.length; index += 1) {
+    if (!dropped.has(index)) {
+      kept += pieces[index]?.raw ?? "";
+    }
+  }
+  return kept;
+}
+
+function joinSentences(sentences: readonly string[]): string {
+  let joined = "";
+  for (const sentence of sentences) {
+    if (sentence.length === 0) {
+      continue;
+    }
+    if (joined.length === 0) {
+      joined = sentence;
+      continue;
+    }
+    joined += `${sentenceGap(joined)}${sentence}`;
+  }
+  return joined;
+}
+
+function sentenceGap(previous: string): string {
+  return /[.!?]$/.test(previous) ? " " : ". ";
+}
+
+function joinPrefix(prefix: string, body: string): string {
+  const trimmed = body.trim();
+  if (trimmed.length === 0) {
+    return prefix;
+  }
+  if (/^\s*\n/.test(body)) {
+    return `${prefix}${body.trimEnd()}`;
+  }
+  return `${prefix}${sentenceGap(prefix)}${trimmed}`;
+}
+
+function isExact3114(sentence: string): boolean {
+  return isExact3114Text(normalizeEmergencyText(sentence));
+}
+
+function isExact3114Text(normalized: string): boolean {
+  return normalized === norm3114Now || normalized === norm3114;
+}
+
+function isListeningTailText(normalized: string): boolean {
+  return closedListeningTails.has(normalized);
+}
+
+function listeningTailAfter(pieces: readonly RawPiece[], index: number): number | undefined {
+  for (let cursor = index + 1; cursor < pieces.length; cursor += 1) {
+    const sentence = pieces[cursor]?.sentence ?? "";
+    if (sentence.length === 0) {
+      continue;
+    }
+    if (isListeningTailText(normalizeEmergencyText(sentence))) {
+      return cursor;
+    }
+    return undefined;
+  }
+  return undefined;
+}
+
+type RawPiece = {
+  readonly raw: string;
+  readonly sentence: string;
+};
+
+function rawPieces(reply: string): RawPiece[] {
+  const pieces: RawPiece[] = [];
   let start = 0;
   for (let index = 0; index <= reply.length; index += 1) {
     const atEnd = index === reply.length;
@@ -230,17 +382,13 @@ function withoutExactCallTemplates(reply: string): string {
       continue;
     }
     const raw = reply.slice(start, atEnd ? reply.length : index + 1);
-    const sentence = raw.trim();
-    const drop = sentence.length > 0 && exactCallTemplates.has(normalizeEmergencyText(sentence));
-    if (!drop) {
-      kept += raw;
-    }
+    pieces.push({ raw, sentence: raw.trim() });
     if (atEnd) {
       break;
     }
     start = index + 1;
   }
-  return kept;
+  return pieces;
 }
 
 function splitExact(text: string): string[] {
