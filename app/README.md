@@ -85,6 +85,10 @@ The chat page shows **Mode démo : réponses simulées** after a reply with `moc
 
 Deploy live mode on the tailnet. The route does not enforce that placement. The route has no auth and no rate limit. In live mode, every valid request spends the OpenRouter key. Live mode sends the message text to OpenRouter. The route caps the request body, the message count, and each message, as `POST /api/chat` describes.
 
+### Voice session Access
+
+For the Saturday 28 Nov demo, serve live voice on the tailnet only. Use `tailscale serve`. Do not use Funnel. The route does not enforce that placement and has no auth. It caps minting at 10 requests per minute per IP. It returns HTTP 429 above that cap, with no upstream call.
+
 ## Mascot WebP files
 
 `shared/assets/mascot/` is the source. `app/src/sync-mascot-webps.ts` encodes WebP files into `app/public/mascot/`. `app/next.config.ts` calls `syncBrandIcons()` and then `syncMascotWebps()` on `next dev`, `next build`, and `next start`.

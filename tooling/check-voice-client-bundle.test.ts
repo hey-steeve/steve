@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,4 +76,54 @@ it("redacts a key-bearing filename and directory from the scanner output", () =>
   expect(result.output.includes(canary)).toBe(false);
   expect(result.output.includes("XAI_API_KEY")).toBe(false);
   expect(result.output.includes("[redacted]")).toBe(true);
+});
+
+it("fails an empty directory", () => {
+  const result = scan(fixture({}));
+  expect(result.status).toBe(1);
+  expect(result.output.includes("no files were scanned")).toBe(true);
+});
+
+it("fails a directory with files but no JavaScript assets", () => {
+  const result = scan(fixture({ "css/a.css": "a{}" }));
+  expect(result.status).toBe(1);
+  expect(result.output.includes("no JavaScript assets")).toBe(true);
+});
+
+it("flags a key-bearing empty directory and redacts it", () => {
+  const dir = fixture({ "chunks/ok.js": "1" });
+  mkdirSync(path.join(dir, canary));
+  const result = scan(dir);
+  expect(result.status).toBe(1);
+  expect(result.output.includes("key value (in path)")).toBe(true);
+  expect(result.output.includes(canary)).toBe(false);
+  expect(result.output.includes("[redacted]")).toBe(true);
+});
+
+it("flags a key-bearing scan root without printing its name", () => {
+  const parent = fixture({});
+  const root = path.join(parent, canary);
+  mkdirSync(root);
+  writeFileSync(path.join(root, "a.js"), "1");
+  const result = scan(root);
+  expect(result.status).toBe(1);
+  expect(result.output.includes("key value (in path)")).toBe(true);
+  expect(result.output.includes(canary)).toBe(false);
+});
+
+it("still runs when the script is invoked through a symlink", () => {
+  const links = fixture({});
+  const link = path.join(links, "check.mjs");
+  symlinkSync(script, link);
+  const run = (target: string) => {
+    const result = spawnSync("node", [link, target], { encoding: "utf8" });
+    return { status: result.status, output: `${result.stdout}${result.stderr}` };
+  };
+  expect(run(fixture({ "a.js": "1" })).status).toBe(0);
+  const empty = run(fixture({}));
+  expect(empty.status).toBe(1);
+  expect(empty.output.includes("no files were scanned")).toBe(true);
+  const leak = run(fixture({ "a.js": `var k="${canary}";` }));
+  expect(leak.status).toBe(1);
+  expect(leak.output.includes(canary)).toBe(false);
 });

@@ -5,6 +5,8 @@ export const clientSecretsUrl = "https://api.x.ai/v1/realtime/client_secrets";
 export const clientSecretTtlSeconds = 300;
 // Reserved value for mock mode. A client that sees it opens no xAI socket.
 export const mockSecretValue = "steve-voice-mock-session";
+// Allowed clock skew in seconds between us and upstream when capping the expiry.
+export const clientSecretSkewSeconds = 30;
 const upstreamTimeoutMs = 10_000;
 
 export type VoiceSecret = {
@@ -74,9 +76,14 @@ function readSecret(payload: unknown, apiKey: string, now: () => number): VoiceS
   if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt)) {
     return null;
   }
-  const expiry = Math.floor(expiresAt);
-  if (expiry <= Math.floor(now() / 1000)) {
+  const floored = Math.floor(expiresAt);
+  if (!Number.isSafeInteger(floored)) {
     return null;
   }
-  return { value, expires_at: expiry };
+  const nowSeconds = Math.floor(now() / 1000);
+  if (floored <= nowSeconds) {
+    return null;
+  }
+  const cap = nowSeconds + clientSecretTtlSeconds + clientSecretSkewSeconds;
+  return { value, expires_at: Math.min(floored, cap) };
 }
