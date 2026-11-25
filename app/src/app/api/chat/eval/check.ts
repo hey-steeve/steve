@@ -438,6 +438,23 @@ type Names = {
   readonly hasSos: boolean;
 };
 
+export type DetectedKind = Kind;
+
+export type DetectedNumber = Span;
+
+// Read-only view of the "full" detector that scoreReply runs. Offsets index the
+// returned normalized text. Spans come back sorted by start.
+export function detectEmergencyNumbers(text: string): {
+  readonly normalized: string;
+  readonly spans: readonly DetectedNumber[];
+} {
+  const normalized = normalizeEmergencyText(text);
+  const spans = scan(normalized, true)
+    .filter((span) => !isDuration15(normalized, span))
+    .sort((left, right) => left.start - right.start || right.end - left.end);
+  return { normalized, spans };
+}
+
 function scoreReply(
   reply: string,
   expected: readonly EmergencyNumber[],

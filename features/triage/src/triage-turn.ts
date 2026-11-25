@@ -14,10 +14,9 @@ export type TriageTurnRequest = {
   readonly classify: TriageClassifier;
 };
 
-export type TriageGuidance = {
-  readonly placement: "after-system-prompt";
-  readonly text: string;
-};
+// The guidance is a closed set: a text reaches route.ts only if it is a member of
+// `triageGuidances`, so the guard in the app can pin every text the type allows.
+export type TriageGuidance = (typeof triageGuidances)[number];
 
 export type TriageDecision =
   | {
@@ -44,12 +43,14 @@ const stateTurnLimit = 6;
 export const needInfoGuidance = {
   placement: "after-system-prompt",
   text: "pose une seule question courte",
-} as const satisfies TriageGuidance;
+} as const;
 
 export const consultGuidance = {
   placement: "after-system-prompt",
   text: "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde",
-} as const satisfies TriageGuidance;
+} as const;
+
+export const triageGuidances = [needInfoGuidance, consultGuidance] as const;
 
 function noTriage(): { readonly label: "need-info" } {
   return { label: "need-info" };

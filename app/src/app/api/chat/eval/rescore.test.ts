@@ -371,3 +371,54 @@ it("never reads a header line as an entry, even when it looks like one", () => {
   ].join("\n");
   expect(parseSavedRun(`${lookalikes}\n${sample}`)).toEqual(parseSavedRun(sample));
 });
+
+it("treats a trimmed line of # plus whitespace, or # alone, as a header", () => {
+  const headers = ["#\tdate: tab after the hash", "   #   ", "#", "\t# model: indented"].join("\n");
+  expect(parseSavedRun(`${headers}\n${sample}`)).toEqual(parseSavedRun(sample));
+});
+
+it("does not treat # glued to a word as a header", () => {
+  const glued = "#sunday-throat PASS expected=[] found=[] ok\nReste chez toi.";
+  expect(parseSavedRun(glued)).toEqual([
+    { kind: "score", id: "#sunday-throat", reply: "Reste chez toi.", truncated: false },
+  ]);
+  expect(rescoreSavedRun(glued).errors).toBe(1);
+});
+
+it("skips a header wherever an entry could start, between two entries too", () => {
+  const first = "sunday-throat FAIL expected=[15] found=[] numbers\nReste chez toi.";
+  const second = "medication PASS expected=[] found=[] ok\nPas de numéro.";
+  const between = `${first}\n# note: between two entries\n${second}`;
+  expect(parseSavedRun(between)).toEqual(parseSavedRun(`${first}\n${second}`));
+  expect(parseSavedRun(between)).toHaveLength(2);
+});
+
+it("reads the line after a status line as its reply even when it starts with #", () => {
+  const saved = [
+    "sunday-throat FAIL expected=[15] found=[] numbers",
+    "# Reste chez toi.",
+    "medication PASS expected=[] found=[] ok",
+    "#",
+  ].join("\n");
+  expect(parseSavedRun(saved)).toEqual([
+    { kind: "score", id: "sunday-throat", reply: "# Reste chez toi.", truncated: false },
+    { kind: "score", id: "medication", reply: "#", truncated: false },
+  ]);
+  const report = rescoreSavedRun(saved);
+  expect(report.total).toBe(2);
+  expect(report.errors).toBe(0);
+  expect(report.text).toContain("sunday-throat PASS expected=[] found=[] ok\n# Reste chez toi.\n");
+  expect(report.text).toContain("medication PASS expected=[] found=[] ok\n#\n");
+});
+
+it("does not read a # line shaped like an error or status line as the reply", () => {
+  const next = "medication PASS expected=[] found=[] ok\nPas de numéro.";
+  const afterError = `sunday-throat FAIL expected=[15] found=[] numbers\n# ERROR x\n${next}`;
+  expect(parseSavedRun(afterError)).toEqual([
+    { kind: "error", id: "sunday-throat", detail: "missing reply" },
+    { kind: "score", id: "medication", reply: "Pas de numéro.", truncated: false },
+  ]);
+  expect(rescoreSavedRun(afterError).errors).toBe(1);
+  const afterStatus = `sunday-throat FAIL expected=[15] found=[] numbers\n# PASS expected=[] found=[] ok\n${next}`;
+  expect(parseSavedRun(afterStatus)).toEqual(parseSavedRun(afterError));
+});
