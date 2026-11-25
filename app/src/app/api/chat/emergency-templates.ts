@@ -533,13 +533,57 @@ function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
   );
 }
 
+// The sentence boundary ends a piece before its closing quote, so a quoted
+// sentence is the opening-quote piece plus a closing quote that starts the next piece.
+const quotePairs = [
+  { open: '"', close: '"' },
+  { open: "\u201C", close: "\u201D" },
+  { open: "\u00AB", close: "\u00BB" },
+] as const;
+
+function unquotedLone(
+  pieces: readonly RawPiece[],
+  index: number,
+  lone: LoneSentences,
+): { readonly close: string } | undefined {
+  const norm = pieces[index]?.norm ?? "";
+  const next = pieces[index + 1]?.raw ?? "";
+  for (const pair of quotePairs) {
+    if (!norm.startsWith(pair.open)) {
+      continue;
+    }
+    const inner = norm.slice(pair.open.length).trim();
+    const nextNorm = normalizeEmergencyText(next);
+    if (inner.length > 0 && nextNorm.startsWith(pair.close) && isLoneBlockSentence(inner, lone)) {
+      return { close: pair.close };
+    }
+  }
+  return undefined;
+}
+
+function withoutLeadingClose(raw: string, close: string): string {
+  const at = raw.indexOf(close);
+  return at < 0 ? raw : raw.slice(0, at) + raw.slice(at + close.length);
+}
+
 function dropLoneBlockSentences(
   dropped: Set<number>,
-  pieces: readonly RawPiece[],
+  pieces: RawPiece[],
   lone: LoneSentences,
 ): void {
   for (let index = 0; index < pieces.length; index += 1) {
-    if (dropped.has(index) || !isLoneBlockSentence(pieces[index]?.norm ?? "", lone)) {
+    if (dropped.has(index)) {
+      continue;
+    }
+    const quoted = unquotedLone(pieces, index, lone);
+    const next = pieces[index + 1];
+    if (quoted !== undefined && next !== undefined) {
+      const raw = withoutLeadingClose(next.raw, quoted.close);
+      pieces[index + 1] = { ...next, raw, sentence: raw.trim(), norm: normalizeEmergencyText(raw) };
+      dropped.add(index);
+      continue;
+    }
+    if (!isLoneBlockSentence(pieces[index]?.norm ?? "", lone)) {
       continue;
     }
     let through = index;
@@ -597,7 +641,12 @@ function keptRaw(pieces: readonly RawPiece[], dropped: ReadonlySet<number>): str
 }
 
 function joinsDigits(before: string, after: string): boolean {
-  return /\d$/u.test(normalizeEmergencyText(before)) && /^\d/u.test(normalizeEmergencyText(after));
+  // Same view as the 112 detector: any run of non-letter, non-digit separators
+  // between two digits still lets "1-" and "12" read as one number.
+  return (
+    /\d[^\p{L}\p{N}]*$/u.test(normalizeEmergencyText(before)) &&
+    /^[^\p{L}\p{N}]*\d/u.test(normalizeEmergencyText(after))
+  );
 }
 
 function joinSentences(sentences: readonly string[]): string {

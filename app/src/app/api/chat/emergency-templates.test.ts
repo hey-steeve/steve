@@ -670,6 +670,8 @@ const loneRows = [
   { name: "3114 alone, correct block kept", calls: ["3114"], reply: `${call3114Now} ${keep}`, result: `${call3114Now} ${keep}` },
   { name: "cut 3114 sentence", calls: ["15", "3114"], reply: `Tu peux appeler le 3114. ${keep}`, result: `${call15Now} ${call3114} ${keep}` },
   { name: "15 sentence with 3114 listed", calls: ["15", "3114"], reply: `${keep} ${call15Number}`, result: `${call15Now} ${call3114} ${keep}` },
+  { name: "ASCII-quoted number sentence", calls: ["15"], reply: `"${call15Number}" ${keep}`, result: `${call15Now} ${keep}` },
+  { name: "guillemet-quoted number sentence", calls: ["15"], reply: `« ${call15Number} » ${keep}`, result: `${call15Now} ${keep}` },
   { name: "drop between digits", calls: ["15"], reply: `Appelle le 1\n${call15Number}\n12.`, result: null },
 ] as const;
 
@@ -682,6 +684,23 @@ it("drops a lone block sentence when the opening is prefixed", () => {
     } else {
       expect(fixed, row.name).toBe(row.result);
     }
+  }
+});
+
+it("does not join a hyphenated 1 and a 12 around a dropped block into a 112", () => {
+  const cases = [
+    { calls: ["15"], sentence: call15Number },
+    { calls: ["15", "3114"], sentence: call15Number },
+    { calls: ["3114"], sentence: call3114NowSentences[2] ?? "" },
+  ] as const;
+  for (const row of cases) {
+    const reply = `Appelle le 1-\n${row.sentence}\n12.`;
+    const fixed = ensureEmergencyCalls(reply, row.calls);
+    const label = row.calls.join();
+    expect(row.sentence.length, label).toBeGreaterThan(0);
+    expect(fixed.startsWith(row.calls[0] === "3114" ? call3114Now : call15Now), label).toBe(true);
+    expect(detectEmergencyNumbers(fixed).spans.some((span) => span.kind === "112"), label).toBe(false);
+    expect(checkEmergencyReply(fixed, row.calls).reason, label).not.toContain("112");
   }
 });
 
