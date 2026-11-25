@@ -24,6 +24,17 @@ type ValidatedSummary = {
   readonly assertions: readonly FactualAssertion[];
 };
 
+type ByteSnapshot =
+  | { readonly kind: "ok"; readonly value: Uint8Array }
+  | { readonly kind: "invalid" }
+  | { readonly kind: "too-large" };
+
+const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
+const byteLengthGetter = Object.getOwnPropertyDescriptor(
+  typedArrayPrototype,
+  "byteLength",
+)?.get;
+
 function failure(
   code: VaultError["code"],
   message: string,
@@ -74,15 +85,33 @@ function snapshotArray(
   return snapshot;
 }
 
-function snapshotBytes(value: unknown): Uint8Array | null {
-  if (!(value instanceof Uint8Array)) {
-    return null;
+function snapshotBytes(value: unknown): ByteSnapshot {
+  if (!(value instanceof Uint8Array) || byteLengthGetter === undefined) {
+    return { kind: "invalid" };
   }
-  const cloned: unknown = structuredClone(value);
-  if (!(cloned instanceof Uint8Array)) {
-    return null;
+  let byteLength: unknown;
+  try {
+    byteLength = Reflect.apply(byteLengthGetter, value, []);
+  } catch {
+    return { kind: "invalid" };
   }
-  return new Uint8Array(cloned);
+  if (
+    typeof byteLength !== "number" ||
+    !Number.isInteger(byteLength) ||
+    byteLength < 0
+  ) {
+    return { kind: "invalid" };
+  }
+  if (byteLength > vaultLimits.contentBytes) {
+    return { kind: "too-large" };
+  }
+  const snapshot = new Uint8Array(byteLength);
+  try {
+    Uint8Array.prototype.set.call(snapshot, value);
+  } catch {
+    return { kind: "invalid" };
+  }
+  return { kind: "ok", value: snapshot };
 }
 
 function isSupportedMimeType(
@@ -264,7 +293,7 @@ export function validateDocumentInput(
   const inputId: unknown = Reflect.get(input, "id");
   const fileName: unknown = Reflect.get(input, "fileName");
   const mimeType: unknown = Reflect.get(input, "mimeType");
-  const content = snapshotBytes(Reflect.get(input, "content"));
+  const contentSnapshot = snapshotBytes(Reflect.get(input, "content"));
   const metadataInput: unknown = Reflect.get(input, "metadata");
   let id = inputId;
   if (id === undefined) {
@@ -298,20 +327,21 @@ export function validateDocumentInput(
       "mimeType",
     );
   }
-  if (content === null) {
+  if (contentSnapshot.kind === "invalid") {
     return failure(
       "INVALID_DOCUMENT",
       "Document content must be bytes.",
       "content",
     );
   }
-  if (content.byteLength > vaultLimits.contentBytes) {
+  if (contentSnapshot.kind === "too-large") {
     return failure(
       "CONTENT_TOO_LARGE",
       "Document content exceeds the size limit.",
       "content",
     );
   }
+  const content = contentSnapshot.value;
 
   const text = decodeText(content);
   if (!text.ok) {
@@ -361,7 +391,7 @@ export function validateStoredDocument(
   const fileName: unknown = Reflect.get(input, "fileName");
   const mimeType: unknown = Reflect.get(input, "mimeType");
   const sizeBytes: unknown = Reflect.get(input, "sizeBytes");
-  const content = snapshotBytes(Reflect.get(input, "content"));
+  const contentSnapshot = snapshotBytes(Reflect.get(input, "content"));
   const metadataInput: unknown = Reflect.get(input, "metadata");
   const storedAt: unknown = Reflect.get(input, "storedAt");
   if (
@@ -370,13 +400,13 @@ export function validateStoredDocument(
     !isSupportedMimeType(mimeType) ||
     typeof sizeBytes !== "number" ||
     !Number.isInteger(sizeBytes) ||
-    content === null ||
-    sizeBytes !== content.byteLength ||
-    sizeBytes > vaultLimits.contentBytes ||
+    contentSnapshot.kind !== "ok" ||
+    sizeBytes !== contentSnapshot.value.byteLength ||
     !validTimestamp(storedAt)
   ) {
     return failure("INVALID_DOCUMENT", "Stored document is invalid.");
   }
+  const content = contentSnapshot.value;
 
   const text = decodeText(content);
   if (!text.ok) {

@@ -98,22 +98,53 @@ describe("document validation", () => {
     });
   });
 
-  test("enforces the byte limit", async () => {
+  test("accepts content at the exact byte limit", async () => {
     const exact = await vault().store(
       input({ content: new Uint8Array(vaultLimits.contentBytes).fill(65) }),
-    );
-    const over = await vault().store(
-      input({ content: new Uint8Array(vaultLimits.contentBytes + 1).fill(65) }),
     );
 
     expect(exact).toMatchObject({
       ok: true,
       value: { sizeBytes: vaultLimits.contentBytes },
     });
-    expect(over).toMatchObject({
-      ok: false,
-      error: { code: "CONTENT_TOO_LARGE", field: "content" },
+  });
+
+  test("rejects oversized content before copying it", async () => {
+    const clone = vi.spyOn(globalThis, "structuredClone");
+    const copy = vi.spyOn(Uint8Array.prototype, "set");
+    try {
+      const over = await vault().store(
+        input({ content: new Uint8Array(vaultLimits.contentBytes + 1).fill(65) }),
+      );
+
+      expect(over).toMatchObject({
+        ok: false,
+        error: { code: "CONTENT_TOO_LARGE", field: "content" },
+      });
+      expect(clone).not.toHaveBeenCalled();
+      expect(copy).not.toHaveBeenCalled();
+    } finally {
+      clone.mockRestore();
+      copy.mockRestore();
+    }
+  });
+
+  test("copies only the visible bytes of a view over a larger buffer", async () => {
+    const backing = new Uint8Array(vaultLimits.contentBytes * 2);
+    const offset = vaultLimits.contentBytes;
+    backing.set(encoder.encode("0123456789"), offset);
+    const view = backing.subarray(offset, offset + 10);
+
+    const result = await vault().store(input({ content: view }));
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { content: encoder.encode("0123456789"), sizeBytes: 10 },
     });
+    if (!result.ok) {
+      throw new Error("view fixture was rejected");
+    }
+    expect(result.value.content.buffer.byteLength).toBe(view.byteLength);
   });
 
   test("accepts exact identifier and filename limits and rejects one over", async () => {
