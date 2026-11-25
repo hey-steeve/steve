@@ -156,8 +156,8 @@ export function promptNumberPinFailures(
       (sentence) => span.start >= sentence.start && span.end <= sentence.end,
     );
     const raw = promptText.slice(span.start, span.end);
-    // The reply checker splits at any mark or line break, with no quote or whitespace
-    // rule, so a span holding one is split even when it sits inside one pinned sentence.
+    // Stricter than the reply checker: it keeps "S.O.S." and "S.A.M.U." in one piece
+    // (internalDots). This pin fails on every mark or line break inside a span.
     if (owner === undefined || hasSentenceMark(raw)) {
       failures.push(
         `split across sentences: "${raw}" (${span.kind}) crosses a sentence boundary`,
