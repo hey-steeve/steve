@@ -472,7 +472,14 @@ function scoreReply(
   for (let cursor = 0; cursor < sentences.length; cursor += 1) {
     const sentence = sentences[cursor] ?? "";
     const names = named[cursor] ?? emptyNames();
-    const leak = serviceLeak(sentence, names, mode);
+    const previous =
+      cursor > 0
+        ? {
+            sentence: sentences[cursor - 1] ?? "",
+            names: named[cursor - 1] ?? emptyNames(),
+          }
+        : undefined;
+    const leak = serviceLeak(sentence, names, mode, previous);
     if (leak === "112" || leak === "both") {
       bad112 = true;
     }
@@ -940,13 +947,18 @@ function isRefusal(sentence: string, template: string, mode: ExactMatchMode): bo
 }
 
 // 112 is allowed only in the exact refusal112 sentence. SOS is allowed only in the exact refusalSos sentence.
+// The next sentence also leaks when its object pronoun points back at that refusal.
 function serviceLeak(
   sentence: string,
   names: Names,
   mode: ExactMatchMode,
+  previous?: { readonly sentence: string; readonly names: Names },
 ): "112" | "sos" | "both" | undefined {
-  const leak112 = names.has112 && !isExact112Refusal(sentence, names, mode);
-  const leakSos = names.hasSos && !isExactSosRefusal(sentence, names, mode);
+  const pointed = pronounAfterRefusal(sentence, previous, mode);
+  const leak112 =
+    (names.has112 && !isExact112Refusal(sentence, names, mode)) || pointed === "112";
+  const leakSos =
+    (names.hasSos && !isExactSosRefusal(sentence, names, mode)) || pointed === "sos";
   if (leak112 && leakSos) {
     return "both";
   }
@@ -957,6 +969,62 @@ function serviceLeak(
     return "sos";
   }
   return undefined;
+}
+
+const serviceCallVerbs = [
+  { tu: "appelle", vous: "appelez", infinitive: "appeler" },
+  { tu: "compose", vous: "composez", infinitive: "composer" },
+  { tu: "contacte", vous: "contactez", infinitive: "contacter" },
+] as const;
+
+function pronounAfterRefusal(
+  sentence: string,
+  previous: { readonly sentence: string; readonly names: Names } | undefined,
+  mode: ExactMatchMode,
+): "112" | "sos" | undefined {
+  if (previous === undefined || !isPronounServiceCall(sentence)) {
+    return undefined;
+  }
+  if (isExact112Refusal(previous.sentence, previous.names, mode)) {
+    return "112";
+  }
+  if (isExactSosRefusal(previous.sentence, previous.names, mode)) {
+    return "sos";
+  }
+  return undefined;
+}
+
+function isPronounServiceCall(sentence: string): boolean {
+  const body = sentence.replace(/[.!]+$/u, "").trim().toLowerCase();
+  if (pronounCallCore(body)) {
+    return true;
+  }
+  const space = body.lastIndexOf(" ");
+  if (space <= 0) {
+    return false;
+  }
+  const tail = body.slice(space + 1);
+  if (!/^[\p{L}']+$/u.test(tail)) {
+    return false;
+  }
+  return pronounCallCore(body.slice(0, space));
+}
+
+function pronounCallCore(text: string): boolean {
+  for (const verb of serviceCallVerbs) {
+    if (
+      text === `${verb.tu}-le` ||
+      text === `${verb.tu}-les` ||
+      text === `${verb.vous}-le` ||
+      text === `${verb.vous}-les` ||
+      text === `l'${verb.infinitive}` ||
+      text === `le ${verb.infinitive}` ||
+      text === `les ${verb.infinitive}`
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isExact112Refusal(sentence: string, names: Names, mode: ExactMatchMode): boolean {
