@@ -16,9 +16,13 @@ it("scores a no-triage reply with the appended safety sentence like the bare rep
   );
 });
 
-it("turns a reply that is only the safety sentence into an empty text", () => {
-  expect(withoutSafetySentence(emergencySafetySentence)).toBe("");
-  expect(withoutSafetySentence(`${emergencySafetySentence}\n`)).toBe("");
+it("keeps a reply that is only the safety sentence so the checker fails it", () => {
+  for (const reply of [emergencySafetySentence, `${emergencySafetySentence}\n`, ` ${emergencySafetySentence} `]) {
+    expect(withoutSafetySentence(reply), reply).toBe(reply);
+    const scored = checkEmergencyReply(withoutSafetySentence(reply), []);
+    expect(scored.pass, reply).toBe(false);
+    expect(scored.found, reply).toEqual(["15", "3114"]);
+  }
 });
 
 it("strips one trailing safety sentence and no more", () => {

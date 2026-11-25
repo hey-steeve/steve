@@ -12,7 +12,9 @@ export function withoutSafetySentence(reply: string): string {
     return reply;
   }
   const head = text.slice(0, text.length - emergencySafetySentence.length);
-  if (head.length > 0 && !/\s$/u.test(head)) {
+  // A reply that is only the sentence is the route's fallback, not model text: keep it so the
+  // checker fails it instead of passing an empty string.
+  if (head.trim().length === 0 || !/\s$/u.test(head)) {
     return reply;
   }
   return head.trimEnd();

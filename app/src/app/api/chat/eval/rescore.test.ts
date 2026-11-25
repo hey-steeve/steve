@@ -398,3 +398,15 @@ it("rescores a saved reply with a different 15 sentence as written", () => {
   expect(report).toMatchObject({ passed: 0, failed: 1, errors: 0 });
   expect(report.text).toContain("sunday-throat FAIL expected=[] found=[15] numbers");
 });
+
+it("rescores a saved fallback-only reply as a failure on a non-urgent case", () => {
+  const report = rescoreSavedRun(
+    [
+      "sunday-throat PASS expected=[] found=[] ok",
+      encodeSavedReply(emergencySafetySentence),
+      "",
+    ].join("\n"),
+  );
+  expect(report).toMatchObject({ passed: 0, failed: 1, errors: 0 });
+  expect(report.text).toContain("sunday-throat FAIL expected=[] found=[15,3114]");
+});
