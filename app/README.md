@@ -38,7 +38,7 @@ Next.js reads env files from `app/`, the directory that contains `next.config.ts
 
 `OPENROUTER_MODEL` is the model id sent to OpenRouter. The route trims it. When the value is missing or empty, the route sends the pinned default, `openai/gpt-6.1-terra`.
 
-`JEV_API_KEY` is the TypeSafe key. The route reads it on the server and trims it. The classify request sends it as `Authorization: Bearer`. A missing or empty value skips classify, and the route sends only the system prompt.
+`JEV_API_KEY` is the TypeSafe key. The route reads it on the server and trims it. The classify request sends it as `Authorization: Bearer`. A missing or empty value skips classify. The turn then has no usable triage, and the 200 reply ends with the safety sentence (see below).
 
 `JEV_MODEL` is the optional classify model id. The route trims it. A missing or empty value omits the model, and classify uses its own default.
 
@@ -54,9 +54,11 @@ When the route calls OpenRouter, it sends the French system prompt in `system-pr
 }
 ```
 
+With no usable triage, the 200 `reply` ends with the exact safety sentence `En cas d'urgence, appelle le 15. Si tu as des idées suicidaires, appelle le 3114.` The route appends it last, once, unless the model reply already holds it (`app/src/app/api/chat/fallback.ts:33-41`, `route.ts:233-235`). No triage means a missing `JEV_API_KEY`, a thrown classify, an HTTP error, a timeout, a network error, or a malformed Jev body. On a non-urgent turn, a model reply that only names 112 or SOS Médecins is empty after the route strips those sentences. It becomes a 200 whose `reply` is exactly the safety sentence (`fallback.ts:26`, `route.ts:229-232`).
+
 The response `model` is the `model` string from the OpenRouter JSON, the id of the model that ran. When that string is missing or empty, the response `model` is the id the route sent.
 
-The route aborts the OpenRouter call after 30 seconds. Each case below returns HTTP 502. With no triage calls, the body is `{ "error": "Le service de chat est indisponible. Réessayez." }`. With triage calls, the body also includes `calls` in that order. The `error` string starts with one sentence per call, in that same order, then the unavailable sentence. The sentence for 15 is `Appelle le 15 maintenant.` The sentence for a 3114 before that 15, and for a 3114 when the list has no 15, is `Appelle le 3114 maintenant.` The sentence for a 3114 after that 15 is `Appelle le 3114.`
+The route aborts the OpenRouter call after 30 seconds. Each case below returns HTTP 502. With no triage calls, the body is `{ "error": "Le service de chat est indisponible. Réessayez." }`. With triage calls, the body also includes `calls` in that order. The `error` string is never the bare unavailable sentence (`app/src/app/api/chat/fallback.ts:16-21`, `route.ts:244-254`). When Jev flagged an emergency, it starts with one sentence per call, in that same order, then the unavailable sentence. The sentence for 15 is `Appelle le 15 maintenant.` The sentence for a 3114 before that 15 is `Appelle le 3114 maintenant.` The sentence for a 3114 after that 15 is `Appelle le 3114.` For every other turn, including a 3114 offer and a turn with no usable triage, it starts with the safety sentence, then the unavailable sentence. A 3114 offer never gets `maintenant`.
 
 - OpenRouter responds with a status outside 2xx.
 - The call throws a network error.
