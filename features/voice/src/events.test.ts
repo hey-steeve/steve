@@ -6,7 +6,9 @@ it("parses well-formed events", () => {
     type: "session.created",
     sessionId: "s1",
   });
-  expect(parseServerEvent({ type: "session.updated" })).toEqual({ type: "session.updated" });
+  expect(
+    parseServerEvent({ type: "session.updated", session: { id: "s1", instructions: "Be brief" } }),
+  ).toEqual({ type: "session.updated", sessionId: "s1", instructions: "Be brief" });
   expect(
     parseServerEvent({ type: "input_audio_buffer.speech_started", item_id: "i1" }),
   ).toEqual({ type: "input.speech_started", itemId: "i1" });
@@ -84,6 +86,38 @@ it("returns undefined for malformed, empty and unknown input", () => {
     { type: "conversation.item.input_audio_transcription.completed", item_id: "i", delta: "bon" },
     { type: "conversation.item.input_audio_transcription.completed", transcript: 5 },
     { type: "conversation.item.input_audio_transcription.delta", delta: 5 },
+  ]) {
+    expect(parseServerEvent(raw)).toBeUndefined();
+  }
+});
+
+it("parses response.output_item.added and rejects missing or malformed ids", () => {
+  expect(
+    parseServerEvent({
+      type: "response.output_item.added",
+      response_id: "r1",
+      item: { id: "i1" },
+    }),
+  ).toEqual({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
+  for (const raw of [
+    { type: "response.output_item.added", item: { id: "i1" } },
+    { type: "response.output_item.added", response_id: "r1" },
+    { type: "response.output_item.added", response_id: "r1", item: { id: 3 } },
+    { type: "response.output_item.added", response_id: "r1", item: "i1" },
+  ]) {
+    expect(parseServerEvent(raw)).toBeUndefined();
+  }
+});
+
+it("session.updated keeps instructions and session id and rejects a missing or null session", () => {
+  expect(
+    parseServerEvent({ type: "session.updated", session: { instructions: "Be brief" } }),
+  ).toEqual({ type: "session.updated", sessionId: undefined, instructions: "Be brief" });
+  for (const raw of [
+    { type: "session.updated" },
+    { type: "session.updated", session: null },
+    { type: "session.updated", session: "s1" },
+    { type: "session.updated", session: { instructions: 5 } },
   ]) {
     expect(parseServerEvent(raw)).toBeUndefined();
   }

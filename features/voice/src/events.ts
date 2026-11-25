@@ -1,6 +1,10 @@
 export type ServerEvent =
   | { readonly type: "session.created"; readonly sessionId: string | undefined }
-  | { readonly type: "session.updated" }
+  | {
+      readonly type: "session.updated";
+      readonly sessionId: string | undefined;
+      readonly instructions: string | undefined;
+    }
   | {
       readonly type: "input.speech_started";
       readonly itemId: string | undefined;
@@ -25,6 +29,11 @@ export type ServerEvent =
       readonly responseId: string | undefined;
       readonly itemId: string | undefined;
       readonly delta: string;
+    }
+  | {
+      readonly type: "response.output_item_added";
+      readonly responseId: string;
+      readonly itemId: string;
     }
   | { readonly type: "response.done"; readonly responseId: string }
   | { readonly type: "response.cancelled"; readonly responseId: string }
@@ -61,8 +70,21 @@ function parseObject(o: Obj): ServerEvent | undefined {
       const id = optId(session, "id");
       return id === null ? undefined : { type, sessionId: id };
     }
-    case "session.updated":
-      return { type };
+    case "session.updated": {
+      const session = o["session"];
+      if (!isObj(session)) return undefined;
+      const id = optId(session, "id");
+      const instructions = optId(session, "instructions");
+      if (id === null || instructions === null) return undefined;
+      return { type, sessionId: id, instructions };
+    }
+    case "response.output_item.added": {
+      const responseId = str(o["response_id"]);
+      const item = o["item"];
+      const itemId = isObj(item) ? str(item["id"]) : undefined;
+      if (responseId === undefined || itemId === undefined) return undefined;
+      return { type: "response.output_item_added", responseId, itemId };
+    }
     case "input_audio_buffer.speech_started":
     case "input_audio_buffer.speech_stopped": {
       const itemId = optId(o, "item_id");

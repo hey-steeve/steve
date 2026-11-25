@@ -14,7 +14,7 @@ const speaking: readonly CallEvent[] = [
   { type: "connected" },
   server({ type: "response.created", responseId: "r1" }),
   server({ type: "response.audio_delta", responseId: "r1", itemId: "i1", delta: "AA==" }),
-  { type: "playback", playedMs: 480 },
+  { type: "playback", playedMs: 480, generation: 0 },
 ];
 
 it("goes idle to connecting to active to ended", () => {
@@ -57,7 +57,7 @@ it("ignores events once ended", () => {
   for (const event of [{ type: "start" }, { type: "connected" }, { type: "end", reason: "cap" }] as const) {
     expect(reduceCall(ended, event)).toBe(ended);
   }
-  expect(reduceCall(ended, server({ type: "session.updated" }))).toBe(ended);
+  expect(reduceCall(ended, server({ type: "session.updated", sessionId: undefined, instructions: undefined }))).toBe(ended);
 });
 
 it("keeps an active call alive on a server error and preserves the error", () => {
@@ -103,7 +103,7 @@ it("clears generation on done but keeps playback until it drains", () => {
   const done = run(speaking.concat(server({ type: "response.done", responseId: "r1" })));
   expect(done.phase === "active" && done.responseId).toBeUndefined();
   expect(done.phase === "active" && done.activity).toBe("speaking");
-  const drained = reduceCall(done, { type: "playbackDrained" });
+  const drained = reduceCall(done, { type: "playbackDrained", generation: 0 });
   expect(drained.phase === "active" && drained.playback).toBeUndefined();
   expect(drained.phase === "active" && drained.activity).toBe("listening");
 });
@@ -126,7 +126,7 @@ it("does not cancel after playback drained", () => {
   const state = run(
     speaking.concat(
       server({ type: "response.done", responseId: "r1" }),
-      { type: "playbackDrained" },
+      { type: "playbackDrained", generation: 0 },
       server({ type: "input.speech_started", itemId: "u1" }),
     ),
   );
@@ -141,11 +141,12 @@ it("ignores a stale delta from r1 once r2 is generating", () => {
     ),
   );
   expect(state.phase === "active" && state.playback?.itemId).toBe("i1");
-  const paired = reduceCall(state, { type: "playbackStarted", responseId: "r2", itemId: "i2" });
+  const paired = reduceCall(state, { type: "playbackStarted", responseId: "r2", itemId: "i2", generation: 0 });
   expect(paired.phase === "active" && paired.playback).toEqual({
     responseId: "r2",
     itemId: "i2",
     playedMs: 0,
+    generation: 0,
   });
 });
 
@@ -164,8 +165,8 @@ const binary: readonly CallEvent[] = [
   { type: "start" },
   { type: "connected" },
   server({ type: "response.created", responseId: "r1" }),
-  { type: "playbackStarted", responseId: "r1", itemId: "i1" },
-  { type: "playback", playedMs: 480 },
+  { type: "playbackStarted", responseId: "r1", itemId: "i1", generation: 0 },
+  { type: "playback", playedMs: 480, generation: 0 },
 ];
 
 it("binary playback keeps barge-in after response.done", () => {
@@ -187,7 +188,7 @@ it("truncates the audible item, not the next generating one", () => {
     speaking.concat(
       server({ type: "response.created", responseId: "r2" }),
       server({ type: "response.audio_delta", responseId: "r2", itemId: "i2", delta: "AA==" }),
-      { type: "playback", playedMs: 500 },
+      { type: "playback", playedMs: 500, generation: 0 },
       server({ type: "input.speech_started", itemId: "u1" }),
     ),
   );
@@ -233,8 +234,107 @@ it("a terminal event does not erase a pending barge-in", () => {
   const acked = run(
     speaking.concat(
       server({ type: "input.speech_started", itemId: "u1" }),
-      { type: "playbackDrained" },
+      { type: "playbackDrained", generation: 0 },
     ),
   );
   expect(acked.phase === "active" && acked.cancel).toBeUndefined();
+});
+
+const active = (s: CallState) => {
+  if (s.phase !== "active") throw new Error("not active");
+  return s;
+};
+const started = (responseId: string, itemId: string | undefined, generation: number): CallEvent => ({
+  type: "playbackStarted",
+  responseId,
+  itemId,
+  generation,
+});
+
+it("ignores a late playbackStarted for a response already marked cancelled", () => {
+  const cut = run(speaking.concat(server({ type: "input.speech_started", itemId: "u1" })));
+  expect(reduceCall(cut, started("r1", "i1", 0))).toBe(cut);
+  const gen = run(
+    speaking.concat(
+      server({ type: "response.created", responseId: "r2" }),
+      server({ type: "input.speech_started", itemId: "u1" }),
+    ),
+  );
+  const g = active(gen).generation;
+  expect(active(reduceCall(gen, started("r2", "i2", g))).playback).toBeUndefined();
+});
+
+it("a delayed playbackStarted(r1) after a flush does not replace newer r2", () => {
+  const state = run(
+    speaking.concat(
+      server({ type: "input.speech_started", itemId: "u1" }),
+      { type: "playbackDrained", generation: 0 },
+      server({ type: "response.created", responseId: "r2" }),
+      started("r2", "i2", 1),
+      started("r1", "i1", 0),
+    ),
+  );
+  expect(active(state).playback?.responseId).toBe("r2");
+});
+
+it("a delayed playbackDrained does not clear newer playback or its cancel", () => {
+  const state = run(
+    speaking.concat(
+      server({ type: "input.speech_started", itemId: "u1" }),
+      { type: "playbackDrained", generation: 0 },
+      server({ type: "response.created", responseId: "r2" }),
+      started("r2", "i2", 1),
+      { type: "playbackDrained", generation: 0 },
+    ),
+  );
+  expect(active(state).playback?.responseId).toBe("r2");
+  const stalePlayback = reduceCall(state, { type: "playback", playedMs: 900, generation: 0 });
+  expect(stalePlayback).toBe(state);
+});
+
+it("response.cancelled ends generation but keeps playback and pending cancel", () => {
+  const playing = run(speaking.concat(server({ type: "response.cancelled", responseId: "r1" })));
+  expect(active(playing).generating).toBe(false);
+  expect(active(playing).playback?.itemId).toBe("i1");
+  const cut = run(
+    speaking.concat(
+      server({ type: "input.speech_started", itemId: "u1" }),
+      server({ type: "response.cancelled", responseId: "r1" }),
+    ),
+  );
+  expect(active(cut).cancel).toEqual({
+    responseId: "r1",
+    itemId: "i1",
+    playedMs: 480,
+    generatingResponseId: undefined,
+  });
+});
+
+it("a second speech_started keeps the first truncation and cancels the new generation", () => {
+  const state = run(
+    speaking.concat(
+      server({ type: "input.speech_started", itemId: "u1" }),
+      server({ type: "response.created", responseId: "r2" }),
+      server({ type: "input.speech_started", itemId: "u2" }),
+    ),
+  );
+  expect(active(state).cancel).toEqual({
+    responseId: "r1",
+    itemId: "i1",
+    playedMs: 480,
+    generatingResponseId: "r2",
+  });
+});
+
+it("binary barge-in truncates the item announced by output_item.added", () => {
+  const state = run([
+    { type: "start" },
+    { type: "connected" },
+    server({ type: "response.created", responseId: "r1" }),
+    server({ type: "response.output_item_added", responseId: "r1", itemId: "i1" }),
+    started("r1", undefined, 0),
+    { type: "playback", playedMs: 480, generation: 0 },
+    server({ type: "input.speech_started", itemId: "u1" }),
+  ]);
+  expect(active(state).cancel).toMatchObject({ responseId: "r1", itemId: "i1", playedMs: 480 });
 });
