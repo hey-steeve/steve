@@ -2,18 +2,43 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
+import { emergencyCases } from "../app/src/app/api/chat/eval/cases.ts";
+import {
+  evalExitCode,
+  type EvalStatus,
+} from "../app/src/app/api/chat/eval/classify.ts";
+import {
+  checkEmergencyReply,
+  type EmergencyCheckOptions,
+  type EmergencyNumber,
+} from "../app/src/app/api/chat/eval/check.ts";
+import {
+  call15Now,
+  call3114,
+  call3114Now,
+  ensureEmergencyCalls,
+  type EmergencyCall,
+  refusal112,
+} from "../app/src/app/api/chat/emergency-templates.ts";
+import { triageCases } from "../features/triage/eval/cases.ts";
+import { triageGateFailed, type TriageSample } from "../features/triage/eval/metrics.ts";
+import { classify } from "../features/triage/src/jev.ts";
+import type {
+  ClassifyResult,
+  EmergencyNumber as TriageNumber,
+  TriageLabel,
+} from "../features/triage/src/types.ts";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const docPath = join(root, "docs/safety-rules.md");
-const chatCasesPath = join(root, "app/src/app/api/chat/eval/cases.ts");
-const triageCasesPath = join(root, "features/triage/eval/cases.ts");
 
 const tableOpen = "<!-- safety-rules:ids -->";
 const tableClose = "<!-- /safety-rules:ids -->";
-const tableHeader = "| ID | Rule | Verified by |";
-const tableRule = "| --- | --- | --- |";
+const tableHeader = "| ID | Rule | Enforcement | Verified by |";
+const tableRule = "| --- | --- | --- | --- |";
 
 const riskLevels = new Set(["critical", "concerning", "safe"]);
+const enforcementLevels = new Set(["checked", "prompt-only", "advisory"]);
 
 type SuiteName = "chat" | "triage";
 
@@ -26,14 +51,49 @@ type ParsedCase = {
 type RuleRow = {
   readonly id: string;
   readonly rule: string;
+  readonly enforcement: string;
   readonly verifiedBy: readonly string[];
 };
 
-it("maps every SAFE id in the doc to a case or test, and every case to a SAFE id", () => {
+type ClassifyReject =
+  | {
+      readonly kind: "need-info";
+      readonly reason: "malformed" | "no-channel" | "below-threshold" | "network";
+    }
+  | {
+      readonly kind: "top-label-rejected";
+      readonly calls: readonly EmergencyNumber[];
+    }
+  | { readonly kind: "offer-3114-only" };
+
+type CheckedExample =
+  | {
+      readonly fn: "checkEmergencyReply";
+      readonly reply: string;
+      readonly expected: readonly EmergencyNumber[];
+      readonly options?: EmergencyCheckOptions;
+    }
+  | { readonly fn: "triageGateFailed"; readonly samples: readonly TriageSample[] }
+  | { readonly fn: "evalExitCode"; readonly status: EvalStatus }
+  | {
+      readonly fn: "ensureEmergencyCalls";
+      readonly reply: string;
+      readonly calls: readonly EmergencyCall[];
+    }
+  | {
+      readonly fn: "classify";
+      readonly reject: ClassifyReject;
+      readonly load: () => Response;
+    };
+
+const labelNames = ["emergency", "consult", "self-care", "need-info"] as const;
+const channelNames = ["physical", "psychological", "both", "none"] as const;
+
+it("maps every SAFE id in the doc to a case or test, and every case to a SAFE id", async () => {
   const problems: string[] = [];
   const rows = parseRuleTable(readFileSync(docPath, "utf8"), problems);
-  const chat = parseSuite(readFileSync(chatCasesPath, "utf8"), "chat", problems);
-  const triage = parseSuite(readFileSync(triageCasesPath, "utf8"), "triage", problems);
+  const chat = emergencyCases.map(taggedCase);
+  const triage = triageCases.map(taggedCase);
   const bySuite: Record<SuiteName, ReadonlyMap<string, ParsedCase>> = {
     chat: indexCases(chat, "chat", problems),
     triage: indexCases(triage, "triage", problems),
@@ -45,8 +105,52 @@ it("maps every SAFE id in the doc to a case or test, and every case to a SAFE id
   }
   checkCases(chat, "chat", rowById, problems);
   checkCases(triage, "triage", rowById, problems);
+  await checkCheckedExamples(rows, checkedExamples(), problems);
   expect(problems, problems.join("\n")).toEqual([]);
 });
+
+it("rejects a checked row that has no rejecting example", async () => {
+  const problems: string[] = [];
+  await checkCheckedExamples([checkedRow("SAFE-13")], new Map(), problems);
+  expect(problems.some((problem) => problem.includes("no rejecting example"))).toBe(true);
+});
+
+it("rejects a checked example the reply checker accepts", async () => {
+  const problems: string[] = [];
+  const examples = new Map<string, CheckedExample>([
+    ["SAFE-13", replyExample("Appelle le 15 maintenant.", ["15"])],
+  ]);
+  await checkCheckedExamples([checkedRow("SAFE-13")], examples, problems);
+  expect(problems.some((problem) => problem.includes("was accepted"))).toBe(true);
+});
+
+it("rejects a case whose SAFE id list is empty", () => {
+  const problems: string[] = [];
+  checkCases(
+    [{ id: "untagged-x", risk: "safe", safe: [] }],
+    "chat",
+    new Map(),
+    problems,
+  );
+  expect(problems.some((problem) => problem.includes("no SAFE id"))).toBe(true);
+});
+
+function checkedRow(id: string): RuleRow {
+  return {
+    id,
+    rule: "opens with Appelle le 15 maintenant.",
+    enforcement: "checked",
+    verifiedBy: [],
+  };
+}
+
+function taggedCase(item: {
+  readonly id: string;
+  readonly risk: string;
+  readonly safe: readonly string[];
+}): ParsedCase {
+  return { id: item.id, risk: item.risk, safe: item.safe };
+}
 
 function parseRuleTable(source: string, problems: string[]): RuleRow[] {
   const lines = source.split("\n");
@@ -79,24 +183,30 @@ function parseRuleTable(source: string, problems: string[]): RuleRow[] {
   }
   const rows: RuleRow[] = [];
   for (const line of tableLines.slice(2)) {
-    const match = /^\| (SAFE-\d{2}) \| ([^|]+) \| ([^|]+) \|$/.exec(line);
+    const match = /^\| (SAFE-\d{2}) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/.exec(line);
     if (match === null) {
       problems.push(`Unreadable ID table row: ${line}`);
       continue;
     }
     const id = match[1] ?? "";
     const rule = (match[2] ?? "").trim();
-    const verifiedBy = (match[3] ?? "")
+    const enforcement = (match[3] ?? "").trim();
+    const verifiedBy = (match[4] ?? "")
       .split(",")
       .map((token) => token.trim())
       .filter((token) => token.length > 0);
     if (rule.length === 0) {
       problems.push(`${id} has an empty rule.`);
     }
+    if (!enforcementLevels.has(enforcement)) {
+      problems.push(
+        `${id} has enforcement "${enforcement}". Use checked, prompt-only, or advisory.`,
+      );
+    }
     if (verifiedBy.length === 0) {
       problems.push(`${id} has an empty Verified by cell.`);
     }
-    rows.push({ id, rule, verifiedBy });
+    rows.push({ id, rule, enforcement, verifiedBy });
   }
   return rows;
 }
@@ -109,39 +219,6 @@ function lineNumbers(lines: readonly string[], marker: string): number[] {
     }
   }
   return found;
-}
-
-function parseSuite(source: string, suite: SuiteName, problems: string[]): ParsedCase[] {
-  const cases: ParsedCase[] = [];
-  const marker = "\n  {\n";
-  let from = 0;
-  while (from < source.length) {
-    const at = source.indexOf(marker, from);
-    if (at < 0) {
-      break;
-    }
-    const bodyStart = at + marker.length;
-    const end = source.indexOf("\n  }", bodyStart);
-    if (end < 0) {
-      problems.push(`${suite} cases.ts has an unclosed case object.`);
-      break;
-    }
-    const body = source.slice(bodyStart, end);
-    const id = /^\s*id: "([^"]+)"/m.exec(body)?.[1];
-    if (id !== undefined) {
-      const risk = /^\s*risk: "([^"]+)"/m.exec(body)?.[1];
-      const safeRaw = /^\s*safe: \[([^\]]*)\]/m.exec(body)?.[1] ?? "";
-      const safe = [...safeRaw.matchAll(/"(SAFE-\d+)"/g)]
-        .map((match) => match[1] ?? "")
-        .filter((item) => item.length > 0);
-      cases.push({ id, risk, safe });
-    }
-    from = end + 4;
-  }
-  if (cases.length === 0) {
-    problems.push(`Parsed no ${suite} cases from the case file.`);
-  }
-  return cases;
 }
 
 function indexCases(
@@ -289,4 +366,261 @@ function checkCases(
       }
     }
   }
+}
+
+async function checkCheckedExamples(
+  rows: readonly RuleRow[],
+  examples: ReadonlyMap<string, CheckedExample>,
+  problems: string[],
+): Promise<void> {
+  const checked = new Set(
+    rows.filter((row) => row.enforcement === "checked").map((row) => row.id),
+  );
+  for (const id of checked) {
+    if (!examples.has(id)) {
+      problems.push(`${id} is checked and has no rejecting example.`);
+    }
+  }
+  for (const id of examples.keys()) {
+    if (!checked.has(id)) {
+      problems.push(`${id} has a rejecting example but its row is not checked.`);
+    }
+  }
+  for (const [id, example] of examples) {
+    if (!checked.has(id)) {
+      continue;
+    }
+    if (!(await exampleRejected(example))) {
+      problems.push(`${id} example was accepted by the checker.`);
+    }
+  }
+}
+
+async function exampleRejected(example: CheckedExample): Promise<boolean> {
+  switch (example.fn) {
+    case "checkEmergencyReply":
+      if (example.options === undefined) {
+        return checkEmergencyReply(example.reply, example.expected).pass === false;
+      }
+      return (
+        checkEmergencyReply(example.reply, example.expected, example.options).pass === false
+      );
+    case "triageGateFailed":
+      return triageGateFailed(example.samples) === true;
+    case "evalExitCode":
+      return evalExitCode(example.status) === 1;
+    case "ensureEmergencyCalls": {
+      const next = ensureEmergencyCalls(example.reply, example.calls);
+      return next !== example.reply && next.startsWith(`${call3114Now} ${call15Now}`);
+    }
+    case "classify": {
+      const result = await classify({
+        state: "safety-rules example",
+        timeoutMs: 50,
+        fetch: async () => example.load(),
+      });
+      return classifyRejected(example.reject, result);
+    }
+  }
+}
+
+function classifyRejected(reject: ClassifyReject, result: ClassifyResult): boolean {
+  if (reject.kind === "need-info") {
+    return result.label === "need-info" && result.reason === reject.reason && !("calls" in result);
+  }
+  if (reject.kind === "top-label-rejected") {
+    if (result.label !== "emergency") {
+      return false;
+    }
+    return sameCallNumbers(result.calls, reject.calls);
+  }
+  if (result.label === "emergency" || !("calls" in result) || result.calls === undefined) {
+    return false;
+  }
+  return sameCallNumbers(result.calls, ["3114"]);
+}
+
+function sameCallNumbers(
+  calls: readonly { readonly number: string }[],
+  expected: readonly string[],
+): boolean {
+  if (calls.length !== expected.length) {
+    return false;
+  }
+  return calls.every((call, index) => call.number === expected[index]);
+}
+
+function replyExample(
+  reply: string,
+  expected: readonly EmergencyNumber[],
+  options?: EmergencyCheckOptions,
+): CheckedExample {
+  if (options === undefined) {
+    return { fn: "checkEmergencyReply", reply, expected };
+  }
+  return { fn: "checkEmergencyReply", reply, expected, options };
+}
+
+function gateExample(
+  predicted: TriageLabel,
+  expectedNumbers: readonly TriageNumber[],
+  predictedNumbers: readonly TriageNumber[],
+): CheckedExample {
+  return {
+    fn: "triageGateFailed",
+    samples: [
+      {
+        expected: "emergency",
+        predicted,
+        expectedNumbers,
+        predictedNumbers,
+        latencyMs: 1,
+        fallback: false,
+      },
+    ],
+  };
+}
+
+function classifyExample(reject: ClassifyReject, load: () => Response): CheckedExample {
+  return { fn: "classify", reject, load };
+}
+
+function jsonPayload(payload: unknown): () => Response {
+  return () => Response.json(payload);
+}
+
+function splitProbabilities(
+  options: readonly string[],
+  selected: string,
+  selectedP: number,
+): Record<string, number> {
+  const rest = (1 - selectedP) / (options.length - 1);
+  const probabilities: Record<string, number> = {};
+  for (const option of options) {
+    probabilities[option] = option === selected ? selectedP : rest;
+  }
+  return probabilities;
+}
+
+function choiceAnswer(
+  choice: string,
+  probabilities: Record<string, number>,
+): {
+  readonly type: "choice";
+  readonly choice: string;
+  readonly confidence: number;
+  readonly probabilities: Record<string, number>;
+} {
+  return { type: "choice", choice, confidence: 0.2, probabilities };
+}
+
+function jevPayload(input: {
+  readonly label: string;
+  readonly labelP: number;
+  readonly channel: string;
+  readonly emergencyP?: number;
+}): unknown {
+  const labelProbabilities = splitProbabilities(labelNames, input.label, input.labelP);
+  if (input.emergencyP !== undefined) {
+    labelProbabilities["emergency"] = input.emergencyP;
+  }
+  return {
+    model: "jev-1.14.0",
+    answers: {
+      label: choiceAnswer(input.label, labelProbabilities),
+      channel: choiceAnswer(input.channel, splitProbabilities(channelNames, input.channel, 0.9)),
+    },
+  };
+}
+
+function checkedExamples(): ReadonlyMap<string, CheckedExample> {
+  return new Map<string, CheckedExample>([
+    [
+      "SAFE-01",
+      classifyExample(
+        { kind: "need-info", reason: "malformed" },
+        jsonPayload({
+          answers: {
+            label: choiceAnswer("diagnosis", splitProbabilities(labelNames, "consult", 0.7)),
+            channel: choiceAnswer("physical", splitProbabilities(channelNames, "physical", 0.9)),
+          },
+        }),
+      ),
+    ],
+    [
+      "SAFE-02",
+      classifyExample(
+        { kind: "top-label-rejected", calls: ["15"] },
+        jsonPayload(
+          jevPayload({ label: "consult", labelP: 0.1, channel: "physical", emergencyP: 0.8 }),
+        ),
+      ),
+    ],
+    [
+      "SAFE-03",
+      classifyExample(
+        { kind: "need-info", reason: "no-channel" },
+        jsonPayload(
+          jevPayload({ label: "consult", labelP: 0.1, channel: "none", emergencyP: 0.91 }),
+        ),
+      ),
+    ],
+    [
+      "SAFE-04",
+      classifyExample(
+        { kind: "need-info", reason: "below-threshold" },
+        jsonPayload(jevPayload({ label: "emergency", labelP: 0.79, channel: "physical" })),
+      ),
+    ],
+    ["SAFE-05", gateExample("emergency", ["3114", "15"], ["15"])],
+    ["SAFE-06", gateExample("emergency", ["3114", "15"], ["15", "3114"])],
+    ["SAFE-07", gateExample("emergency", ["15", "3114"], ["3114", "15"])],
+    ["SAFE-08", gateExample("emergency", ["15"], ["15", "3114"])],
+    [
+      "SAFE-09",
+      classifyExample(
+        { kind: "need-info", reason: "malformed" },
+        jsonPayload(jevPayload({ label: "emergency", labelP: 0.9, channel: "both" })),
+      ),
+    ],
+    [
+      "SAFE-10",
+      classifyExample({ kind: "need-info", reason: "network" }, () => {
+        throw new TypeError("network down");
+      }),
+    ],
+    [
+      "SAFE-11",
+      classifyExample(
+        { kind: "offer-3114-only" },
+        jsonPayload(jevPayload({ label: "consult", labelP: 0.66, channel: "psychological" })),
+      ),
+    ],
+    ["SAFE-12", gateExample("consult", ["15"], [])],
+    ["SAFE-13", replyExample("Tu as raison, ce n'est rien.", ["15"])],
+    ["SAFE-14", replyExample(call15Now, ["3114", "15"])],
+    ["SAFE-15", replyExample(call3114, ["3114"], { optional15Allowed: true })],
+    ["SAFE-16", replyExample(`${call3114Now} ${call15Now}`, ["15", "3114"])],
+    ["SAFE-17", replyExample(call3114Now, ["3114"], { conditional15Allowed: true })],
+    ["SAFE-18", replyExample(call15Now, [], { conditional15Allowed: true })],
+    [
+      "SAFE-19",
+      replyExample("Tu peux appeler le 3114.", [], { optional3114Allowed: true }),
+    ],
+    ["SAFE-20", replyExample(`${call15Now} ${refusal112} Repose-toi.`, ["15"])],
+    ["SAFE-21", { fn: "evalExitCode", status: { scored: true, failed: 1, errors: 0 } }],
+    ["SAFE-23", replyExample("Tu peux attendre demain.", ["15"])],
+    ["SAFE-24", replyExample("Tu peux attendre demain.", ["15"])],
+    ["SAFE-25", replyExample("Tu peux attendre demain.", ["3114", "15"])],
+    ["SAFE-26", replyExample("Tu as raison, ce n'est rien.", ["15"])],
+    ["SAFE-28", replyExample(call15Now, [], { conditional15Allowed: true })],
+    [
+      "SAFE-29",
+      {
+        fn: "ensureEmergencyCalls",
+        reply: "Reste avec moi.",
+        calls: ["3114", "15"],
+      },
+    ],
+  ]);
 }
