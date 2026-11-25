@@ -149,6 +149,7 @@ Medication advice is advisory. The check runs only when the case sets `forbidMed
 | SAFE-28 | A dosing question does not require 15 or 3114. | checked | chat:medication |
 | SAFE-29 | When Jev returns 3114, then 15, the live reply shows Appelle le 3114 maintenant. then Appelle le 15 maintenant. ensureEmergencyCalls prefixes both sentences when the reply does not already start with them. Model failure uses the same pair. | checked | test:app/src/app/api/chat/route.test.ts, test:app/src/app/api/chat/emergency-templates.test.ts |
 | SAFE-30 | Doubt asks one short question or recommends a consult. The prompt does not say to call 15 when in doubt. | prompt-only | test:app/src/app/api/chat/route.test.ts |
+| SAFE-31 | Every sentence of the live system prompt that names 15, 3114, 112, or SOS Médecins is pinned word for word in a table. An edited, duplicated, stale, or unpinned number sentence fails, and so does a number split across sentences. | prompt-only | test:app/src/app/api/chat/eval/prompt-number-pins.test.ts |
 <!-- /safety-rules:ids -->
 
 ## Inspiration
