@@ -249,6 +249,32 @@ function discouragesEmergencyNumber(
   text: string,
   allowlist: readonly string[] = [],
 ): boolean {
+  const ownerBySentence = new Map<string, string>();
+  const promptLines = systemPrompt.split("\n");
+  for (const sentence of allowlist) {
+    const owners = promptLines.filter((line) => splitPromptLine(line).includes(sentence));
+    if (owners.length === 1 && owners[0] !== undefined) {
+      ownerBySentence.set(sentence, owners[0]);
+    }
+  }
+  for (const line of text.split(/\n+/)) {
+    for (const sentence of splitPromptLine(line)) {
+      if (ownerBySentence.get(sentence) === line) {
+        continue;
+      }
+      const normalized = normalizeEmergencyWording(sentence);
+      if (/(?<![a-z])ne pas appeler(?![a-z])/.test(normalized) || negationNearNumber(normalized)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function sentenceOnlyDiscouragesEmergencyNumber(
+  text: string,
+  allowlist: readonly string[] = [],
+): boolean {
   const approved = new Set(allowlist.map((sentence) => normalizeEmergencyWording(sentence)));
   for (const sentence of emergencySentences(text)) {
     const normalized = normalizeEmergencyWording(sentence);
@@ -268,10 +294,18 @@ it("rejects a system prompt that adds a doubt default or 116 117", () => {
   }
   for (const sentence of approvedEmergencySentences) {
     expect(systemPrompt).toContain(sentence);
-    expect(emergencySentences(systemPrompt), sentence).toContain(sentence);
-    expect(discouragesEmergencyNumber(sentence, approvedEmergencySentences), sentence).toBe(
-      false,
-    );
+    expect(
+      emergencySentences(systemPrompt).filter((part) => part === sentence),
+      sentence,
+    ).toHaveLength(1);
+    const owners = systemPrompt
+      .split("\n")
+      .filter((line) => splitPromptLine(line).includes(sentence));
+    expect(owners, sentence).toHaveLength(1);
+    expect(
+      discouragesEmergencyNumber(owners[0] ?? "", approvedEmergencySentences),
+      sentence,
+    ).toBe(false);
   }
   expect(discouragesEmergencyNumber(systemPrompt, approvedEmergencySentences)).toBe(false);
   expect(discouragesEmergencyNumber(consultGuidance.text)).toBe(false);
@@ -338,7 +372,7 @@ it("allowlists only whole sentences of the current prompt", () => {
   const sentences = emergencySentences(systemPrompt);
   for (const sentence of approvedEmergencySentences) {
     expect(guillemetsBalanced(sentence), sentence).toBe(true);
-    expect(sentences, sentence).toContain(sentence);
+    expect(sentences.filter((part) => part === sentence), sentence).toHaveLength(1);
   }
   expect(sentences.at(-1)).toBe(doubtClause);
   expect(systemPrompt.endsWith(doubtClause)).toBe(true);
@@ -352,6 +386,33 @@ it("flags a quoted 3114 line that says not to call 15", () => {
       approvedEmergencySentences,
     ),
   ).toBe(true);
+});
+
+const chestPainFifteenCopy =
+  "Pour une douleur thoracique, rassure la personne. Le 15 n'est pas exigé.";
+
+it("flags an allowed 15 sentence copied onto another rule line", () => {
+  expect(discouragesEmergencyNumber(chestPainFifteenCopy, approvedEmergencySentences)).toBe(
+    true,
+  );
+  expect(
+    discouragesEmergencyNumber(
+      `${systemPrompt}\n${chestPainFifteenCopy}`,
+      approvedEmergencySentences,
+    ),
+  ).toBe(true);
+  expect(
+    discouragesEmergencyNumber(chestPainFifteenCopy, ["Le 15 n'est pas exigé."]),
+  ).toBe(true);
+  expect(
+    discouragesEmergencyNumber(suicidalThoughtsRule(systemPrompt), approvedEmergencySentences),
+  ).toBe(false);
+  expect(
+    sentenceOnlyDiscouragesEmergencyNumber(chestPainFifteenCopy, approvedEmergencySentences),
+  ).toBe(false);
+  expect(
+    sentenceOnlyDiscouragesEmergencyNumber(chestPainFifteenCopy, ["Le 15 n'est pas exigé."]),
+  ).toBe(false);
 });
 
 it("returns the labelled mock unless STEVE_CHAT_LIVE is 1", async () => {

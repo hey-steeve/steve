@@ -178,8 +178,7 @@ export function normalizeEmergencyText(text: string): string {
 const norm15Now = normalizeEmergencyText(call15Now);
 const norm3114Now = normalizeEmergencyText(call3114Now);
 const norm3114 = normalizeEmergencyText(call3114);
-const normListening = normalizeEmergencyText("Ils t'écoutent");
-const normListeningDot = normalizeEmergencyText("Ils t'écoutent.");
+const normListeningPrefix = normalizeEmergencyText("Ils t'écoutent");
 
 const exactCallTemplates = new Set([norm15Now, norm3114Now, norm3114]);
 
@@ -266,7 +265,7 @@ function rebuildPhysical15(reply: string): string {
       dropThroughTail(dropped, pieces, index);
     }
   }
-  return joinPrefix([call15Now, ...moved].join(" "), keptRaw(pieces, dropped));
+  return joinPrefix(joinSentences([call15Now, ...moved]), keptRaw(pieces, dropped));
 }
 
 function withoutExactCallTemplates(reply: string): string {
@@ -307,6 +306,25 @@ function keptRaw(pieces: readonly RawPiece[], dropped: ReadonlySet<number>): str
   return kept;
 }
 
+function joinSentences(sentences: readonly string[]): string {
+  let joined = "";
+  for (const sentence of sentences) {
+    if (sentence.length === 0) {
+      continue;
+    }
+    if (joined.length === 0) {
+      joined = sentence;
+      continue;
+    }
+    joined += `${sentenceGap(joined)}${sentence}`;
+  }
+  return joined;
+}
+
+function sentenceGap(previous: string): string {
+  return /[.!?]$/.test(previous) ? " " : ". ";
+}
+
 function joinPrefix(prefix: string, body: string): string {
   const trimmed = body.trim();
   if (trimmed.length === 0) {
@@ -315,7 +333,7 @@ function joinPrefix(prefix: string, body: string): string {
   if (/^\s*\n/.test(body)) {
     return `${prefix}${body.trimEnd()}`;
   }
-  return `${prefix} ${trimmed}`;
+  return `${prefix}${sentenceGap(prefix)}${trimmed}`;
 }
 
 function isExact3114(sentence: string): boolean {
@@ -327,7 +345,14 @@ function isExact3114Text(normalized: string): boolean {
 }
 
 function isListeningTailText(normalized: string): boolean {
-  return normalized === normListening || normalized === normListeningDot;
+  if (normalized === normListeningPrefix) {
+    return true;
+  }
+  if (!normalized.startsWith(normListeningPrefix)) {
+    return false;
+  }
+  const next = normalized[normListeningPrefix.length];
+  return next !== undefined && !/\p{L}/u.test(next);
 }
 
 function listeningTailAfter(pieces: readonly RawPiece[], index: number): number | undefined {
