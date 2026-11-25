@@ -190,10 +190,6 @@ export function ensureEmergencyCalls(
   reply: string,
   calls: readonly EmergencyCall[],
 ): string {
-  return collapsePunctuationRuns(withEmergencyCalls(reply, calls));
-}
-
-function withEmergencyCalls(reply: string, calls: readonly EmergencyCall[]): string {
   if (!calls.includes("15")) {
     return reply;
   }
@@ -208,10 +204,6 @@ function withEmergencyCalls(reply: string, calls: readonly EmergencyCall[]): str
     return reply;
   }
   return joinPrefix(templates.join(" "), withoutExactCallTemplates(reply));
-}
-
-function collapsePunctuationRuns(text: string): string {
-  return text.replace(/[.!?]{2,}/gu, (run) => run[0] ?? ".");
 }
 
 function templatesFor(calls: readonly EmergencyCall[]): string[] {
@@ -403,10 +395,9 @@ function rawPieces(reply: string): RawPiece[] {
       }
     }
     const slice = reply.slice(start, atEnd ? reply.length : end + 1);
-    const raw = punct ? slice.replace(/[.!?]+$/u, (run) => run[0] ?? ".") : slice;
-    const sentence = raw.trim();
+    const sentence = slice.trim().replace(/[.!?]+$/u, (run) => run[0] ?? ".");
     if (!/^[.!?]+$/u.test(sentence)) {
-      pieces.push({ raw, sentence });
+      pieces.push({ raw: slice, sentence });
     }
     if (atEnd) {
       break;

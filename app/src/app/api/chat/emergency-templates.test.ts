@@ -318,24 +318,63 @@ const exactCallTemplateNorms = new Set([
 function helperSentences(reply: string): string[] {
   const sentences: string[] = [];
   let start = 0;
-  for (let index = 0; index <= reply.length; index += 1) {
+  let index = 0;
+  while (index <= reply.length) {
     const atEnd = index === reply.length;
-    const char = atEnd ? "" : reply[index];
-    const boundary = !atEnd && (char === "." || char === "!" || char === "?" || char === "\n");
+    const char = atEnd ? "" : (reply[index] ?? "");
+    const punct = char === "." || char === "!" || char === "?";
+    const boundary = !atEnd && (punct || char === "\n");
     if (!atEnd && !boundary) {
+      index += 1;
       continue;
     }
-    const sentence = reply.slice(start, atEnd ? reply.length : index + 1).trim();
+    let end = index;
+    if (punct) {
+      while (end + 1 < reply.length) {
+        const next = reply[end + 1];
+        if (next !== "." && next !== "!" && next !== "?") {
+          break;
+        }
+        end += 1;
+      }
+    }
+    const sentence = reply.slice(start, atEnd ? reply.length : end + 1).trim();
     if (sentence.length > 0) {
       sentences.push(sentence);
     }
     if (atEnd) {
       break;
     }
-    start = index + 1;
+    start = end + 1;
+    index = start;
   }
   return sentences;
 }
+
+const modelPunctuationRows = [
+  {
+    reply: "Si ça empire... Respire lentement… Tu es en sécurité ?!",
+    calls: ["3114"],
+  },
+  {
+    reply:
+      "Appelle le 15 maintenant. Si ça empire... Respire lentement… Tu es en sécurité ?!",
+    calls: ["15"],
+  },
+  {
+    reply:
+      "Appelle le 15 maintenant. Appelle le 3114. Si ça empire... Respire lentement… Tu es en sécurité ?!",
+    calls: ["15", "3114"],
+  },
+  {
+    reply: "Si ça empire... Respire lentement… Tu es en sécurité ?!",
+    calls: ["3114", "15"],
+  },
+  {
+    reply: "Si ça empire... Respire lentement… Tu es en sécurité ?!",
+    calls: ["15"],
+  },
+] as const;
 
 function keptBodySentence(sentence: string): boolean {
   const normalized = normalizeEmergencyText(sentence);
@@ -343,7 +382,12 @@ function keptBodySentence(sentence: string): boolean {
 }
 
 it("keeps every sentence that is not an exact call template or a closed listening tail", () => {
-  const guarded = [...rows, ...listeningTailRows, ...mustKeepRows];
+  const guarded = [
+    ...rows,
+    ...listeningTailRows,
+    ...mustKeepRows,
+    ...modelPunctuationRows,
+  ];
   for (const row of guarded) {
     const output = ensureEmergencyCalls(row.reply, [...row.calls]);
     const pool = helperSentences(output);
