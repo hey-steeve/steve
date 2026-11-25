@@ -10,7 +10,7 @@ export const conversationLimits = {
 
 export type ConversationChannel = TurnChannel;
 export type ConversationRole = "user" | "assistant";
-export type ConversationStatus = "active" | "completed";
+export type ConversationStatus = "active" | "awaiting_triage" | "completed";
 export type ConversationNextAction =
   | "awaiting_user"
   | "handoff"
@@ -32,6 +32,7 @@ export interface ConversationSession {
   readonly updatedAt: string;
   readonly turns: readonly ConversationTurn[];
   readonly seenTurnIds: readonly string[];
+  readonly completionTurnId: string | null;
 }
 
 export interface StartConversationInput {
@@ -52,16 +53,10 @@ export interface RequestUnderstanding {
 
 export type ConversationHandoffTarget = "triage";
 
-export interface ConversationHandoffData {
-  readonly channel: TurnChannel;
-  readonly summary: string;
-  readonly sourceText: string;
-  readonly completeAfterTriage: boolean;
-}
-
-export type ConversationHandoff = Handoff<ConversationHandoffData> & {
+export type ConversationHandoff = Handoff<readonly Turn[]> & {
   readonly target: ConversationHandoffTarget;
   readonly intent: RequestIntent;
+  readonly completeAfterTriage: boolean;
 };
 
 export type ConversationTurnInput = Turn;
@@ -93,6 +88,7 @@ export type ConversationRejectionCode =
   | "invalid_text"
   | "text_too_long"
   | "session_not_found"
+  | "session_awaiting_triage"
   | "session_completed"
   | "duplicate_turn";
 
@@ -122,10 +118,41 @@ export type ConversationTurnResult =
       readonly code: ConversationFailureCode;
       readonly response: string;
       readonly session: ConversationSession | null;
+      readonly handoff: ConversationHandoff;
       readonly nextAction: "awaiting_user";
+    };
+
+export interface CompleteConversationInput {
+  readonly sessionId: string;
+  readonly turnId: string;
+}
+
+export type CompleteConversationResult =
+  | {
+      readonly outcome: "completed";
+      readonly session: ConversationSession;
+    }
+  | {
+      readonly outcome: "rejected";
+      readonly code:
+        | "invalid_session_id"
+        | "invalid_turn_id"
+        | "session_not_found"
+        | "completion_not_pending"
+        | "completion_turn_mismatch";
+      readonly response: string;
+    }
+  | {
+      readonly outcome: "failed";
+      readonly code: "dependency_failure" | "storage_failure";
+      readonly response: string;
+      readonly session: ConversationSession | null;
     };
 
 export interface Conversation {
   startSession(input: StartConversationInput): Promise<StartConversationResult>;
   handleTurn(input: ConversationTurnInput): Promise<ConversationTurnResult>;
+  completeSession(
+    input: CompleteConversationInput,
+  ): Promise<CompleteConversationResult>;
 }

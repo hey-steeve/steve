@@ -17,6 +17,8 @@ export const conversationResponses = {
     "Ta demande est trop longue pour être traitée en un seul message. Envoie-la en plusieurs messages plus courts.",
   sessionNotFound:
     "Je ne retrouve pas cette conversation. Démarre une nouvelle conversation pour continuer.",
+  sessionAwaitingTriage:
+    "Ce message est encore en cours de vérification. Attends sa fin avant de poursuivre la conversation.",
   sessionCompleted:
     "Cette conversation est terminée. Démarre une nouvelle conversation si tu as une autre demande.",
   duplicate:
@@ -31,6 +33,10 @@ export const conversationResponses = {
     "Je n'ai pas pu enregistrer la conversation. Réessaie dans un instant.",
   startFailure:
     "Je n'ai pas pu démarrer la conversation. Réessaie dans un instant.",
+  completionNotPending:
+    "Cette conversation n'attend pas de fermeture après vérification.",
+  completionTurnMismatch:
+    "Je ne peux pas fermer la conversation avec ce message de vérification.",
 } as const;
 
 export function responseForUnderstanding(
@@ -67,7 +73,7 @@ export function responseForUnderstanding(
       };
     case "end_conversation":
       return {
-        text: "D'accord, la conversation est terminée. Tu peux revenir si tu as besoin d'aide pour organiser tes démarches de santé.",
+        text: "D'accord. Je vérifie d'abord ce dernier message, puis la conversation pourra se terminer.",
         nextAction: "handoff",
         completeAfterTriage: true,
       };

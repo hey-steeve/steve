@@ -43,6 +43,7 @@ function cloneSession(session: ConversationSession): ConversationSession {
     ...session,
     turns: session.turns.map(cloneTurn),
     seenTurnIds: [...session.seenTurnIds],
+    completionTurnId: session.completionTurnId,
   };
 }
 
