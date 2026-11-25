@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { call15Now, call3114, call3114Now } from "../emergency-templates.ts";
 import { systemPrompt } from "../system-prompt.ts";
 import { type DetectedKind, detectEmergencyNumbers } from "./check.ts";
 import {
@@ -26,9 +27,9 @@ const splitFailure = (span: string, kind: string): string =>
   `split across sentences: "${span}" (${kind}) crosses a sentence boundary`;
 
 const pair3114Then15 =
-  "Pour le 3114 puis le 15, tu écris « Appelle le 3114 maintenant. » puis « Appelle le 15 maintenant. ».";
+  `Pour le 3114 puis le 15, tu écris « ${call3114Now} » puis « ${call15Now} ».`;
 const pair15Then3114 =
-  "Pour le 15 puis le 3114, tu écris « Appelle le 15 maintenant. » puis « Appelle le 3114. ».";
+  `Pour le 15 puis le 3114, tu écris « ${call15Now} » puis « ${call3114} ».`;
 
 const refuse112Lead = "Tu ne donnes jamais le 112 ni SOS Médecins.";
 const refuse112Follow =
@@ -48,13 +49,13 @@ const samePhraseWidened = `${samePhraseLead}, et tu ne donnes pas le 15 pour des
 const samePhraseEdited = "Tu ne mets jamais le 15 et le 3114 dans la même réponse.";
 
 const redFlagHead =
-  "Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la première phrase";
-const redFlagTail = "« Appelle le 15 maintenant. », jamais seulement une phrase conditionnelle.";
-const redFlagOld = `${redFlagHead} est ${redFlagTail}`;
-const redFlagNew = `${redFlagHead} n'est jamais ${redFlagTail}`;
+  "Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la réponse s'ouvre exactement par ce bloc :";
+const redFlagTail = `« ${call15Now} », jamais seulement une phrase conditionnelle.`;
+const redFlagOld = `${redFlagHead} ${redFlagTail}`;
+const redFlagNew = `${redFlagHead} jamais ${redFlagTail}`;
 
 const anxietyTail =
-  "peut citer le 3114, sans l'exiger en première phrase, et cette phrase est exactement « Appelle le 3114. » ou « Appelle le 3114 maintenant. ».";
+  `peut citer le 3114, sans l'exiger en ouverture, et ce bloc est exactement « ${call3114} » ou « ${call3114Now} ».`;
 const anxietyOld = `Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, ${anxietyTail}`;
 const anxietyNew = `Une angoisse intense, des pensées suicidaires ou une crise de panique avec essoufflement, sans pensée suicidaire et sans danger, ${anxietyTail}`;
 
