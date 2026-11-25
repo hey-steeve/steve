@@ -8,7 +8,6 @@ import {
   refusalSos,
 } from "./emergency-templates.js";
 import { checkEmergencyReply, type EmergencyNumber } from "./eval/check.js";
-import { withoutSafetySentence } from "./eval/score-reply.js";
 import { POST } from "./route.js";
 import { resetTriageLog } from "./triage-log.js";
 
@@ -206,17 +205,20 @@ function withoutRefusals(cell: Cell, text: string): string {
  * `checkEmergencyReply` has no expectation that accepts the safety sentence:
  * "En cas d'urgence, appelle le 15." is neither a call template nor an exact warning,
  * so it counts as an unexpected 15 for every expected list. (A test below pins this.)
- * The safety sentence is therefore asserted by exact presence, and the checker scores
- * the rest of the text. The eval runner cuts the sentence the same way, through the
- * shared `withoutSafetySentence`. Emergency cells carry no safety sentence and are scored whole.
+ * The route table rule: the fixed safety sentence is accepted by exact match wherever the
+ * route places it (start of a 502 error, end of a 200 reply, or the whole reply). It is
+ * removed once, and the checker scores the rest of the text. This is local on purpose: the
+ * eval runner's `withoutSafetySentence` has eval semantics (a fallback-only reply must fail),
+ * which the table must not borrow. Emergency cells carry no safety sentence and are scored whole.
  */
 function scoredText(text: string): string {
-  if (text.endsWith(upstreamError)) {
-    // A 502 text opens with the safety sentence, so it is cut off the front part.
-    const head = text.slice(0, text.length - upstreamError.length).trim();
-    return `${withoutSafetySentence(head)} ${upstreamError}`.trim();
+  const at = text.indexOf(emergencySafetySentence);
+  if (at === -1) {
+    return text;
   }
-  return withoutSafetySentence(text);
+  const before = text.slice(0, at).trimEnd();
+  const after = text.slice(at + emergencySafetySentence.length).trimStart();
+  return `${before} ${after}`.trim();
 }
 
 /**
