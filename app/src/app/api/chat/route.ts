@@ -14,7 +14,7 @@ import {
   type ChatHttpResult,
   type ChatTurn,
 } from "../../../chat/request";
-import { ensureEmergencyCalls, withoutOtherServices } from "./emergency-templates";
+import { ensureEmergencyCalls, normalizeEmergencyText, withoutOtherServices } from "./emergency-templates";
 import {
   fallbackText,
   finalEmergencyReply,
@@ -220,6 +220,17 @@ async function completeWithOpenRouter(
   }
 }
 
+const listMarkerLine = /^(?:\d+[.)]|\p{L}[.)]|[-\u2022*])?$/u;
+
+// True when every line is blank or a lone list marker such as "10.", "a)", "-", "•" or "*".
+function isMarkerOnly(text: string): boolean {
+  return text.split(/\r\n?|\n|[\u2028\u2029]/u).every((line) => listMarkerLine.test(line.trim()));
+}
+
+function isBareEmergencyNumber(text: string): boolean {
+  return /^(?:15|3114)\.?$/u.test(normalizeEmergencyText(text));
+}
+
 function modelReply(
   triage: LiveTriage,
   completion: { readonly reply: string; readonly model: string },
@@ -232,11 +243,13 @@ function modelReply(
   }
   // Steve never routes to 112 or SOS Médecins. Nothing left after the strip is not a failed
   // model: the turn is non-urgent, so it gets the fixed safety sentence and keeps its calls.
-  // Leftover list markers such as "1." or "-" count as nothing too. A bare number of two digits
-  // or more ("15.", "3114.") is an emergency number the model kept, so it stays.
+  // Leftover list markers such as "1." or "-" count as nothing too. A text that is exactly the
+  // emergency number the model kept ("15.", "3114.") stays, even in full-width digits.
+  // A text with no letter at all ("." or "—") is punctuation only and falls back too.
   const stripped = withoutOtherServices(completion.reply);
+  const hasNoWords = isMarkerOnly(stripped) || !/\p{L}/u.test(stripped);
   const kept = keepNonUrgentReply(
-    /[\p{L}]|\d{2}/u.test(stripped) ? stripped : strippedReplyFallback,
+    hasNoWords && !isBareEmergencyNumber(stripped) ? strippedReplyFallback : stripped,
   );
   if (triage.kind === "none") {
     return { status: 200, body: { reply: withSafetySentence(kept), mocked: false, model } };

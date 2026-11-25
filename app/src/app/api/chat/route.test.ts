@@ -1384,6 +1384,45 @@ it.each([
   expect(text).not.toMatch(/^\s*(?:\d+\.|-)/u);
 });
 
+it.each([
+  ["10."],
+  ["a)"],
+  ["1)"],
+  ["-"],
+  ["•"],
+  ["*"],
+  ["."],
+  ["…"],
+  ["1.\n-\n a) "],
+  ["  \n* \n"],
+])(
+  "answers a kept text of only list markers %j with the stripped-reply fallback",
+  async (modelText) => {
+    const fetchMock = triageFetch(
+      () => Response.json(jevBody("consult", 0.74, "psychological")),
+      modelText,
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await post(history);
+    expect(response.status).toBe(200);
+    expect(replyText(await response.json())).toBe(emergencySafetySentence);
+  },
+);
+
+it.each([["15."], ["15"], ["3114."], ["3114"], ["１５."], [" 15 ", "15"]])(
+  "keeps a kept text that is only the emergency number %j",
+  async (modelText, expected = modelText) => {
+    const fetchMock = triageFetch(
+      () => Response.json(jevBody("consult", 0.74, "psychological")),
+      modelText,
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await post(history);
+    expect(response.status).toBe(200);
+    expect(replyText(await response.json())).toBe(expected);
+  },
+);
+
 it.each([["Appelle le 1\nAppelle le 112.\n12."], ["Appelle le 1\n5."], ["Appelle le 31\n14."]])("never lets the stripper build a reply the checker rejects from %j on an emergency", async (modelText) => {
   const fetchMock = triageFetch(() => Response.json(jevBody("emergency", 0.91, "physical")), modelText);
   vi.stubGlobal("fetch", fetchMock);
