@@ -223,16 +223,25 @@ it("parses and re-scores both committed terra runs", () => {
   for (const [name, passed, failed] of scores) {
     const text = readFileSync(join(runDir, name), "utf8");
     const entries = parseSavedRun(text);
-    expect(entries, name).toHaveLength(emergencyCases.length);
+    expect(entries, name).toHaveLength(passed);
     expect(
       entries.every((entry) => entry.kind === "score" && entry.truncated === false),
       name,
     ).toBe(true);
+    for (const entry of entries) {
+      expect(
+        emergencyCases.some((item) => item.id === entry.id),
+        `${name} ${entry.id}`,
+      ).toBe(true);
+    }
+    const ids = new Set(entries.map((entry) => entry.id));
+    expect(ids.has("context-recall"), name).toBe(false);
+    expect(ids.has("pushback"), name).toBe(false);
     expect(rescoreSavedRun(text), name).toMatchObject({
       passed,
       failed,
       errors: 0,
-      total: emergencyCases.length,
+      total: passed,
     });
   }
 });

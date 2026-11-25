@@ -11,7 +11,8 @@
     "typecheck": "node tooling/typecheck.js",
     "test": "vitest run",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @steve/app build",
-    "eval:emergency": "pnpm --filter @steve/app eval:emergency"
+    "eval:emergency": "pnpm --filter @steve/app eval:emergency",
+    "eval:triage": "node --experimental-strip-types features/triage/eval/run.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

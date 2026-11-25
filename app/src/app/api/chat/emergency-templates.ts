@@ -374,19 +374,36 @@ type RawPiece = {
 function rawPieces(reply: string): RawPiece[] {
   const pieces: RawPiece[] = [];
   let start = 0;
-  for (let index = 0; index <= reply.length; index += 1) {
+  let index = 0;
+  while (index <= reply.length) {
     const atEnd = index === reply.length;
-    const char = atEnd ? "" : reply[index];
-    const boundary = !atEnd && (char === "." || char === "!" || char === "?" || char === "\n");
+    const char = atEnd ? "" : (reply[index] ?? "");
+    const punct = char === "." || char === "!" || char === "?";
+    const boundary = !atEnd && (punct || char === "\n");
     if (!atEnd && !boundary) {
+      index += 1;
       continue;
     }
-    const raw = reply.slice(start, atEnd ? reply.length : index + 1);
-    pieces.push({ raw, sentence: raw.trim() });
+    let end = index;
+    if (punct) {
+      while (end + 1 < reply.length) {
+        const next = reply[end + 1];
+        if (next !== "." && next !== "!" && next !== "?") {
+          break;
+        }
+        end += 1;
+      }
+    }
+    const slice = reply.slice(start, atEnd ? reply.length : end + 1);
+    const sentence = slice.trim().replace(/[.!?]+$/u, (run) => run[0] ?? ".");
+    if (!/^[.!?]+$/u.test(sentence)) {
+      pieces.push({ raw: slice, sentence });
+    }
     if (atEnd) {
       break;
     }
-    start = index + 1;
+    start = end + 1;
+    index = start;
   }
   return pieces;
 }

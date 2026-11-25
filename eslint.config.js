@@ -8,10 +8,21 @@ export default [
   {
     files: [
       "shared/**/*.ts",
+      "shared/**/*.tsx",
+      "shared/**/*.mts",
+      "shared/**/*.cts",
       "features/**/*.ts",
+      "features/**/*.tsx",
+      "features/**/*.mts",
+      "features/**/*.cts",
       "app/**/*.ts",
       "app/**/*.tsx",
+      "app/**/*.mts",
+      "app/**/*.cts",
       "tooling/**/*.ts",
+      "tooling/**/*.tsx",
+      "tooling/**/*.mts",
+      "tooling/**/*.cts",
       "tooling/**/*.js",
     ],
     languageOptions: {
@@ -30,10 +41,21 @@ export default [
   {
     files: [
       "shared/**/*.ts",
+      "shared/**/*.tsx",
+      "shared/**/*.mts",
+      "shared/**/*.cts",
       "features/**/*.ts",
+      "features/**/*.tsx",
+      "features/**/*.mts",
+      "features/**/*.cts",
       "app/**/*.ts",
       "app/**/*.tsx",
+      "app/**/*.mts",
+      "app/**/*.cts",
       "tooling/**/*.ts",
+      "tooling/**/*.tsx",
+      "tooling/**/*.mts",
+      "tooling/**/*.cts",
     ],
     // TS and TSX only, tests included. Tooling JS stays on the untyped rules above.
     languageOptions: {
@@ -42,6 +64,7 @@ export default [
         projectService: {
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 40,
           allowDefaultProject: [
+            "app/src/angle.ts",
             "app/src/asserted.ts",
             "app/src/deep-feature.ts",
             "app/src/deep-package.ts",
