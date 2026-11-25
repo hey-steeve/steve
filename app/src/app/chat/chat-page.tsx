@@ -1,5 +1,6 @@
 "use client";
 
+import type { EmergencyCalls } from "@steve/triage";
 import { useEffect, useRef, useState } from "react";
 import { composerControl, type ComposerControl } from "../../chat/composer-control";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar";
@@ -8,7 +9,7 @@ import { headerAvatarSrc, heroSrc, replyAvatarSrc } from "../../chat/faces";
 import { homeGreeting } from "../../chat/home-greeting";
 import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
-import { chatRequestLimits, parseChatReply, toProviderMessages } from "../../chat/request";
+import { chatRequestLimits, parseChatCalls, parseChatReply, toProviderMessages } from "../../chat/request";
 import { useDictation } from "../../chat/speech";
 import "./chat.css";
 
@@ -29,13 +30,9 @@ type UiMessage =
     }
   | {
       readonly id: string;
-      readonly role: "agent";
+      readonly role: "agent" | "error";
       readonly content: string;
-    }
-  | {
-      readonly id: string;
-      readonly role: "error";
-      readonly content: string;
+      readonly calls?: EmergencyCalls | undefined;
     };
 
 type BackExit = "idle" | "playing" | "done";
@@ -365,7 +362,8 @@ export default function ChatPage(props: {
         return;
       }
       if (!response.ok) {
-        pushReply("error", errorText(payload));
+        const calls = response.status === 502 ? parseChatCalls(payload) : undefined;
+        pushReply("error", errorText(payload), calls);
         setExchange("failed");
         return;
       }
@@ -376,7 +374,7 @@ export default function ChatPage(props: {
         return;
       }
       setDemo(reply.mocked);
-      pushReply("agent", reply.reply);
+      pushReply("agent", reply.reply, reply.calls);
       setExchange("rendering");
     } catch {
       if (conversation.current !== ticket) {
@@ -391,11 +389,11 @@ export default function ChatPage(props: {
     }
   }
 
-  function pushReply(role: "agent" | "error", content: string) {
+  function pushReply(role: "agent" | "error", content: string, calls?: EmergencyCalls) {
     if (!pinned.current) {
       setUnseenReply(true);
     }
-    setMessages((current) => [...current, { id: newMessageId(), role, content }]);
+    setMessages((current) => [...current, { id: newMessageId(), role, content, calls }]);
   }
 
   const composer = (
@@ -593,8 +591,9 @@ export default function ChatPage(props: {
                 ) : message.role === "error" ? (
                   <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
-                    <div className="chat-error" role="alert">
-                      {message.content}
+                    <div className="chat-error">
+                      <span role="alert">{message.content}</span>
+                      <EmergencyCallActions calls={message.calls} />
                     </div>
                   </li>
                 ) : (
@@ -604,6 +603,7 @@ export default function ChatPage(props: {
                       <div className="chat-agent-text">
                         <ChatMarkdown text={message.content} />
                       </div>
+                      <EmergencyCallActions calls={message.calls} />
                     </div>
                   </li>
                 ),
@@ -649,6 +649,22 @@ export default function ChatPage(props: {
         )}
       </div>
     </main>
+  );
+}
+
+function EmergencyCallActions({ calls }: { readonly calls: EmergencyCalls | undefined }) {
+  if (calls === undefined) {
+    return null;
+  }
+  return (
+    <div className="chat-emergency-calls">
+      {calls.map(({ number }) => (
+        <a key={number} href={`tel:${number}`}>
+          <PhoneIcon />
+          Appeler le {number}
+        </a>
+      ))}
+    </div>
   );
 }
 

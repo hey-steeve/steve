@@ -134,11 +134,15 @@ export function parseChatReply(body: unknown): ChatReply {
   ) {
     return { kind: "invalid" };
   }
-  const calls = parseCalls(field(body, "calls"));
+  const calls = parseChatCalls(body);
   if (calls === undefined) {
     return { kind: "ok", reply, mocked, model };
   }
   return { kind: "ok", reply, mocked, model, calls };
+}
+
+export function parseChatCalls(body: unknown): EmergencyCalls | undefined {
+  return isRecord(body) ? parseCalls(field(body, "calls")) : undefined;
 }
 
 function isUserConversation(turns: readonly ChatTurn[]): boolean {
