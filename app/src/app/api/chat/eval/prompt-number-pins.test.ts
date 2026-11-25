@@ -15,8 +15,21 @@ const mismatchFailure = (
   `numbers mismatch (row [${row.join(", ")}], detected [${detected.join(", ")}]): "${sentence}"`;
 const unpinnedFailure = (detected: readonly string[], sentence: string): string =>
   `unpinned number sentence (detected [${detected.join(", ")}]): "${sentence}"`;
+const outOfOrderFailure = (sentence: string): string =>
+  `out of order: "${sentence}" appears before the previous row's sentence`;
 const splitFailure = (span: string, kind: string): string =>
   `split across sentences: "${span}" (${kind}) crosses a sentence boundary`;
+
+const pair3114Then15 =
+  "Pour le 3114 puis le 15, tu écris « Appelle le 3114 maintenant. » puis « Appelle le 15 maintenant. ».";
+const pair15Then3114 =
+  "Pour le 15 puis le 3114, tu écris « Appelle le 15 maintenant. » puis « Appelle le 3114. ».";
+
+const refuse112Lead = "Tu ne donnes jamais le 112 ni SOS Médecins.";
+const refuse112Follow =
+  "Si tu les nommes, chaque phrase de ta réponse est une phrase d'appel autorisée ou exactement « Je ne te donne pas le 112. », « Je ne te donne pas SOS Médecins. », « Je ne peux pas te conseiller de médicament. » ou « Demande conseil à un pharmacien ou à un médecin. ».";
+const lastRule =
+  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation.";
 
 const general15Head =
   "Tu ne donnes le 15 que pour une vraie urgence ou quand une règle ci-dessous l'exige, c'est-à-dire des signes de gravité, une surdose, une automutilation, un danger immédiat,";
@@ -128,6 +141,32 @@ const mutations: readonly Mutation[] = [
         row.sentence === samePhrase ? { ...row, numbers: ["3114", "15"] } : row,
       ),
     failures: [mismatchFailure(["3114", "15"], ["15", "3114"], samePhrase)],
+  },
+  {
+    name: "order, two adjacent pinned sentences swapped",
+    prompt: (live) =>
+      replaceOnce(live, `${pair3114Then15} ${pair15Then3114}`, `${pair15Then3114} ${pair3114Then15}`),
+    failures: [outOfOrderFailure(pair15Then3114)],
+  },
+  {
+    name: "order, a pinned sentence moved to an earlier rule line",
+    prompt: (live) =>
+      replaceOnce(
+        replaceOnce(live, `${samePhrase} `, ""),
+        "Tu tutoies.",
+        `Tu tutoies. ${samePhrase}`,
+      ),
+    failures: [outOfOrderFailure(samePhrase)],
+  },
+  {
+    name: "order, a pinned sentence moved to a later rule line",
+    prompt: (live) =>
+      replaceOnce(
+        replaceOnce(live, `${refuse112Lead} `, ""),
+        lastRule,
+        `${lastRule} ${refuse112Lead}`,
+      ),
+    failures: [outOfOrderFailure(refuse112Follow)],
   },
   {
     name: "N5 split 112 as 1. 1. 2.",
@@ -256,4 +295,21 @@ it("keeps one row per sentence kind: 112, SOS Médecins, SAMU, and quinze", () =
     { sentence: "Le SAMU ou le quinze.", numbers: ["15", "15"] },
   ];
   expect(promptNumberPinFailures(text, rows)).toEqual([]);
+});
+
+it("checks order only among rows that matched exactly once", () => {
+  const text = "Appelle le 3114.\nAppelle le 15.\nAppelle le 15.\nAppelle le 112.";
+  const row3114: PromptNumberRow = { sentence: "Appelle le 3114.", numbers: ["3114"] };
+  const row15: PromptNumberRow = { sentence: "Appelle le 15.", numbers: ["15"] };
+  const row112: PromptNumberRow = { sentence: "Appelle le 112.", numbers: ["112"] };
+  const stale: PromptNumberRow = { sentence: "Appelle le SAMU.", numbers: ["15"] };
+  expect(promptNumberPinFailures(text, [row3114, row15, row112])).toEqual([
+    duplicateFailure(2, row15.sentence),
+  ]);
+  expect(promptNumberPinFailures(text, [row112, stale, row3114])).toEqual([
+    staleFailure(stale.sentence),
+    outOfOrderFailure(row3114.sentence),
+    unpinnedFailure(["15"], row15.sentence),
+    unpinnedFailure(["15"], row15.sentence),
+  ]);
 });

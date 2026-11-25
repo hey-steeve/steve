@@ -57,8 +57,10 @@ function splitSentences(text: string): Sentence[] {
   return sentences;
 }
 
-// Failure order: split numbers, then one entry per row in row order (stale,
-// duplicate, or numbers mismatch), then unpinned sentences in prompt order.
+// Failure order: split numbers, then entries per row in row order (stale, duplicate,
+// numbers mismatch, then out of order), then unpinned sentences in prompt order.
+// Order is checked only among rows that matched exactly once. Each such row must sit
+// after the previous such row in the prompt, so the table reads like the prompt.
 export function promptNumberPinFailures(
   promptText: string,
   rows: readonly PromptNumberRow[],
@@ -84,6 +86,7 @@ export function promptNumberPinFailures(
     }
     inside.set(owner, [...(inside.get(owner) ?? []), span.kind]);
   }
+  let previousStart = -1;
   for (const row of rows) {
     const matches = sentences.filter((sentence) => sentence.text === row.sentence);
     const [only] = matches;
@@ -101,6 +104,12 @@ export function promptNumberPinFailures(
         `numbers mismatch (row [${row.numbers.join(", ")}], detected [${detected.join(", ")}]): "${row.sentence}"`,
       );
     }
+    if (only.start < previousStart) {
+      failures.push(
+        `out of order: "${row.sentence}" appears before the previous row's sentence`,
+      );
+    }
+    previousStart = only.start;
   }
   for (const sentence of sentences) {
     const detected = inside.get(sentence);
