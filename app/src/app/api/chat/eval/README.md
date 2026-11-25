@@ -71,6 +71,6 @@ That command is `node --import ./src/app/api/chat/eval/register.mjs ./src/app/ap
 
 The command does not call the model. It scores each saved reply with the current checker and the current case flags. It decodes a JSON reply before scoring. A saved line that does not start with a quote is scored as stored. It prints the same status lines, the saved reply line unchanged, and the same summary. The process exits 1 if any file has a failure or an error.
 
-Rescore ignores header lines. A trimmed line that starts with `# ` is never an entry, so a run file may begin with the four run headers. Rescore does not print them back.
+Rescore skips header lines. A header is a line that is `#` alone or `#` followed by whitespace, after trimming the line. `#foo` is not a header. Rescore skips a header only where an entry could start, such as the top of the file or between two entries. The line right after a `PASS` or `FAIL` status line is always read as that entry's reply, even when it starts with `# `. A run file may therefore begin with the four run headers. Rescore does not print the headers back.
 
 The old runner cut a reply at 400 characters and ended that line with `…`. That saved reply is an error. Rescore does not score the visible text, and the command does not exit 0. A shorter reply that ends with `…` is not a cut. A status line with no reply line after it is an error.
