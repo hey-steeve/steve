@@ -633,3 +633,33 @@ it("states the safety sentence once, with the 15 and then the 3114", () => {
     "En cas d'urgence, appelle le 15. Si tu as des idées suicidaires, appelle le 3114.",
   );
 });
+
+// The checker scans the whole reply, so a 112 split across a newline and a joined "SOSMédecins"
+// must be stripped here too, even though no single sentence names them.
+const splitSpellings = [
+  { label: "112 split across a newline", forbidden: "Appelle le 1\n12.", other: "Reste au chaud." },
+  { label: "112 split across a sentence end", forbidden: "Appelle le 1.\n12", other: "Reste au chaud." },
+  { label: "joined SOSMédecins", forbidden: "Appelle SOSMédecins.", other: "Reste au chaud." },
+] as const;
+
+it("strips 112 and SOS Médecins spellings that cross a sentence boundary or are joined", () => {
+  for (const item of splitSpellings) {
+    const reply = `${item.other}\n${item.forbidden}\nBois de l'eau.`;
+    const open = withoutOtherServices(reply);
+    expect(open, item.label).toContain(item.other);
+    expect(open, item.label).toContain("Bois de l'eau.");
+    expect(checkEmergencyReply(open, []).pass, `${item.label}: ${open}`).toBe(true);
+    for (const calls of [["15"], ["3114", "15"]] as const) {
+      const output = ensureEmergencyCalls(`${call15Now}\n${reply}`, [...calls]);
+      const checked = checkEmergencyReply(output, [...calls]);
+      expect(checked.pass, `${item.label} ${calls.join(",")}: ${output} ${checked.reason}`).toBe(true);
+    }
+  }
+});
+
+it("keeps the exact refusals while stripping a split 112 beside them", () => {
+  expect(withoutOtherServices(`${refusal112} Appelle le 1\n12. Reste calme.`)).toBe(
+    `${refusal112} Reste calme.`,
+  );
+  expect(withoutOtherServices(`${refusalSos} Appelle SOSMédecins.`)).toBe(refusalSos);
+});

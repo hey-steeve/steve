@@ -228,7 +228,7 @@ export function ensureEmergencyCalls(
 // reports. Only an emergency opening strips them, see `ensureEmergencyCalls`.
 export function withoutOtherServices(reply: string): string {
   const pieces = rawPieces(reply);
-  const dropped = new Set<number>();
+  const dropped = crossingServicePieces(pieces);
   for (let index = 0; index < pieces.length; index += 1) {
     const sentence = pieces[index]?.sentence ?? "";
     if (isRefusalSentence(sentence)) {
@@ -295,6 +295,7 @@ function physical15OpeningSettled(reply: string): boolean {
 function rebuildPhysical15(reply: string): string {
   const pieces = rawPieces(reply);
   const moved: string[] = [];
+  const crossing = crossingServicePieces(pieces);
   const dropped = new Set<number>();
   for (let index = 0; index < pieces.length; index += 1) {
     const sentence = pieces[index]?.sentence ?? "";
@@ -314,7 +315,7 @@ function rebuildPhysical15(reply: string): string {
       dropThroughTail(dropped, pieces, index);
       continue;
     }
-    if (namesNumber(sentence)) {
+    if (namesNumber(sentence) || crossing.has(index)) {
       dropped.add(index);
     }
   }
@@ -324,7 +325,9 @@ function rebuildPhysical15(reply: string): string {
 
 function physicalBodyNamesNumbers(reply: string): boolean {
   let fifteens = 0;
-  for (const piece of rawPieces(reply)) {
+  const pieces = rawPieces(reply);
+  const crossing = crossingServicePieces(pieces);
+  for (const [index, piece] of pieces.entries()) {
     const normalized = normalizeEmergencyText(piece.sentence);
     if (normalized.length === 0 || isListeningTailText(normalized) || isExact3114Text(normalized)) {
       continue;
@@ -333,7 +336,7 @@ function physicalBodyNamesNumbers(reply: string): boolean {
       fifteens += 1;
       continue;
     }
-    if (namesNumber(piece.sentence)) {
+    if (namesNumber(piece.sentence) || crossing.has(index)) {
       return true;
     }
   }
@@ -342,7 +345,9 @@ function physicalBodyNamesNumbers(reply: string): boolean {
 
 function bodyNamesNumbers(reply: string, openingSentences: number): boolean {
   let seen = 0;
-  for (const piece of rawPieces(reply)) {
+  const pieces = rawPieces(reply);
+  const crossing = crossingServicePieces(pieces);
+  for (const [index, piece] of pieces.entries()) {
     if (piece.sentence.length === 0) {
       continue;
     }
@@ -351,7 +356,7 @@ function bodyNamesNumbers(reply: string, openingSentences: number): boolean {
       continue;
     }
     const normalized = normalizeEmergencyText(piece.sentence);
-    if (exactCallTemplates.has(normalized) || namesNumber(piece.sentence)) {
+    if (exactCallTemplates.has(normalized) || namesNumber(piece.sentence) || crossing.has(index)) {
       return true;
     }
   }
@@ -360,6 +365,7 @@ function bodyNamesNumbers(reply: string, openingSentences: number): boolean {
 
 function withoutExactCallTemplates(reply: string): string {
   const pieces = rawPieces(reply);
+  const crossing = crossingServicePieces(pieces);
   const dropped = new Set<number>();
   for (let index = 0; index < pieces.length; index += 1) {
     const sentence = pieces[index]?.sentence ?? "";
@@ -370,7 +376,7 @@ function withoutExactCallTemplates(reply: string): string {
       dropThroughTail(dropped, pieces, index);
       continue;
     }
-    if (namesNumber(sentence)) {
+    if (namesNumber(sentence) || crossing.has(index)) {
       dropped.add(index);
     }
   }
@@ -557,6 +563,45 @@ function names15(text: string): boolean {
       return !isDurationUse(text, start, start + hit[0].length);
     }),
   );
+}
+
+// The checker scans the whole reply, so a 112 split across a newline or a sentence end ("1\n12")
+// and a joined "SOSMédecins" name a service though no single sentence does. Mirrors check.ts `scan`
+// (check.ts:822-829): 112 and SOS (with an optional "médecins" and any gap) on the whole text.
+// Each match maps back to every sentence piece it touches, and those pieces are dropped. A match
+// that sits inside one exact refusal sentence is that refusal itself, so it stays.
+const wholeServicePatterns = [
+  ...patterns112,
+  pattern(`(?<!\\p{L})s${gap}o${gap}s(?:${gap}m[eé]decins?)?(?!\\p{L})`),
+];
+
+function crossingServicePieces(pieces: readonly RawPiece[]): Set<number> {
+  const ranges: { start: number; end: number }[] = [];
+  let text = "";
+  for (const piece of pieces) {
+    const start = text.length;
+    text += normalizeEmergencyText(piece.raw);
+    ranges.push({ start, end: text.length });
+    text += "\n";
+  }
+  const touched = new Set<number>();
+  for (const item of wholeServicePatterns) {
+    for (const hit of text.matchAll(new RegExp(item.source, "gu"))) {
+      const start = hit.index ?? 0;
+      const end = start + hit[0].length;
+      const inside = ranges.flatMap((range, index) =>
+        range.start < end && start < range.end ? [index] : [],
+      );
+      const only = inside.length === 1 ? inside[0] : undefined;
+      if (only !== undefined && isRefusalSentence(pieces[only]?.sentence ?? "")) {
+        continue;
+      }
+      for (const index of inside) {
+        touched.add(index);
+      }
+    }
+  }
+  return touched;
 }
 
 function namesNumber(sentence: string): boolean {
