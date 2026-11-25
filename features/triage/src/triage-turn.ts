@@ -47,11 +47,11 @@ export type TriageDecision =
 // `jev.ts` sets no input limit, only a 1500 ms timeout. So the state is bounded here.
 //
 // 8 000 characters holds a whole usual conversation and stays a small request body. When the turns
-// exceed it, the current turn is kept whole, then the latest turns fill up to half the budget, then
+// exceed it, the current turn is kept whole, then the previous turn is kept whenever it fits with
+// the current one, even past half the budget. Then the latest turns fill up to half the budget, then
 // the first turns take what is left. The first turns are where a person states the reason they came,
 // and the latest ones are what they say now. Any budget the first turns leave unused goes back to
-// older latest turns, so a turn is never dropped while keeping it fits (a fixed half for each side
-// wasted unused head room and could drop the turn right before the current one). The middle is
+// older latest turns, so a turn is never dropped while keeping it fits. The middle is
 // dropped as whole turns, and no turn is cut. Every newline is counted, and the first turns only get
 // the room left after the latest turns, so the state never exceeds the budget. The one exception is
 // a current turn that alone exceeds it: it is kept whole and nothing else is sent. No text is read to decide what stays. The rule is position and length only.
@@ -68,6 +68,11 @@ function stateText(turns: readonly Turn[]): string {
 
   let tailStart = texts.length - 1;
   let tailUsed = lengthAt(tailStart);
+  // The previous turn comes right after the current one, ahead of the half-budget rule and the head.
+  if (tailStart > 0 && tailUsed + lengthAt(tailStart - 1) + 1 <= triageStateCharBudget) {
+    tailUsed += lengthAt(tailStart - 1) + 1;
+    tailStart -= 1;
+  }
   while (tailStart > 0 && tailUsed + lengthAt(tailStart - 1) + 1 <= half) {
     tailUsed += lengthAt(tailStart - 1) + 1;
     tailStart -= 1;

@@ -198,6 +198,25 @@ it("drops only the middle turns that do not fit and keeps the first and the prev
   expect(state.length).toBeLessThanOrEqual(triageStateCharBudget + 1);
 });
 
+it("keeps the previous turn over older head turns whenever it fits with the current one", async () => {
+  const lengths = [1000, 3600, 3001];
+  const texts = lengths.map((length, index) => `${index}:${"x".repeat(length - 2)}`);
+  const current = `3:${"x".repeat(998)}`;
+  const state = await stateSeen(careHandoff(current, earlier(texts)));
+  expect(state).toBe([texts[0], texts[2], current].join("\n"));
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget);
+});
+
+it("drops a previous turn that cannot fit with the current turn and holds the cap", async () => {
+  const first = `0:${"a".repeat(998)}`;
+  const previous = `1:${"b".repeat(3498)}`;
+  const current = `2:${"c".repeat(4998)}`;
+  const state = await stateSeen(careHandoff(current, earlier([first, previous])));
+  expect(state).not.toContain(previous);
+  expect(state).toBe([first, current].join("\n"));
+  expect(state.length).toBeLessThanOrEqual(triageStateCharBudget);
+});
+
 it("keeps the current turn whole even when it alone exceeds the budget", async () => {
   const long = `Dernier message: ${"z".repeat(triageStateCharBudget + 500)}`;
   const state = await stateSeen(careHandoff(long, earlier(["Un.", "Deux."])));

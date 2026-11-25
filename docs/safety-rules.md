@@ -73,13 +73,13 @@ The patient-facing sentences live in `app/src/app/api/chat/emergency-templates.t
 
 The live reply uses the Jev call list, then `ensureEmergencyCalls`.
 
-`triageTurn` returns `{ label: "emergency", calls: result.calls }` when the label is emergency (`features/triage/src/triage-turn.ts:97`).
+`triageTurn` returns `{ label: "emergency", calls: result.calls }` when the label is emergency (`features/triage/src/triage-turn.ts:157-158`).
 
-When `triage.calls` is present, the route passes the model reply through `ensureEmergencyCalls` (`app/src/app/api/chat/route.ts:191-198`). The numbers are `calls.map((call) => call.number)`.
+When `triage.calls` is present, the route passes the model reply through `ensureEmergencyCalls` (`app/src/app/api/chat/route.ts:194-201`). The numbers are `calls.map((call) => call.number)`.
 
 `ensureEmergencyCalls` reads that list (`app/src/app/api/chat/emergency-templates.ts:201-219`). If the list includes 15, and the list is not a lone 15, `templatesFor` builds the opening sentences (`emergency-templates.ts:221-228`). A list that is only 15 takes `keepsModel3114` (`emergency-templates.ts:208`, `emergency-templates.ts:238-239`). For `[3114, 15]` the sentences are `call3114Now`, then `call15Now`. If the reply, after `normalizeEmergencyText`, does not already start with those sentences, the function prefixes them (`emergency-templates.ts:214-218`). `startsWithTemplates` compares each normalized sentence with the normalized template (`emergency-templates.ts:231-235`).
 
-On model failure, a list that includes 15 uses `ensureEmergencyCalls("", numbers)` (`app/src/app/api/chat/route.ts:218-219`).
+On model failure, a list that includes 15 uses `ensureEmergencyCalls("", numbers)` (`app/src/app/api/chat/route.ts:216-222`).
 
 When Jev returns both numbers, both sentences are shown live. The order follows the call list.
 
@@ -112,7 +112,7 @@ Doubt asks one short question or recommends a consult (`app/src/app/api/chat/sys
 
 Medication advice is advisory. The check runs only when the case sets `forbidMedication` (`check.ts:627`). Today only chat `pushback` sets it. `pass` and `evalExitCode` ignore the advisory.
 
-Jev's state is every user turn, up to about `triageStateCharBudget` (8000 characters), joined by a newline. The budget is a cap, counting every newline, except a lone current turn longer than it, which is sent whole and alone. Above the cap, the latest turns fill up to half the budget, and the first turns take only the room left, as whole turns. Budget the first turns leave unused goes back to the older turns before the latest ones. An older turn is kept only while it fits, so the previous turn is not guaranteed when the first turns fill the head (`features/triage/src/triage-turn.ts:41-99`, `features/triage/src/triage-turn.test.ts:120-240`). Assistant turns stay out of the state. A short answer to a Steve question reaches Jev without the question.
+Jev's state is every user turn, up to about `triageStateCharBudget` (8000 characters), joined by a newline. The budget is a cap, counting every newline, except a lone current turn longer than it, which is sent whole and alone. Above the cap, the latest turns fill up to half the budget, and the first turns take only the room left, as whole turns. Budget the first turns leave unused goes back to the older turns before the latest ones. An older turn is kept only while it fits, so the previous turn is not guaranteed when the first turns fill the head (`features/triage/src/triage-turn.ts:58-104`, `features/triage/src/triage-turn.test.ts:120-260`). Assistant turns stay out of the state. A short answer to a Steve question reaches Jev without the question.
 
 ## Rule index
 
@@ -152,7 +152,7 @@ Jev's state is every user turn, up to about `triageStateCharBudget` (8000 charac
 | SAFE-29 | When Jev returns 3114, then 15, the live reply shows Appelle le 3114 maintenant. then Appelle le 15 maintenant. ensureEmergencyCalls prefixes both sentences when the reply does not already start with them. Model failure uses the same pair. | checked | test:app/src/app/api/chat/route.test.ts, test:app/src/app/api/chat/emergency-templates.test.ts |
 | SAFE-30 | Doubt asks one short question or recommends a consult. The prompt does not say to call 15 when in doubt. | prompt-only | test:app/src/app/api/chat/route.test.ts |
 | SAFE-31 | The detector hits in the static `systemPrompt` and in the triage guidance texts are pinned word for word in two tables. Each prompt sentence that names 15, 3114, 112, or SOS Médecins has one row with its numbers. Each guidance text has one row with its whole text and its detector numbers. `triageGuidances` closes the guidance set at the type level, so a computed or new text is a type error. An edited, duplicated, stale, or unpinned entry fails. The prompt also fails when a number is split across sentences, when a number span holds a sentence mark, when a « stays open or a » has no «, or when rows are out of prompt order. The prompt and each guidance text also fail when they are not 1:1 under the emergency normalization. | prompt-only | test:app/src/app/api/chat/eval/prompt-number-pins.test.ts, test:app/src/app/api/chat/eval/triage-guidance-pins.test.ts, test:features/triage/src/triage-guidance-closed.test.ts |
-| SAFE-32 | Jev sees every user turn of the conversation, up to about 8000 characters. The budget is a cap, counting every newline, except a lone current turn longer than it, which is sent whole and alone. Above the cap, the latest turns fill up to half, and the first turns take only the room left, as whole turns. Budget the first turns leave unused goes to older turns before the latest ones. An older turn is kept only while it fits, so the previous turn is not guaranteed when the first turns fill the head. A risk sentence 7 or more user turns back still reaches the classifier. | checked | test:features/triage/src/triage-turn.test.ts, test:app/src/app/api/chat/route.test.ts |
+| SAFE-32 | Jev sees every user turn of the conversation, up to about 8000 characters. The budget is a cap, counting every newline, except a lone current turn longer than it, which is sent whole and alone. Above the cap, the previous turn is kept whenever current + previous fit the budget, then the latest turns fill up to half, and the first turns take only the room left, as whole turns. Budget the first turns leave unused goes to older turns before the latest ones. An older turn is kept only while it fits. A risk sentence 7 or more user turns back reaches the classifier when the submitted turns fit the budget, or when it sits in the first or latest turns kept. Over the budget a risk turn in the middle is dropped, and the client sends at most the last 20 user turns (`app/src/chat/request.ts:114-117`). | checked | test:features/triage/src/triage-turn.test.ts, test:app/src/app/api/chat/route.test.ts |
 <!-- /safety-rules:ids -->
 
 ## Inspiration

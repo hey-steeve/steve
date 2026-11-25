@@ -23,7 +23,7 @@ import {
 import { triageCases } from "../features/triage/eval/cases.ts";
 import { triageGateFailed, type TriageSample } from "../features/triage/eval/metrics.ts";
 import { classify } from "../features/triage/src/jev.ts";
-import { triageTurn } from "../features/triage/src/triage-turn.ts";
+import { triageStateCharBudget, triageTurn } from "../features/triage/src/triage-turn.ts";
 import type {
   ClassifyResult,
   EmergencyNumber as TriageNumber,
@@ -100,10 +100,20 @@ type GuardExample = {
   // triageTurn: the earlier user turns, oldest first, and the sentence that must reach the state.
   readonly earlierTurns?: readonly string[];
   readonly mustReach?: string;
+  readonly overBudget?: OverBudgetState;
   readonly probes?: readonly ClassifyProbe[];
   readonly loads?: readonly PayloadLoad[];
   readonly expectedNumbers?: readonly TriageNumber[];
   readonly defaultTimeoutMs?: number;
+};
+
+// triageTurn over budget: the earlier turns, the middle turn that must be dropped, the turns that
+// must stay, and the state cap.
+type OverBudgetState = {
+  readonly earlierTurns: readonly string[];
+  readonly mustDrop: string;
+  readonly mustKeep: readonly string[];
+  readonly maxState: number;
 };
 
 type CheckedExample =
@@ -125,6 +135,7 @@ type CheckedExample =
       readonly through: readonly ["triageTurn"];
       readonly earlierTurns: readonly string[];
       readonly mustReach: string;
+      readonly overBudget?: OverBudgetState;
     }
   | {
       readonly through: readonly ["classify"];
@@ -708,18 +719,18 @@ function ensureProblem(example: GuardExample): string | undefined {
   return "ensureEmergencyCalls did not prefix 3114 then 15.";
 }
 
-async function stateWindowProblem(example: GuardExample): Promise<string | undefined> {
-  const turns = [...(example.earlierTurns ?? []), "Message actuel."].map((text, index) => ({
+async function classifierState(earlierTurns: readonly string[]): Promise<string> {
+  const turns = [...earlierTurns, "Message actuel."].map((text, index) => ({
     sessionId: "safety-rules",
     turnId: `turn-${index}`,
     channel: "text" as const,
     text,
   }));
   const current = turns[turns.length - 1];
-  if (current === undefined || example.mustReach === undefined) {
-    return "declares triageTurn but the example never calls it.";
-  }
   let seen = "";
+  if (current === undefined) {
+    return seen;
+  }
   await triageTurn({
     handoff: {
       sessionId: current.sessionId,
@@ -733,9 +744,32 @@ async function stateWindowProblem(example: GuardExample): Promise<string | undef
       return { label: "self-care", probability: 0.7 };
     },
   });
-  return seen.includes(example.mustReach)
-    ? undefined
-    : "triageTurn dropped the earlier risk sentence from the classifier state.";
+  return seen;
+}
+
+async function stateWindowProblem(example: GuardExample): Promise<string | undefined> {
+  if (example.mustReach === undefined) {
+    return "declares triageTurn but the example never calls it.";
+  }
+  const seen = await classifierState(example.earlierTurns ?? []);
+  if (!seen.includes(example.mustReach)) {
+    return "triageTurn dropped the earlier risk sentence from the classifier state.";
+  }
+  const over = example.overBudget;
+  if (over === undefined) {
+    return undefined;
+  }
+  const state = await classifierState(over.earlierTurns);
+  if (state.includes(over.mustDrop)) {
+    return "triageTurn kept a middle turn that should be dropped over budget.";
+  }
+  if (over.mustKeep.some((turn) => !state.includes(turn))) {
+    return "triageTurn dropped the first, previous or current turn over budget.";
+  }
+  if (state.length > over.maxState) {
+    return "triageTurn state is over the character budget.";
+  }
+  return undefined;
 }
 
 function classifyRejected(reject: ClassifyReject, result: ClassifyResult): boolean {
@@ -1192,6 +1226,12 @@ function checkedExamples(): ReadonlyMap<string, CheckedExample> {
           "Sept.",
         ],
         mustReach: "J'ai des idées noires.",
+        overBudget: {
+          earlierTurns: ["J'ai des idées noires.", "x".repeat(7990), "Tour précédent."],
+          mustDrop: "x".repeat(100),
+          mustKeep: ["J'ai des idées noires.", "Tour précédent.", "Message actuel."],
+          maxState: triageStateCharBudget,
+        },
       },
     ],
   ]);
