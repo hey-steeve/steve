@@ -18,7 +18,7 @@ import {
   type SocketHandlers,
   type SocketLike,
 } from "./realtime-socket";
-import { mockSecretValue } from "./session-secret";
+import { mockSecretValue } from "./mock-session";
 
 const TOKEN = "test-token-value";
 const json: VoiceTuning = {
@@ -135,7 +135,7 @@ describe("handshake", () => {
       onAudio: () => undefined,
       createSocket: factory,
     });
-    expect(factory).not.toHaveBeenCalled();
+    expect(factory.mock.calls.length === 0).toBe(true);
     expect(handle.mock).toBe(true);
     handle.sendAudio(new Uint8Array(2));
     handle.close();

@@ -5,7 +5,7 @@ import {
   type ServerEvent,
   type VoiceTuning,
 } from "@steve/voice";
-import { mockSecretValue } from "./session-secret";
+import { mockSecretValue } from "./mock-session";
 
 export const REALTIME_URL = `wss://api.x.ai/v1/realtime?model=${VOICE_MODEL}`;
 export const SUBPROTOCOL_PREFIX = "xai-client-secret.";
