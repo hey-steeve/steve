@@ -189,3 +189,14 @@ it("drops a finished fullwidth-period sentence instead of repeating it", () => {
   expect(out).toBe(ensureEmergencyCalls(row?.reply ?? "", ["15"]));
   expect(out.split("Appelle le 15 maintenant").length - 1).toBe(1);
 });
+
+it("does not put back a finished 15 sentence the call list does not ask for", () => {
+  const reply =
+    "Garde ton téléphone. Tu peux appeler le 3114\npour en parler. Appelle le 15 maintenant.";
+  const out = ensureEmergencyCallsSafe(reply, ["3114"]);
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out.indexOf("Tu peux appeler le 3114")).toBeGreaterThanOrEqual(0);
+  expect(out.indexOf("Tu peux appeler le 3114")).toBeLessThan(out.indexOf("pour en parler."));
+  expect(out).not.toContain("téléphone.pour");
+  expect(out).not.toContain("Appelle le 15 maintenant");
+});

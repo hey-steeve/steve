@@ -4,6 +4,7 @@ import {
   joinPrefix,
   normalizeEmergencyText,
   opensWithCallBlocks,
+  withoutFinishedLoneSentences,
 } from "./emergency-templates";
 import { detectEmergencyNumbers } from "./eval/check";
 
@@ -73,5 +74,15 @@ export function ensureEmergencyCallsSafe(
   if (read112(body) === read112(reply) && !cutsSentence(reply, body)) {
     return rewritten;
   }
-  return opensWithCallBlocks(reply, calls) ? reply : joinPrefix(opening, reply);
+  const keepsOpening = opensWithCallBlocks(reply, calls);
+  const original = keepsOpening ? reply : joinPrefix(opening, reply);
+  const cleaned = keepsOpening
+    ? withoutFinishedLoneSentences(reply, calls, true)
+    : joinPrefix(opening, withoutFinishedLoneSentences(reply, calls, false));
+  return acceptsCleanup(reply, withoutOpening(cleaned, opening)) ? cleaned : original;
+}
+
+// The finished-sentence cleanup must neither change the 112 reading nor cut a sentence.
+function acceptsCleanup(reply: string, cleaned: string): boolean {
+  return read112(cleaned) === read112(reply) && !cutsSentence(reply, cleaned);
 }

@@ -513,6 +513,8 @@ function withoutExactCallTemplates(reply: string, opening: readonly CallBlock[])
 type LoneSentences = {
   readonly all: ReadonlySet<string>;
   readonly withNumber: readonly string[];
+  // Only sentences closed by their own punctuation count; an unpunctuated cut prefix stays.
+  readonly finishedOnly?: boolean;
 };
 
 function loneSentencesOf(blocks: readonly CallBlock[]): LoneSentences {
@@ -530,6 +532,9 @@ function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
   if (lone.all.has(norm)) {
     return true;
   }
+  if (lone.finishedOnly === true && !/[.!?…]["'»”)\s]*$/u.test(norm)) {
+    return false;
+  }
   const bare = norm.replace(/[.!?\s]+$/u, "");
   return (
     bare.length > 0 &&
@@ -539,6 +544,35 @@ function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
         sentence.startsWith(bare) && !/[\p{L}\p{N}]/u.test(sentence.charAt(bare.length)),
     )
   );
+}
+
+// A cut prefix with no closing punctuation, such as "Tu peux appeler le 3114", stays.
+const finishedAll: LoneSentences = { ...loneAll, finishedOnly: true };
+
+// Drops finished lone block sentences (quoted ones too) without touching cut
+// prefixes. With keepOpening, the leading required blocks of `calls` stay.
+export function withoutFinishedLoneSentences(
+  text: string,
+  calls: readonly EmergencyCall[],
+  keepOpening: boolean,
+): string {
+  const pieces = rawPieces(text);
+  let from = 0;
+  if (keepOpening) {
+    for (const template of templatesFor(calls)) {
+      const end = blockEnd(pieces, from, blockFor(template));
+      if (end === undefined) {
+        break;
+      }
+      from = end + 1;
+    }
+  }
+  const dropped = new Set<number>();
+  dropLoneBlockSentences(dropped, pieces, finishedAll);
+  for (let index = 0; index < from; index += 1) {
+    dropped.delete(index);
+  }
+  return keptRaw(pieces, dropped);
 }
 
 // The sentence boundary ends a piece before its closing quote, so a quoted
