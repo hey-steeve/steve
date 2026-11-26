@@ -2,9 +2,16 @@ import type { Handoff, Turn } from "@steve/shared";
 
 export type VoiceTurn = Turn & { readonly channel: "voice" };
 
+export type VoiceDecision = {
+  readonly turnId: string;
+  readonly label: "emergency" | "consult" | "self-care" | "need-info";
+};
+
 export type VoiceTriageRequest = {
   readonly current: VoiceTurn;
   readonly previous: readonly Turn[];
+  // App-only: Jev labels the client recorded for earlier turns, by turnId.
+  readonly decisions?: readonly VoiceDecision[];
 };
 
 export type VoiceTriageRequestResult =
@@ -64,31 +71,58 @@ export function buildHandoff(request: VoiceTriageRequest): Handoff<readonly Turn
     turnId: request.current.turnId,
     target: "triage",
     intent: "care_request",
-    data: fitStateBudget([...request.previous, request.current]),
+    data: fitStateBudget([...request.previous, request.current], request.decisions ?? []),
   };
 }
 
-// Voice-only budget: triageTurn joins the last 6 turns with "\n". Keep the current
-// turn, then older turns of that window while the joined state stays within the
-// budget; whatever does not fit is omitted from the head, separators included.
-function fitStateBudget(turns: readonly Turn[]): readonly Turn[] {
-  const window = turns.slice(-voiceTriageLimits.stateTurns);
+// Voice-only budget: triageTurn joins the last 6 turns with "\n". Always keep the
+// current turn and every earlier turn with a recorded emergency label, even if that
+// exceeds the budget. Fill the rest with the newest other turns (at most 6 turns in
+// all, joined state within the cap, separators included). Order is preserved.
+function fitStateBudget(
+  turns: readonly Turn[],
+  decisions: readonly VoiceDecision[],
+): readonly Turn[] {
+  const emergencies = new Set(
+    decisions.filter((d) => d.label === "emergency").map((d) => d.turnId),
+  );
+  const last = turns.length - 1;
+  const kept = new Set<number>();
   let length = 0;
-  let start = window.length;
-  for (let index = window.length - 1; index >= 0; index -= 1) {
-    const size = (window[index]?.text.length ?? 0) + (index === window.length - 1 ? 0 : 1);
-    if (index !== window.length - 1 && length + size > voiceTriageLimits.maxStateChars) {
+  turns.forEach((turn, index) => {
+    if (index === last || emergencies.has(turn.turnId)) {
+      kept.add(index);
+      length += turn.text.length;
+    }
+  });
+  length += Math.max(0, kept.size - 1);
+  for (let index = last - 1; index >= 0; index -= 1) {
+    if (kept.has(index)) continue;
+    const size = (turns[index]?.text.length ?? 0) + 1;
+    if (kept.size >= voiceTriageLimits.stateTurns || length + size > voiceTriageLimits.maxStateChars) {
       break;
     }
     length += size;
-    start = index;
+    kept.add(index);
   }
-  return window.slice(start);
+  return turns.filter((_, index) => kept.has(index));
 }
 
 export function parseVoiceTriageRequest(body: unknown): VoiceTriageRequest | null {
-  if (!hasExactKeys(body, ["current", "previous"])) {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return null;
+  }
+  const hasDecisions = Object.keys(body).includes("decisions");
+  if (!hasExactKeys(body, hasDecisions ? ["current", "previous", "decisions"] : ["current", "previous"])) {
+    return null;
+  }
+  let decisions: VoiceDecision[] | undefined;
+  if (hasDecisions) {
+    const parsed = parseDecisions(Reflect.get(body, "decisions"));
+    if (parsed === null) {
+      return null;
+    }
+    decisions = parsed;
   }
   const current = parseTurn(Reflect.get(body, "current"));
   if (current === null || current.channel !== "voice") {
@@ -107,7 +141,37 @@ export function parseVoiceTriageRequest(body: unknown): VoiceTriageRequest | nul
     }
     turns.push(turn);
   }
-  return { current: { ...current, channel: "voice" }, previous: turns };
+  return {
+    current: { ...current, channel: "voice" },
+    previous: turns,
+    ...(decisions ? { decisions } : {}),
+  };
+}
+
+function isLabel(value: unknown): value is VoiceDecision["label"] {
+  return (
+    value === "emergency" || value === "consult" || value === "self-care" || value === "need-info"
+  );
+}
+
+function parseDecisions(value: unknown): VoiceDecision[] | null {
+  if (!Array.isArray(value) || value.length > voiceTriageLimits.maxPrevious) {
+    return null;
+  }
+  const out: VoiceDecision[] = [];
+  const items: readonly unknown[] = value;
+  for (const item of items) {
+    if (!hasExactKeys(item, ["turnId", "label"])) {
+      return null;
+    }
+    const turnId: unknown = Reflect.get(item, "turnId");
+    const label: unknown = Reflect.get(item, "label");
+    if (!isId(turnId) || !isLabel(label)) {
+      return null;
+    }
+    out.push({ turnId, label });
+  }
+  return out;
 }
 
 async function readCapped(request: Request): Promise<Uint8Array | "too-large" | "unreadable"> {

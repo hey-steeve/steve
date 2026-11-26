@@ -818,12 +818,13 @@ describe("live call triage enforcement", () => {
     const requests: {
       current: { turnId: string; sessionId: string; text: string };
       previous: readonly { text: string }[];
+      decisions: readonly { turnId: string; label: string }[] | undefined;
       signal: AbortSignal;
       answer: (d: Decision | null) => void;
     }[] = [];
-    const triage: CallDeps["triage"] = (current, previous, signal) =>
+    const triage: CallDeps["triage"] = (current, previous, signal, decisions) =>
       new Promise((resolve) => {
-        requests.push({ current, previous, signal, answer: resolve });
+        requests.push({ current, previous, decisions, signal, answer: resolve });
       });
     return { requests, triage };
   }
@@ -849,6 +850,21 @@ describe("live call triage enforcement", () => {
     expect(g.requests[0]?.previous.map((t) => t.text)).toEqual(["h1", "h2"]);
     expect(g.requests[1]?.previous.map((t) => t.text)).toEqual(["h1", "h2", "first"]);
     expect(new Set(g.requests.map((r) => r.current.sessionId)).size).toBe(1);
+  });
+
+  it("sends recorded labels by turnId with the next triage request", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await h.ctl.start([{ role: "user", content: "h1" }]);
+    first(h.sockets).options.onOpen?.();
+    say(h, "t1", "first");
+    await flush();
+    expect(g.requests[0]?.decisions).toEqual([]);
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "second");
+    await flush();
+    expect(g.requests[1]?.decisions).toEqual([{ turnId: "t1", label: "emergency" }]);
   });
 
   it("skips triage when the port is omitted", async () => {

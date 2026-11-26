@@ -23,6 +23,15 @@ describe("fetchVoiceTriage", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ current, previous });
   });
 
+  it("forwards recorded decisions when there are any", async () => {
+    const f = reply({ turnId: "t1", decision: { label: "self-care" } });
+    vi.stubGlobal("fetch", f);
+    const decisions = [{ turnId: "h0", label: "emergency" }] as const;
+    await fetchVoiceTriage(current, [], signal, decisions);
+    const [, init] = f.mock.calls[0] ?? [];
+    expect(JSON.parse(String(init?.body))).toEqual({ current, previous: [], decisions });
+  });
+
   it.each([
     ["non-OK", reply({}, false)],
     ["malformed body", reply("nope")],

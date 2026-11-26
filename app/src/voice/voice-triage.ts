@@ -1,11 +1,12 @@
 import type { Turn } from "@steve/shared";
 import { triageGuidances, type EmergencyCalls, type TriageDecision } from "@steve/triage";
-import type { VoiceTurn } from "../app/api/voice/triage/request";
+import type { VoiceDecision, VoiceTurn } from "../app/api/voice/triage/request";
 
 export type VoiceTriage = (
   current: VoiceTurn,
   previous: readonly Turn[],
   signal: AbortSignal,
+  decisions?: readonly VoiceDecision[],
 ) => Promise<TriageDecision | null>;
 
 const c15 = { type: "call", number: "15" } as const;
@@ -59,14 +60,16 @@ export function parseDecision(value: unknown): TriageDecision | null {
   return null;
 }
 
-export const fetchVoiceTriage: VoiceTriage = async (current, previous, signal) => {
+export const fetchVoiceTriage: VoiceTriage = async (current, previous, signal, decisions) => {
   try {
     const response = await fetch("/api/voice/triage", {
       method: "POST",
       cache: "no-store",
       signal,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ current, previous }),
+      body: JSON.stringify(
+        decisions && decisions.length > 0 ? { current, previous, decisions } : { current, previous },
+      ),
     });
     if (!response.ok) return null;
     const body: unknown = await response.json();

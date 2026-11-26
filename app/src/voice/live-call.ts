@@ -14,7 +14,7 @@ import {
   type EmergencyCalls,
   type TriageDecision,
 } from "@steve/triage";
-import type { VoiceTurn } from "../app/api/voice/triage/request";
+import type { VoiceDecision, VoiceTurn } from "../app/api/voice/triage/request";
 import type { BrowserAudio, BrowserAudioOptions } from "./browser-audio";
 import { forcedSentences, type ForcedSentences } from "./voice-safety";
 import type { RealtimeSocket, RealtimeSocketOptions } from "./realtime-socket";
@@ -75,6 +75,7 @@ export type CallDeps = {
     current: VoiceTurn,
     previous: readonly Turn[],
     signal: AbortSignal,
+    decisions?: readonly VoiceDecision[],
   ) => Promise<TriageDecision | null>;
   readonly onThreadEvent?: (event: ThreadEvent) => void;
 };
@@ -103,6 +104,8 @@ type Call = {
   // Patient turns in order: start() history, then finalized in-call turns.
   readonly turns: Turn[];
   readonly asked: Set<string>;
+  // Recorded Jev labels by turnId, sent with the next triage request.
+  readonly decided: Map<string, VoiceDecision["label"]>;
   readonly forced: Set<string>;
   // Responses cut by an emergency. Their late audio is never played.
   readonly cancelled: Set<string>;
@@ -238,16 +241,23 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       text: text.slice(0, maxText),
     };
     const previous = c.turns.slice(-maxPrevious);
+    const decisions: VoiceDecision[] = previous.flatMap((t) => {
+      const label = c.decided.get(t.turnId);
+      return label === undefined ? [] : [{ turnId: t.turnId, label }];
+    });
     c.turns.push(current);
     if (!port || !live(c)) return;
     void (async () => {
       let decision: TriageDecision | null = null;
       try {
-        decision = await port(current, previous, c.abort.signal);
+        decision = await port(current, previous, c.abort.signal, decisions);
       } catch {
         // Fail closed.
       }
-      if (decision && live(c)) decide(c, audio, itemId, decision);
+      if (decision && live(c)) {
+        c.decided.set(itemId, decision.label);
+        decide(c, audio, itemId, decision);
+      }
     })();
   };
 
@@ -380,6 +390,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           text: m.content.slice(0, maxText),
         })),
       asked: new Set(),
+      decided: new Map(),
       forced: new Set(),
       cancelled: new Set(),
       guided: false,
