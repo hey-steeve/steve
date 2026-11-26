@@ -90,6 +90,30 @@ const ID_FIELDS: ReadonlySet<string> = new Set([
   "responseId",
 ]);
 
+function replaceLeakyField(
+  event: ServerEvent,
+  key: string,
+  replacement: string,
+): ServerEvent | undefined {
+  if (event.type === "error" && key === "message") {
+    return { ...event, message: replacement };
+  }
+  if (event.type === "session.updated" && key === "instructions") {
+    return { ...event, instructions: replacement };
+  }
+  if (
+    (event.type === "input.transcription_updated" ||
+      event.type === "input.transcription_completed") &&
+    key === "text"
+  ) {
+    return { ...event, text: replacement };
+  }
+  if (event.type === "response.audio_delta" && key === "delta") {
+    return { ...event, delta: replacement };
+  }
+  return undefined;
+}
+
 export function scrubServerEvent(
   event: ServerEvent,
   token: string,
@@ -105,7 +129,9 @@ export function scrubServerEvent(
         ? SERVER_ERROR_MESSAGE
         : REDACTED;
     if (replacement.includes(token)) return undefined;
-    out = { ...out, [key]: replacement } as ServerEvent;
+    const next = replaceLeakyField(out, key, replacement);
+    if (next === undefined) return undefined;
+    out = next;
   }
   return out;
 }
