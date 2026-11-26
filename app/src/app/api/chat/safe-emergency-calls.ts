@@ -1,5 +1,6 @@
 import {
   type EmergencyCall,
+  countFinishedLoneSentences,
   ensureEmergencyCalls,
   joinPrefix,
   normalizeEmergencyText,
@@ -34,19 +35,14 @@ const ender = /[.!?…]/u;
 const wrappers = /["'»”*_\s]+$/u;
 const opensLine = /[\p{L}\p{N},]$/u;
 const atxHeading = /^#{1,6}(?:\s|$)/u;
-const trailingParenthetical = /\([^()]*\)$/u;
 
-// An ATX heading and a line closed by a complete (...) are finished; a stray
-// closing ")" with no opener is a wrapper and gets stripped like a quote.
+// An ATX heading and a line ending with ")" (nested or stray) are finished.
 function isOpenLine(line: string): boolean {
   if (atxHeading.test(line.trim())) {
     return false;
   }
   const stripped = line.replace(wrappers, "");
-  if (trailingParenthetical.test(stripped)) {
-    return false;
-  }
-  return opensLine.test(stripped.replace(/\)+$/u, "").replace(wrappers, ""));
+  return !stripped.endsWith(")") && opensLine.test(stripped);
 }
 
 function escapeRegExp(text: string): string {
@@ -110,10 +106,21 @@ export function ensureEmergencyCallsSafe(
   }
   const keepsOpening = opensWithCallBlocks(reply, calls);
   const original = keepsOpening ? reply : joinPrefix(opening, reply);
-  const cleaned = keepsOpening
-    ? withoutFinishedLoneSentences(reply, calls, true)
-    : joinPrefix(opening, withoutFinishedLoneSentences(reply, calls, false));
-  return acceptsCleanup(reply, withoutOpening(cleaned, opening)) ? cleaned : original;
+  const render = (only: ReadonlySet<number>): string =>
+    keepsOpening
+      ? withoutFinishedLoneSentences(reply, calls, true, only)
+      : joinPrefix(opening, withoutFinishedLoneSentences(reply, calls, false, only));
+  // Drop each finished lone sentence on its own merit: one whose removal would
+  // cut a sentence stays, the others still go.
+  const total = countFinishedLoneSentences(reply, calls, keepsOpening);
+  const accepted = new Set<number>();
+  for (let ordinal = 0; ordinal < total; ordinal += 1) {
+    const trial = new Set(accepted).add(ordinal);
+    if (acceptsCleanup(reply, withoutOpening(render(trial), opening))) {
+      accepted.add(ordinal);
+    }
+  }
+  return accepted.size === 0 ? original : render(accepted);
 }
 
 // The finished-sentence cleanup must neither change the 112 reading nor cut a sentence.

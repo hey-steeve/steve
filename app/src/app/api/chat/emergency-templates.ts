@@ -557,7 +557,26 @@ export function withoutFinishedLoneSentences(
   text: string,
   calls: readonly EmergencyCall[],
   keepOpening: boolean,
+  only?: ReadonlySet<number>,
 ): string {
+  return finishedLoneCleanup(text, calls, keepOpening, only).text;
+}
+
+// How many finished lone sentences the cleanup can drop one by one.
+export function countFinishedLoneSentences(
+  text: string,
+  calls: readonly EmergencyCall[],
+  keepOpening: boolean,
+): number {
+  return finishedLoneCleanup(text, calls, keepOpening).count;
+}
+
+function finishedLoneCleanup(
+  text: string,
+  calls: readonly EmergencyCall[],
+  keepOpening: boolean,
+  only?: ReadonlySet<number>,
+): { readonly text: string; readonly count: number } {
   const pieces = rawPieces(text);
   let from = 0;
   if (keepOpening) {
@@ -570,11 +589,17 @@ export function withoutFinishedLoneSentences(
     }
   }
   const dropped = new Set<number>();
-  dropLoneBlockSentences(dropped, pieces, keepsModel3114(calls) ? finished15 : finishedAll);
+  const count = dropLoneBlockSentences(
+    dropped,
+    pieces,
+    keepsModel3114(calls) ? finished15 : finishedAll,
+    only,
+    from,
+  );
   for (let index = 0; index < from; index += 1) {
     dropped.delete(index);
   }
-  return keptRaw(pieces, dropped);
+  return { text: keptRaw(pieces, dropped), count };
 }
 
 // The sentence boundary ends a piece before its closing quote, so a quoted
@@ -614,14 +639,24 @@ function dropLoneBlockSentences(
   dropped: Set<number>,
   pieces: RawPiece[],
   lone: LoneSentences,
-): void {
-  for (let index = 0; index < pieces.length; index += 1) {
+  only?: ReadonlySet<number>,
+  firstIndex = 0,
+): number {
+  // Ordinals number the droppable sentences after the kept opening; `only`
+  // limits the drop to those.
+  let ordinal = 0;
+  for (let index = firstIndex; index < pieces.length; index += 1) {
     if (dropped.has(index)) {
       continue;
     }
     const quoted = unquotedLone(pieces, index, lone);
     const next = pieces[index + 1];
     if (quoted !== undefined && next !== undefined) {
+      const mine = ordinal;
+      ordinal += 1;
+      if (only !== undefined && !only.has(mine)) {
+        continue;
+      }
       const raw = withoutLeadingClose(next.raw, quoted.close);
       pieces[index + 1] = { ...next, raw, sentence: raw.trim(), norm: normalizeEmergencyText(raw) };
       dropped.add(index);
@@ -630,15 +665,20 @@ function dropLoneBlockSentences(
     if (!isLoneBlockSentence(pieces[index]?.norm ?? "", lone)) {
       continue;
     }
+    const mine = ordinal;
+    ordinal += 1;
     let through = index;
     while (pieces[through + 1]?.continuesRun === true) {
       through += 1;
     }
-    for (let cursor = index; cursor <= through; cursor += 1) {
-      dropped.add(cursor);
+    if (only === undefined || only.has(mine)) {
+      for (let cursor = index; cursor <= through; cursor += 1) {
+        dropped.add(cursor);
+      }
     }
     index = through;
   }
+  return ordinal;
 }
 
 function dropThroughTail(

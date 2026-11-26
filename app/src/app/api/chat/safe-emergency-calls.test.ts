@@ -282,3 +282,30 @@ it("drops a finished 15 sentence after a period then a parenthetical", () => {
   expect(out).not.toContain("Appelle le 15 maintenant");
   expect(out).toContain("Garde ton téléphone. (pour rester joignable)");
 });
+
+it("treats a line ending with nested parentheses as finished", () => {
+  const out = ensureEmergencyCallsSafe(
+    "Garde ton téléphone (et le chargeur si tu peux (sans te lever))\nAppelle le 15 maintenant.",
+    ["3114"],
+  );
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("(sans te lever))");
+});
+
+it("treats a line ending with a stray closing parenthesis as finished", () => {
+  const out = ensureEmergencyCallsSafe("Garde ton téléphone)\nAppelle le 15 maintenant.", ["3114"]);
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("Garde ton téléphone)");
+});
+
+it("keeps a real continuation but drops a later finished lone 15 sentence", () => {
+  const out = ensureEmergencyCallsSafe(
+    "Reste près de lui et\nAppelle le 15 maintenant.\nGarde ton téléphone. Appelle le 15 maintenant.",
+    ["3114"],
+  );
+  expect(out).toMatch(/Reste près de lui et\s*Appelle le 15 maintenant/u);
+  const after = out.slice(out.indexOf("Garde ton téléphone."));
+  expect(after).not.toContain("Appelle le 15 maintenant");
+});
