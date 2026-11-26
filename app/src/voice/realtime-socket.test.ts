@@ -814,7 +814,8 @@ describe("inbound frame size cap", () => {
   });
 
   it("drops a binary frame one byte over the cap and still handles the next", () => {
-    const { socket, events, audio } = setup(binary);
+    // Opus so the over-cap odd length is not dropped by the PCM16 check.
+    const { socket, events, audio } = setup({ ...binary, codec: "opus" });
     socket().open();
     socket().receive(new Uint8Array(maxInboundFrameBytes + 1).buffer);
     expect(events.length === 0 && audio.length === 0).toBe(true);
