@@ -20,6 +20,8 @@ export const voiceTriageLimits = {
   maxPrevious: 12,
   maxTextChars: 2_000,
   maxIdChars: 128,
+  maxStateChars: 8_000,
+  stateTurns: 6,
 } as const;
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -62,8 +64,26 @@ export function buildHandoff(request: VoiceTriageRequest): Handoff<readonly Turn
     turnId: request.current.turnId,
     target: "triage",
     intent: "care_request",
-    data: [...request.previous, request.current],
+    data: fitStateBudget([...request.previous, request.current]),
   };
+}
+
+// Voice-only budget: triageTurn joins the last 6 turns with "\n". Keep the current
+// turn, then older turns of that window while the joined state stays within the
+// budget; whatever does not fit is omitted from the head, separators included.
+function fitStateBudget(turns: readonly Turn[]): readonly Turn[] {
+  const window = turns.slice(-voiceTriageLimits.stateTurns);
+  let length = 0;
+  let start = window.length;
+  for (let index = window.length - 1; index >= 0; index -= 1) {
+    const size = (window[index]?.text.length ?? 0) + (index === window.length - 1 ? 0 : 1);
+    if (index !== window.length - 1 && length + size > voiceTriageLimits.maxStateChars) {
+      break;
+    }
+    length += size;
+    start = index;
+  }
+  return window.slice(start);
 }
 
 export function parseVoiceTriageRequest(body: unknown): VoiceTriageRequest | null {

@@ -39,22 +39,12 @@ export type TriageDecision =
     };
 
 const stateTurnLimit = 6;
-const stateCharBudget = 8000;
 
-// Newest-first: the current turn is always kept (as a suffix if it alone is over
-// budget), then older turns while they fit whole, separators included.
 function buildState(turns: readonly Turn[]): string {
-  const window = turns.slice(-stateTurnLimit);
-  const current = window.at(-1)?.text ?? "";
-  let state = current.length > stateCharBudget ? current.slice(-stateCharBudget) : current;
-  for (let index = window.length - 2; index >= 0; index -= 1) {
-    const text = window[index]?.text ?? "";
-    if (state.length + 1 + text.length > stateCharBudget) {
-      break;
-    }
-    state = `${text}\n${state}`;
-  }
-  return state;
+  return turns
+    .slice(-stateTurnLimit)
+    .map((turn) => turn.text)
+    .join("\n");
 }
 
 export const needInfoGuidance = {

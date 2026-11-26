@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { readVoiceTriageRequest, voiceTriageLimits } from "./request.js";
+import { buildHandoff, readVoiceTriageRequest, type VoiceTurn, voiceTriageLimits } from "./request.js";
 
 const cur = { sessionId: "s", turnId: "t2", channel: "voice", text: "J'ai mal" };
 const prev = [
@@ -128,4 +128,29 @@ it("returns 413 from a declared Content-Length over the cap without reading the 
   expect(request.headers.get("content-length")).toBe(String(voiceTriageLimits.maxBodyBytes + 1));
   expect(await readVoiceTriageRequest(request)).toEqual({ ok: false, status: 413 });
   expect(pulled).toBe(false);
+});
+
+it("omits older turns from the head of the handoff when the state exceeds 8000 characters", async () => {
+  const turns = ["a", "b", "c", "d", "e", "f", "g"].map((letter, index): VoiceTurn => ({
+    sessionId: "s",
+    turnId: `t${index}`,
+    channel: "voice",
+    text: letter.repeat(2000),
+  }));
+  const result = await readVoiceTriageRequest(
+    req(JSON.stringify({ current: turns[6], previous: turns.slice(0, 6) })),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) {
+    return;
+  }
+  expect(result.handoff.data).toEqual(turns.slice(4));
+  const joined = result.handoff.data.map((turn) => turn.text).join("\n");
+  expect(joined.length).toBe(6002);
+  const current: VoiceTurn = { sessionId: "s", turnId: "t9", channel: "voice", text: "y".repeat(2000) };
+  const tight = buildHandoff({ current, previous: [
+    { sessionId: "s", turnId: "p0", channel: "voice", text: "z".repeat(3000) },
+    { sessionId: "s", turnId: "p1", channel: "voice", text: "w".repeat(3000) },
+  ] });
+  expect(tight.data.length).toBe(2);
 });

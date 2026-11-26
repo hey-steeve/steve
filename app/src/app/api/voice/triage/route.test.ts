@@ -50,6 +50,18 @@ it("passes the ordered handoff to classify and returns the decision", async () =
   expect(typeof input === "object" && input !== null ? Reflect.get(input, "state") : undefined).toBe("Bonjour\nDouleur thoracique");
 });
 
+it("keeps the voice state within 8000 characters, current turn whole", async () => {
+  classifyMock.mockResolvedValue({ label: "self-care" });
+  const texts = ["a", "b", "c", "d", "e", "f"].map((letter) => letter.repeat(2000));
+  const turns = texts.map((text, index) => ({ sessionId: "s", turnId: `t${index}`, channel: "voice", text }));
+  const response = await post({ current: turns[5], previous: turns.slice(0, 5) });
+  expect(response.status).toBe(200);
+  const input: unknown = classifyMock.mock.calls[0]?.[0];
+  const state = typeof input === "object" && input !== null ? Reflect.get(input, "state") : undefined;
+  expect(typeof state === "string" ? state.length : Number.NaN).toBeLessThanOrEqual(8000);
+  expect(state).toBe(texts.slice(3).join("\n"));
+});
+
 it("rejects invalid requests without calling Jev", async () => {
   const bad = await post({ current: { ...cur, channel: "text" }, previous: [] });
   expect(bad.status).toBe(400);
