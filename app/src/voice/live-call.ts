@@ -370,7 +370,11 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           });
         }
         const before = state;
-        dispatch({ type: "server", event });
+        // A forced emergency is uninterruptible: the reducer's barge-in
+        // transition would drop its playback, so it never sees this event.
+        if (!(c.forcing && event.type === "input.speech_started")) {
+          dispatch({ type: "server", event });
+        }
         // Guidance covers one response: it ends with that response or the next turn.
         if (event.type === "input.speech_started") {
           // The patient spoke again: no earlier decision may guide anything now.

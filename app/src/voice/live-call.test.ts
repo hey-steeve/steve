@@ -971,6 +971,37 @@ describe("live call triage enforcement", () => {
     expect(socket.forced).toHaveLength(2);
   });
 
+  it("keeps both forced chunks playing when speech_started lands mid-playback", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    const flushes = audio.flushes;
+    options.onEvent({ type: "input.speech_started", itemId: "t2" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    await flush();
+    // Neither chunk was flushed or dropped by a barge-in.
+    expect(audio.enqueued).toBe(2);
+    expect(audio.flushes).toBe(flushes);
+    expect(audio.discarded).toEqual([]);
+    expect(socket.cancels).toBe(0);
+    expect(socket.truncates).toEqual([]);
+    // Still treated as playing: a second emergency waits for the forced drain.
+    say(h, "t3", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toHaveLength(2);
+  });
+
   it("releases the queue on the forced audio's own generation after the pre-force flush", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });
