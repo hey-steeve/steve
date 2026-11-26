@@ -252,3 +252,33 @@ it("drops a finished 15 sentence after a label line ending with a colon", () => 
   expect(out).not.toContain("Appelle le 15 maintenant");
   expect(out).toContain("À faire maintenant :");
 });
+
+it("drops a finished 15 sentence after an ATX heading line", () => {
+  const out = ensureEmergencyCallsSafe(
+    "Garde ton téléphone.\n\n### La suite\n\nAppelle le 15 maintenant.",
+    ["3114"],
+  );
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("### La suite");
+});
+
+it("drops a finished 15 sentence after a line ending with a complete parenthetical", () => {
+  const out = ensureEmergencyCallsSafe(
+    "Garde ton téléphone (pour rester joignable)\n\nAppelle le 15 maintenant.",
+    ["3114"],
+  );
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("Garde ton téléphone (pour rester joignable)");
+});
+
+it("drops a finished 15 sentence after a period then a parenthetical", () => {
+  const out = ensureEmergencyCallsSafe(
+    "Garde ton téléphone. (pour rester joignable)\n\nAppelle le 15 maintenant.",
+    ["3114"],
+  );
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("Garde ton téléphone. (pour rester joignable)");
+});

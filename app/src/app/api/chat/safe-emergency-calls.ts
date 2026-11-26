@@ -31,8 +31,23 @@ function withoutOpening(text: string, opening: string): string {
 const ender = /[.!?…]/u;
 // After trailing quotes, markdown wrappers and spaces, only a letter, a digit or
 // a comma leaves the line open; a terminator or a colon (a label) finishes it.
-const wrappers = /["'»”)*_\s]+$/u;
+const wrappers = /["'»”*_\s]+$/u;
 const opensLine = /[\p{L}\p{N},]$/u;
+const atxHeading = /^#{1,6}(?:\s|$)/u;
+const trailingParenthetical = /\([^()]*\)$/u;
+
+// An ATX heading and a line closed by a complete (...) are finished; a stray
+// closing ")" with no opener is a wrapper and gets stripped like a quote.
+function isOpenLine(line: string): boolean {
+  if (atxHeading.test(line.trim())) {
+    return false;
+  }
+  const stripped = line.replace(wrappers, "");
+  if (trailingParenthetical.test(stripped)) {
+    return false;
+  }
+  return opensLine.test(stripped.replace(/\)+$/u, "").replace(wrappers, ""));
+}
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -63,7 +78,7 @@ function cutsSentence(original: string, rewritten: string): boolean {
     const tail = line.slice(line.search(/[^.!?…]*$/u)).trim();
     const nextEnd = next.search(ender);
     const head = nextEnd < 0 ? next.trim() : next.slice(0, nextEnd + 1).trim();
-    if (!opensLine.test(line.replace(wrappers, "")) || tail.length === 0 || head.length === 0) {
+    if (!isOpenLine(line) || tail.length === 0 || head.length === 0) {
       continue;
     }
     const joined = new RegExp(`${escapeRegExp(tail)}\\s*${escapeRegExp(head)}`, "gu");
