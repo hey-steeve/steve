@@ -735,6 +735,55 @@ describe("inbound token scrub", () => {
     ).toBe(true);
   });
 
+  it("drops distinct token-bearing ids instead of aliasing them", () => {
+    const r = setup(json);
+    r.socket().open();
+    for (const id of [`a-${TOKEN}`, `b-${TOKEN}`]) {
+      r.socket().receive(
+        JSON.stringify({ type: "response.created", response: { id } }),
+      );
+      r.socket().receive(
+        JSON.stringify({ type: "response.done", response: { id } }),
+      );
+      r.socket().receive(
+        JSON.stringify({
+          type: "input_audio_buffer.speech_started",
+          item_id: id,
+        }),
+      );
+    }
+    expect(r.events).toHaveLength(0);
+  });
+
+  it.each(["error", "response", "audio_delta"])(
+    "keeps dispatch intact when the token %s is part of a local type",
+    (token) => {
+      const j = setup(json, token);
+      j.socket().open();
+      j.socket().receive(errorWire("rate limited"));
+      expect(j.events).toEqual([{ type: "error", message: "rate limited" }]);
+      const b = setup(binary, token);
+      b.socket().open();
+      b.socket().receive(delta(new Uint8Array([1, 2])));
+      expect(b.events).toHaveLength(0);
+      expect(b.audio).toHaveLength(0);
+    },
+  );
+
+  it("drops the event when the token is inside the error fallback", () => {
+    const r = setup(json, "server");
+    r.socket().open();
+    r.socket().receive(errorWire("a server leak"));
+    expect(r.events).toHaveLength(0);
+    let state = reduceCall(initialCallState, { type: "start" });
+    state = reduceCall(state, { type: "connected" });
+    for (const e of r.events)
+      state = reduceCall(state, { type: "server", event: e });
+    expect(
+      state.phase === "active" && state.lastError === undefined,
+    ).toBe(true);
+  });
+
   it("passes a normal error through unchanged", () => {
     const r = setup(json);
     r.socket().open();

@@ -79,25 +79,33 @@ const browserSocket: SocketFactory = (url, protocols, handlers) => {
   };
 };
 
-// Replaces any inbound string that contains the token. Never logs it.
+// Scrubs inbound strings that contain the token. Never logs it, never rewrites
+// `type`, and never aliases distinct ids: a leaking id drops the event.
 export const SERVER_ERROR_MESSAGE = "server error";
 export const REDACTED = "[redacted]";
+
+const ID_FIELDS: ReadonlySet<string> = new Set([
+  "sessionId",
+  "itemId",
+  "responseId",
+]);
 
 export function scrubServerEvent(
   event: ServerEvent,
   token: string,
-): ServerEvent {
+): ServerEvent | undefined {
   if (token === "") return event;
-  const leaks = (v: unknown): boolean =>
-    typeof v === "string" && v.includes(token);
-  if (event.type === "error") {
-    return leaks(event.message)
-      ? { type: "error", message: SERVER_ERROR_MESSAGE }
-      : event;
-  }
-  let out = event;
+  let out: ServerEvent = event;
   for (const [key, value] of Object.entries(event)) {
-    if (leaks(value)) out = { ...out, [key]: REDACTED };
+    if (key === "type") continue;
+    if (typeof value !== "string" || !value.includes(token)) continue;
+    if (ID_FIELDS.has(key)) return undefined;
+    const replacement =
+      event.type === "error" && key === "message"
+        ? SERVER_ERROR_MESSAGE
+        : REDACTED;
+    if (replacement.includes(token)) return undefined;
+    out = { ...out, [key]: replacement } as ServerEvent;
   }
   return out;
 }
@@ -164,6 +172,7 @@ export function connectRealtime(
     }
     if (event === undefined) return;
     event = scrubServerEvent(event, options.token);
+    if (event === undefined) return;
     let bytes: Uint8Array | undefined;
     if (event.type === "response.audio_delta") {
       // Binary transport carries audio in binary frames only.
