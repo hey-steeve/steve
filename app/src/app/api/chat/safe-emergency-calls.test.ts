@@ -320,6 +320,18 @@ it("treats a markdown list item as finished", () => {
   expect(out).toContain("- Garde ton téléphone");
 });
 
+it("keeps a wrapped markdown list item whose next line continues the sentence", () => {
+  const out = ensureEmergencyCallsSafe(
+    "Reste près de lui et\nAppelle le 15 maintenant.\n\n1. Appelle le 15 maintenant. Ils t'écoutent\nsi tu veux en parler.",
+    ["3114"],
+  );
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out.indexOf("Ils t'écoutent")).toBeGreaterThanOrEqual(0);
+  expect(out.indexOf("Ils t'écoutent")).toBeLessThan(out.indexOf("si tu veux en parler."));
+  expect(out).not.toContain("1.si tu veux en parler.");
+  expect(out).toMatch(/Reste près de lui et\s*Appelle le 15 maintenant/u);
+});
+
 it("drops the listening tail with a finished 3114 block but keeps the continuation", () => {
   const out = ensureEmergencyCallsSafe(
     `Reste près de lui et\nAppelle le 15 maintenant.\n${call3114} Ils t'écoutent jour et nuit.`,

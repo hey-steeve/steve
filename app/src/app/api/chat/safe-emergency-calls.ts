@@ -38,11 +38,17 @@ const atxHeading = /^#{1,6}(?:\s|$)/u;
 
 const listMarker = /^(?:[-*+]|\d+[.)])(?:\s|$)/u;
 
-// An ATX heading, a markdown list item and a line ending with ")" (nested or
-// stray) are finished.
-function isOpenLine(line: string): boolean {
+const lowercaseStart = /^\p{Ll}/u;
+
+// An ATX heading, a markdown list item whose next line does not continue it
+// mid-sentence (lowercase start), and a line ending with ")" (nested or stray)
+// are finished.
+function isOpenLine(line: string, next: string): boolean {
   const trimmed = line.trim();
-  if (atxHeading.test(trimmed) || listMarker.test(trimmed)) {
+  if (atxHeading.test(trimmed)) {
+    return false;
+  }
+  if (listMarker.test(trimmed) && !lowercaseStart.test(next.trim())) {
     return false;
   }
   const stripped = line.replace(wrappers, "");
@@ -66,19 +72,22 @@ function countOccurrences(text: string, part: string): number {
 // rewrite while the tail or the head still shows up more often than they do:
 // the continuation was moved away from, or dropped after, the line's last sentence.
 function cutsSentence(original: string, rewritten: string): boolean {
-  const lines = original
+  const pairs = original
     .split(/\r\n|[\n\r\u2028\u2029]/u)
-    .map((line) => normalizeEmergencyText(line))
-    .filter((line) => line.trim().length > 0);
+    .map((raw) => ({ raw, line: normalizeEmergencyText(raw) }))
+    .filter(({ line }) => line.trim().length > 0);
+  const lines = pairs.map(({ line }) => line);
   const source = normalizeEmergencyText(original);
   const kept = normalizeEmergencyText(rewritten);
   for (let index = 0; index + 1 < lines.length; index += 1) {
     const line = lines[index] ?? "";
     const next = lines[index + 1] ?? "";
+    // Normalization lowercases, so the continuation test reads the raw line.
+    const rawNext = pairs[index + 1]?.raw ?? "";
     const tail = line.slice(line.search(/[^.!?…]*$/u)).trim();
     const nextEnd = next.search(ender);
     const head = nextEnd < 0 ? next.trim() : next.slice(0, nextEnd + 1).trim();
-    if (!isOpenLine(line) || tail.length === 0 || head.length === 0) {
+    if (!isOpenLine(line, rawNext) || tail.length === 0 || head.length === 0) {
       continue;
     }
     const joined = new RegExp(`${escapeRegExp(tail)}\\s*${escapeRegExp(head)}`, "gu");
