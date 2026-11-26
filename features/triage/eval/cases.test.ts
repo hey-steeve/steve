@@ -45,3 +45,17 @@ it("relabels the emergency-gate messages and adds original non-emergency cases",
     }
   }
 });
+
+it("covers the emergency criteria regressions and near-misses", () => {
+  const expected = [
+    ["suicidal-plan-deferred", "emergency", ["3114", "15"]],
+    ["breathless-severe-no-pain", "emergency", ["15"]],
+    ["low-mood-passive", "consult", []],
+    ["anxiety-mild", "consult", []],
+  ] as const;
+  for (const [id, label, numbers] of expected) {
+    const found = triageCases.find((item) => item.id === id);
+    expect(found?.label).toBe(label);
+    expect(found?.numbers).toEqual(numbers);
+  }
+});
