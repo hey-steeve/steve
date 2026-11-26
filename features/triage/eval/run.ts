@@ -132,15 +132,46 @@ function isCliEntry(): boolean {
   return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
 }
 
+export function printThenSaveReport(
+  report: string,
+  reportPath: string | undefined,
+  io: {
+    readonly writeStdout: (text: string) => void;
+    readonly save: (path: string, text: string) => void;
+  } = {
+    writeStdout: (text) => {
+      process.stdout.write(text);
+    },
+    save: writeFileSync,
+  },
+): boolean {
+  io.writeStdout(report);
+  if (reportPath === undefined) {
+    return true;
+  }
+  try {
+    io.save(reportPath, report);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function runCli(): Promise<void> {
   try {
     const model = readEnv("JEV_MODEL");
+    const key = readEnv("JEV_API_KEY");
     const outcome = await runTriageEval({
-      key: readEnv("JEV_API_KEY"),
-      reportPath: readEnv("TRIAGE_EVAL_REPORT") ?? defaultReportPath(),
+      key,
       ...(model === undefined ? {} : { model }),
     });
-    process.stdout.write(outcome.report);
+    const reportPath = key === undefined ? undefined : (readEnv("TRIAGE_EVAL_REPORT") ?? defaultReportPath());
+    const saved = printThenSaveReport(outcome.report, reportPath);
+    if (!saved) {
+      process.stderr.write("failed to write the triage eval report\n");
+      process.exitCode = 1;
+      return;
+    }
     process.exitCode = outcome.exitCode;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "triage eval failed";

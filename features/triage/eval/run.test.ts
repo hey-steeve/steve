@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { JEV_URL } from "../src/jev.ts";
-import { evaluateTriage, runTriageEval } from "./run.ts";
+import { evaluateTriage, printThenSaveReport, runTriageEval } from "./run.ts";
 import type { TriageEvalCase } from "./cases.ts";
 
 const emergency: TriageEvalCase = {
@@ -122,6 +122,20 @@ it("does not write a report file when the key is missing", async () => {
   const reportPath = join(mkdtempSync(join(tmpdir(), "triage-eval-")), "report.txt");
   await runTriageEval({ key: undefined, reportPath });
   expect(existsSync(reportPath)).toBe(false);
+});
+
+it("prints the report even when saving the file fails", () => {
+  const chunks: string[] = [];
+  const saved = printThenSaveReport("gate fail\n", "/dev/null/triage.txt", {
+    writeStdout: (text) => {
+      chunks.push(text);
+    },
+    save: () => {
+      throw new Error("ENOTDIR");
+    },
+  });
+  expect(chunks).toEqual(["gate fail\n"]);
+  expect(saved).toBe(false);
 });
 
 function readModel(body: unknown): string | undefined {
