@@ -1108,6 +1108,33 @@ describe("live call triage enforcement", () => {
     expect(socket.instructions).toEqual([]);
   });
 
+  it("drops a consult when the response finished before the transcript was final", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    options.onEvent({ type: "input.speech_stopped", itemId: "t1" });
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    say(h, "t1", "x");
+    g.requests[0]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([]);
+  });
+
+  it("drops a consult that arrives after the next speech started", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "x");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    g.requests[0]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([]);
+  });
+
   it("ignores a stale response.done for another item and restores on speech", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });

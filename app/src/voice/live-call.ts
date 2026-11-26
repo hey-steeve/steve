@@ -216,6 +216,24 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     quiet(() => c.socket?.updateInstructions(c.base));
   };
 
+  // Every decision made so far loses the right to guide the session.
+  const expire = (c: Call): void => {
+    for (const answer of c.answers.values()) answer.done = true;
+  };
+
+  // Register a patient item as the one awaiting its response (idempotent).
+  const bind = (c: Call, itemId: string): void => {
+    if (c.answers.has(itemId)) return;
+    // A patient item that never got a response is superseded by this one.
+    if (c.awaiting !== undefined) {
+      const old = c.answers.get(c.awaiting);
+      if (old) old.done = true;
+      if (c.guide?.itemId === c.awaiting) restore(c);
+    }
+    c.answers.set(itemId, { responseId: undefined, done: false });
+    c.awaiting = itemId;
+  };
+
   const emergency = (c: Call, audio: BrowserAudio, itemId: string, calls: EmergencyCalls): void => {
     if (c.forced.has(itemId)) return;
     c.forced.add(itemId);
@@ -354,7 +372,28 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         const before = state;
         dispatch({ type: "server", event });
         // Guidance covers one response: it ends with that response or the next turn.
-        if (event.type === "input.speech_started") restore(c);
+        if (event.type === "input.speech_started") {
+          // The patient spoke again: no earlier decision may guide anything now.
+          expire(c);
+          restore(c);
+        }
+        if (
+          (event.type === "input.speech_started" ||
+            event.type === "input.speech_stopped" ||
+            event.type === "input.transcription_updated" ||
+            event.type === "input.transcription_completed") &&
+          event.itemId
+        ) {
+          // Bind the item before its transcript is final, so a response that
+          // ends first still belongs to it.
+          bind(c, event.itemId);
+        }
+        if (event.type === "response.cancelled") {
+          const item = c.answerOf.get(event.responseId);
+          const answer = item === undefined ? undefined : c.answers.get(item);
+          if (answer) answer.done = true;
+          if (item !== undefined && c.guide?.itemId === item) restore(c);
+        }
         if (event.type === "response.done") {
           // Only the guided item's own response ends its guidance.
           const item = c.answerOf.get(event.responseId);
@@ -390,16 +429,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           c.awaiting = undefined;
         }
         if (event.type === "input.transcription_completed" && event.itemId) {
-          // A patient item that never got a response is superseded by this one.
-          if (c.awaiting !== undefined && c.awaiting !== event.itemId) {
-            const old = c.answers.get(c.awaiting);
-            if (old) old.done = true;
-            if (c.guide?.itemId === c.awaiting) restore(c);
-          }
-          if (!c.answers.has(event.itemId)) {
-            c.answers.set(event.itemId, { responseId: undefined, done: false });
-            c.awaiting = event.itemId;
-          }
+          bind(c, event.itemId);
           triage(c, audio, event.itemId, event.text);
         }
         if (
@@ -423,6 +453,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           state.cancel !== undefined &&
           !(before.phase === "active" && before.cancel === state.cancel);
         if (fresh) {
+          expire(c);
           onCancel(c, audio, before.phase === "active" && before.generating);
         }
       },
