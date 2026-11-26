@@ -57,6 +57,8 @@ export type CallSnapshot = {
   readonly muted: boolean;
   readonly activity: CallActivity | undefined;
   readonly endReason: EndReason | undefined;
+  // The server minted the mock token: no xAI socket, so nothing is heard or said.
+  readonly mock: boolean;
 };
 
 export type CallDeps = {
@@ -155,16 +157,18 @@ const quiet = (fn: () => void): void => {
   }
 };
 
-const toSnapshot = (s: CallState): CallSnapshot => ({
+const toSnapshot = (s: CallState, mock: boolean): CallSnapshot => ({
   phase: s.phase,
   muted: s.phase === "active" && s.muted,
   activity: s.phase === "active" ? s.activity : undefined,
   endReason: s.phase === "ended" ? s.reason : undefined,
+  mock: s.phase !== "idle" && mock,
 });
 
 export function createLiveCall(deps: CallDeps): LiveCallController {
   let state: CallState = initialCallState;
-  let snapshot = toSnapshot(state);
+  let mock = false;
+  let snapshot = toSnapshot(state, mock);
   let call: Call | undefined;
   const listeners = new Set<() => void>();
 
@@ -172,12 +176,13 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     const next = reduceCall(state, event);
     if (next === state) return;
     state = next;
-    const s = toSnapshot(next);
+    const s = toSnapshot(next, mock);
     if (
       s.phase === snapshot.phase &&
       s.muted === snapshot.muted &&
       s.activity === snapshot.activity &&
-      s.endReason === snapshot.endReason
+      s.endReason === snapshot.endReason &&
+      s.mock === snapshot.mock
     ) {
       return;
     }
@@ -592,12 +597,16 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     });
     c.socket = socket;
     if (!live(c)) quiet(() => socket.close());
-    else if (socket.mock) dispatch({ type: "connected" });
+    else if (socket.mock) {
+      mock = true;
+      dispatch({ type: "connected" });
+    }
   };
 
   const start = async (history: readonly ThreadMessage[]): Promise<void> => {
     if (state.phase === "connecting" || state.phase === "active") return;
     state = initialCallState;
+    mock = false;
     const abort = new AbortController();
     const sessionId = globalThis.crypto.randomUUID();
     const c: Call = {

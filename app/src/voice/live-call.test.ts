@@ -47,6 +47,7 @@ function setup(
     gateFirstOnly?: boolean;
     triage?: CallDeps["triage"];
     enqueueThrows?: boolean;
+    mockSocket?: boolean;
   } = {},
 ) {
   let t = 1_000;
@@ -150,6 +151,7 @@ function setup(
     connect: (o) => {
       log.push("socket");
       const socket = new FakeSocket();
+      socket.mock = opts.mockSocket ?? false;
       sockets.push({ options: o, socket });
       return socket;
     },
@@ -214,6 +216,25 @@ async function active(h: ReturnType<typeof setup>) {
 }
 
 describe("live call", () => {
+  it("flags a mock session in the snapshot and clears the flag on the next live call", async () => {
+    let mockSocket = true;
+    const h = setup({
+      get mockSocket() {
+        return mockSocket;
+      },
+    });
+    expect(h.ctl.getSnapshot().mock).toBe(false);
+    await h.ctl.start([]);
+    expect(h.ctl.getSnapshot()).toMatchObject({ phase: "active", mock: true });
+    h.ctl.end("hang-up");
+    expect(h.ctl.getSnapshot()).toMatchObject({ phase: "ended", mock: true });
+    mockSocket = false;
+    await h.ctl.start([]);
+    expect(h.ctl.getSnapshot()).toMatchObject({ phase: "connecting", mock: false });
+    h.sockets[1]?.options.onOpen?.();
+    expect(h.ctl.getSnapshot()).toMatchObject({ phase: "active", mock: false });
+  });
+
   it("ignores a duplicate start", async () => {
     const h = setup();
     await h.ctl.start([]);
