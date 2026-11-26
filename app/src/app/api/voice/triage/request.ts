@@ -40,6 +40,9 @@ export async function readVoiceTriageRequest(
   if (bytes === "too-large") {
     return { ok: false, status: 413 };
   }
+  if (bytes === "unreadable") {
+    return { ok: false, status: 400 };
+  }
   let body: unknown;
   try {
     body = JSON.parse(decoder.decode(bytes));
@@ -87,24 +90,32 @@ export function parseVoiceTriageRequest(body: unknown): VoiceTriageRequest | nul
   return { current: { ...current, channel: "voice" }, previous: turns };
 }
 
-async function readCapped(request: Request): Promise<Uint8Array | "too-large"> {
+async function readCapped(request: Request): Promise<Uint8Array | "too-large" | "unreadable"> {
   if (request.body === null) {
     return new Uint8Array();
   }
-  const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
+  try {
+    const reader = request.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      total += value.byteLength;
+      if (total > voiceTriageLimits.maxBodyBytes) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Cancellation failure must not change the 413.
+        }
+        return "too-large";
+      }
+      chunks.push(value);
     }
-    total += value.byteLength;
-    if (total > voiceTriageLimits.maxBodyBytes) {
-      await reader.cancel();
-      return "too-large";
-    }
-    chunks.push(value);
+  } catch {
+    return "unreadable";
   }
   const out = new Uint8Array(total);
   let offset = 0;

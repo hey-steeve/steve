@@ -117,3 +117,41 @@ it.each(jevOrders)("keeps emergency calls in Jev order %j", async ({ calls }) =>
   expect(decision).toEqual({ label: "emergency", calls });
   expect(JSON.stringify(decision)).toBe(JSON.stringify({ label: "emergency", calls }));
 });
+
+function streamPost(source: UnderlyingDefaultSource<Uint8Array>): Promise<Response> {
+  return POST(
+    new Request("http://localhost/api/voice/triage", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: new ReadableStream(source),
+      duplex: "half",
+    } as RequestInit),
+  );
+}
+
+it("returns 400 without calling Jev when the body read rejects", async () => {
+  const response = await streamPost({
+    pull() {
+      throw new Error("boom");
+    },
+  });
+  expect(response.status).toBe(400);
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+  expect(await response.json()).toEqual({ error: "Requête invalide." });
+  expect(classifyMock).not.toHaveBeenCalled();
+});
+
+it("returns 413 without calling Jev when cancel rejects on an over-size body", async () => {
+  const response = await streamPost({
+    start(controller) {
+      controller.enqueue(new Uint8Array(70_000));
+    },
+    cancel() {
+      throw new Error("cancel-boom");
+    },
+  });
+  expect(response.status).toBe(413);
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+  expect(await response.json()).toEqual({ error: "Requête trop volumineuse." });
+  expect(classifyMock).not.toHaveBeenCalled();
+});

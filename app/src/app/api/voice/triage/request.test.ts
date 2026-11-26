@@ -74,3 +74,33 @@ it("rejects an over-size body with 413", async () => {
   const big = JSON.stringify({ current: cur, previous: [], pad: "a".repeat(voiceTriageLimits.maxBodyBytes) });
   expect(await readVoiceTriageRequest(req(big))).toEqual({ ok: false, status: 413 });
 });
+
+function streamReq(source: UnderlyingDefaultSource<Uint8Array>): Request {
+  return new Request("http://localhost/api/voice/triage", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: new ReadableStream(source),
+    duplex: "half",
+  } as RequestInit);
+}
+
+it("maps a body read failure to 400", async () => {
+  const request = streamReq({
+    pull() {
+      throw new Error("boom");
+    },
+  });
+  expect(await readVoiceTriageRequest(request)).toEqual({ ok: false, status: 400 });
+});
+
+it("returns 413 for an over-size body even when cancel rejects", async () => {
+  const request = streamReq({
+    start(controller) {
+      controller.enqueue(new Uint8Array(voiceTriageLimits.maxBodyBytes + 1));
+    },
+    cancel() {
+      throw new Error("cancel-boom");
+    },
+  });
+  expect(await readVoiceTriageRequest(request)).toEqual({ ok: false, status: 413 });
+});
