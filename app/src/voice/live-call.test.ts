@@ -485,7 +485,7 @@ describe("live call", () => {
     options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
     options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
     // response.done lands before the adapter's first playback tick.
-    options.onEvent({ type: "response.done", responseId: "r1" } as never);
+    options.onEvent({ type: "response.done", responseId: "r1" });
     expect(h.ctl.getSnapshot().activity).toBe("speaking");
     audio.snapshot = { generation: 0, responseId: "r1", itemId: "i1", playedMs: 64 };
     options.onEvent({ type: "input.speech_started", itemId: undefined });
@@ -499,7 +499,7 @@ describe("live call", () => {
     const { options, socket } = first(h.sockets);
     options.onEvent({ type: "response.created", responseId: "r1" });
     options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
-    options.onEvent({ type: "response.done", responseId: "r1" } as never);
+    options.onEvent({ type: "response.done", responseId: "r1" });
     options.onEvent({ type: "input.speech_started", itemId: undefined });
     expect(first(h.audios).flushes).toBe(0);
     expect(socket.truncates).toEqual([]);
