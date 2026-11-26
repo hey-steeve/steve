@@ -342,3 +342,22 @@ it("drops the listening tail with a finished 3114 block but keeps the continuati
   expect(out.split(call3114).length - 1).toBe(1);
   expect(out).not.toContain("Ils t'écoutent jour et nuit.");
 });
+
+it("keeps a wrapped list item whose next line starts with markdown then lowercase", () => {
+  const out = ensureEmergencyCallsSafe(
+    "Reste près de lui et\nAppelle le 15 maintenant.\n\n1. Appelle le 15 maintenant. Ils t'écoutent\n**si tu veux en parler.**",
+    ["3114"],
+  );
+  expect(out.indexOf("Ils t'écoutent")).toBeGreaterThanOrEqual(0);
+  expect(out.indexOf("Ils t'écoutent")).toBeLessThan(out.indexOf("si tu veux en parler."));
+  expect(out).not.toContain("1.**si tu veux en parler.**");
+  expect(out).not.toContain("1.si tu veux en parler.");
+  expect(out).toMatch(/Reste près de lui et\s*Appelle le 15 maintenant/u);
+});
+
+it("treats a blank line then a capital sentence as a new paragraph", () => {
+  const out = ensureEmergencyCallsSafe("Garde ton téléphone\n\nAppelle le 15 maintenant.", ["3114"]);
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("Garde ton téléphone");
+});

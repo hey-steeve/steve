@@ -38,17 +38,28 @@ const atxHeading = /^#{1,6}(?:\s|$)/u;
 
 const listMarker = /^(?:[-*+]|\d+[.)])(?:\s|$)/u;
 
+const leadingWrappers = /^[*_\s]+/u;
 const lowercaseStart = /^\p{Ll}/u;
 
 // An ATX heading, a markdown list item whose next line does not continue it
 // mid-sentence (lowercase start), and a line ending with ")" (nested or stray)
 // are finished.
-function isOpenLine(line: string, next: string): boolean {
+function isOpenLine(line: string, next: string, blankBetween: boolean): boolean {
   const trimmed = line.trim();
   if (atxHeading.test(trimmed)) {
     return false;
   }
-  if (listMarker.test(trimmed) && !lowercaseStart.test(next.trim())) {
+  const nextTrimmed = next.trim();
+  // Leading wrappers (**, _) hide a lowercase start; a bullet marker is not one.
+  const nextText = listMarker.test(nextTrimmed)
+    ? nextTrimmed
+    : nextTrimmed.replace(leadingWrappers, "");
+  const continues = lowercaseStart.test(nextText);
+  // A blank line then a capital is a new paragraph, not a continuation.
+  if (blankBetween && !continues) {
+    return false;
+  }
+  if (listMarker.test(trimmed) && !continues) {
     return false;
   }
   const stripped = line.replace(wrappers, "");
@@ -72,10 +83,17 @@ function countOccurrences(text: string, part: string): number {
 // rewrite while the tail or the head still shows up more often than they do:
 // the continuation was moved away from, or dropped after, the line's last sentence.
 function cutsSentence(original: string, rewritten: string): boolean {
-  const pairs = original
-    .split(/\r\n|[\n\r\u2028\u2029]/u)
-    .map((raw) => ({ raw, line: normalizeEmergencyText(raw) }))
-    .filter(({ line }) => line.trim().length > 0);
+  let blankBefore = false;
+  const pairs: { raw: string; line: string; blankBefore: boolean }[] = [];
+  for (const raw of original.split(/\r\n|[\n\r\u2028\u2029]/u)) {
+    const line = normalizeEmergencyText(raw);
+    if (line.trim().length === 0) {
+      blankBefore = true;
+      continue;
+    }
+    pairs.push({ raw, line, blankBefore });
+    blankBefore = false;
+  }
   const lines = pairs.map(({ line }) => line);
   const source = normalizeEmergencyText(original);
   const kept = normalizeEmergencyText(rewritten);
@@ -87,7 +105,8 @@ function cutsSentence(original: string, rewritten: string): boolean {
     const tail = line.slice(line.search(/[^.!?…]*$/u)).trim();
     const nextEnd = next.search(ender);
     const head = nextEnd < 0 ? next.trim() : next.slice(0, nextEnd + 1).trim();
-    if (!isOpenLine(line, rawNext) || tail.length === 0 || head.length === 0) {
+    const blankBetween = pairs[index + 1]?.blankBefore ?? false;
+    if (!isOpenLine(line, rawNext, blankBetween) || tail.length === 0 || head.length === 0) {
       continue;
     }
     const joined = new RegExp(`${escapeRegExp(tail)}\\s*${escapeRegExp(head)}`, "gu");
