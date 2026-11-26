@@ -308,10 +308,34 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
   };
 
   const release = (c: Call): void => {
-    if (c.forcing?.timer !== undefined) deps.clearTimeout(c.forcing.timer);
+    const f = c.forcing;
+    if (f?.timer !== undefined) deps.clearTimeout(f.timer);
     c.forcing = undefined;
     const next = c.queued.shift();
-    if (next) send(c, next);
+    if (!next) return;
+    // The forced audio has drained. Ordinary responses that arrived meanwhile
+    // must not speak ahead of the next emergency.
+    const audio = c.audio;
+    if (audio && live(c) && state.phase === "active") {
+      const inFlight = state.generating ? state.responseId : undefined;
+      const ids = new Set<string>(f?.candidates ?? []);
+      for (const id of [inFlight, state.playback?.responseId]) {
+        if (id !== undefined) ids.add(id);
+      }
+      if (f?.responseId !== undefined) ids.delete(f.responseId);
+      if (ids.size > 0) {
+        dispatch({ type: "generationRetired" });
+        const gen = state.phase === "active" ? state.generation : undefined;
+        quiet(() => audio.flush(gen));
+        if (!live(c)) return;
+        if (inFlight !== undefined && ids.has(inFlight)) quiet(() => c.socket?.cancelResponse());
+        for (const id of ids) {
+          c.cancelled.add(id);
+          quiet(() => audio.discardResponse(id));
+        }
+      }
+    }
+    send(c, next);
   };
 
   const decide = (c: Call, audio: BrowserAudio, itemId: string, d: TriageDecision): void => {
@@ -510,6 +534,9 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         const id = responseId ?? state.responseId;
         if (id === undefined || id !== state.responseId) return;
         if (c.cancelled.has(id)) return;
+        // Once the forced slot is bound, no other response may speak.
+        const bound = c.forcing?.responseId;
+        if (bound !== undefined && id !== bound) return;
         if (
           responseId !== undefined &&
           itemId !== undefined &&

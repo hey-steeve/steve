@@ -943,6 +943,38 @@ describe("live call triage enforcement", () => {
     expect(socket.cancels).toBe(0);
   });
 
+  it("discards an ordinary VAD response queued during the forced drain", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    // An automatic VAD response starts while the forced clip still drains.
+    options.onEvent({ type: "response.created", responseId: "vad1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "vad1", itemId: undefined });
+    expect(audio.chunks.filter((x) => x.responseId === "vad1" && x.length > 0)).toEqual([]);
+    expect(socket.forced).toHaveLength(1);
+    expect(socket.cancels).toBe(0);
+    expect(audio.discarded).not.toContain("f1");
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+    expect(audio.discarded).toContain("vad1");
+    expect(audio.discarded).not.toContain("f1");
+    expect(socket.cancels).toBe(1);
+    // Late ordinary audio is still never played.
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "vad1", itemId: undefined });
+    expect(audio.chunks.filter((x) => x.responseId === "vad1" && x.length > 0)).toEqual([]);
+  });
+
   it("does not let an ordinary response claim the forced slot", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });
