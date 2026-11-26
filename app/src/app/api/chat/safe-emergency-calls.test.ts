@@ -200,3 +200,18 @@ it("does not put back a finished 15 sentence the call list does not ask for", ()
   expect(out).not.toContain("téléphone.pour");
   expect(out).not.toContain("Appelle le 15 maintenant");
 });
+
+it.each([
+  { name: "call3114", model: call3114 },
+  { name: "call3114Now", model: call3114Now },
+])("keeps the model $name block on a [15]-only rejected rewrite", ({ model }) => {
+  const reply = `${model} Garde ton téléphone. Appelle le 15 maintenant\nsur le téléphone de ton voisin.`;
+  const out = ensureEmergencyCallsSafe(reply, ["15"]);
+  expect(out.startsWith(call15Now)).toBe(true);
+  expect(out).toContain(model);
+  expect(out.indexOf("Appelle le 15 maintenant")).toBeGreaterThanOrEqual(0);
+  expect(out.indexOf("Appelle le 15 maintenant")).toBeLessThan(
+    out.indexOf("sur le téléphone de ton voisin."),
+  );
+  expect(out).not.toContain("téléphone.sur");
+});

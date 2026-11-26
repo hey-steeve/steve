@@ -548,6 +548,8 @@ function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
 
 // A cut prefix with no closing punctuation, such as "Tu peux appeler le 3114", stays.
 const finishedAll: LoneSentences = { ...loneAll, finishedOnly: true };
+// A [15]-only call keeps the model's own 3114 wording, so only 15 sentences are lone.
+const finished15: LoneSentences = { ...lone15, finishedOnly: true };
 
 // Drops finished lone block sentences (quoted ones too) without touching cut
 // prefixes. With keepOpening, the leading required blocks of `calls` stay.
@@ -568,7 +570,7 @@ export function withoutFinishedLoneSentences(
     }
   }
   const dropped = new Set<number>();
-  dropLoneBlockSentences(dropped, pieces, finishedAll);
+  dropLoneBlockSentences(dropped, pieces, keepsModel3114(calls) ? finished15 : finishedAll);
   for (let index = 0; index < from; index += 1) {
     dropped.delete(index);
   }
