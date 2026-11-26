@@ -35,14 +35,24 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
+function countMatches(pattern: RegExp, text: string): number {
+  return [...text.matchAll(pattern)].length;
+}
+
+function countOccurrences(text: string, part: string): number {
+  return countMatches(new RegExp(escapeRegExp(part), "gu"), text);
+}
+
 // A line that stops without sentence punctuation continues on the next
-// non-empty line. A cut is when the start of that continuation stays in the
-// rewrite but no longer directly follows the line's last sentence.
+// non-empty line. A cut is when fewer tail+head adjacencies survive in the
+// rewrite while the tail or the head still shows up more often than they do:
+// the continuation was moved away from, or dropped after, the line's last sentence.
 function cutsSentence(original: string, rewritten: string): boolean {
   const lines = original
     .split(/\r\n|[\n\r\u2028\u2029]/u)
     .map((line) => normalizeEmergencyText(line))
     .filter((line) => line.trim().length > 0);
+  const source = normalizeEmergencyText(original);
   const kept = normalizeEmergencyText(rewritten);
   for (let index = 0; index + 1 < lines.length; index += 1) {
     const line = lines[index] ?? "";
@@ -53,8 +63,14 @@ function cutsSentence(original: string, rewritten: string): boolean {
     if (trailing.test(line) || tail.length === 0 || head.length === 0) {
       continue;
     }
-    const joined = new RegExp(`${escapeRegExp(tail)}\\s*${escapeRegExp(head)}`, "u");
-    if (kept.includes(head) && !joined.test(kept)) {
+    const joined = new RegExp(`${escapeRegExp(tail)}\\s*${escapeRegExp(head)}`, "gu");
+    const adjacentBefore = countMatches(joined, source);
+    const adjacentAfter = countMatches(joined, kept);
+    if (
+      adjacentAfter < adjacentBefore &&
+      (countOccurrences(kept, tail) > adjacentAfter ||
+        countOccurrences(kept, head) > adjacentAfter)
+    ) {
       return true;
     }
   }

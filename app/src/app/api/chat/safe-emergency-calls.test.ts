@@ -215,3 +215,23 @@ it.each([
   );
   expect(out).not.toContain("téléphone.sur");
 });
+
+it("does not let a later one-line copy of the sentence hide a cut", () => {
+  const reply =
+    "Garde ton téléphone. Appelle le 15 maintenant\nsur le téléphone de ton voisin. Plus tard: Appelle le 15 maintenant sur le téléphone de ton voisin.";
+  const out = ensureEmergencyCallsSafe(reply, ["15"]);
+  expect(out.startsWith(call15Now)).toBe(true);
+  expect(out).not.toContain("téléphone.sur");
+  expect(out.indexOf("Appelle le 15 maintenant")).toBeGreaterThanOrEqual(0);
+  expect(out.indexOf("Appelle le 15 maintenant")).toBeLessThan(
+    out.indexOf("sur le téléphone de ton voisin."),
+  );
+});
+
+it("does not leave the first half hanging when the continuation is dropped", () => {
+  const reply = "Reste près de lui et\nAppelle le 15 maintenant.";
+  const out = ensureEmergencyCallsSafe(reply, ["15"]);
+  expect(out.startsWith(call15Now)).toBe(true);
+  expect(out).toMatch(/Reste près de lui et\s*Appelle le 15 maintenant/u);
+  expect(out.trimEnd().endsWith("Reste près de lui et")).toBe(false);
+});
