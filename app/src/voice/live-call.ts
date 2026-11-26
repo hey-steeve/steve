@@ -145,7 +145,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     const audio = c.audio;
     if (!audio || !live(c)) return;
     const onClose = (): void => {
-      if (c.ended) return;
+      if (!live(c)) return;
       end(state.phase === "active" ? "connection-lost" : "failed");
     };
     const socket = deps.connect({
@@ -153,11 +153,11 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       instructions,
       keyterms: deps.keyterms,
       tuning: deps.tuning,
-      onOpen: () => !c.ended && dispatch({ type: "connected" }),
+      onOpen: () => live(c) && dispatch({ type: "connected" }),
       onError: onClose,
       onClose,
       onEvent: (event) => {
-        if (c.ended) return;
+        if (!live(c)) return;
         if (
           (event.type === "input.transcription_updated" ||
             event.type === "input.transcription_completed") &&
@@ -181,14 +181,14 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         }
       },
       onAudio: ({ bytes, responseId, itemId }) => {
-        if (c.ended) return;
+        if (!live(c)) return;
         // Binary audio carries no ids. It belongs to the generating response.
         const id = responseId ?? (state.phase === "active" ? state.responseId : undefined);
         if (id !== undefined) audio.enqueue({ bytes, responseId: id, itemId });
       },
     });
     c.socket = socket;
-    if (c.ended) quiet(() => socket.close());
+    if (!live(c)) quiet(() => socket.close());
     else if (socket.mock) dispatch({ type: "connected" });
   };
 

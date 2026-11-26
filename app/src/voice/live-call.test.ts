@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { VoiceTuning } from "@steve/voice";
-import type { BrowserAudio, BrowserAudioOptions, FlushSnapshot } from "./browser-audio";
+import type {
+  BrowserAudio,
+  BrowserAudioOptions,
+  FlushSnapshot,
+} from "./browser-audio";
 import type { RealtimeSocket, RealtimeSocketOptions } from "./realtime-socket";
-import { callCapMs, createLiveCall, type EndReason, type ThreadEvent } from "./live-call";
+import {
+  callCapMs,
+  createLiveCall,
+  type EndReason,
+  type ThreadEvent,
+} from "./live-call";
 
 const tuning: VoiceTuning = {
   reasoningEffort: "none",
@@ -146,7 +155,16 @@ function setup(opts: { manualToken?: boolean; manualAudio?: boolean } = {}) {
   };
   const reason = (): EndReason | undefined => ctl.getSnapshot().endReason;
   return {
-    ctl, log, sockets, audios, threads, advance, skip, reason, tokenGate, audioGate,
+    ctl,
+    log,
+    sockets,
+    audios,
+    threads,
+    advance,
+    skip,
+    reason,
+    tokenGate,
+    audioGate,
     mints: () => mints,
     aborted: () => signal?.aborted === true,
     timers: () => timers.length,
@@ -253,6 +271,53 @@ describe("live call", () => {
     expect(first(h.sockets).socket.closed).toBe(1);
   });
 
+  // Each handler goes first once, so neither can hide behind the other ending the call.
+  it.each(["audio", "event"] as const)(
+    "refuses socket events and audio past 600 s when the timer has not fired (%s first)",
+    async (firstHandler) => {
+      expect(callCapMs).toBe(600_000);
+      const h = setup();
+      await active(h);
+      const { socket, options } = first(h.sockets);
+      const audio = first(h.audios);
+      const chunk = {
+        bytes: new Uint8Array(2),
+        responseId: "r1",
+        itemId: "i1",
+      };
+      // One millisecond before the cap the call still plays audio.
+      h.skip(599_999);
+      options.onAudio?.(chunk);
+      expect(audio.enqueued).toBe(1);
+      expect(h.reason()).toBeUndefined();
+      // At exactly 600_000 ms the timer is skipped, so only live(c) can stop I/O.
+      h.skip(1);
+      const late = () => options.onAudio?.(chunk);
+      const lateEvent = () =>
+        options.onEvent?.({
+          type: "input.transcription_updated",
+          itemId: "i2",
+          text: "late",
+        });
+      if (firstHandler === "audio") {
+        late();
+        lateEvent();
+      } else {
+        lateEvent();
+        late();
+      }
+      expect(h.reason()).toBe("cap");
+      expect(audio.enqueued).toBe(1);
+      expect(h.threads).toEqual([]);
+      expect(socket.closed).toBe(1);
+      expect(audio.closed).toBe(1);
+      audio.options.onMicChunk(new Uint8Array(2));
+      expect(socket.sentAudio).toBe(0);
+      expect(socket.cancels).toBe(0);
+      expect(socket.truncates).toEqual([]);
+    },
+  );
+
   it("ends with connection-lost when an active call drops", async () => {
     const h = setup();
     await active(h);
@@ -291,7 +356,11 @@ describe("live call", () => {
     old.options.onOpen?.();
     old.options.onClose?.();
     old.options.onEvent({ type: "error", message: "x" });
-    old.options.onAudio?.({ bytes: new Uint8Array(2), responseId: "r1", itemId: "i1" });
+    old.options.onAudio?.({
+      bytes: new Uint8Array(2),
+      responseId: "r1",
+      itemId: "i1",
+    });
     oldAudio.options.onMicChunk(new Uint8Array(2));
     expect(h.ctl.getSnapshot().phase).toBe("connecting");
     expect(old.socket.sentAudio).toBe(0);
@@ -340,16 +409,32 @@ describe("live call", () => {
     const h = setup();
     await active(h);
     const { options } = first(h.sockets);
-    options.onEvent({ type: "input.transcription_updated", itemId: "t1", text: "a" });
-    options.onEvent({ type: "input.transcription_completed", itemId: "t1", text: "ab" });
-    options.onEvent({ type: "input.transcription_updated", itemId: undefined, text: "x" });
+    options.onEvent({
+      type: "input.transcription_updated",
+      itemId: "t1",
+      text: "a",
+    });
+    options.onEvent({
+      type: "input.transcription_completed",
+      itemId: "t1",
+      text: "ab",
+    });
+    options.onEvent({
+      type: "input.transcription_updated",
+      itemId: undefined,
+      text: "x",
+    });
     expect(h.threads.map((e) => [e.itemId, e.final])).toEqual([
       ["t1", false],
       ["t1", true],
     ]);
     expect(h.threads[1]?.text === "ab").toBe(true);
     h.ctl.end("hang-up");
-    options.onEvent({ type: "input.transcription_updated", itemId: "t2", text: "z" });
+    options.onEvent({
+      type: "input.transcription_updated",
+      itemId: "t2",
+      text: "z",
+    });
     expect(h.threads.length).toBe(2);
   });
 });
