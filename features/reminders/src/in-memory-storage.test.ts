@@ -14,6 +14,7 @@ const reminder: ScheduledReminder = {
     instruction: "Use the declared instruction.",
   },
   createdAt: "2026-11-26T09:00:00.000Z",
+  attemptCount: 0,
   status: "scheduled",
 };
 

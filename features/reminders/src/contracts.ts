@@ -52,6 +52,7 @@ type ReminderBase = {
   readonly channel: ReminderChannel;
   readonly details: ReminderDetails;
   readonly createdAt: string;
+  readonly attemptCount: number;
 };
 
 export type ScheduledReminder = ReminderBase & {
@@ -64,7 +65,28 @@ export type CancelledReminder = ReminderBase & {
   readonly cancellationReason: "requested" | "appointment-missing";
 };
 
-export type Reminder = ScheduledReminder | CancelledReminder;
+export type DispatchingReminder = ReminderBase & {
+  readonly status: "dispatching";
+  readonly lastAttemptAt: string;
+};
+
+export type SentReminder = ReminderBase & {
+  readonly status: "sent";
+  readonly sentAt: string;
+};
+
+export type FailedReminder = ReminderBase & {
+  readonly status: "failed";
+  readonly failedAt: string;
+  readonly failureReason: "delivery-failed";
+};
+
+export type Reminder =
+  | ScheduledReminder
+  | CancelledReminder
+  | DispatchingReminder
+  | SentReminder
+  | FailedReminder;
 export type ReminderStatus = Reminder["status"];
 
 export type ReminderStorageCreateResult =
@@ -88,12 +110,51 @@ export interface ReminderStorage {
   ): Promise<ReminderStorageReplaceResult>;
 }
 
+export type ReminderMessage = {
+  readonly reminderId: string;
+  readonly appointmentId: string;
+  readonly channel: ReminderChannel;
+  readonly body: string;
+};
+
+export type ReminderSenderResult =
+  | { readonly ok: true }
+  | { readonly ok: false };
+
+export interface ReminderSender {
+  send(message: ReminderMessage): Promise<unknown>;
+}
+
+export type DispatchOutcome =
+  | { readonly reminderId: string; readonly outcome: "sent" }
+  | {
+      readonly reminderId: string;
+      readonly outcome: "failed";
+      readonly reason: "delivery-failed";
+    }
+  | {
+      readonly reminderId: string;
+      readonly outcome: "cancelled";
+      readonly reason: "appointment-missing";
+    }
+  | {
+      readonly reminderId: string;
+      readonly outcome: "skipped";
+      readonly reason: "agenda-unavailable" | "state-changed";
+    };
+
+export type DispatchReport = {
+  readonly dispatchedAt: string;
+  readonly outcomes: readonly DispatchOutcome[];
+};
+
 export type ReminderErrorCode =
   | "INVALID_INPUT"
   | "INVALID_REMINDER_TIME"
   | "APPOINTMENT_NOT_FOUND"
   | "DUPLICATE_REMINDER"
   | "REMINDER_NOT_FOUND"
+  | "REMINDER_NOT_CANCELLABLE"
   | "STORAGE_FULL"
   | "STORAGE_FAILURE"
   | "AGENDA_FAILURE"
@@ -119,6 +180,7 @@ export type CancelReminderOutcome =
 
 export type ReminderDependencies = {
   readonly agendaSource: AgendaSource;
+  readonly sender: ReminderSender;
   readonly storage: ReminderStorage;
   readonly now: () => Date;
   readonly generateId?: () => string;
@@ -130,4 +192,5 @@ export interface ReminderService {
   ): Promise<ReminderResult<ScheduledReminder>>;
   list(): Promise<ReminderResult<readonly Reminder[]>>;
   cancel(id: string): Promise<ReminderResult<CancelReminderOutcome>>;
+  dispatchDue(): Promise<ReminderResult<DispatchReport>>;
 }

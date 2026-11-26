@@ -39,6 +39,7 @@ function dependencies(
 ): ReminderDependencies {
   return {
     agendaSource: agenda(),
+    sender: { send: vi.fn(async () => ({ ok: true })) },
     storage: new InMemoryReminderStorage(),
     now: () => new Date(currentTime),
     generateId: () => "rem_synthetic",
@@ -62,6 +63,7 @@ describe("reminder scheduling", () => {
         channel: "sms",
         details: { type: "appointment" },
         createdAt: currentTime,
+        attemptCount: 0,
         status: "scheduled",
       },
     });
@@ -109,6 +111,8 @@ describe("reminder scheduling", () => {
 
   test.each<[string, string]>([
     ["a timestamp without a timezone", "2026-11-27T07:00:00"],
+    ["a non-ISO timestamp", "November 27 2026Z"],
+    ["an invalid calendar date", "2026-02-30T07:00:00Z"],
     ["a past timestamp", "2026-11-26T08:59:59Z"],
     ["the appointment start", "2026-11-27T10:00:00+01:00"],
     ["a timestamp after the appointment", "2026-11-27T10:01:00+01:00"],
@@ -288,6 +292,92 @@ describe("reminder scheduling", () => {
           },
         },
       ],
+    });
+  });
+
+  test("snapshots changing input getters once before validation", async () => {
+    const mutableInput = input();
+    const mutableDetails = { type: "medication" };
+    let appointmentIdReads = 0;
+    let remindAtReads = 0;
+    let channelReads = 0;
+    let detailsReads = 0;
+    let typeReads = 0;
+    let instructionReads = 0;
+    Object.defineProperty(mutableInput, "appointmentId", {
+      enumerable: true,
+      get() {
+        appointmentIdReads += 1;
+        return appointmentIdReads === 1 ? "apt_synthetic" : "apt_changed";
+      },
+    });
+    Object.defineProperty(mutableInput, "remindAt", {
+      enumerable: true,
+      get() {
+        remindAtReads += 1;
+        return remindAtReads === 1
+          ? "2026-11-27T08:00:00+01:00"
+          : "2026-11-26T08:00:00Z";
+      },
+    });
+    Object.defineProperty(mutableInput, "channel", {
+      enumerable: true,
+      get() {
+        channelReads += 1;
+        return channelReads === 1 ? "sms" : "email";
+      },
+    });
+    Object.defineProperty(mutableDetails, "type", {
+      enumerable: true,
+      get() {
+        typeReads += 1;
+        return typeReads === 1 ? "medication" : "appointment";
+      },
+    });
+    Object.defineProperty(mutableDetails, "instruction", {
+      enumerable: true,
+      get() {
+        instructionReads += 1;
+        return instructionReads === 1 ? "Use the declared instruction." : "Changed";
+      },
+    });
+    Object.defineProperty(mutableInput, "details", {
+      enumerable: true,
+      get() {
+        detailsReads += 1;
+        return detailsReads === 1 ? mutableDetails : { type: "appointment" };
+      },
+    });
+    const service = createReminderService(dependencies());
+
+    const result = await service.schedule(mutableInput);
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        appointmentId: "apt_synthetic",
+        remindAt: "2026-11-27T07:00:00.000Z",
+        channel: "sms",
+        details: {
+          type: "medication",
+          instruction: "Use the declared instruction.",
+        },
+      },
+    });
+    expect({
+      appointmentIdReads,
+      remindAtReads,
+      channelReads,
+      detailsReads,
+      typeReads,
+      instructionReads,
+    }).toEqual({
+      appointmentIdReads: 1,
+      remindAtReads: 1,
+      channelReads: 1,
+      detailsReads: 1,
+      typeReads: 1,
+      instructionReads: 1,
     });
   });
 });

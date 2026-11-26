@@ -9,7 +9,17 @@ import {
   type ScheduleReminderInput,
 } from "./contracts.ts";
 
-const explicitOffsetPattern = /(?:Z|[+-]\d{2}:\d{2})$/;
+export type ScheduleInputSnapshot = {
+  readonly appointmentId: unknown;
+  readonly remindAt: unknown;
+  readonly channel: unknown;
+  readonly details: {
+    readonly type: unknown;
+    readonly instruction: unknown;
+  };
+};
+
+const isoTimestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|[+-](\d{2}):(\d{2}))$/;
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
 
 function failure<T>(
@@ -68,10 +78,59 @@ export function parseTimestamp(
   value: unknown,
   field: string,
 ): ReminderResult<{ readonly iso: string; readonly epoch: number }> {
-  if (typeof value !== "string" || !explicitOffsetPattern.test(value)) {
+  if (typeof value !== "string") {
     return failure(
       "INVALID_REMINDER_TIME",
       `${field} must be an ISO timestamp with an explicit timezone.`,
+      field,
+    );
+  }
+  const parts = isoTimestampPattern.exec(value);
+  if (parts === null) {
+    return failure(
+      "INVALID_REMINDER_TIME",
+      `${field} must be an ISO timestamp with an explicit timezone.`,
+      field,
+    );
+  }
+  const year = Number(parts[1]);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  const hour = Number(parts[4]);
+  const minute = Number(parts[5]);
+  const second = Number(parts[6]);
+  const offsetHour = parts[8] === undefined ? 0 : Number(parts[8]);
+  const offsetMinute = parts[9] === undefined ? 0 : Number(parts[9]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysPerMonth = [
+    31,
+    leapYear ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+  const maximumDay = daysPerMonth[month - 1];
+  if (
+    maximumDay === undefined ||
+    day < 1 ||
+    day > maximumDay ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 14 ||
+    offsetMinute > 59 ||
+    (offsetHour === 14 && offsetMinute !== 0)
+  ) {
+    return failure(
+      "INVALID_REMINDER_TIME",
+      `${field} must be a valid ISO timestamp.`,
       field,
     );
   }
@@ -139,7 +198,7 @@ export function validateAppointment(
 }
 
 export function validateScheduleInput(
-  input: ScheduleReminderInput,
+  input: ScheduleInputSnapshot,
   appointment: AgendaAppointment,
   currentTime: number,
 ): ReminderResult<{
@@ -148,18 +207,7 @@ export function validateScheduleInput(
   readonly channel: "sms" | "call";
   readonly details: ReminderDetails;
 }> {
-  let appointmentId: unknown;
-  let remindAt: unknown;
-  let channel: unknown;
-  let details: unknown;
-  try {
-    appointmentId = input.appointmentId;
-    remindAt = input.remindAt;
-    channel = input.channel;
-    details = input.details;
-  } catch {
-    return failure("INVALID_INPUT", "Reminder input is invalid.");
-  }
+  const { appointmentId, remindAt, channel, details } = input;
   const validId = validIdentifier(appointmentId, "appointmentId");
   if (!validId.ok) {
     return validId;
@@ -186,15 +234,7 @@ export function validateScheduleInput(
   if (channel !== "sms" && channel !== "call") {
     return failure("INVALID_INPUT", "channel must be sms or call.", "channel");
   }
-  if (typeof details !== "object" || details === null) {
-    return failure("INVALID_INPUT", "details is invalid.", "details");
-  }
-  let type: unknown;
-  try {
-    type = Reflect.get(details, "type");
-  } catch {
-    return failure("INVALID_INPUT", "details is invalid.", "details");
-  }
+  const { type, instruction } = details;
   if (type === "appointment") {
     return {
       ok: true,
@@ -207,12 +247,6 @@ export function validateScheduleInput(
     };
   }
   if (type === "medication") {
-    let instruction: unknown;
-    try {
-      instruction = Reflect.get(details, "instruction");
-    } catch {
-      return failure("INVALID_INPUT", "details is invalid.", "details");
-    }
     const validInstruction = boundedText(
       instruction,
       reminderLimits.medicationInstructionCharacters,
@@ -241,6 +275,35 @@ export function validateScheduleInput(
   );
 }
 
+export function snapshotScheduleInput(
+  input: ScheduleReminderInput,
+): ReminderResult<ScheduleInputSnapshot> {
+  try {
+    const appointmentId: unknown = input.appointmentId;
+    const remindAt: unknown = input.remindAt;
+    const channel: unknown = input.channel;
+    const rawDetails: unknown = input.details;
+    if (typeof rawDetails !== "object" || rawDetails === null) {
+      return failure("INVALID_INPUT", "details is invalid.", "details");
+    }
+    const type: unknown = Reflect.get(rawDetails, "type");
+    const instruction: unknown = type === "medication"
+      ? Reflect.get(rawDetails, "instruction")
+      : undefined;
+    return {
+      ok: true,
+      value: {
+        appointmentId,
+        remindAt,
+        channel,
+        details: { type, instruction },
+      },
+    };
+  } catch {
+    return failure("INVALID_INPUT", "Reminder input is invalid.");
+  }
+}
+
 export function isValidReminder(value: Reminder): boolean {
   try {
     const id = validIdentifier(value.id, "id");
@@ -266,11 +329,29 @@ export function isValidReminder(value: Reminder): boolean {
     } else if (value.details.type !== "appointment") {
       return false;
     }
+    if (
+      !Number.isSafeInteger(value.attemptCount) ||
+      value.attemptCount < 0
+    ) {
+      return false;
+    }
     if (value.status === "cancelled") {
       return (
         parseTimestamp(value.cancelledAt, "cancelledAt").ok &&
         (value.cancellationReason === "requested" ||
           value.cancellationReason === "appointment-missing")
+      );
+    }
+    if (value.status === "dispatching") {
+      return parseTimestamp(value.lastAttemptAt, "lastAttemptAt").ok;
+    }
+    if (value.status === "sent") {
+      return parseTimestamp(value.sentAt, "sentAt").ok;
+    }
+    if (value.status === "failed") {
+      return (
+        parseTimestamp(value.failedAt, "failedAt").ok &&
+        value.failureReason === "delivery-failed"
       );
     }
     return value.status === "scheduled";

@@ -3,17 +3,25 @@ import {
   type AgendaAppointment,
   type CancelledReminder,
   type CancelReminderOutcome,
+  type DispatchOutcome,
+  type DispatchReport,
+  type DispatchingReminder,
+  type FailedReminder,
   type Reminder,
   type ReminderDependencies,
   type ReminderError,
   type ReminderResult,
   type ReminderService,
+  type ReminderSenderResult,
   type ScheduleReminderInput,
   type ScheduledReminder,
+  type SentReminder,
 } from "./contracts.ts";
+import { buildReminderMessage, copyMessage } from "./reminder-message.ts";
 import { copyReminder } from "./reminder-copy.ts";
 import {
   isValidReminder,
+  snapshotScheduleInput,
   validateAppointment,
   validateScheduleInput,
   validIdentifier,
@@ -71,10 +79,34 @@ function sortReminders(reminders: readonly Reminder[]): Reminder[] {
   );
 }
 
+function validatedStorageRecords(
+  records: readonly Reminder[],
+): Reminder[] | null {
+  try {
+    if (
+      !Array.isArray(records) ||
+      records.length > reminderLimits.storedReminders
+    ) {
+      return null;
+    }
+    const snapshots: Reminder[] = [];
+    for (const record of records) {
+      const snapshot = copyReminder(record);
+      if (!isValidReminder(snapshot)) {
+        return null;
+      }
+      snapshots.push(snapshot);
+    }
+    return snapshots;
+  } catch {
+    return null;
+  }
+}
+
 export function createReminderService(
   dependencies: ReminderDependencies,
 ): ReminderService {
-  const { agendaSource, storage, now } = dependencies;
+  const { agendaSource, sender, storage, now } = dependencies;
   const generateId =
     dependencies.generateId ??
     (() => `rem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`);
@@ -87,14 +119,12 @@ export function createReminderService(
       if (!timestamp.ok) {
         return timestamp;
       }
-      let appointmentId: unknown;
-      try {
-        appointmentId = input.appointmentId;
-      } catch {
-        return failure("INVALID_INPUT", "Reminder input is invalid.");
+      const snapshot = snapshotScheduleInput(input);
+      if (!snapshot.ok) {
+        return snapshot;
       }
       const validAppointmentId = validIdentifier(
-        appointmentId,
+        snapshot.value.appointmentId,
         "appointmentId",
       );
       if (!validAppointmentId.ok) {
@@ -108,7 +138,7 @@ export function createReminderService(
         return appointment;
       }
       const validated = validateScheduleInput(
-        input,
+        snapshot.value,
         appointment.value,
         timestamp.value.epoch,
       );
@@ -133,6 +163,7 @@ export function createReminderService(
         channel: validated.value.channel,
         details: validated.value.details,
         createdAt: timestamp.value.iso,
+        attemptCount: 0,
         status: "scheduled",
       };
 
@@ -167,11 +198,8 @@ export function createReminderService(
       } catch {
         return failure("STORAGE_FAILURE", "Reminder storage failed.");
       }
-      if (
-        !Array.isArray(reminders) ||
-        reminders.length > reminderLimits.storedReminders ||
-        !reminders.every((reminder) => isValidReminder(reminder))
-      ) {
+      const snapshots = validatedStorageRecords(reminders);
+      if (snapshots === null) {
         return failure(
           "STORAGE_FAILURE",
           "Reminder storage returned invalid data.",
@@ -179,7 +207,7 @@ export function createReminderService(
       }
       return {
         ok: true,
-        value: sortReminders(reminders).map((reminder) =>
+        value: sortReminders(snapshots).map((reminder) =>
           copyReminder(reminder),
         ),
       };
@@ -201,12 +229,22 @@ export function createReminderService(
       if (reminder === null) {
         return failure("REMINDER_NOT_FOUND", "Reminder was not found.");
       }
-      if (!isValidReminder(reminder) || reminder.id !== validId.value) {
+      let snapshot: Reminder;
+      try {
+        snapshot = copyReminder(reminder);
+      } catch {
         return failure(
           "STORAGE_FAILURE",
           "Reminder storage returned invalid data.",
         );
       }
+      if (!isValidReminder(snapshot) || snapshot.id !== validId.value) {
+        return failure(
+          "STORAGE_FAILURE",
+          "Reminder storage returned invalid data.",
+        );
+      }
+      reminder = snapshot;
       if (reminder.status === "cancelled") {
         return {
           ok: true,
@@ -216,13 +254,30 @@ export function createReminderService(
           },
         };
       }
+      if (reminder.status === "sent") {
+        return failure(
+          "REMINDER_NOT_CANCELLABLE",
+          "A sent reminder cannot be cancelled.",
+        );
+      }
+      if (reminder.status === "dispatching") {
+        return failure(
+          "REMINDER_NOT_CANCELLABLE",
+          "A dispatching reminder cannot be cancelled.",
+        );
+      }
       const timestamp = currentTimestamp(now);
       if (!timestamp.ok) {
         return timestamp;
       }
       const cancelled: CancelledReminder = {
-        ...reminder,
+        id: reminder.id,
+        appointmentId: reminder.appointmentId,
+        remindAt: reminder.remindAt,
+        channel: reminder.channel,
         details: { ...reminder.details },
+        createdAt: reminder.createdAt,
+        attemptCount: reminder.attemptCount,
         status: "cancelled",
         cancelledAt: timestamp.value.iso,
         cancellationReason: "requested",
@@ -231,7 +286,7 @@ export function createReminderService(
       try {
         outcome = await storage.replace(
           reminder.id,
-          "scheduled",
+          reminder.status,
           copyReminder(cancelled),
         );
       } catch {
@@ -248,5 +303,223 @@ export function createReminderService(
         value: { outcome: "cancelled", reminder: copyReminder(cancelled) },
       };
     },
+
+    async dispatchDue(): Promise<ReminderResult<DispatchReport>> {
+      const timestamp = currentTimestamp(now);
+      if (!timestamp.ok) {
+        return timestamp;
+      }
+      let reminders: readonly Reminder[];
+      try {
+        reminders = await storage.list();
+      } catch {
+        return failure("STORAGE_FAILURE", "Reminder storage failed.");
+      }
+      const snapshots = validatedStorageRecords(reminders);
+      if (snapshots === null) {
+        return failure(
+          "STORAGE_FAILURE",
+          "Reminder storage returned invalid data.",
+        );
+      }
+      const due = sortReminders(snapshots).filter(
+        (reminder) =>
+          (reminder.status === "scheduled" || reminder.status === "failed") &&
+          Date.parse(reminder.remindAt) <= timestamp.value.epoch,
+      );
+      const outcomes: DispatchOutcome[] = [];
+
+      for (const reminder of due) {
+        let appointment: AgendaAppointment | null;
+        try {
+          appointment = await agendaSource.getAppointment(
+            reminder.appointmentId,
+          );
+        } catch {
+          outcomes.push({
+            reminderId: reminder.id,
+            outcome: "skipped",
+            reason: "agenda-unavailable",
+          });
+          continue;
+        }
+        if (appointment === null) {
+          const cancelled: CancelledReminder = {
+            id: reminder.id,
+            appointmentId: reminder.appointmentId,
+            remindAt: reminder.remindAt,
+            channel: reminder.channel,
+            details: { ...reminder.details },
+            createdAt: reminder.createdAt,
+            attemptCount: reminder.attemptCount,
+            status: "cancelled",
+            cancelledAt: timestamp.value.iso,
+            cancellationReason: "appointment-missing",
+          };
+          let cancelledOutcome: "updated" | "not-found" | "state-conflict";
+          try {
+            cancelledOutcome = await storage.replace(
+              reminder.id,
+              reminder.status,
+              copyReminder(cancelled),
+            );
+          } catch {
+            return failure("STORAGE_FAILURE", "Reminder storage failed.");
+          }
+          outcomes.push(
+            cancelledOutcome === "updated"
+              ? {
+                  reminderId: reminder.id,
+                  outcome: "cancelled",
+                  reason: "appointment-missing",
+                }
+              : {
+                  reminderId: reminder.id,
+                  outcome: "skipped",
+                  reason: "state-changed",
+                },
+          );
+          continue;
+        }
+        const validAppointment = validateAppointment(
+          appointment,
+          reminder.appointmentId,
+        );
+        if (!validAppointment.ok) {
+          outcomes.push({
+            reminderId: reminder.id,
+            outcome: "skipped",
+            reason: "agenda-unavailable",
+          });
+          continue;
+        }
+
+        const dispatching: DispatchingReminder = {
+          id: reminder.id,
+          appointmentId: reminder.appointmentId,
+          remindAt: reminder.remindAt,
+          channel: reminder.channel,
+          details: { ...reminder.details },
+          createdAt: reminder.createdAt,
+          attemptCount: reminder.attemptCount + 1,
+          status: "dispatching",
+          lastAttemptAt: timestamp.value.iso,
+        };
+        let claimOutcome: "updated" | "not-found" | "state-conflict";
+        try {
+          claimOutcome = await storage.replace(
+            reminder.id,
+            reminder.status,
+            copyReminder(dispatching),
+          );
+        } catch {
+          return failure("STORAGE_FAILURE", "Reminder storage failed.");
+        }
+        if (claimOutcome !== "updated") {
+          outcomes.push({
+            reminderId: reminder.id,
+            outcome: "skipped",
+            reason: "state-changed",
+          });
+          continue;
+        }
+
+        const message = buildReminderMessage(
+          dispatching,
+          validAppointment.value,
+        );
+        let senderResult: unknown;
+        try {
+          senderResult = await sender.send(copyMessage(message));
+        } catch {
+          senderResult = null;
+        }
+        const accepted = validSenderResult(senderResult);
+        if (accepted?.ok === true) {
+          const sent: SentReminder = {
+            id: dispatching.id,
+            appointmentId: dispatching.appointmentId,
+            remindAt: dispatching.remindAt,
+            channel: dispatching.channel,
+            details: { ...dispatching.details },
+            createdAt: dispatching.createdAt,
+            attemptCount: dispatching.attemptCount,
+            status: "sent",
+            sentAt: timestamp.value.iso,
+          };
+          try {
+            const sentOutcome = await storage.replace(
+              reminder.id,
+              "dispatching",
+              copyReminder(sent),
+            );
+            if (sentOutcome !== "updated") {
+              return failure(
+                "STORAGE_FAILURE",
+                "Reminder state changed after delivery.",
+              );
+            }
+          } catch {
+            return failure("STORAGE_FAILURE", "Reminder storage failed.");
+          }
+          outcomes.push({ reminderId: reminder.id, outcome: "sent" });
+          continue;
+        }
+
+        const failed: FailedReminder = {
+          id: dispatching.id,
+          appointmentId: dispatching.appointmentId,
+          remindAt: dispatching.remindAt,
+          channel: dispatching.channel,
+          details: { ...dispatching.details },
+          createdAt: dispatching.createdAt,
+          attemptCount: dispatching.attemptCount,
+          status: "failed",
+          failedAt: timestamp.value.iso,
+          failureReason: "delivery-failed",
+        };
+        try {
+          const failedOutcome = await storage.replace(
+            reminder.id,
+            "dispatching",
+            copyReminder(failed),
+          );
+          if (failedOutcome !== "updated") {
+            return failure(
+              "STORAGE_FAILURE",
+              "Reminder state changed after delivery failure.",
+            );
+          }
+        } catch {
+          return failure("STORAGE_FAILURE", "Reminder storage failed.");
+        }
+        outcomes.push({
+          reminderId: reminder.id,
+          outcome: "failed",
+          reason: "delivery-failed",
+        });
+      }
+
+      return {
+        ok: true,
+        value: { dispatchedAt: timestamp.value.iso, outcomes },
+      };
+    },
   };
+}
+
+function validSenderResult(value: unknown): ReminderSenderResult | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  try {
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "ok") {
+      return null;
+    }
+    const ok = Reflect.get(value, "ok");
+    return ok === true ? { ok: true } : ok === false ? { ok: false } : null;
+  } catch {
+    return null;
+  }
 }
