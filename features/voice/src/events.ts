@@ -125,7 +125,9 @@ function parseObject(o: Obj): ServerEvent | undefined {
       const responseId = optId(o, "response_id");
       const itemId = optId(o, "item_id");
       const delta = o["delta"];
-      if (responseId === null || itemId === null) return undefined;
+      // JSON audio must name its response. Only binary frames are untagged.
+      if (responseId === null || responseId === undefined || itemId === null)
+        return undefined;
       if (typeof delta !== "string") return undefined;
       return { type: "response.audio_delta", responseId, itemId, delta };
     }

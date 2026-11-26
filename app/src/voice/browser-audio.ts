@@ -354,7 +354,11 @@ export async function startBrowserAudio(
       // Admit before decode, even an empty chunk, so a flush from inside the
       // codec or a later flush retires this response.
       seen.add(chunk.responseId);
-      const samples = codec.decode(chunk.bytes);
+      // An empty chunk is an announce only: libopus would conceal a frame.
+      const samples =
+        chunk.bytes.length === 0
+          ? new Float32Array(0)
+          : codec.decode(chunk.bytes);
       if (closed || blocked.has(chunk.responseId) || epoch !== admittedEpoch)
         return;
       const itemId = chunk.itemId ?? knownItem.get(chunk.responseId);

@@ -89,8 +89,15 @@ function setup(
       this.muted = m;
     }
     enqueued = 0;
-    enqueue() {
-      this.enqueued++;
+    chunks: { responseId: string; itemId: string | undefined; length: number }[] = [];
+    enqueue(chunk: { bytes: Uint8Array; responseId: string; itemId: string | undefined }) {
+      // `enqueued` counts audible audio; announce chunks are zero-length.
+      if (chunk.bytes.length > 0) this.enqueued++;
+      this.chunks.push({
+        responseId: chunk.responseId,
+        itemId: chunk.itemId,
+        length: chunk.bytes.length,
+      });
     }
     discardResponse() {}
     playedMs() {
@@ -460,10 +467,72 @@ describe("live call", () => {
       responseId: "r1",
       itemId: "i1",
     });
-    // The flush snapshot played untagged audio of r1, so it has no item id.
-    audio.snapshot = { generation: 0, responseId: "r1", itemId: undefined, playedMs: 91 };
+    // The announce reaches the adapter as a zero-length chunk that carries
+    // the id, so the queued untagged audio can adopt it.
+    expect(audio.chunks[1]).toEqual({ responseId: "r1", itemId: "i1", length: 0 });
+    // The adapter adopted the id: the flush snapshot names the item.
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: "i1", playedMs: 91 };
     options.onEvent({ type: "input.speech_started", itemId: undefined });
     expect(socket.truncates).toEqual([["i1", 91]]);
+  });
+
+  it("keeps binary audio speaking after response.done so barge-in flushes (BC-63)", async () => {
+    const h = setup();
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
+    // response.done lands before the adapter's first playback tick.
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    expect(h.ctl.getSnapshot().activity).toBe("speaking");
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: "i1", playedMs: 64 };
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(audio.flushes).toBe(1);
+    expect(socket.truncates).toEqual([["i1", 64]]);
+  });
+
+  it("does not truncate on speech after response.done with no audio queued", async () => {
+    const h = setup();
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(first(h.audios).flushes).toBe(0);
+    expect(socket.truncates).toEqual([]);
+  });
+
+  it("truncates R1's audible item when R2 is announced first (BC-63)", async () => {
+    const h = setup();
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    options.onEvent({ type: "response.created", responseId: "r2" });
+    options.onEvent({ type: "response.output_item_added", responseId: "r2", itemId: "i2" });
+    // R1 is still what the speaker plays.
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: "i1", playedMs: 55 };
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.truncates).toEqual([["i1", 55]]);
+  });
+
+  it("never sends a later item with the audible item's offset (BC-63)", async () => {
+    const h = setup();
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i2" });
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: "i1", playedMs: 33 };
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.truncates).toEqual([["i1", 33]]);
   });
 
   it("does not invent an item id before one is announced", async () => {
@@ -533,6 +602,12 @@ describe("live call", () => {
         enqueued: 0,
       },
       {
+        name: "JSON chunk with item id and no response id",
+        events: ["created", "item"],
+        chunk: { responseId: undefined, itemId: "i1" },
+        enqueued: 0,
+      },
+      {
         name: "valid JSON chunk",
         events: ["created", "item"],
         chunk: { responseId: "r1", itemId: "i1" },
@@ -564,6 +639,151 @@ describe("live call", () => {
       }
       options.onAudio?.({ bytes: new Uint8Array(2), ...chunk });
       expect(first(h.audios).enqueued).toBe(enqueued);
+    });
+  });
+  // The cap timer stays pending: the clock moves with skip, never advance.
+  describe("deadline passed, timer still pending", () => {
+    const quietSockets = (h: ReturnType<typeof setup>) => {
+      for (const { socket } of h.sockets) {
+        expect(socket.sentAudio).toBe(0);
+        expect(socket.cancels).toBe(0);
+        expect(socket.truncates).toHaveLength(0);
+        expect(socket.closed).toBe(1);
+      }
+    };
+    const capped = (h: ReturnType<typeof setup>) => {
+      expect(h.reason()).toBe("cap");
+      expect(h.aborted()).toBe(true);
+      for (const a of h.audios) {
+        expect(a.closed).toBe(1);
+        expect(a.muted).toBeUndefined();
+      }
+      quietSockets(h);
+    };
+
+    it("mic chunk while still connecting", async () => {
+      const h = setup();
+      await h.ctl.start([]);
+      expect(h.ctl.getSnapshot().phase).toBe("connecting");
+      expect(h.timers()).toBe(1);
+      h.skip(callCapMs);
+      first(h.audios).options.onMicChunk(new Uint8Array(2));
+      capped(h);
+      expect(h.sockets).toHaveLength(1);
+    });
+
+    it("mute while still connecting", async () => {
+      const h = setup();
+      await h.ctl.start([]);
+      expect(h.ctl.getSnapshot().phase).toBe("connecting");
+      h.skip(callCapMs);
+      h.ctl.setMuted(true);
+      capped(h);
+    });
+
+    it("audio resolves late while the mint is pending", async () => {
+      const h = setup({ manualToken: true, manualAudio: true });
+      const started = h.ctl.start([]);
+      h.skip(callCapMs);
+      h.audioGate.resolve();
+      await flush();
+      expect(h.reason()).toBe("cap");
+      h.tokenGate.resolve({ value: "token" });
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      capped(h);
+      expect(h.audios).toHaveLength(1);
+    });
+
+    it("mint completes late after audio is ready", async () => {
+      const h = setup({ manualToken: true });
+      const started = h.ctl.start([]);
+      await flush();
+      h.skip(callCapMs);
+      h.tokenGate.resolve({ value: "token" });
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      capped(h);
+      expect(h.audios).toHaveLength(1);
+    });
+
+    it("audio resolves late after the mint", async () => {
+      const h = setup({ manualAudio: true });
+      const started = h.ctl.start([]);
+      await flush();
+      h.skip(callCapMs);
+      h.audioGate.resolve();
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      capped(h);
+      expect(h.audios).toHaveLength(1);
+    });
+
+    it("playback notice", async () => {
+      const h = setup();
+      await active(h);
+      h.skip(callCapMs);
+      first(h.audios).options.onPlayback({ type: "playbackDrained", generation: 0 });
+      capped(h);
+    });
+
+    it("setMuted", async () => {
+      const h = setup();
+      await active(h);
+      h.skip(callCapMs);
+      h.ctl.setMuted(true);
+      capped(h);
+    });
+
+    it("late mint rejection", async () => {
+      const h = setup({ manualToken: true });
+      const started = h.ctl.start([]);
+      await flush();
+      h.skip(callCapMs);
+      h.tokenGate.reject(new Error("mint"));
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      capped(h);
+    });
+
+    it("late audio rejection", async () => {
+      const h = setup({ manualToken: true, manualAudio: true });
+      const started = h.ctl.start([]);
+      h.skip(callCapMs);
+      h.audioGate.reject(new Error("audio"));
+      h.tokenGate.resolve({ value: "token" });
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      expect(h.reason()).toBe("cap");
+      expect(h.aborted()).toBe(true);
+    });
+
+    it("a rejection before the deadline still fails", async () => {
+      const h = setup({ manualToken: true });
+      const started = h.ctl.start([]);
+      h.tokenGate.reject(new Error("mint"));
+      await started;
+      expect(h.reason()).toBe("failed");
+    });
+
+    it("socket opens after the deadline: no handshake", async () => {
+      const h = setup();
+      await h.ctl.start([]);
+      h.skip(callCapMs);
+      const { options } = first(h.sockets);
+      // The adapter sends session.update only when this allows it.
+      expect(options.canHandshake?.()).toBe(false);
+      options.onOpen?.();
+      capped(h);
+      expect(h.ctl.getSnapshot().phase).toBe("ended");
+    });
+
+    it("allows the handshake before the deadline", async () => {
+      const h = setup();
+      await h.ctl.start([]);
+      h.skip(callCapMs - 1);
+      expect(first(h.sockets).options.canHandshake?.()).toBe(true);
+      expect(h.reason()).toBeUndefined();
     });
   });
 });

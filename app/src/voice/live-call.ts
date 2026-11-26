@@ -69,9 +69,6 @@ type Call = {
   timer: unknown;
   audio: BrowserAudio | undefined;
   socket: RealtimeSocket | undefined;
-  // Item announced for the generating response. Binary audio has no ids, so
-  // this is what ties its queued bytes to an item at barge-in.
-  announced: { readonly responseId: string; readonly itemId: string } | undefined;
 };
 
 const quiet = (fn: () => void): void => {
@@ -139,14 +136,10 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     const snap = audio.flush(generation);
     if (!live(c)) return;
     if (generating) c.socket?.cancelResponse();
-    // Untagged binary audio takes the item announced for its own response.
-    const itemId =
-      snap.itemId ??
-      (snap.responseId !== undefined && snap.responseId === c.announced?.responseId
-        ? c.announced.itemId
-        : undefined);
-    if (itemId !== undefined && live(c)) {
-      c.socket?.truncate(itemId, snap.playedMs);
+    // Only the flush snapshot names the audible item and its offset. The
+    // adapter binds announced ids to queued audio (see the announce below).
+    if (snap.itemId !== undefined && live(c)) {
+      c.socket?.truncate(snap.itemId, snap.playedMs);
     }
   };
 
@@ -162,6 +155,9 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       instructions,
       keyterms: deps.keyterms,
       tuning: deps.tuning,
+      // The adapter asks before it sends session.update. Past the deadline
+      // this ends the call with "cap" and the adapter sends nothing.
+      canHandshake: () => live(c),
       onOpen: () => live(c) && dispatch({ type: "connected" }),
       onError: onClose,
       onClose,
@@ -188,7 +184,13 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           state.responseId === event.responseId &&
           state.generatingItemId === event.itemId
         ) {
-          c.announced = { responseId: event.responseId, itemId: event.itemId };
+          // Binary audio has no ids. A zero-length chunk hands the announced
+          // id to the adapter, which attaches it to queued untagged audio.
+          audio.enqueue({
+            bytes: new Uint8Array(0),
+            responseId: event.responseId,
+            itemId: event.itemId,
+          });
         }
         const fresh =
           state.phase === "active" &&
@@ -201,8 +203,10 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       onAudio: ({ bytes, responseId, itemId }) => {
         if (!live(c)) return;
         if (state.phase !== "active" || !state.generating) return;
-        // Binary audio carries no ids. It belongs to the generating response.
+        // Only binary audio carries no ids at all; it belongs to the generating
+        // response. An item id without a response id is stale JSON: drop it.
         // A chunk that names a response must match the current one (BC-45/63).
+        if (responseId === undefined && itemId !== undefined) return;
         const id = responseId ?? state.responseId;
         if (id === undefined || id !== state.responseId) return;
         if (
@@ -214,6 +218,22 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           return;
         }
         audio.enqueue({ bytes, responseId: id, itemId });
+        // Binary audio reaches the reducer only through the ticker's first
+        // playbackStarted. Record the queued playback now, so response.done
+        // before that tick keeps the call speaking and barge-in can flush.
+        if (
+          bytes.length > 0 &&
+          live(c) &&
+          state.phase === "active" &&
+          !state.playback
+        ) {
+          dispatch({
+            type: "playbackStarted",
+            responseId: id,
+            itemId,
+            generation: state.generation,
+          });
+        }
       },
     });
     c.socket = socket;
@@ -232,7 +252,6 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       timer: undefined,
       audio: undefined,
       socket: undefined,
-      announced: undefined,
     };
     call = c;
     dispatch({ type: "start" });
@@ -253,26 +272,29 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
             codec: deps.tuning.codec,
             signal: abort.signal,
             onMicChunk: (bytes) => {
-              if (state.phase === "active" && live(c)) c.socket?.sendAudio(bytes);
+              if (!live(c)) return;
+              if (state.phase === "active") c.socket?.sendAudio(bytes);
             },
-            onPlayback: (notice) => !c.ended && dispatch(notice),
+            onPlayback: (notice) => live(c) && dispatch(notice),
           })
           .then((audio) => {
-            // Late permission: nothing owns this audio any more.
-            if (c.ended) quiet(() => audio.close());
+            // Late permission or a passed deadline: nothing owns this audio.
+            if (!live(c)) quiet(() => audio.close());
             else c.audio = audio;
           }),
       ]);
       open(c, secret.value, deps.instructions(history));
     } catch {
       // Only the call that began this attempt may be failed by it.
-      if (call === c && !c.ended) end("failed");
+      // A passed deadline ends the call with "cap" instead.
+      if (call === c && live(c)) end("failed");
     }
   };
 
   return {
     start,
     setMuted: (muted) => {
+      if (call && !live(call)) return;
       if (state.phase !== "active") return;
       call?.audio?.setMuted(muted);
       dispatch({ type: "setMuted", muted });
