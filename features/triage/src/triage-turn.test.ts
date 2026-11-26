@@ -558,3 +558,49 @@ it("types the shared handoff, the decision, and guidance placed after the system
   expectTypeOf<TriageDecision>().not.toHaveProperty("reason");
   expectTypeOf<TriageDecision>().not.toHaveProperty("messages");
 });
+
+async function stateFor(lengths: readonly number[]): Promise<{ state: string; texts: string[] }> {
+  const texts = lengths.map((length, index) => String.fromCharCode(97 + index).repeat(length));
+  const turns = texts.map((text, index) => demoTurn(text, `turn-b-${index}`));
+  const current = turns.at(-1) as Turn;
+  const handoff: Handoff<readonly Turn[]> = {
+    sessionId: current.sessionId,
+    turnId: current.turnId,
+    target: "triage",
+    intent: "care_request",
+    data: turns,
+  };
+  let state = "";
+  await triageTurn({
+    handoff,
+    classify: async (input) => {
+      state = input.state;
+      return { label: "self-care", probability: 0.7 };
+    },
+  });
+  return { state, texts };
+}
+
+it("caps six 2000-character turns at 8000 characters, current turn whole", async () => {
+  const { state, texts } = await stateFor([2000, 2000, 2000, 2000, 2000, 2000]);
+  expect(state.length).toBeLessThanOrEqual(8000);
+  expect(state.endsWith(texts[5] as string)).toBe(true);
+  expect(state).toBe(texts.slice(3).join("\n"));
+});
+
+it("does not yield 8001 characters for turn lengths [3999, 1, 3999]", async () => {
+  const { state, texts } = await stateFor([3999, 1, 3999]);
+  expect(state.length).toBeLessThanOrEqual(8000);
+  expect(state.endsWith(texts[2] as string)).toBe(true);
+});
+
+it("keeps a short current turn and the newest history that fits", async () => {
+  const { state, texts } = await stateFor([3000, 3000, 3000, 3000, 10]);
+  expect(state).toBe(texts.slice(2).join("\n"));
+  expect(state.length).toBeLessThanOrEqual(8000);
+});
+
+it("keeps a suffix of an over-budget current turn", async () => {
+  const { state } = await stateFor([5, 9000]);
+  expect(state).toBe("b".repeat(8000));
+});
