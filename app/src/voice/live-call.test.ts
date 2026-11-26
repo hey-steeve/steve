@@ -1097,6 +1097,63 @@ describe("live call triage enforcement", () => {
     expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
   });
 
+  it("frees the queue when forceMessage throws", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { socket } = first(h.sockets);
+    let attempts = 0;
+    socket.forceMessage = () => {
+      attempts++;
+      throw new Error("send failed");
+    };
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    expect(attempts).toBe(2);
+  });
+
+  it("frees the queue on a server error with no forced response", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(socket.forced).toHaveLength(1);
+    options.onEvent({ type: "error", message: "rejected" });
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    expect(socket.forced).toHaveLength(2);
+  });
+
+  it("frees the queue when the forced response ends with no audio", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    // A silent created/done alone must not release early.
+    expect(socket.forced).toHaveLength(1);
+    h.advance(5_000);
+    expect(socket.forced).toHaveLength(2);
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+  });
+
   it("does not cancel when no response is in flight", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });

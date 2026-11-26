@@ -134,6 +134,8 @@ type Call = {
         done: boolean;
         // Its audio drained under `generation` (reset if more audio follows).
         drained: boolean;
+        // Bounds the wait for forced audio to bind; cleared on release.
+        timer: unknown;
       }
     | undefined;
   // Later emergencies wait here, in order, for that playback to drain.
@@ -142,6 +144,8 @@ type Call = {
 
 const maxPrevious = 12;
 const maxText = 2_000;
+// How long a force may go without forced audio before later emergencies proceed.
+const forceBindMs = 5_000;
 
 const quiet = (fn: () => void): void => {
   try {
@@ -270,15 +274,26 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
 
   const send = (c: Call, sentences: readonly string[]): void => {
     if (!live(c)) return;
-    c.forcing = {
+    const f: NonNullable<Call["forcing"]> = {
       responseId: undefined,
       candidates: new Set(),
       started: false,
       generation: undefined,
       done: false,
       drained: false,
+      timer: undefined,
     };
-    quiet(() => c.socket?.forceMessage(sentences));
+    c.forcing = f;
+    f.timer = deps.setTimeout(() => {
+      // Forced audio never arrived: a failed or silent force must not stall the queue.
+      if (c.forcing === f && f.responseId === undefined) release(c);
+    }, forceBindMs);
+    try {
+      c.socket?.forceMessage(sentences);
+    } catch {
+      // The force never left: nothing will speak, so free the slot.
+      if (c.forcing === f) release(c);
+    }
   };
 
   // Release only when the forced message ended on the server and its own audio
@@ -289,6 +304,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
   };
 
   const release = (c: Call): void => {
+    if (c.forcing?.timer !== undefined) deps.clearTimeout(c.forcing.timer);
     c.forcing = undefined;
     const next = c.queued.shift();
     if (next) send(c, next);
@@ -416,6 +432,15 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           }
         }
         const forcing = c.forcing;
+        // A server error with no forced response in sight: the force failed.
+        if (
+          forcing &&
+          event.type === "error" &&
+          forcing.responseId === undefined &&
+          forcing.candidates.size === 0
+        ) {
+          release(c);
+        }
         if (forcing) {
           if (
             event.type === "response.created" &&
