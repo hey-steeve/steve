@@ -658,6 +658,54 @@ describe("flush snapshot", () => {
   }
 });
 
+describe("startup failure cleanup", () => {
+  const fail = new Error("startup failed");
+  const rows: [string, (h: ReturnType<typeof harness>) => void][] = [
+    ["getUserMedia", (h) => {
+      h.deps.getUserMedia = () => Promise.reject(fail);
+    }],
+    ["context create", (h) => {
+      h.deps.createContext = () => {
+        throw fail;
+      };
+    }],
+    ["sample-rate", (h) => {
+      h.context.sampleRate = 48000;
+    }],
+    ["resume", (h) => {
+      h.context.resume = () => Promise.reject(fail);
+    }],
+    ["worklet load", (h) => {
+      h.deps.loadWorklet = () => Promise.reject(fail);
+    }],
+    ["graph connect", (h) => {
+      h.node.connect = () => {
+        throw fail;
+      };
+    }],
+  ];
+  for (const [step, arrange] of rows) {
+    it(`${step}: start rejects and resources are released`, async () => {
+      const h = harness();
+      arrange(h);
+      let rejected = false;
+      try {
+        await h.start();
+      } catch {
+        rejected = true;
+      }
+      expect(rejected).toBe(true);
+      if (step === "getUserMedia") {
+        expect(h.stops() === 0 && h.context.closed === 0).toBe(true);
+      } else if (step === "context create") {
+        expect(h.stops() === 2 && h.context.closed === 0).toBe(true);
+      } else {
+        expect(h.stops() === 2 && h.context.closed === 1).toBe(true);
+      }
+    });
+  }
+});
+
 describe("close", () => {
   it("stops tracks, empties the queue, closes the context, and is idempotent", async () => {
     const h = harness();

@@ -276,7 +276,7 @@ export async function startBrowserAudio(
         `audio context runs at ${context.sampleRate} Hz, expected ${SAMPLE_RATE}`,
       );
     }
-    context.resume().catch(() => undefined);
+    await context.resume();
     capture = await deps.loadWorklet();
     const mic = context.createMediaStreamSource(stream);
     const silent = context.createGain();
