@@ -127,3 +127,23 @@ it("still runs when the script is invoked through a symlink", () => {
   expect(leak.status).toBe(1);
   expect(leak.output.includes(canary)).toBe(false);
 });
+
+it("fails with the fixed message when realpathSync throws", () => {
+  const dir = fixture({ "a.js": `var k="${canary}";` });
+  const preload = [
+    'import fs from "node:fs";',
+    'import { syncBuiltinESMExports } from "node:module";',
+    `fs.realpathSync = () => { throw new Error("${dir}/${canary}"); };`,
+    "syncBuiltinESMExports();",
+  ].join("\n");
+  const result = spawnSync(
+    "node",
+    ["--import", `data:text/javascript,${encodeURIComponent(preload)}`, script, dir],
+    { encoding: "utf8" },
+  );
+  const output = `${result.stdout}${result.stderr}`;
+  expect(result.status).toBe(1);
+  expect(output.includes("voice bundle check: file system error while scanning. Scan failed.")).toBe(true);
+  expect(output.includes(dir)).toBe(false);
+  expect(output.includes(canary)).toBe(false);
+});

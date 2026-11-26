@@ -80,7 +80,9 @@ function isEntryPoint() {
   try {
     return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
   } catch {
-    return false;
+    // An unresolvable path must not skip the scan and exit 0. The path is never printed.
+    process.stderr.write("voice bundle check: file system error while scanning. Scan failed.\n");
+    process.exit(1);
   }
 }
 
