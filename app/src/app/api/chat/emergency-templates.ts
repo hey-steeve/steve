@@ -1,9 +1,55 @@
-export const call15Now =
-  "Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi.";
-export const call3114Now =
-  "Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi.";
-export const call3114 =
-  "Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera.";
+import {
+  call15Now,
+  call3114Now,
+  call3114,
+  refusal112,
+  refusalSos,
+  refusalMedication,
+  redirectMedication,
+  warningSignTail,
+  breathPersists,
+  breathWorsens,
+  breathEmpire,
+  headacheBrutal,
+  headacheWeakness,
+  headacheSpeech,
+  silBreath,
+  silDrowsy,
+  silBecomesDrowsy,
+  warningSignExample,
+  warningSignPair,
+  warningSignHeadache,
+  warningSignExampleIl,
+  warningSignDrowsy,
+  warningSignBecomesDrowsy,
+} from "./prompt-base.ts";
+
+export {
+  call15Now,
+  call3114Now,
+  call3114,
+  refusal112,
+  refusalSos,
+  refusalMedication,
+  redirectMedication,
+  warningSignTail,
+  breathPersists,
+  breathWorsens,
+  breathEmpire,
+  headacheBrutal,
+  headacheWeakness,
+  headacheSpeech,
+  silBreath,
+  silDrowsy,
+  silBecomesDrowsy,
+  warningSignExample,
+  warningSignPair,
+  warningSignHeadache,
+  warningSignExampleIl,
+  warningSignDrowsy,
+  warningSignBecomesDrowsy,
+};
+
 
 export const callSentences = [
   { sentence: call15Now, numbers: ["15"] },
@@ -11,26 +57,12 @@ export const callSentences = [
   { sentence: call3114, numbers: ["3114"] },
 ] as const;
 
-export const refusal112 = "Je ne te donne pas le 112.";
-export const refusalSos = "Je ne te donne pas SOS Médecins.";
-export const refusalMedication = "Je ne peux pas te conseiller de médicament.";
-export const redirectMedication = "Demande conseil à un pharmacien ou à un médecin.";
 
 export const warningSignLeadIns = ["si ", "s'il "] as const;
-export const warningSignTail = ", appelle le 15 maintenant.";
 
-export const breathPersists = "l'essoufflement persiste";
-export const breathWorsens = "l'essoufflement s'aggrave";
-export const breathEmpire = "l'essoufflement empire";
 
-export const headacheBrutal = "douleur brutale et très intense";
-export const headacheWeakness = "faiblesse d'un côté";
-export const headacheSpeech = "difficultés à parler";
 export const headacheSigns = [headacheBrutal, headacheWeakness, headacheSpeech] as const;
 
-export const silBreath = "a du mal à respirer";
-export const silDrowsy = "est somnolent";
-export const silBecomesDrowsy = "devient somnolent";
 export const warningSignsIl = [silBreath, silDrowsy, silBecomesDrowsy] as const;
 
 export const warningSigns = [
@@ -122,12 +154,6 @@ export const warningNegations = [
   "seulement",
 ] as const;
 
-export const warningSignExample = `Si ${breathPersists}${warningSignTail}`;
-export const warningSignPair = `Si ${breathPersists} ou ${breathWorsens}${warningSignTail}`;
-export const warningSignHeadache = `Si ${headacheBrutal}, ${headacheWeakness} ou ${headacheSpeech}${warningSignTail}`;
-export const warningSignExampleIl = `S'il ${silBreath}${warningSignTail}`;
-export const warningSignDrowsy = `S'il ${silDrowsy}${warningSignTail}`;
-export const warningSignBecomesDrowsy = `S'il ${silBecomesDrowsy}${warningSignTail}`;
 
 export type EmergencyCall = "15" | "3114";
 
