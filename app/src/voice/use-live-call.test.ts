@@ -41,6 +41,8 @@ function mount() {
     },
     cancelResponse() {},
     truncate() {},
+    forceMessage() {},
+    updateInstructions() {},
     close() {
       counts.socketClose += 1;
     },

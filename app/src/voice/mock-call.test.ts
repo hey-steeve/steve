@@ -71,6 +71,8 @@ describe("createMockCall", () => {
       sendAudio() {},
       cancelResponse() {},
       truncate() {},
+      forceMessage() {},
+      updateInstructions() {},
       close() {},
     };
     const audio: BrowserAudio = {
@@ -115,6 +117,8 @@ describe("default call clock", () => {
       sendAudio() {},
       cancelResponse() {},
       truncate() {},
+      forceMessage() {},
+      updateInstructions() {},
       close() {},
     };
     const audio: BrowserAudio = {

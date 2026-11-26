@@ -72,6 +72,8 @@ function setup(
     truncate(id: string, ms: number) {
       this.truncates.push([id, ms]);
     }
+    forceMessage() {}
+    updateInstructions() {}
     close() {
       this.closed++;
     }
