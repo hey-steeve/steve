@@ -212,6 +212,11 @@ export const storageError = (): AgendaResult<never> => ({
   error: { kind: "storage-error" },
 });
 
+export const generationError = (): AgendaResult<never> => ({
+  status: "error",
+  error: { kind: "generation-error" },
+});
+
 export const errorResult = (error: AgendaError): AgendaResult<never> => ({
   status: "error",
   error,

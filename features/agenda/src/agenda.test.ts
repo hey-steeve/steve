@@ -4,11 +4,16 @@ import {
   agendaLimits,
   createAgenda,
   InMemoryAppointmentStorage,
+  type AgendaClock,
   type AgendaResult,
   type AppointmentInput,
   type AppointmentStorage,
   type ConfirmedAppointment,
 } from "./index.ts";
+
+const fixedClock: AgendaClock = {
+  now: () => new Date("2026-11-26T10:15:30.000Z"),
+};
 
 const appointment = (id = "appointment-1"): AppointmentInput => ({
   id,
@@ -25,6 +30,7 @@ const makeAgenda = (maximumAppointments?: number) => {
     storage,
     agenda: createAgenda({
       storage,
+      clock: fixedClock,
       ...(maximumAppointments === undefined ? {} : { maximumAppointments }),
     }),
   };
@@ -286,7 +292,7 @@ describe("agenda reads and removal", () => {
         throw new Error("private storage detail");
       },
     };
-    const agenda = createAgenda({ storage: brokenStorage });
+    const agenda = createAgenda({ storage: brokenStorage, clock: fixedClock });
 
     expect(agenda.register(appointment())).toEqual({
       status: "error",
@@ -316,6 +322,69 @@ describe("agenda reads and removal", () => {
     if (firstRead.status === "success") {
       firstRead.value.practitioner.name = "Mutated output";
     }
+
+    expect(agenda.get("appointment-1")).toEqual({
+      status: "success",
+      value: appointment(),
+    });
+  });
+});
+
+describe("ICS export", () => {
+  it("is deterministic and includes required fields with converted dates", () => {
+    const { agenda } = makeAgenda();
+    agenda.register(appointment());
+
+    const first = agenda.exportIcs("appointment-1");
+    const second = agenda.exportIcs("appointment-1");
+    expect(first).toEqual(second);
+    expect(first.status).toBe("success");
+    if (first.status === "success") {
+      expect(first.value).toContain("BEGIN:VCALENDAR\r\n");
+      expect(first.value).toContain("VERSION:2.0\r\n");
+      expect(first.value).toContain("PRODID:-//Steve//Agenda//EN\r\n");
+      expect(first.value).toContain(
+        "UID:appointment-1@agenda.steve.local\r\n",
+      );
+      expect(first.value).toContain("DTSTAMP:20261126T101530Z\r\n");
+      expect(first.value).toContain("DTSTART:20261201T130000Z\r\n");
+      expect(first.value).toContain("DTEND:20261201T133000Z\r\n");
+      expect(first.value).toContain(
+        "SUMMARY:Appointment with Dr Synthetic\r\n",
+      );
+      expect(first.value).toContain("LOCATION:1 Test Street\\, Paris\r\n");
+      expect(first.value).toMatch(/END:VCALENDAR\r\n$/);
+      expect(first.value.replaceAll("\r\n", "")).not.toContain("\n");
+    }
+  });
+
+  it("escapes punctuation, backslashes, and newlines", () => {
+    const { agenda } = makeAgenda();
+    const input = appointment();
+    input.practitioner.name = "Dr Synthetic, MD; PhD\nClinic";
+    input.location = {
+      kind: "physical",
+      address: "Building \\ A, Floor 2; Paris\nReception",
+    };
+    agenda.register(input);
+
+    const result = agenda.exportIcs("appointment-1");
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.value).toContain(
+        "SUMMARY:Appointment with Dr Synthetic\\, MD\\; PhD\\nClinic\r\n",
+      );
+      expect(result.value).toContain(
+        "LOCATION:Building \\\\ A\\, Floor 2\\; Paris\\nReception\r\n",
+      );
+    }
+  });
+
+  it("does not mutate stored values while exporting", () => {
+    const { agenda } = makeAgenda();
+    agenda.register(appointment());
+
+    agenda.exportIcs("appointment-1");
 
     expect(agenda.get("appointment-1")).toEqual({
       status: "success",

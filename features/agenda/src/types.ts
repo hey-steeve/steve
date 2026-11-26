@@ -74,7 +74,8 @@ export type AgendaError =
   | { kind: "already-exists"; id: string }
   | { kind: "not-found"; id: string }
   | { kind: "capacity-reached"; limit: number }
-  | { kind: "storage-error" };
+  | { kind: "storage-error" }
+  | { kind: "generation-error" };
 
 export type AgendaResult<Value> =
   | { status: "success"; value: Value }
@@ -95,9 +96,14 @@ export interface AppointmentStorage {
   delete(id: string): StorageDeleteResult;
 }
 
+export interface AgendaClock {
+  now(): Date;
+}
+
 export interface Agenda {
   register(input: AppointmentInput): AgendaResult<ConfirmedAppointment>;
   get(id: string): AgendaResult<ConfirmedAppointment>;
   list(): AgendaResult<readonly ConfirmedAppointment[]>;
   remove(id: string): AgendaResult<ConfirmedAppointment>;
+  exportIcs(id: string): AgendaResult<string>;
 }

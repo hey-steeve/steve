@@ -1,7 +1,9 @@
 import { copyAppointment } from "./copy.ts";
+import { generateAppointmentIcs } from "./ics.ts";
 import {
   agendaLimits,
   type Agenda,
+  type AgendaClock,
   type AgendaResult,
   type AppointmentInput,
   type AppointmentStorage,
@@ -9,6 +11,7 @@ import {
 } from "./types.ts";
 import {
   errorResult,
+  generationError,
   storageError,
   validateAppointment,
   validateAppointmentId,
@@ -16,6 +19,7 @@ import {
 
 export interface CreateAgendaOptions {
   storage: AppointmentStorage;
+  clock: AgendaClock;
   maximumAppointments?: number;
 }
 
@@ -118,5 +122,18 @@ export const createAgenda = (options: CreateAgendaOptions): Agenda => {
     }
   };
 
-  return { register, get, list, remove };
+  const exportIcs = (id: string): AgendaResult<string> => {
+    const appointment = get(id);
+    if (appointment.status === "error") {
+      return appointment;
+    }
+
+    try {
+      return success(generateAppointmentIcs(appointment.value, options.clock));
+    } catch {
+      return generationError();
+    }
+  };
+
+  return { register, get, list, remove, exportIcs };
 };

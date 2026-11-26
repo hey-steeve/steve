@@ -3,6 +3,7 @@ export { InMemoryAppointmentStorage } from "./in-memory-storage.ts";
 export {
   agendaLimits,
   type Agenda,
+  type AgendaClock,
   type AgendaError,
   type AgendaResult,
   type AppointmentInput,
