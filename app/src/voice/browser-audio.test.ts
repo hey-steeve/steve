@@ -686,6 +686,15 @@ describe("startup failure cleanup", () => {
         throw fail;
       };
     }],
+    ["message handler install", (h) => {
+      Object.defineProperty(h.node.port, "onmessage", {
+        set(value: unknown) {
+          // close() clears the handler with null; only installing throws.
+          if (value !== null) throw fail;
+        },
+        get: () => null,
+      });
+    }],
   ];
   for (const [step, arrange] of rows) {
     it(`${step}: start rejects and resources are released`, async () => {

@@ -269,6 +269,18 @@ export async function startBrowserAudio(
     }
   };
 
+  const onCaptureMessage = ({ data }: MessageEvent): void => {
+    if (closed || muted) return;
+    if (typeof data !== "object" || data === null) return;
+    const gen = Reflect.get(data, "gen");
+    const samples = Reflect.get(data, "samples");
+    if (gen !== muteGen || !(samples instanceof Float32Array)) return;
+    const startedEpoch = epoch;
+    const bytes = codec.encode(samples);
+    if (closed || muted || gen !== muteGen || epoch !== startedEpoch) return;
+    options.onMicChunk(bytes);
+  };
+
   try {
     context = deps.createContext();
     if (context.sampleRate !== SAMPLE_RATE && options.codec === "pcm16-24k") {
@@ -286,6 +298,7 @@ export async function startBrowserAudio(
     // Keeps the capture node in the render graph without monitoring the mic.
     capture.connect(silent);
     silent.connect(context.destination);
+    capture.port.onmessage = onCaptureMessage;
   } catch (error) {
     close();
     throw error;
@@ -293,17 +306,6 @@ export async function startBrowserAudio(
 
   const ctx = context;
   const port = capture.port;
-  port.onmessage = ({ data }) => {
-    if (closed || muted) return;
-    if (typeof data !== "object" || data === null) return;
-    const gen = Reflect.get(data, "gen");
-    const samples = Reflect.get(data, "samples");
-    if (gen !== muteGen || !(samples instanceof Float32Array)) return;
-    const startedEpoch = epoch;
-    const bytes = codec.encode(samples);
-    if (closed || muted || gen !== muteGen || epoch !== startedEpoch) return;
-    options.onMicChunk(bytes);
-  };
 
   return {
     get generation() {
