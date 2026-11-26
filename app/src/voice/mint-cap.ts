@@ -2,14 +2,23 @@ export const mintCapLimit = 10;
 export const mintCapWindowMs = 60_000;
 export const unknownClientKey = "unknown";
 
-const sweepThreshold = 1000;
+/**
+ * Hard upper bound on distinct client keys held in memory. When an unseen key
+ * arrives at the bound, expired keys go first, then the oldest keys.
+ */
+export const mintCapMaxKeys = 1000;
 
 export type MintCap = {
   readonly admit: (key: string, nowMs: number) => boolean;
   readonly reset: () => void;
+  readonly size: () => number;
 };
 
-export function createMintCap(limit: number = mintCapLimit, windowMs: number = mintCapWindowMs): MintCap {
+export function createMintCap(
+  limit: number = mintCapLimit,
+  windowMs: number = mintCapWindowMs,
+  maxKeys: number = mintCapMaxKeys,
+): MintCap {
   const hits = new Map<string, number[]>();
 
   function live(times: readonly number[], nowMs: number): number[] {
@@ -29,20 +38,30 @@ export function createMintCap(limit: number = mintCapLimit, windowMs: number = m
 
   return {
     admit(key, nowMs) {
-      if (hits.size > sweepThreshold) {
-        sweep(nowMs);
-      }
       const kept = live(hits.get(key) ?? [], nowMs);
+      if (!hits.has(key) && hits.size >= maxKeys) {
+        sweep(nowMs);
+        for (const oldest of hits.keys()) {
+          if (hits.size < maxKeys) {
+            break;
+          }
+          hits.delete(oldest);
+        }
+      }
       if (kept.length >= limit) {
         hits.set(key, kept);
         return false;
       }
       kept.push(nowMs);
+      hits.delete(key);
       hits.set(key, kept);
       return true;
     },
     reset() {
       hits.clear();
+    },
+    size() {
+      return hits.size;
     },
   };
 }
@@ -67,6 +86,10 @@ const routeMintCap = createMintCap();
 export function admitMint(request: Request | undefined, nowMs: number): boolean {
   const key = request === undefined ? unknownClientKey : clientKey(request.headers);
   return routeMintCap.admit(key, nowMs);
+}
+
+export function mintCapSizeForTests(): number {
+  return routeMintCap.size();
 }
 
 export function resetMintCapForTests(): void {
