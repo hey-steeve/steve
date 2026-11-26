@@ -81,16 +81,22 @@ export type StartConversationResult =
       readonly nextAction: "completed";
     };
 
-export type ConversationRejectionCode =
+export type ConversationInputRejectionCode =
   | "invalid_channel"
   | "invalid_session_id"
   | "invalid_turn_id"
   | "invalid_text"
   | "text_too_long"
+  | "duplicate_turn";
+
+export type ConversationSessionRejectionCode =
   | "session_not_found"
   | "session_awaiting_triage"
-  | "session_completed"
-  | "duplicate_turn";
+  | "session_completed";
+
+export type ConversationRejectionCode =
+  | ConversationInputRejectionCode
+  | ConversationSessionRejectionCode;
 
 export type ConversationFailureCode =
   | "dependency_failure"
@@ -109,8 +115,15 @@ export type ConversationTurnResult =
     }
   | {
       readonly outcome: "rejected";
-      readonly code: ConversationRejectionCode;
+      readonly code: ConversationInputRejectionCode;
       readonly response: string;
+      readonly nextAction: "awaiting_user" | "completed";
+    }
+  | {
+      readonly outcome: "rejected";
+      readonly code: ConversationSessionRejectionCode;
+      readonly response: string;
+      readonly handoff: ConversationHandoff;
       readonly nextAction: "awaiting_user" | "completed";
     }
   | {

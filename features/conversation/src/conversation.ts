@@ -175,14 +175,21 @@ async function handleTurn(
       outcome: "rejected",
       code: "session_not_found",
       response: conversationResponses.sessionNotFound,
+      handoff: turnHandoff,
       nextAction: "completed",
     };
   }
+  turnHandoff = handoff(
+    "unsupported",
+    triageTurns(session, sharedTurn),
+    false,
+  );
   if (session.status === "completed") {
     return {
       outcome: "rejected",
       code: "session_completed",
       response: conversationResponses.sessionCompleted,
+      handoff: turnHandoff,
       nextAction: "completed",
     };
   }
@@ -191,6 +198,7 @@ async function handleTurn(
       outcome: "rejected",
       code: "session_awaiting_triage",
       response: conversationResponses.sessionAwaitingTriage,
+      handoff: turnHandoff,
       nextAction: "awaiting_user",
     };
   }
@@ -220,12 +228,6 @@ async function handleTurn(
     return dependencyFailure(session, turnHandoff);
   }
 
-  turnHandoff = handoff(
-    "unsupported",
-    triageTurns(session, sharedTurn),
-    false,
-  );
-
   const attempt = await requestUnderstanding(dependencies, session, userTurn);
   if (attempt.kind === "timeout") {
     return understandingTimeout(session, turnHandoff);
@@ -242,7 +244,7 @@ async function handleTurn(
   turnHandoff = handoff(
     understanding.intent,
     triageTurns(session, sharedTurn),
-    reply.completeAfterTriage,
+    false,
   );
   let responseTurn: ConversationTurn;
   let updated: ConversationSession;
@@ -284,7 +286,11 @@ async function handleTurn(
     session: updated,
     response: responseTurn,
     understanding,
-    handoff: turnHandoff,
+    handoff: handoff(
+      understanding.intent,
+      turnHandoff.data,
+      reply.completeAfterTriage,
+    ),
     nextAction: reply.nextAction,
   };
 }
