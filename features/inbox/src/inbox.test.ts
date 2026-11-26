@@ -33,6 +33,7 @@ function attachment(id = "attachment-1", bytes = new Uint8Array([1, 2, 3])) {
 function inboxWith(classify: InboundMessageClassifier["classify"], storage?: InboxStorage) {
   return createInbox({
     classifier: { classify },
+    mailGateway: { send: async () => ({ status: "not-sent" }) },
     storage: storage ?? new InMemoryInboxStorage(),
     clock: { now: () => "2026-11-27T10:00:00.000Z" },
   });
@@ -162,6 +163,9 @@ describe("inbound Inbox lifecycle", () => {
         throw new Error("database connection string");
       },
       createInbound: async () => "created",
+      claimOutbound: async () => ({ status: "claimed" }),
+      completeOutbound: async () => undefined,
+      releaseOutbound: async () => undefined,
     };
     const result = await inboxWith(async () => ({ type: "unsupported" }), storage).ingestMessage(
       validMessage(),
@@ -278,6 +282,7 @@ describe("inbound Inbox lifecycle", () => {
     };
     const inbox = createInbox({
       classifier,
+      mailGateway: { send: async () => ({ status: "not-sent" }) },
       storage,
       clock: { now: () => "2026-11-27T10:00:00.000Z" },
     });

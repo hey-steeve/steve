@@ -9,12 +9,17 @@ import {
   type IngestMessageResult,
   type NormalizedInboundMessage,
   type ReportClassification,
+  type SendDocumentError,
+  type SendDocumentResult,
 } from "./contracts.ts";
 import {
   copyMessage,
   parseClassification,
   parseNormalizedMessage,
   provenanceOf,
+  gatewayRequestOf,
+  parseMailGatewayResponse,
+  parseSendDocumentRequest,
 } from "./validation.ts";
 
 const systemClock: InboxClock = {
@@ -38,6 +43,41 @@ const errors: Readonly<Record<InboxError["code"], InboxError>> = {
 
 function failed(code: InboxError["code"]): IngestMessageResult {
   return { status: "failed", error: errors[code] };
+}
+
+const sendErrors: Readonly<Record<SendDocumentError["code"], SendDocumentError>> = {
+  INVALID_SEND_REQUEST: {
+    code: "INVALID_SEND_REQUEST",
+    message: "The document delivery request is invalid.",
+  },
+  NOT_AUTHORIZED: {
+    code: "NOT_AUTHORIZED",
+    message: "Explicit orchestrator authorization is required.",
+  },
+  REQUEST_IN_PROGRESS: {
+    code: "REQUEST_IN_PROGRESS",
+    message: "This document delivery request is already in progress.",
+  },
+  GATEWAY_REJECTED: {
+    code: "GATEWAY_REJECTED",
+    message: "The mail gateway did not send the document.",
+  },
+  DELIVERY_FAILURE: {
+    code: "DELIVERY_FAILURE",
+    message: "The mail gateway could not complete the delivery.",
+  },
+  INVALID_GATEWAY_RESPONSE: {
+    code: "INVALID_GATEWAY_RESPONSE",
+    message: "The mail gateway returned an invalid response.",
+  },
+  STORAGE_FAILURE: {
+    code: "STORAGE_FAILURE",
+    message: "Inbox storage is unavailable.",
+  },
+};
+
+function notSent(code: SendDocumentError["code"]): SendDocumentResult {
+  return { status: "not-sent", error: sendErrors[code] };
 }
 
 function appointmentEvent(
@@ -166,6 +206,91 @@ export function createInbox(options: CreateInboxOptions): Inbox {
         };
       }
       return { status: "processed", events: events ?? [] };
+    },
+
+    async sendDocument(input: unknown): Promise<SendDocumentResult> {
+      let validation: ReturnType<typeof parseSendDocumentRequest>;
+      try {
+        validation = parseSendDocumentRequest(input);
+      } catch {
+        return notSent("INVALID_SEND_REQUEST");
+      }
+      if (!validation.ok) {
+        return notSent(
+          validation.reason === "not-authorized" ? "NOT_AUTHORIZED" : "INVALID_SEND_REQUEST",
+        );
+      }
+      const request = validation.request;
+
+      try {
+        const claim = await options.storage.claimOutbound(request.requestId);
+        if (claim.status === "in-progress") {
+          return notSent("REQUEST_IN_PROGRESS");
+        }
+        if (claim.status === "duplicate") {
+          return {
+            status: "sent",
+            providerMessageId: claim.record.providerMessageId,
+            sentAt: claim.record.sentAt,
+            deduplicated: true,
+            tracking: "recorded",
+          };
+        }
+      } catch {
+        return notSent("STORAGE_FAILURE");
+      }
+
+      let rawResponse: unknown;
+      try {
+        rawResponse = await options.mailGateway.send(gatewayRequestOf(request));
+      } catch {
+        try {
+          await options.storage.releaseOutbound(request.requestId);
+        } catch {
+          return notSent("STORAGE_FAILURE");
+        }
+        return notSent("DELIVERY_FAILURE");
+      }
+
+      let response: ReturnType<typeof parseMailGatewayResponse>;
+      try {
+        response = parseMailGatewayResponse(rawResponse);
+      } catch {
+        response = undefined;
+      }
+      if (response === undefined || response.status === "not-sent") {
+        try {
+          await options.storage.releaseOutbound(request.requestId);
+        } catch {
+          return notSent("STORAGE_FAILURE");
+        }
+        return notSent(
+          response === undefined ? "INVALID_GATEWAY_RESPONSE" : "GATEWAY_REJECTED",
+        );
+      }
+
+      try {
+        await options.storage.completeOutbound({
+          requestId: request.requestId,
+          providerMessageId: response.providerMessageId,
+          sentAt: response.sentAt,
+        });
+      } catch {
+        return {
+          status: "sent",
+          providerMessageId: response.providerMessageId,
+          sentAt: response.sentAt,
+          deduplicated: false,
+          tracking: "unavailable",
+        };
+      }
+      return {
+        status: "sent",
+        providerMessageId: response.providerMessageId,
+        sentAt: response.sentAt,
+        deduplicated: false,
+        tracking: "recorded",
+      };
     },
   };
 }

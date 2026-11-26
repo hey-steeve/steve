@@ -12,6 +12,8 @@ export const inboxLimits = {
   confirmationReferenceCharacters: 200,
   practitionerNameCharacters: 200,
   trackedInboundMessages: 1_000,
+  trackedOutboundRequests: 1_000,
+  outboundRequestIdCharacters: 200,
 } as const;
 
 export interface InboxAttachment {
@@ -117,7 +119,74 @@ export interface ProcessedInboundRecord {
 export interface InboxStorage {
   getInbound(providerMessageId: string): Promise<ProcessedInboundRecord | undefined>;
   createInbound(record: ProcessedInboundRecord): Promise<"created" | "duplicate">;
+  claimOutbound(requestId: string): Promise<OutboundClaimResult>;
+  completeOutbound(record: SentOutboundRecord): Promise<void>;
+  releaseOutbound(requestId: string): Promise<void>;
 }
+
+export interface SentOutboundRecord {
+  readonly requestId: string;
+  readonly providerMessageId: string;
+  readonly sentAt: string;
+}
+
+export type OutboundClaimResult =
+  | { readonly status: "claimed" }
+  | { readonly status: "in-progress" }
+  | { readonly status: "duplicate"; readonly record: SentOutboundRecord };
+
+export interface SendDocumentRequest {
+  readonly requestId: string;
+  readonly practitionerEmail: string;
+  readonly subject: string;
+  readonly textBody?: string;
+  readonly attachments: readonly InboxAttachment[];
+  readonly authorization: {
+    readonly authorized: true;
+  };
+}
+
+export interface MailGatewayRequest {
+  readonly requestId: string;
+  readonly to: string;
+  readonly subject: string;
+  readonly textBody?: string;
+  readonly attachments: readonly InboxAttachment[];
+}
+
+export type MailGatewayResponse =
+  | {
+      readonly status: "sent";
+      readonly providerMessageId: string;
+      readonly sentAt: string;
+    }
+  | { readonly status: "not-sent" };
+
+export interface MailGateway {
+  send(request: MailGatewayRequest): Promise<unknown>;
+}
+
+export interface SendDocumentError {
+  readonly code:
+    | "INVALID_SEND_REQUEST"
+    | "NOT_AUTHORIZED"
+    | "REQUEST_IN_PROGRESS"
+    | "GATEWAY_REJECTED"
+    | "DELIVERY_FAILURE"
+    | "INVALID_GATEWAY_RESPONSE"
+    | "STORAGE_FAILURE";
+  readonly message: string;
+}
+
+export type SendDocumentResult =
+  | {
+      readonly status: "sent";
+      readonly providerMessageId: string;
+      readonly sentAt: string;
+      readonly deduplicated: boolean;
+      readonly tracking: "recorded" | "unavailable";
+    }
+  | { readonly status: "not-sent"; readonly error: SendDocumentError };
 
 export interface InboxClock {
   now(): string;
@@ -125,10 +194,12 @@ export interface InboxClock {
 
 export interface CreateInboxOptions {
   readonly classifier: InboundMessageClassifier;
+  readonly mailGateway: MailGateway;
   readonly storage: InboxStorage;
   readonly clock?: InboxClock;
 }
 
 export interface Inbox {
   ingestMessage(message: unknown): Promise<IngestMessageResult>;
+  sendDocument(request: unknown): Promise<SendDocumentResult>;
 }

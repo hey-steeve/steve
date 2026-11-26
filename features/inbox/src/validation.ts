@@ -6,6 +6,9 @@ import {
   type InboundMessageClassification,
   type NormalizedInboundMessage,
   type ReportClassification,
+  type MailGatewayRequest,
+  type MailGatewayResponse,
+  type SendDocumentRequest,
 } from "./contracts.ts";
 
 const timestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|[+-](?:0\d|1\d|2[0-3]):[0-5]\d)$/;
@@ -137,6 +140,32 @@ function parseAttachment(value: unknown): InboxAttachment | undefined {
   return { id, fileName, mimeType, bytes: new Uint8Array(bytes) };
 }
 
+function parseAttachments(value: unknown): readonly InboxAttachment[] | undefined {
+  const rawAttachments = copyUnknownArray(value);
+  if (
+    rawAttachments === undefined ||
+    rawAttachments.length > inboxLimits.attachmentCount
+  ) {
+    return undefined;
+  }
+  const attachments: InboxAttachment[] = [];
+  const attachmentIds = new Set<string>();
+  let totalBytes = 0;
+  for (const rawAttachment of rawAttachments) {
+    const attachment = parseAttachment(rawAttachment);
+    if (attachment === undefined || attachmentIds.has(attachment.id)) {
+      return undefined;
+    }
+    attachmentIds.add(attachment.id);
+    totalBytes += attachment.bytes.byteLength;
+    if (totalBytes > inboxLimits.totalAttachmentBytes) {
+      return undefined;
+    }
+    attachments.push(attachment);
+  }
+  return attachments;
+}
+
 export function parseNormalizedMessage(value: unknown): NormalizedInboundMessage | undefined {
   if (
     !isRecord(value) ||
@@ -159,7 +188,7 @@ export function parseNormalizedMessage(value: unknown): NormalizedInboundMessage
   const subject = value["subject"];
   const textBody = value["textBody"];
   const receivedAt = value["receivedAt"];
-  const rawAttachments = copyUnknownArray(value["attachments"]);
+  const attachments = parseAttachments(value["attachments"]);
 
   if (
     !isIdentifier(providerMessageId, inboxLimits.providerMessageIdCharacters) ||
@@ -169,26 +198,9 @@ export function parseNormalizedMessage(value: unknown): NormalizedInboundMessage
     (textBody !== undefined &&
       (typeof textBody !== "string" || textBody.length > inboxLimits.textBodyCharacters)) ||
     !isTimestampWithTimezone(receivedAt) ||
-    rawAttachments === undefined ||
-    rawAttachments.length > inboxLimits.attachmentCount
+    attachments === undefined
   ) {
     return undefined;
-  }
-
-  const attachments: InboxAttachment[] = [];
-  const attachmentIds = new Set<string>();
-  let totalBytes = 0;
-  for (const rawAttachment of rawAttachments) {
-    const attachment = parseAttachment(rawAttachment);
-    if (attachment === undefined || attachmentIds.has(attachment.id)) {
-      return undefined;
-    }
-    attachmentIds.add(attachment.id);
-    totalBytes += attachment.bytes.byteLength;
-    if (totalBytes > inboxLimits.totalAttachmentBytes) {
-      return undefined;
-    }
-    attachments.push(attachment);
   }
 
   const snapshot = {
@@ -200,6 +212,98 @@ export function parseNormalizedMessage(value: unknown): NormalizedInboundMessage
     receivedAt,
   };
   return textBody === undefined ? snapshot : { ...snapshot, textBody };
+}
+
+export type SendRequestValidation =
+  | { readonly ok: true; readonly request: SendDocumentRequest }
+  | { readonly ok: false; readonly reason: "invalid" | "not-authorized" };
+
+export function parseSendDocumentRequest(value: unknown): SendRequestValidation {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, [
+      "requestId",
+      "practitionerEmail",
+      "subject",
+      "textBody",
+      "attachments",
+      "authorization",
+    ])
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const authorization = value["authorization"];
+  if (
+    !isRecord(authorization) ||
+    !hasOnlyKeys(authorization, ["authorized"]) ||
+    authorization["authorized"] !== true
+  ) {
+    return { ok: false, reason: "not-authorized" };
+  }
+  const requestId = value["requestId"];
+  const practitionerEmail = value["practitionerEmail"];
+  const subject = value["subject"];
+  const textBody = value["textBody"];
+  const attachments = parseAttachments(value["attachments"]);
+  if (
+    !isIdentifier(requestId, inboxLimits.outboundRequestIdCharacters) ||
+    !isEmailAddress(practitionerEmail) ||
+    !isHeaderText(subject, inboxLimits.subjectCharacters) ||
+    (textBody !== undefined &&
+      (typeof textBody !== "string" || textBody.length > inboxLimits.textBodyCharacters)) ||
+    attachments === undefined ||
+    attachments.length === 0
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const snapshot = {
+    requestId,
+    practitionerEmail,
+    subject,
+    attachments,
+    authorization: { authorized: true as const },
+  };
+  return {
+    ok: true,
+    request: textBody === undefined ? snapshot : { ...snapshot, textBody },
+  };
+}
+
+export function gatewayRequestOf(request: SendDocumentRequest): MailGatewayRequest {
+  const snapshot = {
+    requestId: request.requestId,
+    to: request.practitionerEmail,
+    subject: request.subject,
+    attachments: request.attachments.map((item) => ({
+      ...item,
+      bytes: new Uint8Array(item.bytes),
+    })),
+  };
+  return request.textBody === undefined ? snapshot : { ...snapshot, textBody: request.textBody };
+}
+
+export function parseMailGatewayResponse(value: unknown): MailGatewayResponse | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  if (value["status"] === "not-sent" && hasOnlyKeys(value, ["status"])) {
+    return { status: "not-sent" };
+  }
+  if (
+    value["status"] !== "sent" ||
+    !hasOnlyKeys(value, ["status", "providerMessageId", "sentAt"])
+  ) {
+    return undefined;
+  }
+  const providerMessageId = value["providerMessageId"];
+  const sentAt = value["sentAt"];
+  if (
+    !isIdentifier(providerMessageId, inboxLimits.providerMessageIdCharacters) ||
+    !isTimestampWithTimezone(sentAt)
+  ) {
+    return undefined;
+  }
+  return { status: "sent", providerMessageId, sentAt };
 }
 
 function parseAppointmentClassification(
