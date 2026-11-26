@@ -617,7 +617,10 @@ describe("flush snapshot", () => {
       },
     },
   ];
-  const expected: Record<string, { itemId: string | undefined; playedMs: number; responseId: string }> = {
+  const expected: Record<
+    string,
+    { itemId: string | undefined; playedMs: number; responseId: string }
+  > = {
     "a: after announcing A, flush during B returns B and 25 ms": {
       itemId: "B",
       playedMs: 25,
@@ -664,37 +667,58 @@ describe("flush snapshot", () => {
 describe("startup failure cleanup", () => {
   const fail = new Error("startup failed");
   const rows: [string, (h: ReturnType<typeof harness>) => void][] = [
-    ["getUserMedia", (h) => {
-      h.ports.getUserMedia = () => Promise.reject(fail);
-    }],
-    ["context create", (h) => {
-      h.ports.createContext = () => {
-        throw fail;
-      };
-    }],
-    ["sample-rate", (h) => {
-      h.context.sampleRate = 48000;
-    }],
-    ["resume", (h) => {
-      h.context.resume = () => Promise.reject(fail);
-    }],
-    ["worklet load", (h) => {
-      h.ports.loadWorklet = () => Promise.reject(fail);
-    }],
-    ["graph connect", (h) => {
-      h.node.connect = () => {
-        throw fail;
-      };
-    }],
-    ["message handler install", (h) => {
-      Object.defineProperty(h.node.port, "onmessage", {
-        set(value: unknown) {
-          // close() clears the handler with null; only installing throws.
-          if (value !== null) throw fail;
-        },
-        get: () => null,
-      });
-    }],
+    [
+      "getUserMedia",
+      (h) => {
+        h.ports.getUserMedia = () => Promise.reject(fail);
+      },
+    ],
+    [
+      "context create",
+      (h) => {
+        h.ports.createContext = () => {
+          throw fail;
+        };
+      },
+    ],
+    [
+      "sample-rate",
+      (h) => {
+        h.context.sampleRate = 48000;
+      },
+    ],
+    [
+      "resume",
+      (h) => {
+        h.context.resume = () => Promise.reject(fail);
+      },
+    ],
+    [
+      "worklet load",
+      (h) => {
+        h.ports.loadWorklet = () => Promise.reject(fail);
+      },
+    ],
+    [
+      "graph connect",
+      (h) => {
+        h.node.connect = () => {
+          throw fail;
+        };
+      },
+    ],
+    [
+      "message handler install",
+      (h) => {
+        Object.defineProperty(h.node.port, "onmessage", {
+          set(value: unknown) {
+            // close() clears the handler with null; only installing throws.
+            if (value !== null) throw fail;
+          },
+          get: () => null,
+        });
+      },
+    ],
   ];
   for (const [step, arrange] of rows) {
     it(`${step}: start rejects and resources are released`, async () => {
@@ -888,7 +912,11 @@ describe("empty chunk retirement", () => {
   it("retires a response admitted with an empty chunk", async () => {
     const h = harness();
     const audio = await h.start();
-    audio.enqueue({ bytes: new Uint8Array(0), responseId: "r1", itemId: undefined });
+    audio.enqueue({
+      bytes: new Uint8Array(0),
+      responseId: "r1",
+      itemId: undefined,
+    });
     expect(h.context.sources).toHaveLength(0);
     audio.flush();
     audio.enqueue(chunk("r1", "i1"));
@@ -915,6 +943,50 @@ describe("late item id on an empty decode", () => {
     expect(snap.responseId).toBe("r1");
     expect(snap.itemId).toBe("i1");
     expect(snap.playedMs).toBeGreaterThan(0);
+  });
+});
+
+describe("zero-length announce chunk skips the codec", () => {
+  const encode = (samples: Float32Array) => encodePcm16(samples);
+  const announce = {
+    bytes: new Uint8Array(0),
+    responseId: "r1",
+    itemId: "i1",
+  };
+
+  it("BC-75 a concealing decoder adds no source and no played time", async () => {
+    // Stand-in for libopus: 480 concealment samples for an empty payload.
+    const opus = {
+      encode,
+      decode: (bytes: Uint8Array) =>
+        new Float32Array(bytes.length === 0 ? 480 : 1200),
+    };
+    const h = harness("opus", opus);
+    const audio = await h.start();
+    audio.enqueue({ ...chunk("r1"), bytes: new Uint8Array([1]) });
+    h.advance(0.5);
+    audio.enqueue(announce);
+    expect(h.context.sources).toHaveLength(1);
+    const snap = audio.flush();
+    expect(snap.itemId).toBe("i1");
+    expect(snap.playedMs).toBe(50);
+  });
+
+  it("BC-75 a decoder that throws on empty is never called for an announce", async () => {
+    const opus = {
+      encode,
+      decode: (bytes: Uint8Array) => {
+        if (bytes.length === 0) throw new Error("empty payload");
+        return new Float32Array(1200);
+      },
+    };
+    const h = harness("opus", opus);
+    const audio = await h.start();
+    audio.enqueue({ ...chunk("r1"), bytes: new Uint8Array([1]) });
+    h.advance(0.5);
+    audio.enqueue(announce);
+    const snap = audio.flush();
+    expect(snap.itemId).toBe("i1");
   });
 });
 
