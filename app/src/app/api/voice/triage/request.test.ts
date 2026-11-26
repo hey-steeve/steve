@@ -75,13 +75,18 @@ it("rejects an over-size body with 413", async () => {
   expect(await readVoiceTriageRequest(req(big))).toEqual({ ok: false, status: 413 });
 });
 
-function streamReq(source: UnderlyingDefaultSource<Uint8Array>): Request {
-  return new Request("http://localhost/api/voice/triage", {
+function streamReq(
+  source: UnderlyingDefaultSource<Uint8Array>,
+  headers: HeadersInit = { "content-type": "application/json" },
+  strategy?: QueuingStrategy,
+): Request {
+  const init: RequestInit = {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: new ReadableStream(source),
-    duplex: "half",
-  } as RequestInit);
+    headers,
+    body: new ReadableStream(source, strategy),
+  };
+  Object.assign(init, { duplex: "half" });
+  return new Request("http://localhost/api/voice/triage", init);
 }
 
 it("maps a body read failure to 400", async () => {
@@ -103,4 +108,24 @@ it("returns 413 for an over-size body even when cancel rejects", async () => {
     },
   });
   expect(await readVoiceTriageRequest(request)).toEqual({ ok: false, status: 413 });
+});
+
+it("returns 413 from a declared Content-Length over the cap without reading the body", async () => {
+  let pulled = false;
+  const request = streamReq(
+    {
+      pull() {
+        pulled = true;
+        throw new Error("body must not be read");
+      },
+    },
+    {
+      "content-type": "application/json",
+      "content-length": String(voiceTriageLimits.maxBodyBytes + 1),
+    },
+    { highWaterMark: 0 },
+  );
+  expect(request.headers.get("content-length")).toBe(String(voiceTriageLimits.maxBodyBytes + 1));
+  expect(await readVoiceTriageRequest(request)).toEqual({ ok: false, status: 413 });
+  expect(pulled).toBe(false);
 });
