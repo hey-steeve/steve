@@ -1136,3 +1136,59 @@ describe("BC-58 banks per response and item", () => {
     expect(zero && audio.playedMs() === 20).toBe(true);
   });
 });
+
+describe("BC-63 abort during startup", () => {
+  const begin = (h: ReturnType<typeof harness>, signal: AbortSignal) =>
+    startBrowserAudio({
+      codec: "pcm16-24k",
+      deps: h.deps,
+      signal,
+      onMicChunk: () => {},
+      onPlayback: () => {},
+    });
+
+  it("BC-63 abort before worklet load finishes stops tracks and closes the context", async () => {
+    const h = harness();
+    const abort = new AbortController();
+    let finish: (n: CaptureNodeLike) => void = () => {};
+    h.ports.loadWorklet = () =>
+      new Promise<CaptureNodeLike>((resolve) => (finish = resolve));
+    const started = begin(h, abort.signal);
+    const outcome = started.then(
+      () => "resolved",
+      () => "rejected",
+    );
+    // Permission granted, worklet still loading.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(h.stops()).toBe(0);
+    abort.abort();
+    // Tracks stop and the context closes before the worklet finishes.
+    expect(h.stops()).toBe(2);
+    expect(h.context.closed).toBe(1);
+    await expect(outcome).resolves.toBe("rejected");
+    finish(h.node);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(h.stops()).toBe(2);
+    expect(h.node.port.onmessage).toBeNull();
+  });
+
+  it("BC-63 abort before permission resolves stops tracks without creating a context", async () => {
+    const h = harness();
+    const abort = new AbortController();
+    let created = 0;
+    h.ports.createContext = () => {
+      created += 1;
+      return h.context;
+    };
+    const grant = h.ports.getUserMedia;
+    let release: () => void = () => {};
+    h.ports.getUserMedia = () =>
+      new Promise((resolve) => (release = () => resolve(grant())));
+    const started = begin(h, abort.signal);
+    abort.abort();
+    release();
+    await expect(started).rejects.toThrow();
+    expect(h.stops()).toBe(2);
+    expect(created).toBe(0);
+  });
+});

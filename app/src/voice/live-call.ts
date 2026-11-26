@@ -221,6 +221,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         deps
           .startAudio({
             codec: deps.tuning.codec,
+            signal: abort.signal,
             onMicChunk: (bytes) => {
               if (state.phase === "active" && live(c)) c.socket?.sendAudio(bytes);
             },
