@@ -89,8 +89,15 @@ function setup(
       this.muted = m;
     }
     enqueued = 0;
-    enqueue() {
-      this.enqueued++;
+    chunks: { responseId: string; itemId: string | undefined; length: number }[] = [];
+    enqueue(chunk: { bytes: Uint8Array; responseId: string; itemId: string | undefined }) {
+      // `enqueued` counts audible audio; announce chunks are zero-length.
+      if (chunk.bytes.length > 0) this.enqueued++;
+      this.chunks.push({
+        responseId: chunk.responseId,
+        itemId: chunk.itemId,
+        length: chunk.bytes.length,
+      });
     }
     discardResponse() {}
     playedMs() {
@@ -460,10 +467,43 @@ describe("live call", () => {
       responseId: "r1",
       itemId: "i1",
     });
-    // The flush snapshot played untagged audio of r1, so it has no item id.
-    audio.snapshot = { generation: 0, responseId: "r1", itemId: undefined, playedMs: 91 };
+    // The announce reaches the adapter as a zero-length chunk that carries
+    // the id, so the queued untagged audio can adopt it.
+    expect(audio.chunks[1]).toEqual({ responseId: "r1", itemId: "i1", length: 0 });
+    // The adapter adopted the id: the flush snapshot names the item.
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: "i1", playedMs: 91 };
     options.onEvent({ type: "input.speech_started", itemId: undefined });
     expect(socket.truncates).toEqual([["i1", 91]]);
+  });
+
+  it("truncates R1's audible item when R2 is announced first (BC-63)", async () => {
+    const h = setup();
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    options.onEvent({ type: "response.created", responseId: "r2" });
+    options.onEvent({ type: "response.output_item_added", responseId: "r2", itemId: "i2" });
+    // R1 is still what the speaker plays.
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: "i1", playedMs: 55 };
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.truncates).toEqual([["i1", 55]]);
+  });
+
+  it("never sends a later item with the audible item's offset (BC-63)", async () => {
+    const h = setup();
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    options.onEvent({ type: "response.output_item_added", responseId: "r1", itemId: "i2" });
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: "i1", playedMs: 33 };
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.truncates).toEqual([["i1", 33]]);
   });
 
   it("does not invent an item id before one is announced", async () => {

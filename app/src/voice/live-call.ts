@@ -69,9 +69,6 @@ type Call = {
   timer: unknown;
   audio: BrowserAudio | undefined;
   socket: RealtimeSocket | undefined;
-  // Item announced for the generating response. Binary audio has no ids, so
-  // this is what ties its queued bytes to an item at barge-in.
-  announced: { readonly responseId: string; readonly itemId: string } | undefined;
 };
 
 const quiet = (fn: () => void): void => {
@@ -139,14 +136,10 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     const snap = audio.flush(generation);
     if (!live(c)) return;
     if (generating) c.socket?.cancelResponse();
-    // Untagged binary audio takes the item announced for its own response.
-    const itemId =
-      snap.itemId ??
-      (snap.responseId !== undefined && snap.responseId === c.announced?.responseId
-        ? c.announced.itemId
-        : undefined);
-    if (itemId !== undefined && live(c)) {
-      c.socket?.truncate(itemId, snap.playedMs);
+    // Only the flush snapshot names the audible item and its offset. The
+    // adapter binds announced ids to queued audio (see the announce below).
+    if (snap.itemId !== undefined && live(c)) {
+      c.socket?.truncate(snap.itemId, snap.playedMs);
     }
   };
 
@@ -191,7 +184,13 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           state.responseId === event.responseId &&
           state.generatingItemId === event.itemId
         ) {
-          c.announced = { responseId: event.responseId, itemId: event.itemId };
+          // Binary audio has no ids. A zero-length chunk hands the announced
+          // id to the adapter, which attaches it to queued untagged audio.
+          audio.enqueue({
+            bytes: new Uint8Array(0),
+            responseId: event.responseId,
+            itemId: event.itemId,
+          });
         }
         const fresh =
           state.phase === "active" &&
@@ -235,7 +234,6 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       timer: undefined,
       audio: undefined,
       socket: undefined,
-      announced: undefined,
     };
     call = c;
     dispatch({ type: "start" });
