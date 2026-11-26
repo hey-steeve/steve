@@ -718,6 +718,66 @@ describe("startup failure cleanup", () => {
   }
 });
 
+describe("startup port access", () => {
+  const fail = new Error("install failed");
+
+  it("rejects with the install error and releases everything when clearing the handler also throws", async () => {
+    const h = harness();
+    Object.defineProperty(h.node.port, "onmessage", {
+      set() {
+        throw fail;
+      },
+      get: () => null,
+    });
+    let caught: unknown;
+    try {
+      await h.start();
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(fail);
+    expect(h.stops()).toBe(2);
+    expect(h.context.closed).toBe(1);
+  });
+
+  it("reads capture.port once and never again after startup succeeds", async () => {
+    const h = harness();
+    const real = h.node.port;
+    let reads = 0;
+    Object.defineProperty(h.node, "port", {
+      get() {
+        reads += 1;
+        if (reads > 1) throw new Error("port read again");
+        return real;
+      },
+    });
+    const audio = await h.start();
+    audio.setMuted(true);
+    audio.close();
+    expect(reads).toBe(1);
+    expect(h.stops()).toBe(2);
+    expect(h.context.closed).toBe(1);
+  });
+
+  it("rejects and releases everything when the port read throws", async () => {
+    const h = harness();
+    Object.defineProperty(h.node, "port", {
+      get() {
+        throw fail;
+      },
+    });
+    let caught: unknown;
+    try {
+      await h.start();
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(fail);
+    expect(h.stops()).toBe(2);
+    expect(h.context.closed).toBe(1);
+  });
+});
+
 describe("codec re-entry", () => {
   it("does not send a mic chunk if encode flushes or closes", async () => {
     const cases: ("flush" | "close")[] = ["flush", "close"];

@@ -186,6 +186,9 @@ export async function startBrowserAudio(
   const seen = new Set<string>();
   const nodes: NodeLike[] = [];
   let capture: CaptureNodeLike | undefined;
+  // Read once during startup so close() and the returned API never touch
+  // capture.port again.
+  let port: CaptureNodeLike["port"] | undefined;
   let context: ContextLike | undefined;
 
   const stopPlayback = (): void => {
@@ -201,7 +204,9 @@ export async function startBrowserAudio(
     closed = true;
     epoch += 1;
     stopPlayback();
-    if (capture) capture.port.onmessage = null;
+    quiet(() => {
+      if (port) port.onmessage = null;
+    });
     for (const node of nodes) quiet(() => node.disconnect());
     for (const track of stream.getTracks()) track.stop();
     context?.close().catch(() => undefined);
@@ -298,14 +303,14 @@ export async function startBrowserAudio(
     // Keeps the capture node in the render graph without monitoring the mic.
     capture.connect(silent);
     silent.connect(context.destination);
-    capture.port.onmessage = onCaptureMessage;
+    port = capture.port;
+    port.onmessage = onCaptureMessage;
   } catch (error) {
     close();
     throw error;
   }
 
   const ctx = context;
-  const port = capture.port;
 
   return {
     get generation() {
@@ -315,7 +320,8 @@ export async function startBrowserAudio(
       if (closed || value === muted) return;
       muted = value;
       muteGen += 1;
-      port.postMessage({ type: "mute", muted, gen: muteGen });
+      // Startup succeeded, so port was cached by the install step.
+      port?.postMessage({ type: "mute", muted, gen: muteGen });
     },
     enqueue(chunk) {
       if (closed || blocked.has(chunk.responseId)) return;
