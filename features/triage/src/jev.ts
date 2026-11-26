@@ -23,7 +23,7 @@ export type ClassifyInput = {
 
 const labelCriteria = {
   emergency:
-    "Needs emergency services now. Immediate danger to life, or an acute suicide crisis.",
+    "Needs emergency services now. Immediate danger to life, or an acute suicide crisis. Suicidal talk with intent or a plan is an emergency, even when the person defers action. Severe breathlessness is an emergency, even when chest pain and heart disease are denied.",
   consult: "A clinician should see the person soon. This is not an emergency.",
   "self-care": "Mild and stable. Manageable without a clinician visit.",
   "need-info": "Not enough information to choose emergency, consult, or self-care.",
