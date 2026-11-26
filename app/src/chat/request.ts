@@ -11,6 +11,8 @@ export interface ChatTurn {
   readonly content: string;
 }
 
+type ChatRequestTurn = ChatTurn & { readonly voice?: true };
+
 export type ChatHttpResult =
   | {
       readonly status: 200;
@@ -58,7 +60,7 @@ export function parseChatMessages(body: unknown): readonly ChatTurn[] | null {
   ) {
     return null;
   }
-  const turns: ChatTurn[] = [];
+  const turns: ChatRequestTurn[] = [];
   for (const item of messages) {
     const turn = parseTurn(item);
     if (turn === null) {
@@ -69,7 +71,7 @@ export function parseChatMessages(body: unknown): readonly ChatTurn[] | null {
   if (!isUserConversation(turns)) {
     return null;
   }
-  return turns;
+  return turns.map(({ role, content }) => ({ role, content }));
 }
 
 export function clampAssistantContent(content: string): string {
@@ -95,9 +97,10 @@ export function toProviderMessages(
   messages: readonly {
     readonly role: "user" | "agent" | "error";
     readonly content: string;
+    readonly voice?: true;
   }[],
-): readonly ChatTurn[] {
-  const turns: ChatTurn[] = [];
+): readonly ChatRequestTurn[] {
+  const turns: ChatRequestTurn[] = [];
   for (const message of messages) {
     if (message.role === "error") {
       continue;
@@ -109,6 +112,7 @@ export function toProviderMessages(
     turns.push({
       role: message.role === "user" ? "user" : "assistant",
       content,
+      ...(message.voice === true ? { voice: true } : {}),
     });
   }
   const capped =
@@ -145,24 +149,24 @@ export function parseChatCalls(body: unknown): EmergencyCalls | undefined {
   return isRecord(body) ? parseCalls(field(body, "calls")) : undefined;
 }
 
-function isUserConversation(turns: readonly ChatTurn[]): boolean {
+function isUserConversation(turns: readonly ChatRequestTurn[]): boolean {
   const first = turns[0];
   const last = turns[turns.length - 1];
-  if (first === undefined || last === undefined || last.role !== "user") {
+  if (first?.role !== "user" || last?.role !== "user") {
     return false;
   }
-  for (let index = 0; index < turns.length; index += 1) {
-    const turn = turns[index];
-    const expected = index % 2 === 0 ? "user" : "assistant";
-    if (turn === undefined || turn.role !== expected) {
+  let previous = first;
+  for (const turn of turns.slice(1)) {
+    if (isSameRoleTextRun(previous, turn)) {
       return false;
     }
+    previous = turn;
   }
-  return first.role === "user";
+  return true;
 }
 
-function userConversation(turns: readonly ChatTurn[]): readonly ChatTurn[] {
-  const kept: ChatTurn[] = [];
+function userConversation(turns: readonly ChatRequestTurn[]): readonly ChatRequestTurn[] {
+  const kept: ChatRequestTurn[] = [];
   for (const turn of turns) {
     const previous = kept[kept.length - 1];
     if (previous === undefined) {
@@ -171,7 +175,7 @@ function userConversation(turns: readonly ChatTurn[]): readonly ChatTurn[] {
       }
       continue;
     }
-    if (previous.role === turn.role) {
+    if (isSameRoleTextRun(previous, turn)) {
       kept[kept.length - 1] = turn;
       continue;
     }
@@ -180,7 +184,11 @@ function userConversation(turns: readonly ChatTurn[]): readonly ChatTurn[] {
   return kept;
 }
 
-function parseTurn(item: unknown): ChatTurn | null {
+function isSameRoleTextRun(previous: ChatRequestTurn, turn: ChatRequestTurn): boolean {
+  return previous.role === turn.role && previous.voice !== true && turn.voice !== true;
+}
+
+function parseTurn(item: unknown): ChatRequestTurn | null {
   if (!isRecord(item)) {
     return null;
   }
@@ -193,7 +201,9 @@ function parseTurn(item: unknown): ChatTurn | null {
   if (trimmed.length === 0 || trimmed.length > chatRequestLimits.maxMessageChars) {
     return null;
   }
-  return { role, content: trimmed };
+  return field(item, "voice") === true
+    ? { role, content: trimmed, voice: true }
+    : { role, content: trimmed };
 }
 
 function mockReply(messages: readonly ChatTurn[]): string {

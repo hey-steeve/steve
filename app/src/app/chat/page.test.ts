@@ -334,7 +334,39 @@ it("shows offered phone actions without forcing speech", async () => {
   await clickCallControl(call.container, ".chat-call-end");
   await openConversation(call);
   const requestBody: unknown = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
-  expect(requestBody).toEqual({ messages: [{ role: "user", content: "Bonjour" }] });
+  expect(requestBody).toEqual({
+    messages: [
+      { role: "user", content: "Je cherche à qui parler", voice: true },
+      { role: "user", content: "Bonjour" },
+    ],
+  });
+});
+
+it("posts consecutive finalized call turns in order when the thread continues in text", async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+    Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  const triage = vi.fn<liveCall.CallDeps["triage"]>()
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce({ label: "emergency", calls: [{ type: "call", number: "15" }] });
+  const call = await mountCall(triage);
+  await clickCallControl(call.container, ".chat-call-cta");
+  await call.connect();
+  await call.emit({ type: "input.transcription_completed", itemId: "first", text: "Vous m'entendez ?" });
+  await call.emit({ type: "input.transcription_completed", itemId: "second", text: "J'ai besoin d'aide." });
+  await clickCallControl(call.container, ".chat-call-end");
+  await openConversation(call);
+  expect(fetch.mock.calls[0]?.[0]).toBe("/api/chat");
+  const requestBody: unknown = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+  expect(requestBody).toEqual({
+    messages: [
+      { role: "user", content: "Vous m'entendez ?", voice: true },
+      { role: "user", content: "J'ai besoin d'aide.", voice: true },
+      { role: "assistant", content: call15Now, voice: true },
+      { role: "user", content: "Bonjour" },
+    ],
+  });
 });
 
 async function mountCall(triage?: liveCall.CallDeps["triage"]) {

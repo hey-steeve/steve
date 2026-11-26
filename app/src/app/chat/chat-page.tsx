@@ -26,7 +26,7 @@ const homeLeaveMs = 240;
 const keyboardOpenGap = 120;
 const nearBottomGap = 80;
 
-type UiMessage =
+type UiMessage = { readonly voice?: true } & (
   | {
       readonly id: string;
       readonly role: "user";
@@ -39,7 +39,8 @@ type UiMessage =
       readonly content: string;
       readonly calls?: EmergencyCalls | undefined;
       readonly forcedSentences?: readonly string[];
-    };
+    }
+);
 
 type BackExit = "idle" | "playing" | "done";
 
@@ -408,13 +409,14 @@ export default function ChatPage(props: {
     if (event.type !== "transcript" && !pinned.current) {
       setUnseenReply(true);
     }
+    const voiceMessage: UiMessage = { ...message, voice: true };
     setMessages((current) => {
       if (event.type === "transcript" && event.text.trim() === "") {
         return current.filter((item) => item.id !== id);
       }
       return current.some((item) => item.id === id)
-        ? current.map((item) => item.id === id ? message : item)
-        : [...current, message];
+        ? current.map((item) => item.id === id ? voiceMessage : item)
+        : [...current, voiceMessage];
     });
   }
 
