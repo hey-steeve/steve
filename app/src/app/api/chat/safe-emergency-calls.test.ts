@@ -58,6 +58,22 @@ const cuts: Row[] = [
     reply: "Garde ton téléphone. Appelle le 15 maintenant\nsur le téléphone de ton voisin.",
     calls: ["15", "3114"],
   },
+  {
+    name: "cut-blank-line",
+    reply: "Garde ton téléphone. Appelle le 15 maintenant\n\nsur le téléphone de ton voisin.",
+    calls: ["15"],
+  },
+  {
+    name: "cut-blank-line-crlf",
+    reply: "Garde ton téléphone. Appelle le 15 maintenant\r\n\r\nsur le téléphone de ton voisin.",
+    calls: ["15"],
+  },
+  {
+    name: "cut-tail-repeated-later",
+    reply:
+      "Garde ton téléphone. Appelle le 15 maintenant\nsur le téléphone de ton voisin. N'oublie pas: Appelle le 15 maintenant si ça s'aggrave.",
+    calls: ["15"],
+  },
 ];
 
 const probes: Row[] = [

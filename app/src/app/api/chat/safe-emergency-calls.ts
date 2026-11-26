@@ -30,20 +30,30 @@ function withoutOpening(text: string, opening: string): string {
 const ender = /[.!?…]/u;
 const trailing = /[.!?…]["'»”)\s]*$/u;
 
-// A line that stops without sentence punctuation continues on the next line.
-// If its last sentence is gone from the rewrite while the start of the next
-// line stays, the rewrite cut a sentence in half.
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+// A line that stops without sentence punctuation continues on the next
+// non-empty line. A cut is when the start of that continuation stays in the
+// rewrite but no longer directly follows the line's last sentence.
 function cutsSentence(original: string, rewritten: string): boolean {
-  const lines = original.split(/\r\n|[\n\r\u2028\u2029]/u);
+  const lines = original
+    .split(/\r\n|[\n\r\u2028\u2029]/u)
+    .map((line) => normalizeEmergencyText(line))
+    .filter((line) => line.trim().length > 0);
   const kept = normalizeEmergencyText(rewritten);
   for (let index = 0; index + 1 < lines.length; index += 1) {
-    const line = normalizeEmergencyText(lines[index] ?? "");
-    const next = normalizeEmergencyText(lines[index + 1] ?? "");
+    const line = lines[index] ?? "";
+    const next = lines[index + 1] ?? "";
     const tail = line.slice(line.search(/[^.!?…]*$/u)).trim();
     const nextEnd = next.search(ender);
-    const head = nextEnd < 0 ? next : next.slice(0, nextEnd + 1);
-    const open = !trailing.test(line);
-    if (open && tail.length > 0 && head.length > 0 && !kept.includes(tail) && kept.includes(head)) {
+    const head = nextEnd < 0 ? next.trim() : next.slice(0, nextEnd + 1).trim();
+    if (trailing.test(line) || tail.length === 0 || head.length === 0) {
+      continue;
+    }
+    const joined = new RegExp(`${escapeRegExp(tail)}\\s*${escapeRegExp(head)}`, "u");
+    if (kept.includes(head) && !joined.test(kept)) {
       return true;
     }
   }
