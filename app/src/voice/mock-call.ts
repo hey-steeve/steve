@@ -53,7 +53,8 @@ export function createBrowserCallDeps(overrides: Partial<CallDeps> = {}): CallDe
     instructions: defaultInstructions,
     keyterms: defaultKeyterms,
     tuning: defaultTuning,
-    now: () => Date.now(),
+    // Monotonic: a wall-clock rollback must not rearm the call cap.
+    now: () => performance.now(),
     setTimeout: (fn, ms) => setTimeout(fn, ms),
     clearTimeout: (handle) => clearTimeout(Number(handle)),
     ...overrides,

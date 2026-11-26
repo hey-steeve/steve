@@ -87,11 +87,57 @@ describe("createMockCall", () => {
         return socket;
       },
       startAudio: async () => audio,
+      now: () => 0,
+      setTimeout: () => 0,
+      clearTimeout: () => {},
     });
     await call.start([]);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(tokens.length === 1 && tokens[0] === mockSecretValue).toBe(true);
     expect(call.getSnapshot().phase).toBe("active");
     call.end("hang-up");
+  });
+});
+
+describe("default call clock", () => {
+  it("is monotonic: a wall-clock rollback does not postpone the 600s cap", async () => {
+    let perf = 1_000;
+    let wall = 5_000_000;
+    vi.spyOn(performance, "now").mockImplementation(() => perf);
+    vi.spyOn(Date, "now").mockImplementation(() => wall);
+    const timers: { fn: () => void; ms: number }[] = [];
+    vi.stubGlobal("setTimeout", (fn: () => void, ms: number) => timers.push({ fn, ms }));
+    vi.stubGlobal("clearTimeout", () => {});
+
+    const socket: RealtimeSocket = {
+      mock: true,
+      sendAudio() {},
+      cancelResponse() {},
+      truncate() {},
+      close() {},
+    };
+    const audio: BrowserAudio = {
+      generation: 0,
+      setMuted() {},
+      enqueue() {},
+      discardResponse() {},
+      playedMs: () => 0,
+      flush: () => ({ generation: 0, responseId: undefined, itemId: undefined, playedMs: 0 }),
+      close() {},
+    };
+    const call = createMockCall({ connect: () => socket, startAudio: async () => audio });
+    await call.start([]);
+    expect(call.getSnapshot().phase).toBe("active");
+    // Armed from the monotonic clock.
+    expect(timers[0]?.ms).toBe(600_000);
+
+    // Two minutes of wall rollback, 600s of real elapsed time.
+    wall -= 120_000;
+    perf += 600_000;
+    timers[0]?.fn();
+
+    expect(timers).toHaveLength(1);
+    expect(call.getSnapshot().phase).not.toBe("active");
+    vi.restoreAllMocks();
   });
 });
