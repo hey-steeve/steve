@@ -573,6 +573,12 @@ describe("live call", () => {
         enqueued: 0,
       },
       {
+        name: "JSON chunk with item id and no response id",
+        events: ["created", "item"],
+        chunk: { responseId: undefined, itemId: "i1" },
+        enqueued: 0,
+      },
+      {
         name: "valid JSON chunk",
         events: ["created", "item"],
         chunk: { responseId: "r1", itemId: "i1" },
