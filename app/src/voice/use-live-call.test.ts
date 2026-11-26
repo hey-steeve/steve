@@ -20,6 +20,8 @@ const tuning: VoiceTuning = { reasoningEffort: "none", codec: "pcm16-24k", trans
 
 function mount() {
   const sockets: RealtimeSocketOptions[] = [];
+  const counts = { socketClose: 0, audioClose: 0, sent: 0 };
+  let micChunk: ((bytes: Uint8Array) => void) | undefined;
   const events: ThreadEvent[] = [];
   const audio: BrowserAudio = {
     generation: 0,
@@ -28,14 +30,20 @@ function mount() {
     discardResponse() {},
     playedMs: () => 0,
     flush: () => ({ generation: 0, responseId: undefined, itemId: undefined, playedMs: 0 }),
-    close() {},
+    close() {
+      counts.audioClose += 1;
+    },
   };
   const socket: RealtimeSocket = {
     mock: false,
-    sendAudio() {},
+    sendAudio() {
+      counts.sent += 1;
+    },
     cancelResponse() {},
     truncate() {},
-    close() {},
+    close() {
+      counts.socketClose += 1;
+    },
   };
   const deps: CallDeps = {
     fetchToken: async () => ({ value: "t" }),
@@ -43,7 +51,10 @@ function mount() {
       sockets.push(o);
       return socket;
     },
-    startAudio: async () => audio,
+    startAudio: async (o) => {
+      micChunk = o.onMicChunk;
+      return audio;
+    },
     instructions: () => "base",
     keyterms: [],
     tuning,
@@ -67,7 +78,12 @@ function mount() {
     await act(async () => current().start([]));
     act(() => sockets[0]?.onOpen?.());
   };
-  return { current, sockets, events, open };
+  const unmount = () => {
+    roots.splice(roots.indexOf(root), 1);
+    act(() => root.unmount());
+  };
+  const mic = (bytes: Uint8Array) => micChunk?.(bytes);
+  return { current, sockets, events, open, counts, unmount, mic };
 }
 
 it("starts, mutes and hangs up through the hook", async () => {
@@ -114,4 +130,16 @@ it("forwards transcripts and drops stale ones after end", async () => {
     options?.onEvent({ type: "input.transcription_updated", itemId: "t2", text: "late" }),
   );
   expect(h.events.length).toBe(1);
+});
+
+it("ends the call on unmount so the mic and socket close", async () => {
+  const h = mount();
+  await h.open();
+  h.mic(new Uint8Array([1]));
+  expect(h.counts.sent).toBe(1);
+  h.unmount();
+  expect(h.counts.socketClose).toBeGreaterThan(0);
+  expect(h.counts.audioClose).toBeGreaterThan(0);
+  h.mic(new Uint8Array([2]));
+  expect(h.counts.sent).toBe(1);
 });

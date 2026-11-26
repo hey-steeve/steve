@@ -48,6 +48,7 @@ export function useLiveCall(
     return () => {
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", onExit);
+      controller.end("page-exit");
     };
   }, [controller]);
 
