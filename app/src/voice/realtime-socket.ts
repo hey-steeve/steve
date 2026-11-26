@@ -5,11 +5,15 @@ import {
   type ServerEvent,
   type VoiceTuning,
 } from "@steve/voice";
-import { mockSecretValue } from "./session-secret";
+import { mockSecretValue } from "./mock-session";
 
 export const REALTIME_URL = `wss://api.x.ai/v1/realtime?model=${VOICE_MODEL}`;
 export const SUBPROTOCOL_PREFIX = "xai-client-secret.";
 const OPEN = 1;
+// Inbound cap: 256 KiB. Far above a session event or an audio frame. JSON text
+// frames are measured in JS string length (UTF-16 code units), binary frames
+// in byteLength. Larger frames are dropped before parse or codec checks.
+export const maxInboundFrameBytes = 256 * 1024;
 // RFC 6455 subprotocols are RFC 7230 tokens. Chromium echoes a rejected one in its exception.
 const SUBPROTOCOL_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
@@ -75,6 +79,63 @@ const browserSocket: SocketFactory = (url, protocols, handlers) => {
   };
 };
 
+// Scrubs inbound strings that contain the token. Never logs it, never rewrites
+// `type`, and never aliases distinct ids: a leaking id drops the event.
+export const SERVER_ERROR_MESSAGE = "server error";
+export const REDACTED = "[redacted]";
+
+const ID_FIELDS: ReadonlySet<string> = new Set([
+  "sessionId",
+  "itemId",
+  "responseId",
+]);
+
+function replaceLeakyField(
+  event: ServerEvent,
+  key: string,
+  replacement: string,
+): ServerEvent | undefined {
+  if (event.type === "error" && key === "message") {
+    return { ...event, message: replacement };
+  }
+  if (event.type === "session.updated" && key === "instructions") {
+    return { ...event, instructions: replacement };
+  }
+  if (
+    (event.type === "input.transcription_updated" ||
+      event.type === "input.transcription_completed") &&
+    key === "text"
+  ) {
+    return { ...event, text: replacement };
+  }
+  if (event.type === "response.audio_delta" && key === "delta") {
+    return { ...event, delta: replacement };
+  }
+  return undefined;
+}
+
+export function scrubServerEvent(
+  event: ServerEvent,
+  token: string,
+): ServerEvent | undefined {
+  if (token === "") return event;
+  let out: ServerEvent = event;
+  for (const [key, value] of Object.entries(event)) {
+    if (key === "type") continue;
+    if (typeof value !== "string" || !value.includes(token)) continue;
+    if (ID_FIELDS.has(key)) return undefined;
+    const replacement =
+      event.type === "error" && key === "message"
+        ? SERVER_ERROR_MESSAGE
+        : REDACTED;
+    if (replacement.includes(token)) return undefined;
+    const next = replaceLeakyField(out, key, replacement);
+    if (next === undefined) return undefined;
+    out = next;
+  }
+  return out;
+}
+
 export function toBase64(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) {
@@ -91,9 +152,10 @@ export function fromBase64(text: string): Uint8Array | undefined {
   }
 }
 
-// PCM16: a non-empty, even number of bytes.
-function isValidPcm(bytes: Uint8Array): boolean {
-  return bytes.length > 0 && bytes.length % 2 === 0;
+// Opus: any non-empty frame. PCM16: a non-empty, even number of bytes.
+function isValidAudio(bytes: Uint8Array, codec: VoiceTuning["codec"]): boolean {
+  if (bytes.length === 0) return false;
+  return codec === "opus" || bytes.length % 2 === 0;
 }
 
 const noop = (): void => undefined;
@@ -127,6 +189,7 @@ export function connectRealtime(
   const sendJson = (message: object): void => send(JSON.stringify(message));
 
   const handleText = (text: string): void => {
+    if (text.length > maxInboundFrameBytes) return;
     let event: ServerEvent | undefined;
     try {
       event = parseServerEvent(JSON.parse(text));
@@ -134,13 +197,16 @@ export function connectRealtime(
       return;
     }
     if (event === undefined) return;
+    event = scrubServerEvent(event, options.token);
+    if (event === undefined) return;
     let bytes: Uint8Array | undefined;
     if (event.type === "response.audio_delta") {
       // Binary transport carries audio in binary frames only.
       if (binary) return;
       // Invalid audio never reaches the reducer, so it cannot leave it speaking.
       bytes = fromBase64(event.delta);
-      if (bytes === undefined || !isValidPcm(bytes)) return;
+      if (bytes === undefined || !isValidAudio(bytes, options.tuning.codec))
+        return;
     }
     options.onEvent(event);
     // onEvent may have closed the socket.
@@ -174,8 +240,9 @@ export function connectRealtime(
           if (closed) return;
           if (typeof data === "string") handleText(data);
           else if (binary && data instanceof ArrayBuffer) {
+            if (data.byteLength > maxInboundFrameBytes) return;
             const bytes = new Uint8Array(data);
-            if (!isValidPcm(bytes)) return;
+            if (!isValidAudio(bytes, options.tuning.codec)) return;
             options.onAudio({
               bytes,
               responseId: undefined,

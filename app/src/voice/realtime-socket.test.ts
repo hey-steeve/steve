@@ -2,20 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 import {
   VOICE_MODEL,
   buildSessionConfig,
+  initialCallState,
+  reduceCall,
   type ServerEvent,
   type VoiceTuning,
 } from "@steve/voice";
 import {
   REALTIME_URL,
+  SERVER_ERROR_MESSAGE,
   SUBPROTOCOL_PREFIX,
   connectRealtime,
   fromBase64,
+  maxInboundFrameBytes,
   toBase64,
   type InboundAudio,
   type SocketHandlers,
   type SocketLike,
 } from "./realtime-socket";
-import { mockSecretValue } from "./session-secret";
+import { mockSecretValue } from "./mock-session";
 
 const TOKEN = "test-token-value";
 const json: VoiceTuning = {
@@ -132,7 +136,7 @@ describe("handshake", () => {
       onAudio: () => undefined,
       createSocket: factory,
     });
-    expect(factory).not.toHaveBeenCalled();
+    expect(factory.mock.calls.length === 0).toBe(true);
     expect(handle.mock).toBe(true);
     handle.sendAudio(new Uint8Array(2));
     handle.close();
@@ -356,6 +360,37 @@ describe("BC-59 invalid PCM", () => {
   }
 });
 
+// Codec-aware inbound audio validation across both transports.
+describe("codec x transport inbound audio", () => {
+  const opus = (t: VoiceTuning): VoiceTuning => ({ ...t, codec: "opus" });
+  const rows: [string, VoiceTuning, number[], boolean][] = [
+    ["json opus 3 bytes", opus(json), [1, 2, 3], true],
+    ["json opus empty", opus(json), [], false],
+    ["json pcm16 even", json, [1, 2], true],
+    ["json pcm16 odd", json, [1, 2, 3], false],
+    ["json pcm16 empty", json, [], false],
+    ["binary opus 3 bytes", opus(binary), [1, 2, 3], true],
+    ["binary opus empty", opus(binary), [], false],
+    ["binary pcm16 even", binary, [1, 2], true],
+    ["binary pcm16 odd", binary, [1, 2, 3], false],
+    ["binary pcm16 empty", binary, [], false],
+  ];
+  for (const [name, tuning, data, accepted] of rows) {
+    it(`${name}: ${accepted ? "reaches" : "never reaches"} onAudio`, () => {
+      const { socket, audio } = setup(tuning);
+      socket().open();
+      const bytes = new Uint8Array(data);
+      socket().receive(
+        tuning.transport === "json" ? delta(bytes) : bytes.buffer,
+      );
+      expect(audio.length === (accepted ? 1 : 0)).toBe(true);
+      if (accepted) {
+        expect(audio[0]?.bytes.length === data.length).toBe(true);
+      }
+    });
+  }
+});
+
 // BC-55: nothing is delivered after close.
 describe("BC-55 close during dispatch", () => {
   function closing(tuning: VoiceTuning) {
@@ -550,5 +585,247 @@ describe("BC-56 malformed token", () => {
     expect(r.factory.mock.calls.length === 0).toBe(true);
     expect(r.onError.mock.calls.length === 0).toBe(true);
     expect(r.handle?.mock).toBe(true);
+  });
+});
+
+describe("inbound token scrub", () => {
+  const leaky = `before-${TOKEN}-after`;
+  const errorWire = (message: string) =>
+    JSON.stringify({ type: "error", error: { message } });
+  const wires: [string, unknown][] = [
+    [
+      "session.created session.id",
+      { type: "session.created", session: { id: leaky } },
+    ],
+    [
+      "session.updated session.id",
+      { type: "session.updated", session: { id: leaky } },
+    ],
+    [
+      "session.updated session.instructions",
+      { type: "session.updated", session: { instructions: leaky } },
+    ],
+    [
+      "speech_started item_id",
+      { type: "input_audio_buffer.speech_started", item_id: leaky },
+    ],
+    [
+      "speech_stopped item_id",
+      { type: "input_audio_buffer.speech_stopped", item_id: leaky },
+    ],
+    [
+      "transcription.delta item_id",
+      {
+        type: "conversation.item.input_audio_transcription.delta",
+        item_id: leaky,
+        delta: "x",
+      },
+    ],
+    [
+      "transcription.delta text",
+      {
+        type: "conversation.item.input_audio_transcription.delta",
+        item_id: "i",
+        delta: leaky,
+      },
+    ],
+    [
+      "transcription.updated text",
+      {
+        type: "conversation.item.input_audio_transcription.updated",
+        item_id: "i",
+        transcript: leaky,
+      },
+    ],
+    [
+      "transcription.completed item_id",
+      {
+        type: "conversation.item.input_audio_transcription.completed",
+        item_id: leaky,
+        transcript: "x",
+      },
+    ],
+    [
+      "transcription.completed text",
+      {
+        type: "conversation.item.input_audio_transcription.completed",
+        item_id: "i",
+        transcript: leaky,
+      },
+    ],
+    [
+      "response.created id",
+      { type: "response.created", response: { id: leaky } },
+    ],
+    ["response.done id", { type: "response.done", response: { id: leaky } }],
+    [
+      "response.cancelled id",
+      { type: "response.cancelled", response: { id: leaky } },
+    ],
+    [
+      "output_item.added response_id",
+      {
+        type: "response.output_item.added",
+        response_id: leaky,
+        item: { id: "i" },
+      },
+    ],
+    [
+      "output_item.added item.id",
+      {
+        type: "response.output_item.added",
+        response_id: "r",
+        item: { id: leaky },
+      },
+    ],
+    [
+      "audio delta response_id",
+      {
+        type: "response.output_audio.delta",
+        response_id: leaky,
+        item_id: "i",
+        delta: toBase64(new Uint8Array([1, 2])),
+      },
+    ],
+    [
+      "audio delta item_id",
+      {
+        type: "response.audio.delta",
+        response_id: "r",
+        item_id: leaky,
+        delta: toBase64(new Uint8Array([1, 2])),
+      },
+    ],
+    [
+      "audio delta delta",
+      {
+        type: "response.output_audio.delta",
+        response_id: "r",
+        item_id: "i",
+        delta: leaky,
+      },
+    ],
+    ["error message", { type: "error", error: { message: leaky } }],
+  ];
+
+  it.each(wires)("%s never reaches a callback", (_name, wire) => {
+    const r = setup(json);
+    r.socket().open();
+    r.socket().receive(JSON.stringify(wire));
+    const seen = JSON.stringify([r.events, r.audio]);
+    expect(seen.includes(TOKEN)).toBe(false);
+  });
+
+  it("replaces a token-bearing error and keeps it out of call state", () => {
+    const r = setup(json);
+    r.socket().open();
+    r.socket().receive(errorWire(leaky));
+    expect(r.events).toHaveLength(1);
+    const event = r.events[0];
+    expect(
+      event?.type === "error" && event.message === SERVER_ERROR_MESSAGE,
+    ).toBe(true);
+    let state = reduceCall(initialCallState, { type: "start" });
+    state = reduceCall(state, { type: "connected" });
+    for (const e of r.events)
+      state = reduceCall(state, { type: "server", event: e });
+    expect(JSON.stringify(state).includes(TOKEN)).toBe(false);
+    expect(
+      state.phase === "active" && state.lastError === SERVER_ERROR_MESSAGE,
+    ).toBe(true);
+  });
+
+  it("drops distinct token-bearing ids instead of aliasing them", () => {
+    const r = setup(json);
+    r.socket().open();
+    for (const id of [`a-${TOKEN}`, `b-${TOKEN}`]) {
+      r.socket().receive(
+        JSON.stringify({ type: "response.created", response: { id } }),
+      );
+      r.socket().receive(
+        JSON.stringify({ type: "response.done", response: { id } }),
+      );
+      r.socket().receive(
+        JSON.stringify({
+          type: "input_audio_buffer.speech_started",
+          item_id: id,
+        }),
+      );
+    }
+    expect(r.events).toHaveLength(0);
+  });
+
+  it.each(["error", "response", "audio_delta"])(
+    "keeps dispatch intact when the token %s is part of a local type",
+    (token) => {
+      const j = setup(json, token);
+      j.socket().open();
+      j.socket().receive(errorWire("rate limited"));
+      expect(j.events).toEqual([{ type: "error", message: "rate limited" }]);
+      const b = setup(binary, token);
+      b.socket().open();
+      b.socket().receive(delta(new Uint8Array([1, 2])));
+      expect(b.events).toHaveLength(0);
+      expect(b.audio).toHaveLength(0);
+    },
+  );
+
+  it("drops the event when the token is inside the error fallback", () => {
+    const r = setup(json, "server");
+    r.socket().open();
+    r.socket().receive(errorWire("a server leak"));
+    expect(r.events).toHaveLength(0);
+    let state = reduceCall(initialCallState, { type: "start" });
+    state = reduceCall(state, { type: "connected" });
+    for (const e of r.events)
+      state = reduceCall(state, { type: "server", event: e });
+    expect(
+      state.phase === "active" && state.lastError === undefined,
+    ).toBe(true);
+  });
+
+  it("passes a normal error through unchanged", () => {
+    const r = setup(json);
+    r.socket().open();
+    r.socket().receive(errorWire("rate limited"));
+    expect(r.events).toEqual([{ type: "error", message: "rate limited" }]);
+  });
+});
+
+describe("inbound frame size cap", () => {
+  it("drops a JSON text frame one unit over the cap and still handles the next", () => {
+    const { socket, events, audio } = setup(json);
+    socket().open();
+    const head = '{"type":"response.created","response":{"id":"';
+    const make = (len: number) =>
+      head + "a".repeat(len - head.length - 3) + '"}}';
+    const atCap = make(maxInboundFrameBytes);
+    const over = make(maxInboundFrameBytes + 1);
+    expect(atCap.length === maxInboundFrameBytes).toBe(true);
+    expect(over.length === maxInboundFrameBytes + 1).toBe(true);
+    socket().receive(over);
+    expect(events.length === 0 && audio.length === 0).toBe(true);
+    socket().receive(atCap);
+    expect(events.length === 1).toBe(true);
+    socket().receive(
+      JSON.stringify({ type: "response.created", response: { id: "r2" } }),
+    );
+    expect(events.length === 2).toBe(true);
+  });
+
+  it("drops a binary frame one byte over the cap and still handles the next", () => {
+    // Opus so the over-cap odd length is not dropped by the PCM16 check.
+    const { socket, events, audio } = setup({ ...binary, codec: "opus" });
+    socket().open();
+    socket().receive(new Uint8Array(maxInboundFrameBytes + 1).buffer);
+    expect(events.length === 0 && audio.length === 0).toBe(true);
+    socket().receive(new Uint8Array(maxInboundFrameBytes).buffer);
+    expect(audio.length === 1).toBe(true);
+    socket().receive(new Uint8Array([1, 2, 3, 4]).buffer);
+    expect(audio.length === 2).toBe(true);
+    socket().receive(
+      JSON.stringify({ type: "response.created", response: { id: "r1" } }),
+    );
+    expect(events.length === 1).toBe(true);
   });
 });

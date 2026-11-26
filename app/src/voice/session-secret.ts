@@ -1,10 +1,12 @@
 // Server only. Imported by app/src/app/api/voice/session/route.ts, never by client code.
 
+import { mockSecretValue } from "./mock-session";
+
 export const clientSecretsUrl = "https://api.x.ai/v1/realtime/client_secrets";
 // Token lifetime in seconds (the xAI docs example). Not the 600 second call cap.
 export const clientSecretTtlSeconds = 300;
 // Reserved value for mock mode. A client that sees it opens no xAI socket.
-export const mockSecretValue = "steve-voice-mock-session";
+export { mockSecretValue };
 // Allowed clock skew in seconds between us and upstream when capping the expiry.
 export const clientSecretSkewSeconds = 30;
 const upstreamTimeoutMs = 10_000;
