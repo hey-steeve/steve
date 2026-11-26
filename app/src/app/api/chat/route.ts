@@ -1,11 +1,5 @@
 import type { Handoff, Turn } from "@steve/shared";
-import {
-  classify,
-  triageTurn,
-  type ClassifyResult,
-  type EmergencyCalls,
-  type TriageDecision,
-} from "@steve/triage";
+import type { EmergencyCalls, TriageDecision } from "@steve/triage";
 import { readCompletion } from "../../../chat/completion";
 import {
   chatRequestLimits,
@@ -14,11 +8,12 @@ import {
   type ChatHttpResult,
   type ChatTurn,
 } from "../../../chat/request";
+import { envString } from "../env";
+import { triageWithJev } from "../jev";
 import { call3114Now, ensureEmergencyCalls } from "./emergency-templates";
 import { openRouterModel } from "./openrouter-model";
 import { ensureEmergencyCallsSafe } from "./safe-emergency-calls";
 import { systemPrompt } from "./system-prompt";
-import { recordTriageLog } from "./triage-log";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const defaultModel = "openai/gpt-6.1-terra";
@@ -68,29 +63,10 @@ type LiveTriage = {
 };
 
 async function triageLive(messages: readonly ChatTurn[]): Promise<LiveTriage> {
-  const jevKey = envString("JEV_API_KEY");
-  if (jevKey === undefined) {
-    recordTriageLog({ cause: "no-triage", reason: "missing-key" });
+  const decision = await triageWithJev(chatHandoff(messages));
+  if (decision === null) {
     return {};
   }
-  const jevModel = envString("JEV_MODEL");
-  const decision = await triageTurn({
-    handoff: chatHandoff(messages),
-    classify: async ({ state }) => {
-      try {
-        const result = await classify({
-          state,
-          fetch: fetchWithBearer(jevKey),
-          ...(jevModel === undefined ? {} : { model: jevModel }),
-        });
-        logClosed(result);
-        return result;
-      } catch {
-        recordTriageLog({ cause: "no-triage", reason: "throw" });
-        throw new Error("triage");
-      }
-    },
-  });
   return triageFields(decision);
 }
 
@@ -131,32 +107,6 @@ function chatHandoff(messages: readonly ChatTurn[]): Handoff<readonly Turn[]> {
     intent: "care_request",
     data: turns,
   };
-}
-
-function fetchWithBearer(apiKey: string): typeof fetch {
-  return (input, init) => {
-    const headers = new Headers(init?.headers);
-    headers.set("Authorization", `Bearer ${apiKey}`);
-    return fetch(input, { ...init, headers });
-  };
-}
-
-function logClosed(result: ClassifyResult): void {
-  if (result.label !== "need-info") {
-    return;
-  }
-  switch (result.reason) {
-    case "http":
-    case "timeout":
-    case "network":
-    case "malformed":
-      recordTriageLog({ cause: "no-triage", reason: result.reason });
-      return;
-    case "model":
-    case "below-threshold":
-    case "no-channel":
-      return;
-  }
 }
 
 async function completeWithOpenRouter(
@@ -326,16 +276,4 @@ function isJsonContentType(header: string | null): boolean {
 function liveChatEnabled(): boolean {
   const value: unknown = Reflect.get(process.env, "STEVE_CHAT_LIVE");
   return value === "1";
-}
-
-function envString(name: string): string | undefined {
-  const value: unknown = Reflect.get(process.env, name);
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return undefined;
-  }
-  return trimmed;
 }

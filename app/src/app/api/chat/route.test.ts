@@ -1324,6 +1324,41 @@ it("sends only user turns to classify", async () => {
   expect(sent["state"]).toBe("J'ai mal à la gorge.\nDepuis ce matin.");
 });
 
+const mainStateRows: readonly { readonly label: string; readonly users: readonly string[] }[] = [
+  { label: "short history", users: ["J'ai mal.", "Depuis ce matin."] },
+  { label: "two 4000-character user turns", users: ["a".repeat(4000), "b".repeat(4000)] },
+  {
+    label: "earlier emergency signal, later turn long enough to drop it under a cap",
+    users: ["J'ai une douleur thoracique intense.", "c".repeat(4000), "d".repeat(4000)],
+  },
+  {
+    label: "emergency signal followed by a long turn",
+    users: ["Je veux me suicider.", "e".repeat(4000)],
+  },
+  {
+    label: "seven user turns, main drops the oldest via the 6-turn window",
+    users: ["un", "deux", "trois", "quatre", "cinq", "six", "sept"],
+  },
+];
+
+it.each(mainStateRows)("sends main's Jev state for $label", async ({ users }) => {
+  const fetchMock = triageFetch(() => Response.json(jevBody("self-care", 0.7, "none")));
+  vi.stubGlobal("fetch", fetchMock);
+  const messages = users.flatMap((content) => [
+    { role: "user", content },
+    { role: "assistant", content: "Je vous écoute." },
+  ]);
+  messages.pop();
+  const response = await post({ messages });
+  expect(response.status).toBe(200);
+  const sent: unknown = JSON.parse(String(jevFetchCall(fetchMock)?.[1]?.body));
+  expect(isRecord(sent)).toBe(true);
+  if (!isRecord(sent)) {
+    return;
+  }
+  expect(sent["state"]).toBe(users.slice(-6).join("\n"));
+});
+
 it("passes JEV_MODEL through to the classifier request", async () => {
   vi.stubEnv("JEV_MODEL", "  jev-test-model  ");
   const fetchMock = triageFetch(() => Response.json(jevBody("self-care", 0.7, "none")));

@@ -40,6 +40,13 @@ export type TriageDecision =
 
 const stateTurnLimit = 6;
 
+function buildState(turns: readonly Turn[]): string {
+  return turns
+    .slice(-stateTurnLimit)
+    .map((turn) => turn.text)
+    .join("\n");
+}
+
 export const needInfoGuidance = {
   placement: "after-system-prompt",
   text: "pose une seule question courte",
@@ -83,10 +90,7 @@ export async function triageTurn(input: TriageTurnRequest): Promise<TriageDecisi
     return noTriage();
   }
 
-  const state = input.handoff.data
-    .slice(-stateTurnLimit)
-    .map((turn) => turn.text)
-    .join("\n");
+  const state = buildState(input.handoff.data);
   let result: ClassifyResult;
   try {
     result = await input.classify({ state });

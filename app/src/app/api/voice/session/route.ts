@@ -1,3 +1,4 @@
+import { envString } from "../../env";
 import { admitMint } from "../../../../voice/mint-cap";
 import { mintVoiceSecret } from "../../../../voice/session-secret";
 
@@ -28,16 +29,4 @@ export async function POST(request?: Request): Promise<Response> {
 function liveVoiceEnabled(): boolean {
   const value: unknown = Reflect.get(process.env, "STEVE_VOICE_LIVE");
   return value === "1";
-}
-
-function envString(name: string): string | undefined {
-  const value: unknown = Reflect.get(process.env, name);
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return undefined;
-  }
-  return trimmed;
 }
