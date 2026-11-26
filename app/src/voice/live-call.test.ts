@@ -6,9 +6,12 @@ import type {
   FlushSnapshot,
 } from "./browser-audio";
 import type { RealtimeSocket, RealtimeSocketOptions } from "./realtime-socket";
+import { consultGuidance, needInfoGuidance } from "@steve/triage";
+import { forcedSentences } from "./voice-safety";
 import {
   callCapMs,
   createLiveCall,
+  type CallDeps,
   type EndReason,
   type ThreadEvent,
 } from "./live-call";
@@ -42,6 +45,8 @@ function setup(
     manualToken?: boolean;
     manualAudio?: boolean;
     gateFirstOnly?: boolean;
+    triage?: CallDeps["triage"];
+    enqueueThrows?: boolean;
   } = {},
 ) {
   let t = 1_000;
@@ -72,8 +77,14 @@ function setup(
     truncate(id: string, ms: number) {
       this.truncates.push([id, ms]);
     }
-    forceMessage() {}
-    updateInstructions() {}
+    forced: (readonly string[])[] = [];
+    instructions: string[] = [];
+    forceMessage(sentences: readonly string[]) {
+      this.forced.push(sentences);
+    }
+    updateInstructions(text: string) {
+      this.instructions.push(text);
+    }
     close() {
       this.closed++;
     }
@@ -93,6 +104,7 @@ function setup(
     enqueued = 0;
     chunks: { responseId: string; itemId: string | undefined; length: number }[] = [];
     enqueue(chunk: { bytes: Uint8Array; responseId: string; itemId: string | undefined }) {
+      if (opts.enqueueThrows) throw new Error("tts down");
       // `enqueued` counts audible audio; announce chunks are zero-length.
       if (chunk.bytes.length > 0) this.enqueued++;
       this.chunks.push({
@@ -101,7 +113,10 @@ function setup(
         length: chunk.bytes.length,
       });
     }
-    discardResponse() {}
+    discarded: string[] = [];
+    discardResponse(id: string) {
+      this.discarded.push(id);
+    }
     playedMs() {
       return 420;
     }
@@ -147,6 +162,7 @@ function setup(
       return a;
     },
     instructions: () => "base",
+    ...(opts.triage ? { triage: opts.triage } : {}),
     onThreadEvent: (e) => threads.push(e),
     keyterms: [],
     tuning,
@@ -568,11 +584,12 @@ describe("live call", () => {
       itemId: undefined,
       text: "x",
     });
-    expect(h.threads.map((e) => [e.itemId, e.final])).toEqual([
+    const transcripts = h.threads.filter((e) => e.type === "transcript");
+    expect(transcripts.map((e) => [e.itemId, e.final])).toEqual([
       ["t1", false],
       ["t1", true],
     ]);
-    expect(h.threads[1]?.text === "ab").toBe(true);
+    expect(transcripts[1]?.text === "ab").toBe(true);
     h.ctl.end("hang-up");
     options.onEvent({
       type: "input.transcription_updated",
@@ -787,5 +804,222 @@ describe("live call", () => {
       expect(first(h.sockets).options.canHandshake?.()).toBe(true);
       expect(h.reason()).toBeUndefined();
     });
+  });
+});
+
+describe("live call triage enforcement", () => {
+  type Decision = NonNullable<Awaited<ReturnType<NonNullable<CallDeps["triage"]>>>>;
+  const c15 = { type: "call", number: "15" } as const;
+  const c3114 = { type: "call", number: "3114" } as const;
+  const emergency15: Decision = { label: "emergency", calls: [c15] };
+
+  // Triage stub: every request waits for the test to answer it.
+  function gated() {
+    const requests: {
+      current: { turnId: string; sessionId: string; text: string };
+      previous: readonly { text: string }[];
+      signal: AbortSignal;
+      answer: (d: Decision | null) => void;
+    }[] = [];
+    const triage: CallDeps["triage"] = (current, previous, signal) =>
+      new Promise((resolve) => {
+        requests.push({ current, previous, signal, answer: resolve });
+      });
+    return { requests, triage };
+  }
+  const say = (h: ReturnType<typeof setup>, itemId: string, text: string) =>
+    first(h.sockets).options.onEvent({ type: "input.transcription_completed", itemId, text });
+  const emergencies = (h: ReturnType<typeof setup>) => h.threads.filter((e) => e.type === "emergency");
+
+  it("triages one finalized item once, with preceding patient turns in order", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await h.ctl.start([
+      { role: "user", content: "h1" },
+      { role: "assistant", content: "a" },
+      { role: "user", content: "h2" },
+    ]);
+    first(h.sockets).options.onOpen?.();
+    say(h, "t1", "first");
+    first(h.sockets).options.onEvent({ type: "input.transcription_updated", itemId: "t2", text: "x" });
+    say(h, "t1", "first");
+    say(h, "t2", "second");
+    await flush();
+    expect(g.requests.map((r) => r.current.turnId)).toEqual(["t1", "t2"]);
+    expect(g.requests[0]?.previous.map((t) => t.text)).toEqual(["h1", "h2"]);
+    expect(g.requests[1]?.previous.map((t) => t.text)).toEqual(["h1", "h2", "first"]);
+    expect(new Set(g.requests.map((r) => r.current.sessionId)).size).toBe(1);
+  });
+
+  it("skips triage when the port is omitted", async () => {
+    const h = setup();
+    await active(h);
+    say(h, "t1", "mal au coeur");
+    await flush();
+    expect(first(h.sockets).socket.forced).toEqual([]);
+  });
+
+  it("ignores a result after end()", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    h.ctl.end("hang-up");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    const { socket } = first(h.sockets);
+    expect(socket.forced).toEqual([]);
+    expect(socket.instructions).toEqual([]);
+    expect(emergencies(h)).toEqual([]);
+  });
+
+  it("late emergency: cancels in flight, flushes, forces the exact sentences", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    // Another turn and a response have started before the result lands.
+    say(h, "t2", "et puis");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(socket.cancels).toBe(1);
+    expect(audio.flushes).toBe(1);
+    expect(audio.discarded).toEqual(["r1"]);
+    expect(socket.forced).toEqual([[...forcedSentences([c15])]]);
+    expect(emergencies(h)).toEqual([
+      { type: "emergency", itemId: "t1", calls: [c15], sentences: forcedSentences([c15]) },
+    ]);
+  });
+
+  it("does not cancel when no response is in flight", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(first(h.sockets).socket.cancels).toBe(0);
+    expect(first(h.sockets).socket.forced.length).toBe(1);
+  });
+
+  it.each<[string, Decision & { label: "emergency" }]>([
+    ["15", { label: "emergency", calls: [c15] }],
+    ["3114", { label: "emergency", calls: [c3114] }],
+    ["3114 then 15", { label: "emergency", calls: [c3114, c15] }],
+    ["15 then 3114", { label: "emergency", calls: [c15, c3114] }],
+  ])("forces the shared sentences for %s", async (_n, decision) => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    g.requests[0]?.answer(decision);
+    await flush();
+    const expected = [...forcedSentences(decision.calls)];
+    expect(first(h.sockets).socket.forced).toEqual([expected]);
+    expect(emergencies(h).map((e) => (e.type === "emergency" ? [...e.sentences] : []))).toEqual([expected]);
+  });
+
+  it("drops cancelled-response chunks and keeps forced-response audio", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "x");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "r1", itemId: undefined });
+    expect(audio.enqueued).toBe(0);
+    options.onEvent({ type: "response.created", responseId: "r2" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "r2", itemId: undefined });
+    expect(audio.enqueued).toBe(1);
+  });
+
+  it("does not force twice for the same item", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    say(h, "t1", "x");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(first(h.sockets).socket.forced.length).toBe(1);
+    expect(emergencies(h).length).toBe(1);
+  });
+
+  it("applies guidance to one response, then restores the base", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "x");
+    g.requests[0]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([`base\n\n${consultGuidance.text}`]);
+    expect(socket.forced).toEqual([]);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    expect(socket.instructions[1]).toBe("base");
+    say(h, "t2", "y");
+    g.requests[1]?.answer({ label: "need-info" });
+    await flush();
+    expect(socket.instructions[2]).toBe(`base\n\n${needInfoGuidance.text}`);
+    // A later user turn restores before it can inherit.
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.instructions[3]).toBe("base");
+    expect(socket.instructions.length).toBe(4);
+  });
+
+  it("emits a non-forcing offer for non-emergency calls", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    g.requests[0]?.answer({ label: "self-care", calls: [c3114] });
+    await flush();
+    expect(h.threads.filter((e) => e.type === "offer")).toEqual([
+      { type: "offer", itemId: "t1", calls: [c3114] },
+    ]);
+    expect(first(h.sockets).socket.forced).toEqual([]);
+  });
+
+  it("still emits the emergency event when audio fails", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage, enqueueThrows: true });
+    await active(h);
+    say(h, "t1", "x");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(emergencies(h).length).toBe(1);
+  });
+
+  it("sends no triage and no force past the cap", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    h.skip(callCapMs + 1);
+    say(h, "t1", "x");
+    await flush();
+    expect(g.requests).toEqual([]);
+    expect(first(h.sockets).socket.forced).toEqual([]);
+  });
+
+  it("ignores a result that lands after the cap", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    h.skip(callCapMs + 1);
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(first(h.sockets).socket.forced).toEqual([]);
+    expect(emergencies(h)).toEqual([]);
   });
 });

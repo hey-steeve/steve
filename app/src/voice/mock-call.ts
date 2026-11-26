@@ -8,6 +8,7 @@ import {
 import { connectRealtime } from "./realtime-socket";
 import { mockSecretValue } from "./mock-session";
 import { voiceInstructions } from "./voice-instructions";
+import { fetchVoiceTriage } from "./voice-triage";
 
 export const defaultTuning: VoiceTuning = {
   reasoningEffort: "none",
@@ -38,6 +39,7 @@ export function createBrowserCallDeps(overrides: Partial<CallDeps> = {}): CallDe
     connect: connectRealtime,
     startAudio: startBrowserAudio,
     instructions: defaultInstructions,
+    triage: fetchVoiceTriage,
     keyterms: defaultKeyterms,
     tuning: defaultTuning,
     // Monotonic: a wall-clock rollback must not rearm the call cap.
