@@ -73,20 +73,29 @@ export function scanBundle(dir) {
   return { missing: false, files, jsFiles, findings };
 }
 
-function isEntryPoint() {
+export const fileSystemErrorMessage =
+  "voice bundle check: file system error while scanning. Scan failed.\n";
+
+// "run" means this file is the CLI entry. "skip" means it was imported.
+// "fs-error" means realpath failed; the CLI must exit non-zero and print no path.
+export function entryPointResult(realpath = realpathSync) {
   if (process.argv[1] === undefined) {
-    return false;
+    return "skip";
   }
   try {
-    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+    return realpath(process.argv[1]) === realpath(fileURLToPath(import.meta.url)) ? "run" : "skip";
   } catch {
-    // An unresolvable path must not skip the scan and exit 0. The path is never printed.
-    process.stderr.write("voice bundle check: file system error while scanning. Scan failed.\n");
-    process.exit(1);
+    return "fs-error";
   }
 }
 
-if (isEntryPoint()) {
+const entry = entryPointResult();
+if (entry === "fs-error") {
+  process.stderr.write(fileSystemErrorMessage);
+  process.exit(1);
+}
+
+if (entry === "run") {
   const dir = path.resolve(process.argv[2] ?? path.join(repo, "app/.next/static"));
   let result;
   try {

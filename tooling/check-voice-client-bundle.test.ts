@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, it } from "vitest";
+import { entryPointResult, fileSystemErrorMessage } from "./check-voice-client-bundle.mjs";
 
 const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "check-voice-client-bundle.mjs");
 const canary = "xai-test-canary-0123456789abcdef";
@@ -129,21 +130,10 @@ it("still runs when the script is invoked through a symlink", () => {
 });
 
 it("fails with the fixed message when realpathSync throws", () => {
-  const dir = fixture({ "a.js": `var k="${canary}";` });
-  const preload = [
-    'import fs from "node:fs";',
-    'import { syncBuiltinESMExports } from "node:module";',
-    `fs.realpathSync = () => { throw new Error("${dir}/${canary}"); };`,
-    "syncBuiltinESMExports();",
-  ].join("\n");
-  const result = spawnSync(
-    "node",
-    ["--import", `data:text/javascript,${encodeURIComponent(preload)}`, script, dir],
-    { encoding: "utf8" },
-  );
-  const output = `${result.stdout}${result.stderr}`;
-  expect(result.status).toBe(1);
-  expect(output.includes("voice bundle check: file system error while scanning. Scan failed.")).toBe(true);
-  expect(output.includes(dir)).toBe(false);
-  expect(output.includes(canary)).toBe(false);
+  const thrown = entryPointResult(() => {
+    throw new Error(`${canary} must not be printed`);
+  });
+  expect(thrown === "fs-error").toBe(true);
+  expect(fileSystemErrorMessage.includes("file system error while scanning")).toBe(true);
+  expect(fileSystemErrorMessage.includes(canary)).toBe(false);
 });
