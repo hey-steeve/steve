@@ -1,6 +1,9 @@
-export const call15Now = "Appelle le 15 maintenant.";
-export const call3114Now = "Appelle le 3114 maintenant.";
-export const call3114 = "Appelle le 3114.";
+export const call15Now =
+  "Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. Appelle le 15 maintenant, ils sont là pour ça, jour et nuit. Je reste avec toi.";
+export const call3114Now =
+  "Merci de m'en parler, ça compte. Tu n'as pas à traverser ça seul. Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera. Je suis là aussi.";
+export const call3114 =
+  "Tu peux appeler le 3114, c'est gratuit, 24 h/24, et quelqu'un t'écoutera.";
 
 export const callSentences = [
   { sentence: call15Now, numbers: ["15"] },
@@ -164,35 +167,180 @@ function mapDecimalDigits(text: string): string {
   });
 }
 
+// One definition each for the apostrophe variants and the line breaks that the
+// normalization folds. The prompt number pins read these too, so they cannot drift.
+export const apostropheChars = "'\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\u02B9\u00B4`\uFF07";
+export const lineBreakChars = "\n\r\u2028\u2029";
+
+const apostrophePattern = new RegExp(`[${apostropheChars}]`, "g");
+const lineBreakPattern = new RegExp(`\r\n|[${lineBreakChars}]`, "g");
+
+export function foldApostrophes(text: string): string {
+  return text.replace(apostrophePattern, "'");
+}
+
 export function normalizeEmergencyText(text: string): string {
   const compat = foldDigitSymbols(text.normalize("NFKC"));
   const stripped = compat.replace(/\p{M}/gu, "").replace(/\p{Cf}/gu, "");
-  return mapDecimalDigits(stripped)
-    .replace(/['\u2018\u2019\u201A\u201B\u2032\u2035\u02BC\u02B9\u00B4`\uFF07]/g, "'")
+  return foldApostrophes(mapDecimalDigits(stripped))
     .replace(/\u00A0/g, " ")
     .toLowerCase()
-    .replace(/\r\n?/g, "\n")
-    .replace(/[\u2028\u2029]/g, "\n")
+    .replace(lineBreakPattern, "\n")
     .replace(/[^\S\n]+/g, " ")
     .trim();
 }
 
-const norm15Now = normalizeEmergencyText(call15Now);
-const norm3114Now = normalizeEmergencyText(call3114Now);
-const norm3114 = normalizeEmergencyText(call3114);
+type CallBlock = {
+  readonly text: string;
+  readonly sentences: readonly string[];
+  readonly is3114: boolean;
+};
+
+function callBlock(text: string, is3114: boolean): CallBlock {
+  return { text, sentences: splitExact(normalizeEmergencyText(text)), is3114 };
+}
+
+const block15Now = callBlock(call15Now, false);
+const block3114Now = callBlock(call3114Now, true);
+const block3114 = callBlock(call3114, true);
+const callBlocks = [block15Now, block3114Now, block3114] as const;
 const closedListeningTails = new Set([
   normalizeEmergencyText("Ils t'écoutent"),
   normalizeEmergencyText("Ils t'écoutent."),
   normalizeEmergencyText("Ils t'écoutent jour et nuit."),
 ]);
 
-const exactCallTemplates = new Set([norm15Now, norm3114Now, norm3114]);
+// Whole-block match at pieces[start]: each block sentence must equal the next
+// non-empty normalized piece, and the last one must end its punctuation run
+// ("..." after a block is not the block's "."). Returns the last piece used.
+function blockEnd(
+  pieces: readonly RawPiece[],
+  start: number,
+  block: CallBlock,
+): number | undefined {
+  let cursor = start;
+  let last = start;
+  for (const expected of block.sentences) {
+    while (cursor < pieces.length && pieces[cursor]?.norm === "") {
+      cursor += 1;
+    }
+    if (pieces[cursor]?.norm !== expected) {
+      return undefined;
+    }
+    last = cursor;
+    cursor += 1;
+  }
+  if (pieces[last + 1]?.continuesRun === true) {
+    return undefined;
+  }
+  return last;
+}
+
+type BlockMatch = { readonly block: CallBlock; readonly last: number };
+
+function callBlockAt(pieces: readonly RawPiece[], start: number): BlockMatch | undefined {
+  for (const block of callBlocks) {
+    const last = blockEnd(pieces, start, block);
+    if (last !== undefined) {
+      return { block, last };
+    }
+  }
+  return undefined;
+}
+
+type PieceRange = { readonly first: number; readonly last: number };
+
+// A reply that opens with an exact prefix of a required block that never
+// completes (a cut sentence, a missing sentence, a stretched final period).
+// The full block is prefixed, so this fragment must go or the number repeats.
+function leadingFragment(
+  pieces: readonly RawPiece[],
+  blocks: readonly CallBlock[],
+): PieceRange | undefined {
+  let cursor = 0;
+  for (const block of blocks) {
+    const end = blockEnd(pieces, cursor, block);
+    if (end === undefined) {
+      return firstIncomplete(pieces, cursor, blocks.slice(blocks.indexOf(block)));
+    }
+    cursor = end + 1;
+  }
+  return undefined;
+}
+
+function firstIncomplete(
+  pieces: readonly RawPiece[],
+  from: number,
+  blocks: readonly CallBlock[],
+): PieceRange | undefined {
+  for (const block of blocks) {
+    const range = incompleteFragment(pieces, from, block);
+    if (range !== undefined) {
+      return range;
+    }
+  }
+  return undefined;
+}
+
+function incompleteFragment(
+  pieces: readonly RawPiece[],
+  from: number,
+  block: CallBlock,
+): PieceRange | undefined {
+  let cursor = from;
+  let first: number | undefined;
+  let last = from;
+  let repeatsNumber = false;
+  let matched = 0;
+  let cut = false;
+  for (const expected of block.sentences) {
+    while (cursor < pieces.length && pieces[cursor]?.norm === "") {
+      cursor += 1;
+    }
+    const norm = pieces[cursor]?.norm ?? "";
+    if (norm.length === 0 || !expected.startsWith(norm)) {
+      break;
+    }
+    first ??= cursor;
+    last = cursor;
+    cursor += 1;
+    matched += 1;
+    repeatsNumber ||= /\d/u.test(norm);
+    if (norm !== expected) {
+      cut = true;
+      break;
+    }
+  }
+  // A number-free sentence taken from the block is just a sentence; keep it.
+  const stretched = matched === block.sentences.length;
+  if (first === undefined || !(cut || stretched || repeatsNumber)) {
+    return undefined;
+  }
+  while (pieces[last + 1]?.continuesRun === true) {
+    last += 1;
+  }
+  return { first, last };
+}
+
+function dropFragment(
+  dropped: Set<number>,
+  pieces: readonly RawPiece[],
+  blocks: readonly CallBlock[],
+): void {
+  const fragment = leadingFragment(pieces, blocks);
+  if (fragment === undefined) {
+    return;
+  }
+  for (let cursor = fragment.first; cursor <= fragment.last; cursor += 1) {
+    dropped.add(cursor);
+  }
+}
 
 export function ensureEmergencyCalls(
   reply: string,
   calls: readonly EmergencyCall[],
 ): string {
-  if (!calls.includes("15")) {
+  if (!calls.includes("15") && !is3114Only(calls)) {
     return reply;
   }
   if (keepsModel3114(calls)) {
@@ -202,10 +350,16 @@ export function ensureEmergencyCalls(
     return rebuildPhysical15(reply);
   }
   const templates = templatesFor(calls);
-  if (startsWithTemplates(reply, templates)) {
+  const blocks = templates.map(blockFor);
+  if (startsWithBlocks(rawPieces(reply), blocks)) {
     return reply;
   }
-  return joinPrefix(templates.join(" "), withoutExactCallTemplates(reply));
+  return joinPrefix(templates.join(" "), withoutExactCallTemplates(reply, blocks));
+}
+
+// True when the reply already opens with the exact required blocks for these calls.
+export function opensWithCallBlocks(reply: string, calls: readonly EmergencyCall[]): boolean {
+  return startsWithBlocks(rawPieces(reply), templatesFor(calls).map(blockFor));
 }
 
 function templatesFor(calls: readonly EmergencyCall[]): string[] {
@@ -214,15 +368,28 @@ function templatesFor(calls: readonly EmergencyCall[]): string[] {
     if (call === "15") {
       return call15Now;
     }
-    return index < first15 ? call3114Now : call3114;
+    return first15 === -1 || index < first15 ? call3114Now : call3114;
   });
 }
 
-function startsWithTemplates(reply: string, templates: readonly string[]): boolean {
-  const sentences = splitExact(normalizeEmergencyText(reply));
-  return templates.every(
-    (template, index) => sentences[index] === normalizeEmergencyText(template),
-  );
+function blockFor(template: string): CallBlock {
+  return callBlocks.find((block) => block.text === template) ?? callBlock(template, false);
+}
+
+function startsWithBlocks(pieces: readonly RawPiece[], blocks: readonly CallBlock[]): boolean {
+  let at = 0;
+  for (const block of blocks) {
+    const end = blockEnd(pieces, at, block);
+    if (end === undefined) {
+      return false;
+    }
+    at = end + 1;
+  }
+  return true;
+}
+
+function is3114Only(calls: readonly EmergencyCall[]): boolean {
+  return calls.length === 1 && calls[0] === "3114";
 }
 
 function keepsModel3114(calls: readonly EmergencyCall[]): boolean {
@@ -230,86 +397,349 @@ function keepsModel3114(calls: readonly EmergencyCall[]): boolean {
 }
 
 function physical15OpeningSettled(reply: string): boolean {
-  const sentences = splitExact(normalizeEmergencyText(reply));
-  if (sentences[0] !== norm15Now) {
+  const pieces = rawPieces(reply);
+  const opening = blockEnd(pieces, 0, block15Now);
+  if (opening === undefined) {
     return false;
   }
-  let index = 1;
-  while (index < sentences.length && isExact3114Text(sentences[index] ?? "")) {
-    index += 1;
-    if (isListeningTailText(sentences[index] ?? "")) {
-      index += 1;
+  let index = opening + 1;
+  for (;;) {
+    const match = callBlockAt(pieces, index);
+    if (match === undefined || !match.block.is3114) {
+      break;
+    }
+    index = match.last + 1;
+    const tailAt = nextNonBlank(pieces, index);
+    if (isListeningTailText(pieces[tailAt]?.norm ?? "")) {
+      index = tailAt + 1;
     }
   }
-  for (let cursor = index; cursor < sentences.length; cursor += 1) {
-    if (isExact3114Text(sentences[cursor] ?? "")) {
+  for (let cursor = index; cursor < pieces.length; cursor += 1) {
+    const match = callBlockAt(pieces, cursor);
+    if (match?.block.is3114) {
       return false;
     }
   }
   return true;
 }
 
+function nextNonBlank(pieces: readonly RawPiece[], from: number): number {
+  let cursor = from;
+  while (cursor < pieces.length && pieces[cursor]?.norm === "") {
+    cursor += 1;
+  }
+  return cursor;
+}
+
 function rebuildPhysical15(reply: string): string {
   const pieces = rawPieces(reply);
   const moved: string[] = [];
   const dropped = new Set<number>();
-  for (let index = 0; index < pieces.length; index += 1) {
-    const sentence = pieces[index]?.sentence ?? "";
-    if (sentence.length === 0) {
+  dropFragment(dropped, pieces, [block15Now]);
+  dropFragmentAfterLeadingCalls(dropped, pieces);
+  let index = 0;
+  while (index < pieces.length) {
+    const match = callBlockAt(pieces, index);
+    if (match === undefined) {
+      index += 1;
       continue;
     }
-    if (isExact3114(sentence)) {
-      moved.push(sentence);
-      const tailAt = listeningTailAfter(pieces, index);
+    if (match.block.is3114) {
+      moved.push(blockText(pieces, index, match.last));
+      const tailAt = listeningTailAfter(pieces, match.last);
       if (tailAt !== undefined) {
         moved.push(pieces[tailAt]?.sentence ?? "");
       }
-      dropThroughTail(dropped, pieces, index);
-      continue;
     }
-    if (exactCallTemplates.has(normalizeEmergencyText(sentence))) {
-      dropThroughTail(dropped, pieces, index);
-    }
+    dropThroughTail(dropped, pieces, index, match.last);
+    index = match.last + 1;
   }
+  // A [15]-only reply keeps the model's own 3114 wording, so only the 15 block is repeated.
+  dropLoneBlockSentences(dropped, pieces, lone15);
   return joinPrefix(joinSentences([call15Now, ...moved]), keptRaw(pieces, dropped));
 }
 
-function withoutExactCallTemplates(reply: string): string {
+// A cut 15 right behind complete leading call blocks is moved out with them,
+// so the rebuilt reply must not keep it next to the full 15 block.
+function dropFragmentAfterLeadingCalls(dropped: Set<number>, pieces: readonly RawPiece[]): void {
+  let cursor = 0;
+  for (;;) {
+    const at = nextNonBlank(pieces, cursor);
+    const match = callBlockAt(pieces, at);
+    if (match === undefined) {
+      cursor = at;
+      break;
+    }
+    cursor = match.last + 1;
+  }
+  const range = incompleteFragment(pieces, cursor, block15Now);
+  if (range === undefined) {
+    return;
+  }
+  for (let index = range.first; index <= range.last; index += 1) {
+    dropped.add(index);
+  }
+}
+
+function blockText(pieces: readonly RawPiece[], start: number, last: number): string {
+  const sentences: string[] = [];
+  for (let index = start; index <= last; index += 1) {
+    const sentence = pieces[index]?.sentence ?? "";
+    if (sentence.length > 0) {
+      sentences.push(sentence);
+    }
+  }
+  return sentences.join(" ");
+}
+
+function withoutExactCallTemplates(reply: string, opening: readonly CallBlock[]): string {
   const pieces = rawPieces(reply);
   const dropped = new Set<number>();
-  for (let index = 0; index < pieces.length; index += 1) {
-    const sentence = pieces[index]?.sentence ?? "";
-    if (sentence.length === 0 || !exactCallTemplates.has(normalizeEmergencyText(sentence))) {
+  dropFragment(dropped, pieces, opening);
+  let index = 0;
+  while (index < pieces.length) {
+    const match = callBlockAt(pieces, index);
+    if (match === undefined) {
+      index += 1;
       continue;
     }
-    dropThroughTail(dropped, pieces, index);
+    dropThroughTail(dropped, pieces, index, match.last);
+    index = match.last + 1;
   }
+  dropLoneBlockSentences(dropped, pieces, loneAll);
   return keptRaw(pieces, dropped);
+}
+
+type LoneSentences = {
+  readonly all: ReadonlySet<string>;
+  readonly withNumber: readonly string[];
+  // Only sentences closed by their own punctuation count; an unpunctuated cut prefix stays.
+  readonly finishedOnly?: boolean;
+};
+
+function loneSentencesOf(blocks: readonly CallBlock[]): LoneSentences {
+  const all = new Set(blocks.flatMap((block) => block.sentences));
+  return { all, withNumber: [...all].filter((sentence) => /\d/u.test(sentence)) };
+}
+
+const loneAll = loneSentencesOf(callBlocks);
+const lone15 = loneSentencesOf([block15Now]);
+
+// A single block sentence written alone (any position) would repeat what the
+// prefixed block already says. So does a cut prefix of one that still names the
+// number, even with its own full stop ("Appelle le 15 maintenant.").
+function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
+  if (lone.all.has(norm)) {
+    return true;
+  }
+  if (lone.finishedOnly === true && !/[.!?…]["'»”)\s]*$/u.test(norm)) {
+    return false;
+  }
+  const bare = norm.replace(/[.!?\s]+$/u, "");
+  return (
+    bare.length > 0 &&
+    /\d/u.test(bare) &&
+    lone.withNumber.some(
+      (sentence) =>
+        sentence.startsWith(bare) && !/[\p{L}\p{N}]/u.test(sentence.charAt(bare.length)),
+    )
+  );
+}
+
+// A cut prefix with no closing punctuation, such as "Tu peux appeler le 3114", stays.
+const finishedAll: LoneSentences = { ...loneAll, finishedOnly: true };
+// A [15]-only call keeps the model's own 3114 wording, so only 15 sentences are lone.
+const finished15: LoneSentences = { ...lone15, finishedOnly: true };
+
+// Drops finished lone block sentences (quoted ones too) without touching cut
+// prefixes. With keepOpening, the leading required blocks of `calls` stay.
+export function withoutFinishedLoneSentences(
+  text: string,
+  calls: readonly EmergencyCall[],
+  keepOpening: boolean,
+  only?: ReadonlySet<number>,
+): string {
+  return finishedLoneCleanup(text, calls, keepOpening, only).text;
+}
+
+// How many finished lone sentences the cleanup can drop one by one.
+export function countFinishedLoneSentences(
+  text: string,
+  calls: readonly EmergencyCall[],
+  keepOpening: boolean,
+): number {
+  return finishedLoneCleanup(text, calls, keepOpening).count;
+}
+
+function finishedLoneCleanup(
+  text: string,
+  calls: readonly EmergencyCall[],
+  keepOpening: boolean,
+  only?: ReadonlySet<number>,
+): { readonly text: string; readonly count: number } {
+  const pieces = rawPieces(text);
+  let from = 0;
+  if (keepOpening) {
+    for (const template of templatesFor(calls)) {
+      const end = blockEnd(pieces, from, blockFor(template));
+      if (end === undefined) {
+        break;
+      }
+      from = end + 1;
+    }
+  }
+  const dropped = new Set<number>();
+  const count = dropLoneBlockSentences(
+    dropped,
+    pieces,
+    keepsModel3114(calls) ? finished15 : finishedAll,
+    only,
+    from,
+  );
+  for (let index = 0; index < from; index += 1) {
+    dropped.delete(index);
+  }
+  return { text: keptRaw(pieces, dropped), count };
+}
+
+// The sentence boundary ends a piece before its closing quote, so a quoted
+// sentence is the opening-quote piece plus a closing quote that starts the next piece.
+const quotePairs = [
+  { open: '"', close: '"' },
+  { open: "\u201C", close: "\u201D" },
+  { open: "\u00AB", close: "\u00BB" },
+] as const;
+
+function unquotedLone(
+  pieces: readonly RawPiece[],
+  index: number,
+  lone: LoneSentences,
+): { readonly close: string } | undefined {
+  const norm = pieces[index]?.norm ?? "";
+  const next = pieces[index + 1]?.raw ?? "";
+  for (const pair of quotePairs) {
+    if (!norm.startsWith(pair.open)) {
+      continue;
+    }
+    const inner = norm.slice(pair.open.length).trim();
+    const nextNorm = normalizeEmergencyText(next);
+    if (inner.length > 0 && nextNorm.startsWith(pair.close) && isLoneBlockSentence(inner, lone)) {
+      return { close: pair.close };
+    }
+  }
+  return undefined;
+}
+
+function withoutLeadingClose(raw: string, close: string): string {
+  const at = raw.indexOf(close);
+  return at < 0 ? raw : raw.slice(0, at) + raw.slice(at + close.length);
+}
+
+function dropLoneBlockSentences(
+  dropped: Set<number>,
+  pieces: RawPiece[],
+  lone: LoneSentences,
+  only?: ReadonlySet<number>,
+  firstIndex = 0,
+): number {
+  // Ordinals number the droppable sentences after the kept opening; `only`
+  // limits the drop to those.
+  let ordinal = 0;
+  for (let index = firstIndex; index < pieces.length; index += 1) {
+    if (dropped.has(index)) {
+      continue;
+    }
+    const quoted = unquotedLone(pieces, index, lone);
+    const next = pieces[index + 1];
+    if (quoted !== undefined && next !== undefined) {
+      const mine = ordinal;
+      ordinal += 1;
+      if (only !== undefined && !only.has(mine)) {
+        continue;
+      }
+      const raw = withoutLeadingClose(next.raw, quoted.close);
+      pieces[index + 1] = { ...next, raw, sentence: raw.trim(), norm: normalizeEmergencyText(raw) };
+      dropped.add(index);
+      continue;
+    }
+    if (!isLoneBlockSentence(pieces[index]?.norm ?? "", lone)) {
+      continue;
+    }
+    const mine = ordinal;
+    ordinal += 1;
+    let through = index;
+    while (pieces[through + 1]?.continuesRun === true) {
+      through += 1;
+    }
+    if (only === undefined || only.has(mine)) {
+      // A finished drop takes the listening tail right after it, as a whole block does.
+      const tailAt =
+        lone.finishedOnly === true ? listeningTailAfter(pieces, through) : undefined;
+      if (tailAt !== undefined) {
+        through = tailAt;
+        while (pieces[through + 1]?.continuesRun === true) {
+          through += 1;
+        }
+      }
+      for (let cursor = index; cursor <= through; cursor += 1) {
+        dropped.add(cursor);
+      }
+    }
+    index = through;
+  }
+  return ordinal;
 }
 
 function dropThroughTail(
   dropped: Set<number>,
   pieces: readonly RawPiece[],
-  index: number,
+  first: number,
+  last: number,
 ): void {
-  dropped.add(index);
-  const tailAt = listeningTailAfter(pieces, index);
-  if (tailAt === undefined) {
-    return;
+  const tailAt = listeningTailAfter(pieces, last);
+  let through = tailAt ?? last;
+  while (pieces[through + 1]?.continuesRun === true) {
+    through += 1;
   }
-  for (let cursor = index + 1; cursor <= tailAt; cursor += 1) {
+  for (let cursor = first; cursor <= through; cursor += 1) {
     dropped.add(cursor);
   }
 }
 
+// Dropping a block must not butt two kept pieces together into a new number:
+// "1" + "12" around a removed block would read as 112. Then the block stays.
 function keptRaw(pieces: readonly RawPiece[], dropped: ReadonlySet<number>): string {
   let kept = "";
+  let gap = "";
+  let gapAt = 0;
   for (let index = 0; index < pieces.length; index += 1) {
-    if (!dropped.has(index)) {
-      kept += pieces[index]?.raw ?? "";
+    const piece = pieces[index];
+    const raw = piece?.raw ?? "";
+    if (dropped.has(index)) {
+      if (gap.length === 0) {
+        gapAt = kept.length;
+      }
+      gap += raw;
+      continue;
     }
+    if (piece?.norm !== "") {
+      if (gap.length > 0 && joinsDigits(kept.slice(0, gapAt), kept.slice(gapAt) + raw)) {
+        kept = kept.slice(0, gapAt) + gap + kept.slice(gapAt);
+      }
+      gap = "";
+    }
+    kept += raw;
   }
   return kept;
+}
+
+function joinsDigits(before: string, after: string): boolean {
+  // Same view as the 112 detector: any run of non-letter, non-digit separators
+  // between two digits still lets "1-" and "12" read as one number.
+  return (
+    /\d[^\p{L}\p{N}]*$/u.test(normalizeEmergencyText(before)) &&
+    /^[^\p{L}\p{N}]*\d/u.test(normalizeEmergencyText(after))
+  );
 }
 
 function joinSentences(sentences: readonly string[]): string {
@@ -328,10 +758,10 @@ function joinSentences(sentences: readonly string[]): string {
 }
 
 function sentenceGap(previous: string): string {
-  return /[.!?]$/.test(previous) ? " " : ". ";
+  return /[.!?]$/u.test(normalizeEmergencyText(previous)) ? " " : ". ";
 }
 
-function joinPrefix(prefix: string, body: string): string {
+export function joinPrefix(prefix: string, body: string): string {
   const trimmed = body.trim();
   if (trimmed.length === 0) {
     return prefix;
@@ -340,14 +770,6 @@ function joinPrefix(prefix: string, body: string): string {
     return `${prefix}${body.trimEnd()}`;
   }
   return `${prefix}${sentenceGap(prefix)}${trimmed}`;
-}
-
-function isExact3114(sentence: string): boolean {
-  return isExact3114Text(normalizeEmergencyText(sentence));
-}
-
-function isExact3114Text(normalized: string): boolean {
-  return normalized === norm3114Now || normalized === norm3114;
 }
 
 function isListeningTailText(normalized: string): boolean {
@@ -361,7 +783,7 @@ function listeningTailAfter(pieces: readonly RawPiece[], index: number): number 
     if (sentence.length === 0 || isPunctuationOnlyPiece(piece)) {
       continue;
     }
-    if (isListeningTailText(normalizeEmergencyText(sentence))) {
+    if (isListeningTailText(piece?.norm ?? "")) {
       return cursor;
     }
     return undefined;
@@ -373,51 +795,52 @@ function isPunctuationOnlyPiece(piece: RawPiece | undefined): boolean {
   if (piece === undefined) {
     return false;
   }
-  return /^[.!?]+$/u.test(piece.raw.trim());
+  return /^[.!?]+$/u.test(piece.norm);
 }
 
 type RawPiece = {
   readonly raw: string;
   readonly sentence: string;
+  readonly norm: string;
+  // Punctuation glued to the piece before it, so "..." is one run, not "." plus more.
+  readonly continuesRun: boolean;
 };
+
+// Same boundaries as the checker, read on the normalized text: a fullwidth
+// period or an ellipsis character ends a sentence there too. One piece per
+// boundary character, so a run of dots stays visible as extra pieces.
+function foldsToBoundary(char: string): boolean {
+  const folded = char.normalize("NFKC").replace(lineBreakPattern, "\n");
+  return /[.!?\n]/u.test(folded);
+}
 
 function rawPieces(reply: string): RawPiece[] {
   const pieces: RawPiece[] = [];
   let start = 0;
   let index = 0;
-  while (index <= reply.length) {
-    const atEnd = index === reply.length;
-    const char = atEnd ? "" : (reply[index] ?? "");
-    const punct = char === "." || char === "!" || char === "?";
-    const boundary = !atEnd && (punct || char === "\n");
-    if (!atEnd && !boundary) {
-      index += 1;
-      continue;
+  for (const char of reply) {
+    index += char.length;
+    if (foldsToBoundary(char)) {
+      pushRawPiece(pieces, reply.slice(start, index));
+      start = index;
     }
-    let end = index;
-    if (punct) {
-      while (end + 1 < reply.length) {
-        const next = reply[end + 1];
-        if (next !== "." && next !== "!" && next !== "?") {
-          break;
-        }
-        end += 1;
-      }
-    }
-    const slice = reply.slice(start, atEnd ? reply.length : end + 1);
-    const sentence = slice.trim().replace(/[.!?]+$/u, (run) => run[0] ?? ".");
-    const bare = slice.trim();
-    const punctuationOnly = /^[.!?]+$/u.test(sentence);
-    if (!punctuationOnly || bare.length > 1) {
-      pieces.push({ raw: slice, sentence });
-    }
-    if (atEnd) {
-      break;
-    }
-    start = end + 1;
-    index = start;
   }
+  pushRawPiece(pieces, reply.slice(start));
   return pieces;
+}
+
+function pushRawPiece(pieces: RawPiece[], raw: string): void {
+  if (raw.length === 0) {
+    return;
+  }
+  const norm = normalizeEmergencyText(raw);
+  const previous = pieces[pieces.length - 1];
+  const continuesRun =
+    previous !== undefined &&
+    /[.!?]$/u.test(previous.norm) &&
+    /^[.!?]+$/u.test(norm) &&
+    !/^\s/u.test(raw.replace(/\p{Cf}/gu, ""));
+  pieces.push({ raw, sentence: raw.trim(), norm, continuesRun });
 }
 
 function splitExact(text: string): string[] {

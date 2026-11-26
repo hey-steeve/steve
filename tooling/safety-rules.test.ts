@@ -168,7 +168,7 @@ it("rejects a checked row that has no rejecting example", async () => {
 it("rejects a checked example the reply checker accepts", async () => {
   const problems: string[] = [];
   const examples = new Map<string, CheckedExample>([
-    ["SAFE-13", replyExample("Appelle le 15 maintenant.", ["15"], "numbers")],
+    ["SAFE-13", replyExample(call15Now, ["15"], "numbers")],
   ]);
   await checkCheckedExamples([checkedRow("SAFE-13")], examples, problems);
   expect(problems.some((problem) => problem.includes("was accepted"))).toBe(true);

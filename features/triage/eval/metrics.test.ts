@@ -73,6 +73,39 @@ it("prints p50 and p95 in the report", () => {
   expect(report).toContain("gate fail");
 });
 
+it("prints one line per case after the gate line", () => {
+  const samples: readonly TriageSample[] = [
+    {
+      id: "dual",
+      expected: "emergency",
+      predicted: "emergency",
+      expectedNumbers: ["3114", "15"],
+      predictedNumbers: ["15", "3114"],
+      latencyMs: 10,
+      fallback: false,
+    },
+    {
+      id: "stroke",
+      expected: "emergency",
+      predicted: "consult",
+      expectedNumbers: ["15"],
+      predictedNumbers: [],
+      latencyMs: 20,
+      fallback: false,
+    },
+  ];
+  const report = formatTriageReport(scoreTriage(samples), true, samples);
+  const lines = report.split("\n");
+  const gate = lines.indexOf("gate fail");
+  expect(lines[gate + 1]).toBe("cases id expected got expected_calls got_calls");
+  expect(lines).toContain(
+    "case id=dual expected=emergency got=emergency expected_calls=3114,15 got_calls=15,3114",
+  );
+  expect(lines).toContain(
+    "case id=stroke expected=emergency got=consult expected_calls=15 got_calls=none",
+  );
+});
+
 function sample(
   expected: TriageSample["expected"],
   predicted: TriageSample["predicted"],
