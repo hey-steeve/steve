@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, expect, it } from "vitest";
 
 const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "check-voice-client-bundle.mjs");
@@ -126,4 +126,29 @@ it("still runs when the script is invoked through a symlink", () => {
   const leak = run(fixture({ "a.js": `var k="${canary}";` }));
   expect(leak.status).toBe(1);
   expect(leak.output.includes(canary)).toBe(false);
+});
+
+it("fails closed through the real CLI when realpathSync throws", () => {
+  const dir = fixture({ "a.js": "1" });
+  // Point argv[1] at a missing path, then import the real script so its
+  // top-level entryPointResult() and process.exit run. Do not use --import:
+  // a preload did not apply on Linux CI, and the scanner then ran normally.
+  const missing = path.join(dir, "missing-entry");
+  const launcher = path.join(dir, "launch-realpath-throw.mjs");
+  writeFileSync(
+    launcher,
+    [
+      `process.argv[1] = ${JSON.stringify(missing)};`,
+      `await import(${JSON.stringify(pathToFileURL(script).href)});`,
+    ].join("\n"),
+  );
+  const result = spawnSync("node", [launcher], { encoding: "utf8" });
+  const message = "voice bundle check: file system error while scanning. Scan failed.\n";
+  const output = `${result.stdout}${result.stderr}`;
+  expect(result.status).toBe(1);
+  expect(result.stdout === "").toBe(true);
+  expect(result.stderr === message).toBe(true);
+  expect(output.includes(canary)).toBe(false);
+  expect(output.includes(dir)).toBe(false);
+  expect(output.includes("missing-entry")).toBe(false);
 });
