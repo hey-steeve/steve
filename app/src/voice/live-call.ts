@@ -69,6 +69,9 @@ type Call = {
   timer: unknown;
   audio: BrowserAudio | undefined;
   socket: RealtimeSocket | undefined;
+  // Item announced for the generating response. Binary audio has no ids, so
+  // this is what ties its queued bytes to an item at barge-in.
+  announced: { readonly responseId: string; readonly itemId: string } | undefined;
 };
 
 const quiet = (fn: () => void): void => {
@@ -136,8 +139,14 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     const snap = audio.flush(generation);
     if (!live(c)) return;
     if (generating) c.socket?.cancelResponse();
-    if (snap.itemId !== undefined && live(c)) {
-      c.socket?.truncate(snap.itemId, snap.playedMs);
+    // Untagged binary audio takes the item announced for its own response.
+    const itemId =
+      snap.itemId ??
+      (snap.responseId !== undefined && snap.responseId === c.announced?.responseId
+        ? c.announced.itemId
+        : undefined);
+    if (itemId !== undefined && live(c)) {
+      c.socket?.truncate(itemId, snap.playedMs);
     }
   };
 
@@ -172,6 +181,15 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         }
         const before = state;
         dispatch({ type: "server", event });
+        if (
+          event.type === "response.output_item_added" &&
+          state.phase === "active" &&
+          state.generating &&
+          state.responseId === event.responseId &&
+          state.generatingItemId === event.itemId
+        ) {
+          c.announced = { responseId: event.responseId, itemId: event.itemId };
+        }
         const fresh =
           state.phase === "active" &&
           state.cancel !== undefined &&
@@ -214,6 +232,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       timer: undefined,
       audio: undefined,
       socket: undefined,
+      announced: undefined,
     };
     call = c;
     dispatch({ type: "start" });

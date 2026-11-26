@@ -446,6 +446,38 @@ describe("live call", () => {
     expect(socket.truncates).toEqual([["snap-item", 77]]);
   });
 
+  it("truncates untagged binary audio with the announced item (BC-63)", async () => {
+    const h = setup();
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    // Binary frame: no response id, no item id. Queued before the announce.
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    expect(audio.enqueued).toBe(1);
+    options.onEvent({
+      type: "response.output_item_added",
+      responseId: "r1",
+      itemId: "i1",
+    });
+    // The flush snapshot played untagged audio of r1, so it has no item id.
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: undefined, playedMs: 91 };
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.truncates).toEqual([["i1", 91]]);
+  });
+
+  it("does not invent an item id before one is announced", async () => {
+    const h = setup();
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    audio.snapshot = { generation: 0, responseId: "r1", itemId: undefined, playedMs: 91 };
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.truncates).toEqual([]);
+  });
+
   it("forwards keyed transcripts only while the call is live", async () => {
     const h = setup();
     await active(h);
