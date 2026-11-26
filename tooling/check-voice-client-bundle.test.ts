@@ -130,21 +130,19 @@ it("still runs when the script is invoked through a symlink", () => {
 
 it("fails closed through the real CLI when realpathSync throws", () => {
   const dir = fixture({ "a.js": "1" });
-  const preload = path.join(dir, "throw-realpath.mjs");
+  // Point argv[1] at a missing path, then import the real script so its
+  // top-level entryPointResult() and process.exit run. Do not use --import:
+  // a preload did not apply on Linux CI, and the scanner then ran normally.
+  const missing = path.join(dir, "missing-entry");
+  const launcher = path.join(dir, "launch-realpath-throw.mjs");
   writeFileSync(
-    preload,
+    launcher,
     [
-      'import fs from "node:fs";',
-      'import { syncBuiltinESMExports } from "node:module";',
-      "fs.realpathSync = () => {",
-      `  throw new Error(${JSON.stringify(`${canary} ${dir} must not be printed`)});`,
-      "};",
-      "syncBuiltinESMExports();",
+      `process.argv[1] = ${JSON.stringify(missing)};`,
+      `await import(${JSON.stringify(pathToFileURL(script).href)});`,
     ].join("\n"),
   );
-  const result = spawnSync("node", ["--import", pathToFileURL(preload).href, script, dir], {
-    encoding: "utf8",
-  });
+  const result = spawnSync("node", [launcher], { encoding: "utf8" });
   const message = "voice bundle check: file system error while scanning. Scan failed.\n";
   const output = `${result.stdout}${result.stderr}`;
   expect(result.status).toBe(1);
@@ -152,4 +150,5 @@ it("fails closed through the real CLI when realpathSync throws", () => {
   expect(result.stderr === message).toBe(true);
   expect(output.includes(canary)).toBe(false);
   expect(output.includes(dir)).toBe(false);
+  expect(output.includes("missing-entry")).toBe(false);
 });
