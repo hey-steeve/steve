@@ -177,15 +177,33 @@ it("keeps a recorded emergency turn the 8000-character cap would drop", async ()
   expect(result.handoff.data.slice(-6).map((turn) => turn.turnId)).toContain("t0");
 });
 
-it("keeps every recorded emergency even beyond six turns or the cap", () => {
-  const mk = (id: string): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text: "x".repeat(2000) });
-  const previous = ["e0", "e1", "e2", "e3", "e4", "e5", "n"].map(mk);
+it("fits six recorded emergencies plus current into 6 turns and 8000 characters", () => {
+  const mk = (id: string, text = "x".repeat(2000)): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text });
+  const previous = ["e0", "e1", "e2", "e3", "e4", "e5"].map((id) => mk(id));
+  const current = mk("c", "y".repeat(2000));
   const handoff = buildHandoff({
-    current: mk("c"),
+    current,
     previous,
-    decisions: previous.slice(0, 6).map((t) => ({ turnId: t.turnId, label: "emergency" })),
+    decisions: previous.map((t) => ({ turnId: t.turnId, label: "emergency" })),
   });
-  expect(handoff.data.map((t) => t.turnId)).toEqual(["e0", "e1", "e2", "e3", "e4", "e5", "c"]);
+  const last6 = handoff.data.slice(-6);
+  expect(handoff.data.length).toBeLessThanOrEqual(6);
+  expect(last6.map((t) => t.text).join("\n").length).toBeLessThanOrEqual(voiceTriageLimits.maxStateChars);
+  const ids = handoff.data.map((t) => t.turnId);
+  expect(ids).toContain("e0");
+  expect(ids).toContain("e5");
+  expect(handoff.data.at(-1)).toEqual(current);
+});
+
+it("compacts a long recorded emergency to keep it with a whole current turn", () => {
+  const mk = (id: string, text: string): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text });
+  const previous = [mk("e0", "a".repeat(2000)), mk("n1", "b".repeat(2000)), mk("n2", "c".repeat(2000)), mk("n3", "d".repeat(2000))];
+  const current = mk("c", "y".repeat(2000));
+  const handoff = buildHandoff({ current, previous, decisions: [{ turnId: "e0", label: "emergency" }] });
+  const ids = handoff.data.map((t) => t.turnId);
+  expect(ids).toEqual(["e0", "n3", "c"]);
+  expect(handoff.data.at(-1)).toEqual(current);
+  expect(handoff.data.map((t) => t.text).join("\n").length).toBeLessThanOrEqual(8000);
 });
 
 it("does not protect turns without a recorded label", () => {

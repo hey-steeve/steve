@@ -75,37 +75,79 @@ export function buildHandoff(request: VoiceTriageRequest): Handoff<readonly Turn
   };
 }
 
-// Voice-only budget: triageTurn joins the last 6 turns with "\n". Always keep the
-// current turn and every earlier turn with a recorded emergency label, even if that
-// exceeds the budget. Fill the rest with the newest other turns (at most 6 turns in
-// all, joined state within the cap, separators included). Order is preserved.
+// Voice-only budget. The returned turns are exactly what triageTurn reads: at most
+// 6 turns whose texts joined with "\n" stay within the character cap. The current
+// turn is kept whole. Earlier turns with a recorded emergency label are kept (their
+// text compacted when needed); when they cannot all fit in 6 slots, the earliest ones
+// and the most recent ones win. The immediate predecessor is preferred, compacted if
+// it must be. Other turns fill the rest, newest first, only while whole. Order is kept.
 function fitStateBudget(
   turns: readonly Turn[],
   decisions: readonly VoiceDecision[],
 ): readonly Turn[] {
+  const { stateTurns, maxStateChars } = voiceTriageLimits;
   const emergencies = new Set(
     decisions.filter((d) => d.label === "emergency").map((d) => d.turnId),
   );
   const last = turns.length - 1;
-  const kept = new Set<number>();
+  const predecessor = last - 1;
+  const protectedIdx: number[] = [];
+  for (let index = 0; index < last; index += 1) {
+    if (emergencies.has(turns[index]?.turnId ?? "")) protectedIdx.push(index);
+  }
+  const kept = new Set<number>([last]);
+  const compactable = new Set<number>();
+  const predecessorProtected = protectedIdx.includes(predecessor);
+  const wantPredecessor = predecessor >= 0 && !predecessorProtected;
+  const slots = stateTurns - 1 - (wantPredecessor && protectedIdx.length >= stateTurns - 1 ? 1 : 0);
+  let chosen = protectedIdx;
+  if (protectedIdx.length > slots) {
+    const earliest = Math.ceil(slots / 2);
+    chosen = [
+      ...protectedIdx.slice(0, earliest),
+      ...protectedIdx.slice(protectedIdx.length - (slots - earliest)),
+    ];
+  }
+  for (const index of chosen) {
+    kept.add(index);
+    compactable.add(index);
+  }
+  const size = (index: number): number => turns[index]?.text.length ?? 0;
   let length = 0;
-  turns.forEach((turn, index) => {
-    if (index === last || emergencies.has(turn.turnId)) {
-      kept.add(index);
-      length += turn.text.length;
-    }
-  });
-  length += Math.max(0, kept.size - 1);
+  for (const index of kept) length += size(index);
+  length += kept.size - 1;
   for (let index = last - 1; index >= 0; index -= 1) {
     if (kept.has(index)) continue;
-    const size = (turns[index]?.text.length ?? 0) + 1;
-    if (kept.size >= voiceTriageLimits.stateTurns || length + size > voiceTriageLimits.maxStateChars) {
+    const cost = size(index) + 1;
+    if (kept.size >= stateTurns) break;
+    if (length + cost > maxStateChars) {
+      if (index === predecessor) {
+        kept.add(index);
+        compactable.add(index);
+        length += cost;
+      }
       break;
     }
-    length += size;
+    length += cost;
     kept.add(index);
   }
-  return turns.filter((_, index) => kept.has(index));
+  const caps = new Map<number, number>();
+  if (length > maxStateChars) {
+    let fixed = kept.size - 1;
+    for (const index of kept) if (!compactable.has(index)) fixed += size(index);
+    let remaining = Math.max(0, maxStateChars - fixed);
+    const order = [...compactable].sort((x, y) => size(x) - size(y));
+    order.forEach((index, position) => {
+      const cap = Math.min(size(index), Math.floor(remaining / (order.length - position)));
+      caps.set(index, cap);
+      remaining -= cap;
+    });
+  }
+  return turns.flatMap((turn, index) => {
+    if (!kept.has(index)) return [];
+    const cap = caps.get(index);
+    return [cap === undefined || cap >= turn.text.length ? turn : { ...turn, text: turn.text.slice(0, cap) }];
+  });
 }
 
 export function parseVoiceTriageRequest(body: unknown): VoiceTriageRequest | null {
