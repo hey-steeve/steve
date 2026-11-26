@@ -538,6 +538,126 @@ describe("flush", () => {
   });
 });
 
+// Barge-in must pair the item id and offset from one clock read.
+describe("flush snapshot", () => {
+  const jump = (h: ReturnType<typeof harness>, seconds: number) => {
+    h.context.currentTime += seconds;
+  };
+  const rows: {
+    readonly name: string;
+    readonly run: (
+      h: ReturnType<typeof harness>,
+      audio: Awaited<ReturnType<typeof startBrowserAudio>>,
+    ) => {
+      readonly itemId: string | undefined;
+      readonly playedMs: number;
+      readonly responseId: string | undefined;
+    };
+  }[] = [
+    {
+      name: "a: after announcing A, flush during B returns B and 25 ms",
+      run: (h, audio) => {
+        audio.enqueue(chunk("rA", "A"));
+        audio.enqueue(chunk("rB", "B"));
+        h.advance(0.05);
+        const startedA =
+          h.notices[0]?.type === "playbackStarted" &&
+          h.notices[0].itemId === "A";
+        if (!startedA) throw new Error("expected A to be announced");
+        jump(h, 0.105);
+        return audio.flush();
+      },
+    },
+    {
+      name: "b: flush before the first tick has 50 ms and no item id",
+      run: (h, audio) => {
+        audio.enqueue(chunk("r1"));
+        jump(h, 0.08);
+        if (h.notices.some((n) => n.type === "playbackStarted")) {
+          throw new Error("tick announced an item");
+        }
+        return audio.flush();
+      },
+    },
+    {
+      name: "c: late item id before the next tick is in the snapshot",
+      run: (h, audio) => {
+        audio.enqueue(chunk("r1"));
+        h.advance(0.04);
+        const startedBlank =
+          h.notices[0]?.type === "playbackStarted" &&
+          h.notices[0].itemId === undefined;
+        if (!startedBlank) throw new Error("expected a start with no item id");
+        audio.enqueue(chunk("r1", "i1"));
+        return audio.flush();
+      },
+    },
+    {
+      name: "flush while A is the only audible item",
+      run: (h, audio) => {
+        audio.enqueue(chunk("rA", "A"));
+        h.advance(0.08);
+        return audio.flush();
+      },
+    },
+    {
+      name: "flush after a tick has announced B",
+      run: (h, audio) => {
+        audio.enqueue(chunk("rA", "A"));
+        audio.enqueue(chunk("rB", "B"));
+        h.advance(0.16);
+        const startedB = h.notices.some(
+          (n) => n.type === "playbackStarted" && n.itemId === "B",
+        );
+        if (!startedB) throw new Error("expected B to be announced");
+        return audio.flush();
+      },
+    },
+  ];
+  const expected: Record<string, { itemId: string | undefined; playedMs: number; responseId: string }> = {
+    "a: after announcing A, flush during B returns B and 25 ms": {
+      itemId: "B",
+      playedMs: 25,
+      responseId: "rB",
+    },
+    "b: flush before the first tick has 50 ms and no item id": {
+      itemId: undefined,
+      playedMs: 50,
+      responseId: "r1",
+    },
+    "c: late item id before the next tick is in the snapshot": {
+      itemId: "i1",
+      playedMs: 10,
+      responseId: "r1",
+    },
+    "flush while A is the only audible item": {
+      itemId: "A",
+      playedMs: 50,
+      responseId: "rA",
+    },
+    "flush after a tick has announced B": {
+      itemId: "B",
+      playedMs: 30,
+      responseId: "rB",
+    },
+  };
+  for (const row of rows) {
+    it(row.name, async () => {
+      const h = harness();
+      const audio = await h.start();
+      const snap = row.run(h, audio);
+      const want = expected[row.name];
+      if (want === undefined) throw new Error("missing expectation");
+      expect(
+        snap.itemId === want.itemId &&
+          snap.playedMs === want.playedMs &&
+          snap.responseId === want.responseId &&
+          snap.generation === 0,
+      ).toBe(true);
+    });
+  }
+});
+
 describe("close", () => {
   it("stops tracks, empties the queue, closes the context, and is idempotent", async () => {
     const h = harness();

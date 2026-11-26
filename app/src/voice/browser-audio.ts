@@ -100,6 +100,13 @@ export type PlaybackChunk = {
   itemId: string | undefined;
 };
 
+export type FlushSnapshot = {
+  readonly generation: number;
+  readonly responseId: string | undefined;
+  readonly itemId: string | undefined;
+  readonly playedMs: number;
+};
+
 export type BrowserAudioOptions = {
   readonly codec: VoiceTuning["codec"];
   readonly onMicChunk: (bytes: Uint8Array) => void;
@@ -115,11 +122,11 @@ export type BrowserAudio = {
   enqueue(chunk: PlaybackChunk): void;
   // Drops audio still to come from a response the server is cancelling.
   discardResponse(responseId: string): void;
-  // Played offset of the audible item. Read it when truncating.
+  // Played offset of the audible item. Used by tick notices only.
   playedMs(): number;
-  // Barge-in. Stops and empties the queue, reports the retired generation as
-  // drained, then moves to `nextGeneration` (default: retired + 1).
-  flush(nextGeneration?: number): void;
+  // Barge-in. One clock read builds the id and offset pair, then teardown
+  // runs. Callers must use only this snapshot to truncate.
+  flush(nextGeneration?: number): FlushSnapshot;
   close(): void;
 };
 
@@ -214,10 +221,18 @@ export async function startBrowserAudio(
     for (const e of entries) if (sameItem(e, item)) seconds += queued(e, at);
     return seconds;
   };
-  const playedAt = (at: number): number => {
+  // One clock read: the audible item and its offset belong together.
+  const snapshotAt = (at: number): FlushSnapshot => {
     const item = audibleAt(at);
-    return item === undefined ? 0 : Math.round(playedSeconds(item, at) * 1000);
+    return {
+      generation,
+      responseId: item?.responseId,
+      itemId: item?.itemId,
+      playedMs:
+        item === undefined ? 0 : Math.round(playedSeconds(item, at) * 1000),
+    };
   };
+  const playedAt = (at: number): number => snapshotAt(at).playedMs;
 
   const tick = (): void => {
     if (closed || context === undefined) return;
@@ -350,10 +365,18 @@ export async function startBrowserAudio(
       ticker ??= deps.clock.setInterval(tick, TICK_MS);
     },
     discardResponse: (responseId) => void blocked.add(responseId),
-    playedMs: () => playedAt(ctx.currentTime),
+    playedMs: () => snapshotAt(ctx.currentTime).playedMs,
     flush(nextGeneration) {
-      if (closed) return;
-      const retired = generation;
+      if (closed) {
+        return {
+          generation,
+          responseId: undefined,
+          itemId: undefined,
+          playedMs: 0,
+        };
+      }
+      const snapshot = snapshotAt(ctx.currentTime);
+      const retired = snapshot.generation;
       epoch += 1;
       for (const id of seen) blocked.add(id);
       seen.clear();
@@ -364,6 +387,7 @@ export async function startBrowserAudio(
       announced = false;
       generation = nextGeneration ?? retired + 1;
       options.onPlayback({ type: "playbackDrained", generation: retired });
+      return snapshot;
     },
     close,
   };
