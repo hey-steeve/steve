@@ -196,6 +196,8 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
 
   const onCancel = (c: Call, audio: BrowserAudio, generating: boolean): void => {
     if (state.phase !== "active" || !state.cancel) return;
+    // A forced emergency is uninterruptible: it plays to its own drain.
+    if (c.forcing) return;
     const { generation } = state;
     // One clock read pairs the item id with its offset (BC-68).
     const snap = audio.flush(generation);
