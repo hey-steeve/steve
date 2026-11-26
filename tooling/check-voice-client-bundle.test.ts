@@ -128,24 +128,28 @@ it("still runs when the script is invoked through a symlink", () => {
   expect(leak.output.includes(canary)).toBe(false);
 });
 
-it("fails with the fixed message when realpathSync throws", () => {
+it("fails closed through the real CLI when realpathSync throws", () => {
   const dir = fixture({ "a.js": "1" });
-  const probe = path.join(dir, "probe.mjs");
+  const preload = path.join(dir, "throw-realpath.mjs");
   writeFileSync(
-    probe,
+    preload,
     [
-      `import { entryPointResult, fileSystemErrorMessage } from ${JSON.stringify(pathToFileURL(script).href)};`,
-      "const thrown = entryPointResult(() => {",
-      `  throw new Error(${JSON.stringify(canary + " must not be printed")});`,
-      "});",
-      'if (thrown !== "fs-error") process.exit(2);',
-      "process.stdout.write(fileSystemErrorMessage);",
+      'import fs from "node:fs";',
+      'import { syncBuiltinESMExports } from "node:module";',
+      "fs.realpathSync = () => {",
+      `  throw new Error(${JSON.stringify(`${canary} ${dir} must not be printed`)});`,
+      "};",
+      "syncBuiltinESMExports();",
     ].join("\n"),
   );
-  const result = spawnSync("node", [probe], { encoding: "utf8" });
+  const result = spawnSync("node", ["--import", pathToFileURL(preload).href, script, dir], {
+    encoding: "utf8",
+  });
+  const message = "voice bundle check: file system error while scanning. Scan failed.\n";
   const output = `${result.stdout}${result.stderr}`;
-  expect(result.status).toBe(0);
-  expect(output.includes("file system error while scanning. Scan failed.")).toBe(true);
+  expect(result.status).toBe(1);
+  expect(result.stdout === "").toBe(true);
+  expect(result.stderr === message).toBe(true);
   expect(output.includes(canary)).toBe(false);
   expect(output.includes(dir)).toBe(false);
 });

@@ -15,15 +15,19 @@ describe("mint cap key bound", () => {
 
   it("prefers expired keys over live ones when evicting", () => {
     const cap = createMintCap(mintCapLimit, mintCapWindowMs, 3);
-    cap.admit("old", 0);
-    cap.admit("live-a", mintCapWindowMs + 10);
-    cap.admit("live-b", mintCapWindowMs + 11);
-    cap.admit("new", mintCapWindowMs + 12);
-    expect(cap.size()).toBe(3);
-    for (let i = 0; i < mintCapLimit - 1; i += 1) {
-      cap.admit("live-a", mintCapWindowMs + 13);
+    const liveAt = 50_000;
+    const newAt = mintCapWindowMs + 1000;
+    let oldestFilled = true;
+    for (let i = 0; i < mintCapLimit; i += 1) {
+      oldestFilled = oldestFilled && cap.admit("live-oldest", liveAt);
     }
-    expect(cap.admit("live-a", mintCapWindowMs + 14)).toBe(false);
+    cap.admit("expired-middle", 0);
+    cap.admit("live-third", liveAt + 5000);
+    expect(oldestFilled).toBe(true);
+    expect(cap.size() === 3).toBe(true);
+    cap.admit("brand-new", newAt);
+    expect(cap.size() === 3).toBe(true);
+    expect(cap.admit("live-oldest", newAt)).toBe(false);
   });
 
   it("evicts the oldest live key when none are expired", () => {
