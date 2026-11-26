@@ -113,6 +113,8 @@ export type BrowserAudioOptions = {
   readonly onPlayback: (notice: PlaybackNotice) => void;
   readonly opus?: CodecPort;
   readonly deps?: AudioDeps;
+  // Aborts startup. Once it fires the mic is released and start rejects.
+  readonly signal?: AbortSignal;
 };
 
 export type BrowserAudio = {
@@ -161,7 +163,13 @@ export async function startBrowserAudio(
     codec = options.opus;
   }
   const deps = options.deps ?? browserDeps();
+  const signal = options.signal;
   const stream = await deps.getUserMedia();
+  if (signal?.aborted) {
+    // Permission arrived after the call ended. Release the mic right away.
+    for (const track of stream.getTracks()) quiet(() => track.stop());
+    throw new Error("audio startup aborted");
+  }
 
   let closed = false;
   let muted = false;
@@ -286,6 +294,21 @@ export async function startBrowserAudio(
     options.onMicChunk(bytes);
   };
 
+  const onAbort = (): void => close();
+  signal?.addEventListener("abort", onAbort, { once: true });
+  // Rejects when the signal fires so a pending setup step cannot hold the mic.
+  const aborted = new Promise<never>((_, reject) => {
+    const fail = (): void => reject(new Error("audio startup aborted"));
+    if (signal?.aborted) fail();
+    else signal?.addEventListener("abort", fail, { once: true });
+  });
+  aborted.catch(() => undefined);
+  const guard = async <T>(step: Promise<T>): Promise<T> => {
+    const value = await Promise.race([step, aborted]);
+    if (signal?.aborted) throw new Error("audio startup aborted");
+    return value;
+  };
+
   try {
     context = deps.createContext();
     if (context.sampleRate !== SAMPLE_RATE && options.codec === "pcm16-24k") {
@@ -293,8 +316,8 @@ export async function startBrowserAudio(
         `audio context runs at ${context.sampleRate} Hz, expected ${SAMPLE_RATE}`,
       );
     }
-    await context.resume();
-    capture = await deps.loadWorklet();
+    await guard(context.resume());
+    capture = await guard(deps.loadWorklet());
     const mic = context.createMediaStreamSource(stream);
     const silent = context.createGain();
     silent.gain.value = 0;
@@ -308,6 +331,8 @@ export async function startBrowserAudio(
   } catch (error) {
     close();
     throw error;
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
   }
 
   const ctx = context;
@@ -329,7 +354,11 @@ export async function startBrowserAudio(
       // Admit before decode, even an empty chunk, so a flush from inside the
       // codec or a later flush retires this response.
       seen.add(chunk.responseId);
-      const samples = codec.decode(chunk.bytes);
+      // An empty chunk is an announce only: libopus would conceal a frame.
+      const samples =
+        chunk.bytes.length === 0
+          ? new Float32Array(0)
+          : codec.decode(chunk.bytes);
       if (closed || blocked.has(chunk.responseId) || epoch !== admittedEpoch)
         return;
       const itemId = chunk.itemId ?? knownItem.get(chunk.responseId);

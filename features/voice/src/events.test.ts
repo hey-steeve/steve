@@ -134,3 +134,10 @@ it("BC-45: rejects output_item.added without response_id or item id, and done/ca
     expect(parseServerEvent(raw)).toBeUndefined();
   }
 });
+
+it("drops a JSON audio delta without a response id", () => {
+  for (const type of ["response.output_audio.delta", "response.audio.delta"]) {
+    expect(parseServerEvent({ type, item_id: "i1", delta: "AAA=" })).toBeUndefined();
+    expect(parseServerEvent({ type, delta: "AAA=" })).toBeUndefined();
+  }
+});
