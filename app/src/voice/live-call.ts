@@ -123,6 +123,10 @@ type Call = {
   forcing:
     | {
         responseId: string | undefined;
+        // Unseen responses created since the force. The wire carries no
+        // force-message correlation, so none is trusted as the forced one
+        // (an automatic VAD response looks the same) until its audio arrives.
+        readonly candidates: Set<string>;
         // Its audio reached the adapter, under `generation` (the adapter's own).
         started: boolean;
         generation: number | undefined;
@@ -268,6 +272,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     if (!live(c)) return;
     c.forcing = {
       responseId: undefined,
+      candidates: new Set(),
       started: false,
       generation: undefined,
       done: false,
@@ -414,12 +419,12 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         if (forcing) {
           if (
             event.type === "response.created" &&
-            forcing.responseId === undefined &&
             !c.cancelled.has(event.responseId) &&
             !c.seen.has(event.responseId)
           ) {
-            forcing.responseId = event.responseId;
+            forcing.candidates.add(event.responseId);
           }
+          if (event.type === "response.done") forcing.candidates.delete(event.responseId);
           if (event.type === "response.done" && event.responseId === forcing.responseId) {
             forcing.done = true;
             settle(c);
@@ -486,6 +491,15 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         }
         audio.enqueue({ bytes, responseId: id, itemId });
         const forcing = c.forcing;
+        if (
+          forcing &&
+          bytes.length > 0 &&
+          forcing.responseId === undefined &&
+          forcing.candidates.has(id)
+        ) {
+          // The first candidate to speak is the forced message.
+          forcing.responseId = id;
+        }
         if (forcing && bytes.length > 0 && id === forcing.responseId) {
           // The adapter plays this under its own generation, not state's.
           forcing.started = true;
