@@ -235,3 +235,20 @@ it("does not leave the first half hanging when the continuation is dropped", () 
   expect(out).toMatch(/Reste près de lui et\s*Appelle le 15 maintenant/u);
   expect(out.trimEnd().endsWith("Reste près de lui et")).toBe(false);
 });
+
+it("drops a finished 15 sentence after a markdown line that ends its period before **", () => {
+  const out = ensureEmergencyCallsSafe(
+    "**Garde ton téléphone.**\n\nAppelle le 15 maintenant.",
+    ["3114"],
+  );
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("**Garde ton téléphone.**");
+});
+
+it("drops a finished 15 sentence after a label line ending with a colon", () => {
+  const out = ensureEmergencyCallsSafe("À faire maintenant :\nAppelle le 15 maintenant.", ["3114"]);
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("À faire maintenant :");
+});

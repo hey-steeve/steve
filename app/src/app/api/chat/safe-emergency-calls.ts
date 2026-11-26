@@ -29,7 +29,10 @@ function withoutOpening(text: string, opening: string): string {
 // Sentence enders after normalization: NFKC folds fullwidth and small-form
 // periods, marks and ellipsis characters to these.
 const ender = /[.!?…]/u;
-const trailing = /[.!?…]["'»”)\s]*$/u;
+// After trailing quotes, markdown wrappers and spaces, only a letter, a digit or
+// a comma leaves the line open; a terminator or a colon (a label) finishes it.
+const wrappers = /["'»”)*_\s]+$/u;
+const opensLine = /[\p{L}\p{N},]$/u;
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -60,7 +63,7 @@ function cutsSentence(original: string, rewritten: string): boolean {
     const tail = line.slice(line.search(/[^.!?…]*$/u)).trim();
     const nextEnd = next.search(ender);
     const head = nextEnd < 0 ? next.trim() : next.slice(0, nextEnd + 1).trim();
-    if (trailing.test(line) || tail.length === 0 || head.length === 0) {
+    if (!opensLine.test(line.replace(wrappers, "")) || tail.length === 0 || head.length === 0) {
       continue;
     }
     const joined = new RegExp(`${escapeRegExp(tail)}\\s*${escapeRegExp(head)}`, "gu");
