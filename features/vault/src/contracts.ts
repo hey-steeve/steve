@@ -1,6 +1,7 @@
 export const supportedDocumentMimeTypes = Object.freeze([
   "text/plain",
   "text/markdown",
+  "application/pdf",
 ] as const);
 
 export type SupportedDocumentMimeType =
@@ -10,6 +11,9 @@ export const vaultLimits = Object.freeze({
   documentIdCharacters: 64,
   fileNameCharacters: 255,
   contentBytes: 1_048_576,
+  pdfPages: 50,
+  extractedTextCharacters: 100_000,
+  listedDocuments: 500,
   metadataTitleCharacters: 200,
   metadataSourceCharacters: 100,
   summaryAssertions: 8,
@@ -45,15 +49,25 @@ export type StoredDocument = {
   readonly mimeType: SupportedDocumentMimeType;
   readonly sizeBytes: number;
   readonly content: Uint8Array;
+  readonly contentDigest: string;
   readonly metadata: VaultDocumentMetadata;
   readonly storedAt: string;
 };
 
-export type DocumentStorageCreateResult = "created" | "duplicate";
+export type VaultDocumentListItem = Omit<StoredDocument, "content">;
+
+export type DocumentStorageCreateResult =
+  | "created"
+  | "duplicate"
+  | "duplicate-content";
+
+export type DocumentStorageDeleteResult = "deleted" | "not-found";
 
 export interface DocumentStorage {
   create(document: StoredDocument): Promise<DocumentStorageCreateResult>;
   get(id: string): Promise<StoredDocument | null>;
+  list(limit: number): Promise<readonly VaultDocumentListItem[]>;
+  delete(id: string): Promise<DocumentStorageDeleteResult>;
 }
 
 export const factualSummaryRules = Object.freeze({
@@ -97,6 +111,7 @@ export type VaultErrorCode =
   | "UNSUPPORTED_CONTENT_TYPE"
   | "CONTENT_TOO_LARGE"
   | "DUPLICATE_DOCUMENT"
+  | "DUPLICATE_CONTENT"
   | "DOCUMENT_NOT_FOUND"
   | "STORAGE_FAILURE"
   | "SUMMARIZATION_FAILURE"
@@ -123,5 +138,7 @@ export type VaultDependencies = {
 export interface Vault {
   store(input: VaultDocumentInput): Promise<VaultResult<StoredDocument>>;
   get(id: string): Promise<VaultResult<StoredDocument>>;
+  list(): Promise<VaultResult<readonly VaultDocumentListItem[]>>;
+  delete(id: string): Promise<VaultResult<{ readonly id: string }>>;
   summarize(id: string): Promise<VaultResult<DocumentSummary>>;
 }
