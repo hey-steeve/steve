@@ -218,6 +218,22 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           return;
         }
         audio.enqueue({ bytes, responseId: id, itemId });
+        // Binary audio reaches the reducer only through the ticker's first
+        // playbackStarted. Record the queued playback now, so response.done
+        // before that tick keeps the call speaking and barge-in can flush.
+        if (
+          bytes.length > 0 &&
+          live(c) &&
+          state.phase === "active" &&
+          !state.playback
+        ) {
+          dispatch({
+            type: "playbackStarted",
+            responseId: id,
+            itemId,
+            generation: state.generation,
+          });
+        }
       },
     });
     c.socket = socket;
