@@ -75,6 +75,29 @@ const browserSocket: SocketFactory = (url, protocols, handlers) => {
   };
 };
 
+// Replaces any inbound string that contains the token. Never logs it.
+export const SERVER_ERROR_MESSAGE = "server error";
+export const REDACTED = "[redacted]";
+
+export function scrubServerEvent(
+  event: ServerEvent,
+  token: string,
+): ServerEvent {
+  if (token === "") return event;
+  const leaks = (v: unknown): boolean =>
+    typeof v === "string" && v.includes(token);
+  if (event.type === "error") {
+    return leaks(event.message)
+      ? { type: "error", message: SERVER_ERROR_MESSAGE }
+      : event;
+  }
+  let out = event;
+  for (const [key, value] of Object.entries(event)) {
+    if (leaks(value)) out = { ...out, [key]: REDACTED };
+  }
+  return out;
+}
+
 export function toBase64(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) {
@@ -135,13 +158,15 @@ export function connectRealtime(
       return;
     }
     if (event === undefined) return;
+    event = scrubServerEvent(event, options.token);
     let bytes: Uint8Array | undefined;
     if (event.type === "response.audio_delta") {
       // Binary transport carries audio in binary frames only.
       if (binary) return;
       // Invalid audio never reaches the reducer, so it cannot leave it speaking.
       bytes = fromBase64(event.delta);
-      if (bytes === undefined || !isValidAudio(bytes, options.tuning.codec)) return;
+      if (bytes === undefined || !isValidAudio(bytes, options.tuning.codec))
+        return;
     }
     options.onEvent(event);
     // onEvent may have closed the socket.

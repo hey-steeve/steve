@@ -2,11 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   VOICE_MODEL,
   buildSessionConfig,
+  initialCallState,
+  reduceCall,
   type ServerEvent,
   type VoiceTuning,
 } from "@steve/voice";
 import {
   REALTIME_URL,
+  SERVER_ERROR_MESSAGE,
   SUBPROTOCOL_PREFIX,
   connectRealtime,
   fromBase64,
@@ -581,5 +584,160 @@ describe("BC-56 malformed token", () => {
     expect(r.factory.mock.calls.length === 0).toBe(true);
     expect(r.onError.mock.calls.length === 0).toBe(true);
     expect(r.handle?.mock).toBe(true);
+  });
+});
+
+describe("inbound token scrub", () => {
+  const leaky = `before-${TOKEN}-after`;
+  const errorWire = (message: string) =>
+    JSON.stringify({ type: "error", error: { message } });
+  const wires: [string, unknown][] = [
+    [
+      "session.created session.id",
+      { type: "session.created", session: { id: leaky } },
+    ],
+    [
+      "session.updated session.id",
+      { type: "session.updated", session: { id: leaky } },
+    ],
+    [
+      "session.updated session.instructions",
+      { type: "session.updated", session: { instructions: leaky } },
+    ],
+    [
+      "speech_started item_id",
+      { type: "input_audio_buffer.speech_started", item_id: leaky },
+    ],
+    [
+      "speech_stopped item_id",
+      { type: "input_audio_buffer.speech_stopped", item_id: leaky },
+    ],
+    [
+      "transcription.delta item_id",
+      {
+        type: "conversation.item.input_audio_transcription.delta",
+        item_id: leaky,
+        delta: "x",
+      },
+    ],
+    [
+      "transcription.delta text",
+      {
+        type: "conversation.item.input_audio_transcription.delta",
+        item_id: "i",
+        delta: leaky,
+      },
+    ],
+    [
+      "transcription.updated text",
+      {
+        type: "conversation.item.input_audio_transcription.updated",
+        item_id: "i",
+        transcript: leaky,
+      },
+    ],
+    [
+      "transcription.completed item_id",
+      {
+        type: "conversation.item.input_audio_transcription.completed",
+        item_id: leaky,
+        transcript: "x",
+      },
+    ],
+    [
+      "transcription.completed text",
+      {
+        type: "conversation.item.input_audio_transcription.completed",
+        item_id: "i",
+        transcript: leaky,
+      },
+    ],
+    [
+      "response.created id",
+      { type: "response.created", response: { id: leaky } },
+    ],
+    ["response.done id", { type: "response.done", response: { id: leaky } }],
+    [
+      "response.cancelled id",
+      { type: "response.cancelled", response: { id: leaky } },
+    ],
+    [
+      "output_item.added response_id",
+      {
+        type: "response.output_item.added",
+        response_id: leaky,
+        item: { id: "i" },
+      },
+    ],
+    [
+      "output_item.added item.id",
+      {
+        type: "response.output_item.added",
+        response_id: "r",
+        item: { id: leaky },
+      },
+    ],
+    [
+      "audio delta response_id",
+      {
+        type: "response.output_audio.delta",
+        response_id: leaky,
+        item_id: "i",
+        delta: toBase64(new Uint8Array([1, 2])),
+      },
+    ],
+    [
+      "audio delta item_id",
+      {
+        type: "response.audio.delta",
+        response_id: "r",
+        item_id: leaky,
+        delta: toBase64(new Uint8Array([1, 2])),
+      },
+    ],
+    [
+      "audio delta delta",
+      {
+        type: "response.output_audio.delta",
+        response_id: "r",
+        item_id: "i",
+        delta: leaky,
+      },
+    ],
+    ["error message", { type: "error", error: { message: leaky } }],
+  ];
+
+  it.each(wires)("%s never reaches a callback", (_name, wire) => {
+    const r = setup(json);
+    r.socket().open();
+    r.socket().receive(JSON.stringify(wire));
+    const seen = JSON.stringify([r.events, r.audio]);
+    expect(seen.includes(TOKEN)).toBe(false);
+  });
+
+  it("replaces a token-bearing error and keeps it out of call state", () => {
+    const r = setup(json);
+    r.socket().open();
+    r.socket().receive(errorWire(leaky));
+    expect(r.events).toHaveLength(1);
+    const event = r.events[0];
+    expect(
+      event?.type === "error" && event.message === SERVER_ERROR_MESSAGE,
+    ).toBe(true);
+    let state = reduceCall(initialCallState, { type: "start" });
+    state = reduceCall(state, { type: "connected" });
+    for (const e of r.events)
+      state = reduceCall(state, { type: "server", event: e });
+    expect(JSON.stringify(state).includes(TOKEN)).toBe(false);
+    expect(
+      state.phase === "active" && state.lastError === SERVER_ERROR_MESSAGE,
+    ).toBe(true);
+  });
+
+  it("passes a normal error through unchanged", () => {
+    const r = setup(json);
+    r.socket().open();
+    r.socket().receive(errorWire("rate limited"));
+    expect(r.events).toEqual([{ type: "error", message: "rate limited" }]);
   });
 });
