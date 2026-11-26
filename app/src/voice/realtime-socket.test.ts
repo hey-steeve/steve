@@ -356,6 +356,37 @@ describe("BC-59 invalid PCM", () => {
   }
 });
 
+// Codec-aware inbound audio validation across both transports.
+describe("codec x transport inbound audio", () => {
+  const opus = (t: VoiceTuning): VoiceTuning => ({ ...t, codec: "opus" });
+  const rows: [string, VoiceTuning, number[], boolean][] = [
+    ["json opus 3 bytes", opus(json), [1, 2, 3], true],
+    ["json opus empty", opus(json), [], false],
+    ["json pcm16 even", json, [1, 2], true],
+    ["json pcm16 odd", json, [1, 2, 3], false],
+    ["json pcm16 empty", json, [], false],
+    ["binary opus 3 bytes", opus(binary), [1, 2, 3], true],
+    ["binary opus empty", opus(binary), [], false],
+    ["binary pcm16 even", binary, [1, 2], true],
+    ["binary pcm16 odd", binary, [1, 2, 3], false],
+    ["binary pcm16 empty", binary, [], false],
+  ];
+  for (const [name, tuning, data, accepted] of rows) {
+    it(`${name}: ${accepted ? "reaches" : "never reaches"} onAudio`, () => {
+      const { socket, audio } = setup(tuning);
+      socket().open();
+      const bytes = new Uint8Array(data);
+      socket().receive(
+        tuning.transport === "json" ? delta(bytes) : bytes.buffer,
+      );
+      expect(audio.length === (accepted ? 1 : 0)).toBe(true);
+      if (accepted) {
+        expect(audio[0]?.bytes.length === data.length).toBe(true);
+      }
+    });
+  }
+});
+
 // BC-55: nothing is delivered after close.
 describe("BC-55 close during dispatch", () => {
   function closing(tuning: VoiceTuning) {

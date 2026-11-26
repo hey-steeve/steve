@@ -91,9 +91,10 @@ export function fromBase64(text: string): Uint8Array | undefined {
   }
 }
 
-// PCM16: a non-empty, even number of bytes.
-function isValidPcm(bytes: Uint8Array): boolean {
-  return bytes.length > 0 && bytes.length % 2 === 0;
+// Opus: any non-empty frame. PCM16: a non-empty, even number of bytes.
+function isValidAudio(bytes: Uint8Array, codec: VoiceTuning["codec"]): boolean {
+  if (bytes.length === 0) return false;
+  return codec === "opus" || bytes.length % 2 === 0;
 }
 
 const noop = (): void => undefined;
@@ -140,7 +141,7 @@ export function connectRealtime(
       if (binary) return;
       // Invalid audio never reaches the reducer, so it cannot leave it speaking.
       bytes = fromBase64(event.delta);
-      if (bytes === undefined || !isValidPcm(bytes)) return;
+      if (bytes === undefined || !isValidAudio(bytes, options.tuning.codec)) return;
     }
     options.onEvent(event);
     // onEvent may have closed the socket.
@@ -175,7 +176,7 @@ export function connectRealtime(
           if (typeof data === "string") handleText(data);
           else if (binary && data instanceof ArrayBuffer) {
             const bytes = new Uint8Array(data);
-            if (!isValidPcm(bytes)) return;
+            if (!isValidAudio(bytes, options.tuning.codec)) return;
             options.onAudio({
               bytes,
               responseId: undefined,
