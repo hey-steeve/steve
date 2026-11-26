@@ -751,6 +751,44 @@ describe("codec re-entry", () => {
   });
 });
 
+describe("codec re-entry with an unchanged public generation", () => {
+  // BC-63: flush(audio.generation) keeps the public generation, so only the
+  // flush/close epoch can tell the in-flight codec call it is stale.
+  it("BC-63 flush(audio.generation) drops an in-flight encode", async () => {
+    let audio: Awaited<ReturnType<typeof startBrowserAudio>> | undefined;
+    const opus = {
+      encode: (samples: Float32Array) => {
+        audio?.flush(audio.generation);
+        return encodePcm16(samples);
+      },
+      decode: (bytes: Uint8Array) => new Float32Array(bytes.length / 2),
+    };
+    const h = harness("opus", opus);
+    audio = await h.start();
+    const generation = audio.generation;
+    h.send(new Float32Array(16));
+    expect(audio.generation).toBe(generation);
+    expect(h.mic).toHaveLength(0);
+  });
+
+  it("BC-63 flush(audio.generation) drops an in-flight decode", async () => {
+    let audio: Awaited<ReturnType<typeof startBrowserAudio>> | undefined;
+    const opus = {
+      encode: (samples: Float32Array) => encodePcm16(samples),
+      decode: (bytes: Uint8Array) => {
+        audio?.flush(audio.generation);
+        return new Float32Array(bytes.length / 2 || 1);
+      },
+    };
+    const h = harness("opus", opus);
+    audio = await h.start();
+    const generation = audio.generation;
+    audio.enqueue(chunk("r1", "i1"));
+    expect(audio.generation).toBe(generation);
+    expect(h.context.sources).toHaveLength(0);
+  });
+});
+
 describe("empty chunk retirement", () => {
   it("retires a response admitted with an empty chunk", async () => {
     const h = harness();

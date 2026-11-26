@@ -299,10 +299,9 @@ export async function startBrowserAudio(
     const gen = Reflect.get(data, "gen");
     const samples = Reflect.get(data, "samples");
     if (gen !== muteGen || !(samples instanceof Float32Array)) return;
-    const startedGeneration = generation;
+    const startedEpoch = epoch;
     const bytes = codec.encode(samples);
-    if (closed || muted || gen !== muteGen || generation !== startedGeneration)
-      return;
+    if (closed || muted || gen !== muteGen || epoch !== startedEpoch) return;
     options.onMicChunk(bytes);
   };
 
@@ -318,9 +317,9 @@ export async function startBrowserAudio(
     },
     enqueue(chunk) {
       if (closed || blocked.has(chunk.responseId)) return;
-      const admitted = generation;
+      const admittedEpoch = epoch;
       const samples = codec.decode(chunk.bytes);
-      if (closed || blocked.has(chunk.responseId) || generation !== admitted)
+      if (closed || blocked.has(chunk.responseId) || epoch !== admittedEpoch)
         return;
       // Admit even an empty chunk so a later flush retires this response.
       seen.add(chunk.responseId);
