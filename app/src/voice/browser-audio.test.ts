@@ -827,6 +827,28 @@ describe("empty chunk retirement", () => {
   });
 });
 
+describe("late item id on an empty decode", () => {
+  // BC-63: a zero-output chunk still adopts a late item id.
+  it("BC-63 attaches the late id to queued audio and starts no source", async () => {
+    const h = harness();
+    const audio = await h.start();
+    audio.enqueue(chunk("r1"));
+    h.advance(0.06);
+    expect(h.notices[0]).toMatchObject({ type: "playbackStarted" });
+    expect(h.context.sources).toHaveLength(1);
+    audio.enqueue({
+      bytes: new Uint8Array(0),
+      responseId: "r1",
+      itemId: "i1",
+    });
+    expect(h.context.sources).toHaveLength(1);
+    const snap = audio.flush();
+    expect(snap.responseId).toBe("r1");
+    expect(snap.itemId).toBe("i1");
+    expect(snap.playedMs).toBeGreaterThan(0);
+  });
+});
+
 describe("playedMs after close", () => {
   it("returns 0 after drain and close", async () => {
     const h = harness();

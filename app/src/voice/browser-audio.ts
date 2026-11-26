@@ -324,19 +324,6 @@ export async function startBrowserAudio(
       const samples = codec.decode(chunk.bytes);
       if (closed || blocked.has(chunk.responseId) || epoch !== admittedEpoch)
         return;
-      if (samples.length === 0) return;
-      const buffer = ctx.createBuffer(1, samples.length, SAMPLE_RATE);
-      buffer.copyToChannel(samples, 0);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      const start =
-        nextStart > ctx.currentTime
-          ? nextStart
-          : ctx.currentTime + LEAD_SECONDS;
-      const end = start + samples.length / SAMPLE_RATE;
-      source.start(start);
-      nextStart = end;
       const itemId = chunk.itemId ?? knownItem.get(chunk.responseId);
       if (itemId !== undefined && !knownItem.has(chunk.responseId)) {
         // First id of this response: the unidentified prefix adopts it.
@@ -363,6 +350,19 @@ export async function startBrowserAudio(
         }
       }
       if (itemId !== undefined) knownItem.set(chunk.responseId, itemId);
+      if (samples.length === 0) return;
+      const buffer = ctx.createBuffer(1, samples.length, SAMPLE_RATE);
+      buffer.copyToChannel(samples, 0);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      const start =
+        nextStart > ctx.currentTime
+          ? nextStart
+          : ctx.currentTime + LEAD_SECONDS;
+      const end = start + samples.length / SAMPLE_RATE;
+      source.start(start);
+      nextStart = end;
       entries.push({
         responseId: chunk.responseId,
         itemId,
