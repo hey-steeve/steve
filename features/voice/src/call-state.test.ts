@@ -672,6 +672,14 @@ describe("PR 60 regression table", () => {
       },
       true,
     ],
+    [
+      "late playbackStarted of a cut id is ignored at the current generation",
+      () => {
+        const cut = run(speaking.concat(speechStarted));
+        return reduceCall(cut, started("r1", "i1", active(cut).generation)) === cut;
+      },
+      true,
+    ],
   ];
 
   it.each(cases)("%s", (_name, actual, expected) => {
