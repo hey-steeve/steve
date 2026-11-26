@@ -672,6 +672,15 @@ function dropLoneBlockSentences(
       through += 1;
     }
     if (only === undefined || only.has(mine)) {
+      // A finished drop takes the listening tail right after it, as a whole block does.
+      const tailAt =
+        lone.finishedOnly === true ? listeningTailAfter(pieces, through) : undefined;
+      if (tailAt !== undefined) {
+        through = tailAt;
+        while (pieces[through + 1]?.continuesRun === true) {
+          through += 1;
+        }
+      }
       for (let cursor = index; cursor <= through; cursor += 1) {
         dropped.add(cursor);
       }

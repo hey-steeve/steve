@@ -36,9 +36,13 @@ const wrappers = /["'»”*_\s]+$/u;
 const opensLine = /[\p{L}\p{N},]$/u;
 const atxHeading = /^#{1,6}(?:\s|$)/u;
 
-// An ATX heading and a line ending with ")" (nested or stray) are finished.
+const listMarker = /^(?:[-*+]|\d+[.)])(?:\s|$)/u;
+
+// An ATX heading, a markdown list item and a line ending with ")" (nested or
+// stray) are finished.
 function isOpenLine(line: string): boolean {
-  if (atxHeading.test(line.trim())) {
+  const trimmed = line.trim();
+  if (atxHeading.test(trimmed) || listMarker.test(trimmed)) {
     return false;
   }
   const stripped = line.replace(wrappers, "");

@@ -309,3 +309,24 @@ it("keeps a real continuation but drops a later finished lone 15 sentence", () =
   const after = out.slice(out.indexOf("Garde ton téléphone."));
   expect(after).not.toContain("Appelle le 15 maintenant");
 });
+
+it("treats a markdown list item as finished", () => {
+  const out = ensureEmergencyCallsSafe(
+    "Pour l'instant :\n\n- Garde ton téléphone\n\nAppelle le 15 maintenant.",
+    ["3114"],
+  );
+  expect(out.startsWith(call3114Now)).toBe(true);
+  expect(out).not.toContain("Appelle le 15 maintenant");
+  expect(out).toContain("- Garde ton téléphone");
+});
+
+it("drops the listening tail with a finished 3114 block but keeps the continuation", () => {
+  const out = ensureEmergencyCallsSafe(
+    `Reste près de lui et\nAppelle le 15 maintenant.\n${call3114} Ils t'écoutent jour et nuit.`,
+    ["3114"],
+  );
+  expect(out).toMatch(/Reste près de lui et\s*Appelle le 15 maintenant/u);
+  // The opening already holds the 3114 sentences once; the reply's own block is gone.
+  expect(out.split(call3114).length - 1).toBe(1);
+  expect(out).not.toContain("Ils t'écoutent jour et nuit.");
+});
