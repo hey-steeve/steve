@@ -910,6 +910,34 @@ describe("live call triage enforcement", () => {
     ]);
   });
 
+  it("queues a second emergency until the forced playback drains", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(socket.forced).toEqual([[...forcedSentences([c15])]]);
+    // The forced message is now speaking.
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    const flushes = audio.flushes;
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    expect(socket.forced).toEqual([[...forcedSentences([c15])]]);
+    expect(audio.flushes).toBe(flushes);
+    expect(socket.cancels).toBe(0);
+    expect(audio.discarded).toEqual([]);
+    audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+    expect(audio.flushes).toBe(flushes);
+    expect(socket.cancels).toBe(0);
+  });
+
   it("does not cancel when no response is in flight", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });

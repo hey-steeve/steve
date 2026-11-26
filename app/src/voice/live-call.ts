@@ -110,6 +110,10 @@ type Call = {
   // Responses cut by an emergency. Their late audio is never played.
   readonly cancelled: Set<string>;
   guided: boolean;
+  // The forced emergency message in flight: uninterruptible until it drains.
+  forcing: { responseId: string | undefined; started: boolean; generation: number } | undefined;
+  // Later emergencies wait here, in order, for that playback to drain.
+  readonly queued: (readonly string[])[];
 };
 
 const maxPrevious = 12;
@@ -201,6 +205,11 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     quiet(() => deps.onThreadEvent?.({ type: "emergency", itemId, calls, sentences }));
     restore(c);
     if (!live(c)) return;
+    if (c.forcing) {
+      // The previous forced message is uninterruptible: wait for it to drain.
+      c.queued.push(sentences);
+      return;
+    }
     if (state.phase === "active") {
       const inFlight = state.generating ? state.responseId : undefined;
       const ids = [inFlight, state.playback?.responseId].filter((id) => id !== undefined);
@@ -212,7 +221,23 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         quiet(() => audio.discardResponse(id));
       }
     }
-    if (live(c)) quiet(() => c.socket?.forceMessage(sentences));
+    send(c, sentences);
+  };
+
+  const send = (c: Call, sentences: readonly string[]): void => {
+    if (!live(c)) return;
+    c.forcing = {
+      responseId: undefined,
+      started: false,
+      generation: state.phase === "active" ? state.generation : 0,
+    };
+    quiet(() => c.socket?.forceMessage(sentences));
+  };
+
+  const release = (c: Call): void => {
+    c.forcing = undefined;
+    const next = c.queued.shift();
+    if (next) send(c, next);
   };
 
   const decide = (c: Call, audio: BrowserAudio, itemId: string, d: TriageDecision): void => {
@@ -298,6 +323,28 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         dispatch({ type: "server", event });
         // Guidance covers one response: it ends with that response or the next turn.
         if (event.type === "response.done" || event.type === "input.speech_started") restore(c);
+        const forcing = c.forcing;
+        if (forcing) {
+          if (event.type === "response.created" && forcing.responseId === undefined) {
+            forcing.responseId = event.responseId;
+          }
+          if (
+            forcing.responseId !== undefined &&
+            state.phase === "active" &&
+            state.playback?.responseId === forcing.responseId
+          ) {
+            forcing.started = true;
+            forcing.generation = state.playback.generation;
+          }
+          // A forced response that ended without audio has nothing left to drain.
+          if (
+            event.type === "response.done" &&
+            event.responseId === forcing.responseId &&
+            !forcing.started
+          ) {
+            release(c);
+          }
+        }
         if (event.type === "input.transcription_completed" && event.itemId) {
           triage(c, audio, event.itemId, event.text);
         }
@@ -394,6 +441,8 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       forced: new Set(),
       cancelled: new Set(),
       guided: false,
+      forcing: undefined,
+      queued: [],
     };
     call = c;
     dispatch({ type: "start" });
@@ -417,7 +466,19 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
               if (!live(c)) return;
               if (state.phase === "active") c.socket?.sendAudio(bytes);
             },
-            onPlayback: (notice) => live(c) && dispatch(notice),
+            onPlayback: (notice) => {
+              if (!live(c)) return;
+              dispatch(notice);
+              const forcing = c.forcing;
+              if (
+                notice.type === "playbackDrained" &&
+                forcing &&
+                notice.generation === forcing.generation &&
+                (forcing.responseId === undefined || forcing.started)
+              ) {
+                release(c);
+              }
+            },
           })
           .then((audio) => {
             // Late permission or a passed deadline: nothing owns this audio.
