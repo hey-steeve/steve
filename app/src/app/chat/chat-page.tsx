@@ -11,6 +11,10 @@ import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
 import { chatRequestLimits, parseChatCalls, parseChatReply, toProviderMessages } from "../../chat/request";
 import { useDictation } from "../../chat/speech";
+import type { CallDeps, ThreadMessage } from "../../voice/live-call";
+import { createBrowserCallDeps } from "../../voice/mock-call";
+import { useLiveCall, type ThreadEvent } from "../../voice/use-live-call";
+import { AgentCallBar, PhoneIcon } from "./agent-call-bar";
 import "./chat.css";
 
 const disclaimer =
@@ -22,29 +26,35 @@ const homeLeaveMs = 240;
 const keyboardOpenGap = 120;
 const nearBottomGap = 80;
 
-type UiMessage =
+type UiMessage = { readonly voice?: true } & (
   | {
       readonly id: string;
       readonly role: "user";
       readonly content: string;
+      readonly transcript?: "partial" | "final";
     }
   | {
       readonly id: string;
       readonly role: "agent" | "error";
       readonly content: string;
       readonly calls?: EmergencyCalls | undefined;
-    };
+      readonly forcedSentences?: readonly string[];
+    }
+);
 
 type BackExit = "idle" | "playing" | "done";
 
 export default function ChatPage(props: {
   readonly patientFirstName?: string;
+  readonly callDeps?: CallDeps;
 }) {
   const [messages, setMessages] = useState<readonly UiMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
   const [demo, setDemo] = useState(false);
-  const [voicePreview, setVoicePreview] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(true);
+  const [callDeps] = useState(() => props.callDeps ?? createBrowserCallDeps());
+  const callNumber = useRef(0);
   const draftRef = useRef(draft);
   const busy = useRef(false);
   const conversation = useRef(0);
@@ -62,7 +72,9 @@ export default function ChatPage(props: {
     getDraft: () => draftRef.current,
     onTranscript: setDraft,
   });
-  const empty = messages.length === 0;
+  const call = useLiveCall(onThreadEvent, callDeps);
+  const callOpen = call.phase === "connecting" || call.phase === "active";
+  const empty = messages.length === 0 && !callOpen;
   const emptyRef = useRef(empty);
   const [homeMounted, setHomeMounted] = useState(true);
   const [leaving, setLeaving] = useState(false);
@@ -73,6 +85,16 @@ export default function ChatPage(props: {
     listening: dictation.listening,
     supported: dictation.supported,
   });
+
+  useEffect(() => {
+    if (call.phase === "ended") {
+      setMessages((current) =>
+        current.some(isPartialTranscript)
+          ? current.filter((message) => !isPartialTranscript(message))
+          : current,
+      );
+    }
+  }, [call.phase]);
 
   useEffect(() => {
     if (exchange !== "rendering") {
@@ -126,7 +148,7 @@ export default function ChatPage(props: {
       return;
     }
     scrollThreadToBottom(thread);
-  }, [messages]);
+  }, [messages, showTranscript, callOpen]);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -187,7 +209,7 @@ export default function ChatPage(props: {
     setMessages([]);
     setDraft("");
     setDemo(false);
-    setVoicePreview(false);
+    setShowTranscript(true);
     setExchange("idle");
     setHomeMounted(true);
     queueMicrotask(() => {
@@ -317,11 +339,12 @@ export default function ChatPage(props: {
     setUnseenReply(false);
     dictation.stop();
     const ticket = conversation.current;
-    const history: readonly UiMessage[] = [
-      ...messages,
-      { id: newMessageId(), role: "user", content },
+    const message: UiMessage = { id: newMessageId(), role: "user", content };
+    const history = [
+      ...messages.filter((item) => !isPartialTranscript(item) && item.content !== ""),
+      message,
     ];
-    setMessages(history);
+    setMessages((current) => [...current, message]);
     setDraft((current) => (current.trim() === content ? "" : current));
     setExchange("awaiting");
     void post(history, ticket);
@@ -334,12 +357,67 @@ export default function ChatPage(props: {
     backExit.current = "playing";
     conversation.current += 1;
     dictation.stop();
+    if (callOpen) call.end("hang-up");
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       finishExit();
       return;
     }
     setUnseenReply(false);
     setLeaving(true);
+  }
+
+  function startCall() {
+    if (callOpen || backExit.current !== "idle") return;
+    dictation.stop();
+    callNumber.current += 1;
+    if (empty) setHomeMounted(true);
+    const history: ThreadMessage[] = [];
+    for (const message of messages) {
+      if (message.role === "error" || isPartialTranscript(message) || message.content.trim() === "") {
+        continue;
+      }
+      history.push({
+        role: message.role === "user" ? "user" : "assistant",
+        content: message.content,
+      });
+    }
+    void call.start(history);
+  }
+
+  function onThreadEvent(event: ThreadEvent) {
+    const kind = event.type === "transcript" ? "transcript" : "calls";
+    const id = `voice-${callNumber.current}-${kind}-${event.itemId}`;
+    let message: UiMessage;
+    if (event.type === "transcript") {
+      message = {
+        id,
+        role: "user",
+        content: event.text,
+        transcript: event.final ? "final" : "partial",
+      };
+    } else if (event.type === "emergency") {
+      message = {
+        id,
+        role: "agent",
+        content: event.sentences.join(" "),
+        forcedSentences: event.sentences,
+        calls: event.calls,
+      };
+    } else {
+      message = { id, role: "agent", content: "", calls: event.calls };
+    }
+    if (event.type !== "transcript" && !pinned.current) {
+      setUnseenReply(true);
+    }
+    const voiceMessage: UiMessage = { ...message, voice: true };
+    setMessages((current) => {
+      if (event.type === "transcript" && event.text.trim() === "") {
+        return current.filter((item) => item.id !== id);
+      }
+      return current.some((item) => item.id === id)
+        ? current.map((item) => item.id === id ? voiceMessage : item)
+        : [...current, voiceMessage];
+    });
   }
 
   async function post(history: readonly UiMessage[], ticket: number) {
@@ -474,6 +552,11 @@ export default function ChatPage(props: {
     focusNewestReply(thread);
   }
 
+  const visibleMessages = messages.filter((message) => {
+    if (message.role !== "user" || message.transcript === undefined) return true;
+    return callOpen ? showTranscript : message.transcript === "final";
+  });
+
   return (
     <main
       ref={pageRef}
@@ -516,17 +599,31 @@ export default function ChatPage(props: {
             </div>
           )}
           {empty ? null : (
-            <span className="chat-header-spacer" aria-hidden="true" />
+            <span className="chat-header-spacer">
+              {callOpen ? null : (
+                <button
+                  type="button"
+                  className="chat-thread-call"
+                  aria-label="Appeler Steve"
+                  title="Appeler Steve"
+                  onClick={startCall}
+                >
+                  <PhoneIcon />
+                </button>
+              )}
+            </span>
           )}
           {empty || !demo ? null : (
             <p className="chat-badge">Mode démo : réponses simulées</p>
           )}
         </header>
-        {voicePreview && !empty ? (
-          <AgentCallBar onEnd={() => setVoicePreview(false)} />
-        ) : null}
+        <AgentCallBar
+          call={call}
+          showTranscript={showTranscript}
+          onToggleTranscript={() => setShowTranscript((current) => !current)}
+        />
         <div className="chat-scroll" ref={threadRef}>
-          {homeMounted ? (
+          {homeMounted || empty ? (
             <div
               ref={heroRef}
               className={empty ? "chat-hero" : "chat-hero chat-hero-leave"}
@@ -551,16 +648,7 @@ export default function ChatPage(props: {
                   <button
                     className="chat-call-cta"
                     type="button"
-                    onClick={() => {
-                      setVoicePreview(true);
-                      setMessages([
-                        {
-                          id: newMessageId(),
-                          role: "agent",
-                          content: "Je suis là, Peter. Qu’est-ce que je peux faire pour toi ?",
-                        },
-                      ]);
-                    }}
+                    onClick={startCall}
                   >
                     <span className="chat-call-cta-icon" aria-hidden="true">
                       <span className="chat-call-cta-glyph">
@@ -582,7 +670,7 @@ export default function ChatPage(props: {
           ) : null}
           {empty ? null : (
             <ol className="chat-thread" aria-live="polite">
-              {messages.map((message) =>
+              {visibleMessages.map((message) =>
                 message.role === "user" ? (
                   <li key={message.id} className="chat-row chat-row-user">
                     <div className="chat-user">{message.content}</div>
@@ -600,9 +688,15 @@ export default function ChatPage(props: {
                   <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
                     <div className="chat-agent">
-                      <div className="chat-agent-text">
-                        <ChatMarkdown text={message.content} />
-                      </div>
+                      {message.content === "" ? null : (
+                        <div className="chat-agent-text">
+                          {message.forcedSentences === undefined ? (
+                            <ChatMarkdown text={message.content} />
+                          ) : (
+                            message.forcedSentences.map((sentence) => <p key={sentence}>{sentence}</p>)
+                          )}
+                        </div>
+                      )}
                       <EmergencyCallActions calls={message.calls} />
                     </div>
                   </li>
@@ -668,37 +762,8 @@ function EmergencyCallActions({ calls }: { readonly calls: EmergencyCalls | unde
   );
 }
 
-function AgentCallBar(props: { readonly onEnd: () => void }) {
-  return (
-    <div className="chat-call-bar" role="status" aria-live="polite">
-      <span className="chat-call-bar-icon" aria-hidden="true">
-        <PhoneIcon />
-      </span>
-      <span className="chat-call-bar-copy">
-        <span className="chat-call-bar-title">Steve est en ligne</span>
-        <span className="chat-call-bar-subtitle">Appel vocal en cours · 00:34</span>
-      </span>
-      <button
-        type="button"
-        className="chat-call-end"
-        aria-label="Terminer l’appel"
-        onClick={props.onEnd}
-      >
-        <PhoneIcon />
-      </button>
-    </div>
-  );
-}
-
-function PhoneIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1.1-.24 11.4 11.4 0 0 0 3.5.56 1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 5a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .56 3.5 1 1 0 0 1-.25 1.1z"
-      />
-    </svg>
-  );
+function isPartialTranscript(message: UiMessage): boolean {
+  return message.role === "user" && message.transcript === "partial";
 }
 
 function ComposerAction(props: {
