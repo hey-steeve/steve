@@ -477,10 +477,20 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           ) {
             forcing.candidates.add(event.responseId);
           }
-          if (event.type === "response.done") forcing.candidates.delete(event.responseId);
+          if (event.type === "response.done" || event.type === "response.cancelled") {
+            forcing.candidates.delete(event.responseId);
+          }
           if (event.type === "response.done" && event.responseId === forcing.responseId) {
             forcing.done = true;
             settle(c);
+          }
+          if (
+            event.type === "response.cancelled" &&
+            forcing.responseId !== undefined &&
+            event.responseId === forcing.responseId
+          ) {
+            // Cancelled audio never drains cleanly: do not wait for playback.
+            release(c);
           }
         }
         if (event.type === "response.created") c.seen.add(event.responseId);

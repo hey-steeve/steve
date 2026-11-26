@@ -1212,6 +1212,39 @@ describe("live call triage enforcement", () => {
     expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
   });
 
+  it.each(["done", "cancelled", "timeout"] as const)(
+    "releases the force slot on a bound forced response terminal: %s",
+    async (terminal) => {
+      const g = gated();
+      const h = setup({ triage: g.triage });
+      await active(h);
+      const { options, socket } = first(h.sockets);
+      const audio = first(h.audios);
+      say(h, "t1", "douleur poitrine");
+      g.requests[0]?.answer(emergency15);
+      await flush();
+      say(h, "t2", "suicidaire");
+      g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+      await flush();
+      expect(socket.forced).toHaveLength(1);
+      if (terminal === "timeout") {
+        h.advance(5_000);
+      } else {
+        options.onEvent({ type: "response.created", responseId: "f1" });
+        options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+        expect(socket.forced).toHaveLength(1);
+        if (terminal === "done") {
+          options.onEvent({ type: "response.done", responseId: "f1" });
+          audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+        } else {
+          options.onEvent({ type: "response.cancelled", responseId: "f1" });
+        }
+      }
+      expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+      expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    },
+  );
+
   it("does not cancel when no response is in flight", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });
