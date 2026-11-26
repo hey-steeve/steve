@@ -4,6 +4,7 @@ import {
   chatHttpResult,
   chatRequestLimits,
   clampAssistantContent,
+  parseChatMessages,
   parseChatReply,
   toProviderMessages,
 } from "./request.js";
@@ -282,6 +283,33 @@ it("keeps the latest user turn when an error sits between two user turns", () =>
       { role: "user", content: "second" },
     ]),
   ).toEqual([{ role: "user", content: "second" }]);
+});
+
+it("preserves consecutive voice turns when continuing a mixed thread in text", () => {
+  const messages = toProviderMessages([
+    { role: "user", content: "Bonjour.", voice: true },
+    { role: "user", content: "Je cherche le numéro du cabinet.", voice: true },
+    { role: "agent", content: "Quel cabinet ?", voice: true },
+    { role: "agent", content: "Dans quelle ville ?", voice: true },
+    { role: "user", content: "À Lyon.", voice: true },
+    { role: "user", content: "Près de la gare." },
+  ]);
+  expect(messages).toEqual([
+    { role: "user", content: "Bonjour.", voice: true },
+    { role: "user", content: "Je cherche le numéro du cabinet.", voice: true },
+    { role: "assistant", content: "Quel cabinet ?", voice: true },
+    { role: "assistant", content: "Dans quelle ville ?", voice: true },
+    { role: "user", content: "À Lyon.", voice: true },
+    { role: "user", content: "Près de la gare." },
+  ]);
+  expect(parseChatMessages({ messages })).toEqual([
+    { role: "user", content: "Bonjour." },
+    { role: "user", content: "Je cherche le numéro du cabinet." },
+    { role: "assistant", content: "Quel cabinet ?" },
+    { role: "assistant", content: "Dans quelle ville ?" },
+    { role: "user", content: "À Lyon." },
+    { role: "user", content: "Près de la gare." },
+  ]);
 });
 
 it("keeps the safety sentence when a mock echo is longer than the reply cap", () => {
