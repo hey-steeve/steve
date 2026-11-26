@@ -46,6 +46,8 @@ export type RealtimeSocketOptions = {
   readonly tuning: VoiceTuning;
   readonly onEvent: (event: ServerEvent) => void;
   readonly onAudio: (audio: InboundAudio) => void;
+  // Asked before the handshake. False means send nothing and close.
+  readonly canHandshake?: () => boolean;
   readonly onOpen?: () => void;
   readonly onError?: () => void;
   readonly onClose?: () => void;
@@ -226,6 +228,15 @@ export function connectRealtime(
       {
         open: () => {
           if (closed) return;
+          if (options.canHandshake && !options.canHandshake()) {
+            closed = true;
+            try {
+              socket?.close();
+            } catch {
+              // Already closed.
+            }
+            return;
+          }
           sendJson({
             type: "session.update",
             session: buildSessionConfig({

@@ -162,6 +162,9 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       instructions,
       keyterms: deps.keyterms,
       tuning: deps.tuning,
+      // The adapter asks before it sends session.update. Past the deadline
+      // this ends the call with "cap" and the adapter sends nothing.
+      canHandshake: () => live(c),
       onOpen: () => live(c) && dispatch({ type: "connected" }),
       onError: onClose,
       onClose,
@@ -253,20 +256,22 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
             codec: deps.tuning.codec,
             signal: abort.signal,
             onMicChunk: (bytes) => {
-              if (state.phase === "active" && live(c)) c.socket?.sendAudio(bytes);
+              if (!live(c)) return;
+              if (state.phase === "active") c.socket?.sendAudio(bytes);
             },
-            onPlayback: (notice) => !c.ended && dispatch(notice),
+            onPlayback: (notice) => live(c) && dispatch(notice),
           })
           .then((audio) => {
-            // Late permission: nothing owns this audio any more.
-            if (c.ended) quiet(() => audio.close());
+            // Late permission or a passed deadline: nothing owns this audio.
+            if (!live(c)) quiet(() => audio.close());
             else c.audio = audio;
           }),
       ]);
       open(c, secret.value, deps.instructions(history));
     } catch {
       // Only the call that began this attempt may be failed by it.
-      if (call === c && !c.ended) end("failed");
+      // A passed deadline ends the call with "cap" instead.
+      if (call === c && live(c)) end("failed");
     }
   };
 
@@ -274,6 +279,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     start,
     setMuted: (muted) => {
       if (state.phase !== "active") return;
+      if (call && !live(call)) return;
       call?.audio?.setMuted(muted);
       dispatch({ type: "setMuted", muted });
     },

@@ -104,6 +104,54 @@ const delta = (bytes: Uint8Array) =>
   });
 
 describe("handshake", () => {
+  it("sends no session.update and closes when canHandshake refuses", () => {
+    const sockets: FakeSocket[] = [];
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+    connectRealtime({
+      token: TOKEN,
+      instructions: "instr",
+      keyterms: [],
+      tuning: json,
+      onEvent: () => undefined,
+      onAudio: () => undefined,
+      canHandshake: () => false,
+      onOpen,
+      onClose,
+      createSocket: (url, protocols, handlers) => {
+        const s = new FakeSocket(url, protocols, handlers);
+        sockets.push(s);
+        return s;
+      },
+    });
+    const s = first(sockets);
+    s.open();
+    expect(s.sent).toHaveLength(0);
+    expect(s.closeCalls).toBe(1);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("sends session.update when canHandshake allows", () => {
+    const sockets: FakeSocket[] = [];
+    connectRealtime({
+      token: TOKEN,
+      instructions: "instr",
+      keyterms: [],
+      tuning: json,
+      onEvent: () => undefined,
+      onAudio: () => undefined,
+      canHandshake: () => true,
+      createSocket: (url, protocols, handlers) => {
+        const s = new FakeSocket(url, protocols, handlers);
+        sockets.push(s);
+        return s;
+      },
+    });
+    const s = first(sockets);
+    s.open();
+    expect(s.sent).toHaveLength(1);
+  });
+
   it("opens the xAI URL with the client-secret subprotocol and sends one session.update", () => {
     const { socket } = setup(json);
     const s = socket();

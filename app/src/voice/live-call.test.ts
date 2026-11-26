@@ -566,4 +566,140 @@ describe("live call", () => {
       expect(first(h.audios).enqueued).toBe(enqueued);
     });
   });
+  // The cap timer stays pending: the clock moves with skip, never advance.
+  describe("deadline passed, timer still pending", () => {
+    const quietSockets = (h: ReturnType<typeof setup>) => {
+      for (const { socket } of h.sockets) {
+        expect(socket.sentAudio).toBe(0);
+        expect(socket.cancels).toBe(0);
+        expect(socket.truncates).toHaveLength(0);
+        expect(socket.closed).toBe(1);
+      }
+    };
+    const capped = (h: ReturnType<typeof setup>) => {
+      expect(h.reason()).toBe("cap");
+      expect(h.aborted()).toBe(true);
+      for (const a of h.audios) {
+        expect(a.closed).toBe(1);
+        expect(a.muted).toBeUndefined();
+      }
+      quietSockets(h);
+    };
+
+    it("mic chunk while still connecting", async () => {
+      const h = setup();
+      await h.ctl.start([]);
+      expect(h.ctl.getSnapshot().phase).toBe("connecting");
+      expect(h.timers()).toBe(1);
+      h.skip(callCapMs);
+      first(h.audios).options.onMicChunk(new Uint8Array(2));
+      capped(h);
+      expect(h.sockets).toHaveLength(1);
+    });
+
+    it("audio resolves late while the mint is pending", async () => {
+      const h = setup({ manualToken: true, manualAudio: true });
+      const started = h.ctl.start([]);
+      h.skip(callCapMs);
+      h.audioGate.resolve();
+      await flush();
+      expect(h.reason()).toBe("cap");
+      h.tokenGate.resolve({ value: "token" });
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      capped(h);
+      expect(h.audios).toHaveLength(1);
+    });
+
+    it("mint completes late after audio is ready", async () => {
+      const h = setup({ manualToken: true });
+      const started = h.ctl.start([]);
+      await flush();
+      h.skip(callCapMs);
+      h.tokenGate.resolve({ value: "token" });
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      capped(h);
+      expect(h.audios).toHaveLength(1);
+    });
+
+    it("audio resolves late after the mint", async () => {
+      const h = setup({ manualAudio: true });
+      const started = h.ctl.start([]);
+      await flush();
+      h.skip(callCapMs);
+      h.audioGate.resolve();
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      capped(h);
+      expect(h.audios).toHaveLength(1);
+    });
+
+    it("playback notice", async () => {
+      const h = setup();
+      await active(h);
+      h.skip(callCapMs);
+      first(h.audios).options.onPlayback({ type: "playbackDrained", generation: 0 });
+      capped(h);
+    });
+
+    it("setMuted", async () => {
+      const h = setup();
+      await active(h);
+      h.skip(callCapMs);
+      h.ctl.setMuted(true);
+      capped(h);
+    });
+
+    it("late mint rejection", async () => {
+      const h = setup({ manualToken: true });
+      const started = h.ctl.start([]);
+      await flush();
+      h.skip(callCapMs);
+      h.tokenGate.reject(new Error("mint"));
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      capped(h);
+    });
+
+    it("late audio rejection", async () => {
+      const h = setup({ manualToken: true, manualAudio: true });
+      const started = h.ctl.start([]);
+      h.skip(callCapMs);
+      h.audioGate.reject(new Error("audio"));
+      h.tokenGate.resolve({ value: "token" });
+      await started;
+      expect(h.sockets).toHaveLength(0);
+      expect(h.reason()).toBe("cap");
+      expect(h.aborted()).toBe(true);
+    });
+
+    it("a rejection before the deadline still fails", async () => {
+      const h = setup({ manualToken: true });
+      const started = h.ctl.start([]);
+      h.tokenGate.reject(new Error("mint"));
+      await started;
+      expect(h.reason()).toBe("failed");
+    });
+
+    it("socket opens after the deadline: no handshake", async () => {
+      const h = setup();
+      await h.ctl.start([]);
+      h.skip(callCapMs);
+      const { options } = first(h.sockets);
+      // The adapter sends session.update only when this allows it.
+      expect(options.canHandshake?.()).toBe(false);
+      options.onOpen?.();
+      capped(h);
+      expect(h.ctl.getSnapshot().phase).toBe("ended");
+    });
+
+    it("allows the handshake before the deadline", async () => {
+      const h = setup();
+      await h.ctl.start([]);
+      h.skip(callCapMs - 1);
+      expect(first(h.sockets).options.canHandshake?.()).toBe(true);
+      expect(h.reason()).toBeUndefined();
+    });
+  });
 });
