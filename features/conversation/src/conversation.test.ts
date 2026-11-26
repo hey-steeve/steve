@@ -71,7 +71,7 @@ function expectTriageHandoff(
   result: ConversationTurnResult,
   sourceText: string,
 ): void {
-  if (result.outcome !== "handled" && result.outcome !== "failed") {
+  if (!("handoff" in result)) {
     throw new Error("Validated turn did not produce a handoff");
   }
   expect(result.handoff.target).toBe("triage");
@@ -282,11 +282,13 @@ it.each<{
 it.each<{
   readonly name: string;
   readonly sourceText: string;
+  readonly expectedOutcome: "failed" | "rejected";
   readonly run: () => Promise<ConversationTurnResult>;
 }>([
   {
     name: "provider failure",
     sourceText: "Demande avec provider indisponible",
+    expectedOutcome: "failed",
     async run() {
       const { conversation } = await startedConversation([
         new Error("provider unavailable"),
@@ -302,6 +304,7 @@ it.each<{
   {
     name: "timeout",
     sourceText: "Demande qui expire",
+    expectedOutcome: "failed",
     async run() {
       vi.useFakeTimers();
       try {
@@ -333,6 +336,7 @@ it.each<{
   {
     name: "invalid provider output",
     sourceText: "Demande avec sortie invalide",
+    expectedOutcome: "failed",
     async run() {
       const { conversation } = await startedConversation([{ unexpected: true }]);
       return conversation.handleTurn({
@@ -346,6 +350,7 @@ it.each<{
   {
     name: "id failure",
     sourceText: "Demande avec identifiant indisponible",
+    expectedOutcome: "failed",
     async run() {
       const fixture = testDependencies([
         { intent: "care_request", summary: "Demande comprise" },
@@ -373,6 +378,7 @@ it.each<{
   {
     name: "clock failure",
     sourceText: "Demande avec horloge indisponible",
+    expectedOutcome: "failed",
     async run() {
       const fixture = testDependencies([
         { intent: "care_request", summary: "Demande comprise" },
@@ -399,6 +405,7 @@ it.each<{
   {
     name: "storage failure",
     sourceText: "Demande avec stockage indisponible",
+    expectedOutcome: "failed",
     async run() {
       const store: ConversationStore = {
         async get() {
@@ -417,17 +424,162 @@ it.each<{
       });
     },
   },
-])("hands $name to triage with the source turn", async ({ run, sourceText }) => {
+  {
+    name: "save failure after understanding",
+    sourceText: "Au revoir malgré la panne de sauvegarde",
+    expectedOutcome: "failed",
+    async run() {
+      const inner = createInMemoryConversationStore();
+      const store: ConversationStore = {
+        get(sessionId) {
+          return inner.get(sessionId);
+        },
+        save(session, expectedVersion) {
+          if (expectedVersion !== null) {
+            throw new Error("store unavailable");
+          }
+          return inner.save(session, expectedVersion);
+        },
+      };
+      const fixture = testDependencies(
+        [{ intent: "end_conversation", summary: "Fin demandée" }],
+        store,
+      );
+      const conversation = createConversation(fixture.dependencies);
+      await conversation.startSession({ channel: "text" });
+      return conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-save-failure",
+        channel: "text",
+        text: "Au revoir malgré la panne de sauvegarde",
+      });
+    },
+  },
+  {
+    name: "missing session",
+    sourceText: "Douleur avec session introuvable",
+    expectedOutcome: "rejected",
+    async run() {
+      const fixture = testDependencies([]);
+      return createConversation(fixture.dependencies).handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-missing-session",
+        channel: "text",
+        text: "Douleur avec session introuvable",
+      });
+    },
+  },
+  {
+    name: "session awaiting triage",
+    sourceText: "Attends, j'ai très mal à la poitrine",
+    expectedOutcome: "rejected",
+    async run() {
+      const { conversation } = await startedConversation([
+        { intent: "end_conversation", summary: "Fin demandée" },
+      ]);
+      await conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-goodbye-awaiting",
+        channel: "text",
+        text: "Au revoir",
+      });
+      return conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-while-awaiting",
+        channel: "text",
+        text: "Attends, j'ai très mal à la poitrine",
+      });
+    },
+  },
+  {
+    name: "completed session",
+    sourceText: "J'ai encore très mal à la poitrine",
+    expectedOutcome: "rejected",
+    async run() {
+      const { conversation } = await startedConversation([
+        { intent: "end_conversation", summary: "Fin demandée" },
+      ]);
+      await conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-goodbye-completed",
+        channel: "text",
+        text: "Au revoir",
+      });
+      await conversation.completeSession({
+        sessionId: "session-1",
+        turnId: "turn-goodbye-completed",
+      });
+      return conversation.handleTurn({
+        sessionId: "session-1",
+        turnId: "turn-after-completed",
+        channel: "text",
+        text: "J'ai encore très mal à la poitrine",
+      });
+    },
+  },
+])("hands $name to triage with the source turn", async ({
+  run,
+  sourceText,
+  expectedOutcome,
+}) => {
   const result = await run();
 
-  expect(result.outcome).toBe("failed");
+  expect(result.outcome).toBe(expectedOutcome);
   expectTriageHandoff(result, sourceText);
+  if ("handoff" in result && result.outcome !== "handled") {
+    expect(result.handoff.completeAfterTriage).toBe(false);
+  }
+});
+
+it("keeps prior patient turns when the clock fails before understanding", async () => {
+  const fixture = testDependencies([
+    { intent: "care_request", summary: "Première demande comprise" },
+  ]);
+  let clockCall = 0;
+  const conversation = createConversation({
+    ...fixture.dependencies,
+    clock: {
+      now() {
+        clockCall += 1;
+        return clockCall < 4 ? "2026-11-26T12:00:00.000Z" : "invalid";
+      },
+    },
+  });
+  await conversation.startSession({ channel: "text" });
+  await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-before-clock-failure",
+    channel: "text",
+    text: "Première demande",
+  });
+  const result = await conversation.handleTurn({
+    sessionId: "session-1",
+    turnId: "turn-clock-failure-before-understanding",
+    channel: "text",
+    text: "Nouvelle douleur",
+  });
+
+  expect(result).toMatchObject({
+    outcome: "failed",
+    code: "dependency_failure",
+  });
+  if (result.outcome === "failed") {
+    expect(result.handoff.data.map((turn) => turn.text)).toEqual([
+      "Première demande",
+      "Nouvelle douleur",
+    ]);
+  }
+  expect(fixture.understand).toHaveBeenCalledTimes(1);
 });
 
 it("completes a goodbye after triage and rejects later turns", async () => {
   const { conversation } = await startedConversation([
     { intent: "end_conversation", summary: "Fin demandée" },
   ]);
+  const notPending = await conversation.completeSession({
+    sessionId: "session-1",
+    turnId: "turn-before-goodbye",
+  });
   const goodbye = await conversation.handleTurn({
     sessionId: "session-1",
     turnId: "turn-goodbye-complete",
@@ -438,7 +590,15 @@ it("completes a goodbye after triage and rejects later turns", async () => {
     throw new Error("Goodbye was not handled");
   }
 
+  const mismatch = await conversation.completeSession({
+    sessionId: goodbye.handoff.sessionId,
+    turnId: "turn-other-goodbye",
+  });
   const completed = await conversation.completeSession({
+    sessionId: goodbye.handoff.sessionId,
+    turnId: goodbye.handoff.turnId,
+  });
+  const repeated = await conversation.completeSession({
     sessionId: goodbye.handoff.sessionId,
     turnId: goodbye.handoff.turnId,
   });
@@ -449,10 +609,19 @@ it("completes a goodbye after triage and rejects later turns", async () => {
     text: "Un autre message",
   });
 
+  expect(notPending).toMatchObject({
+    outcome: "rejected",
+    code: "completion_not_pending",
+  });
+  expect(mismatch).toMatchObject({
+    outcome: "rejected",
+    code: "completion_turn_mismatch",
+  });
   expect(completed).toMatchObject({
     outcome: "completed",
     session: { status: "completed", completionTurnId: "turn-goodbye-complete" },
   });
+  expect(repeated).toEqual(completed);
   expect(later).toMatchObject({
     outcome: "rejected",
     code: "session_completed",
