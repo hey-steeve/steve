@@ -347,7 +347,7 @@ it("posts consecutive finalized call turns in order when the thread continues in
     Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
   );
   vi.stubGlobal("fetch", fetch);
-  const triage = vi.fn<liveCall.CallDeps["triage"]>()
+  const triage = vi.fn<NonNullable<liveCall.CallDeps["triage"]>>()
     .mockResolvedValueOnce(null)
     .mockResolvedValueOnce({ label: "emergency", calls: [{ type: "call", number: "15" }] });
   const call = await mountCall(triage);
