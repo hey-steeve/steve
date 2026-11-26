@@ -1097,6 +1097,32 @@ describe("live call triage enforcement", () => {
     expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
   });
 
+  it("keeps adapter and reducer generations in step through a forced clip", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: "fi" });
+    audio.options.onPlayback({
+      type: "playbackStarted",
+      responseId: "f1",
+      itemId: "fi",
+      generation: audio.generation,
+    });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(h.ctl.getSnapshot().activity).not.toBe("speaking");
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.truncates).toEqual([]);
+    expect(socket.cancels).toBe(1);
+  });
+
   it("frees the queue when forceMessage throws", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });

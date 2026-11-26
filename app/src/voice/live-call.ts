@@ -261,7 +261,11 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     if (state.phase === "active") {
       const inFlight = state.generating ? state.responseId : undefined;
       const ids = [inFlight, state.playback?.responseId].filter((id) => id !== undefined);
-      quiet(() => audio.flush());
+      // Retire the reducer generation first, then flush the adapter into it,
+      // so forced playback events carry a generation both sides agree on.
+      dispatch({ type: "generationRetired" });
+      const next = state.phase === "active" ? state.generation : undefined;
+      quiet(() => audio.flush(next));
       if (!live(c)) return;
       if (inFlight !== undefined) quiet(() => c.socket?.cancelResponse());
       for (const id of ids) {
