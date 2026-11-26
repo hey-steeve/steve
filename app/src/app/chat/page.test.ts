@@ -227,6 +227,19 @@ it("starts one live call from the home CTA and shows its connection status", asy
   expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Steve parle");
 });
 
+it("says the call is a voiceless demo when the session is mocked", async () => {
+  const call = await mountCall(undefined, true);
+  await clickCallControl(call.container, ".chat-call-cta");
+  expect(call.container.querySelector(".chat-call-bar-title")?.textContent).toBe("Mode démo");
+  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent)
+    .toBe("Voix désactivée");
+  expect(call.container.querySelector(".chat-call-wave")).toBeNull();
+  expect(call.container.querySelector<HTMLButtonElement>('[aria-label="Couper le micro"]')?.disabled)
+    .toBe(true);
+  await clickCallControl(call.container, ".chat-call-end");
+  expect(call.end).toHaveBeenCalledExactlyOnceWith("hang-up");
+});
+
 it("starts one live call from the thread header with the current text history", async () => {
   vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () =>
     Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
@@ -369,7 +382,7 @@ it("posts consecutive finalized call turns in order when the thread continues in
   });
 });
 
-async function mountCall(triage?: liveCall.CallDeps["triage"]) {
+async function mountCall(triage?: liveCall.CallDeps["triage"], mockSocket = false) {
   const createLiveCall = liveCall.createLiveCall;
   const start = vi.fn<liveCall.LiveCallController["start"]>();
   const setMuted = vi.fn<liveCall.LiveCallController["setMuted"]>();
@@ -399,7 +412,7 @@ async function mountCall(triage?: liveCall.CallDeps["triage"]) {
     connect: (options) => {
       socket = options;
       return {
-        mock: false,
+        mock: mockSocket,
         sendAudio() {},
         close() {},
         truncate() {},

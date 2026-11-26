@@ -20,19 +20,25 @@ export function AgentCallBar({
   }
 
   const active = call.phase === "active";
-  const activityLabel = call.activity === "speaking"
-    ? "Steve parle"
-    : call.muted ? "Micro coupé" : "Steve écoute";
+  // Mock session: no voice backend. Say so instead of pretending Steve listens.
+  const demo = active && call.mock;
+  const live = active && !call.mock;
+  const title = demo ? "Mode démo" : active ? "Steve est en ligne" : "Connexion…";
+  const activityLabel = demo
+    ? "Voix désactivée"
+    : call.activity === "speaking"
+      ? "Steve parle"
+      : call.muted ? "Micro coupé" : "Steve écoute";
   return (
     <div className="chat-call-bar" role="group" aria-label="Appel avec Steve">
       <img className="chat-call-bar-avatar" src="/demo/steve-call-avatar.webp" alt="" width={40} height={40} />
       <span className="chat-call-bar-copy" role="status">
         <span className="chat-call-bar-title">
-          {active ? "Steve est en ligne" : "Connexion…"}
+          {title}
         </span>
         {active ? <span className="chat-call-bar-subtitle">{activityLabel}</span> : null}
       </span>
-      {active && call.activity ? (
+      {live && call.activity ? (
         <span className="chat-call-wave" data-activity={call.activity} aria-hidden="true">
           <span /><span /><span />
         </span>
@@ -44,7 +50,7 @@ export function AgentCallBar({
           aria-label="Couper le micro"
           title={call.muted ? "Réactiver le micro" : "Couper le micro"}
           aria-pressed={call.muted}
-          disabled={!active}
+          disabled={!live}
           onClick={() => call.setMuted(!call.muted)}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
