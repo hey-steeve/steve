@@ -117,7 +117,18 @@ type Call = {
   // The patient item still waiting for its response to start.
   awaiting: string | undefined;
   // The forced emergency message in flight: uninterruptible until it drains.
-  forcing: { responseId: string | undefined; started: boolean; generation: number } | undefined;
+  forcing:
+    | {
+        responseId: string | undefined;
+        // Its audio reached the adapter, under `generation` (the adapter's own).
+        started: boolean;
+        generation: number | undefined;
+        // Its response.done arrived.
+        done: boolean;
+        // Its audio drained under `generation` (reset if more audio follows).
+        drained: boolean;
+      }
+    | undefined;
   // Later emergencies wait here, in order, for that playback to drain.
   readonly queued: (readonly string[])[];
 };
@@ -235,9 +246,18 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     c.forcing = {
       responseId: undefined,
       started: false,
-      generation: state.phase === "active" ? state.generation : 0,
+      generation: undefined,
+      done: false,
+      drained: false,
     };
     quiet(() => c.socket?.forceMessage(sentences));
+  };
+
+  // Release only when the forced message ended on the server and its own audio
+  // drained (or it ended with no audio at all).
+  const settle = (c: Call): void => {
+    const f = c.forcing;
+    if (f?.done && (!f.started || f.drained)) release(c);
   };
 
   const release = (c: Call): void => {
@@ -344,24 +364,16 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         }
         const forcing = c.forcing;
         if (forcing) {
-          if (event.type === "response.created" && forcing.responseId === undefined) {
+          if (
+            event.type === "response.created" &&
+            forcing.responseId === undefined &&
+            !c.cancelled.has(event.responseId)
+          ) {
             forcing.responseId = event.responseId;
           }
-          if (
-            forcing.responseId !== undefined &&
-            state.phase === "active" &&
-            state.playback?.responseId === forcing.responseId
-          ) {
-            forcing.started = true;
-            forcing.generation = state.playback.generation;
-          }
-          // A forced response that ended without audio has nothing left to drain.
-          if (
-            event.type === "response.done" &&
-            event.responseId === forcing.responseId &&
-            !forcing.started
-          ) {
-            release(c);
+          if (event.type === "response.done" && event.responseId === forcing.responseId) {
+            forcing.done = true;
+            settle(c);
           }
         }
         if (
@@ -431,6 +443,13 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           return;
         }
         audio.enqueue({ bytes, responseId: id, itemId });
+        const forcing = c.forcing;
+        if (forcing && bytes.length > 0 && id === forcing.responseId) {
+          // The adapter plays this under its own generation, not state's.
+          forcing.started = true;
+          forcing.generation = audio.generation;
+          forcing.drained = false;
+        }
         // Binary audio reaches the reducer only through the ticker's first
         // playbackStarted. Record the queued playback now, so response.done
         // before that tick keeps the call speaking and barge-in can flush.
@@ -513,13 +532,22 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
               if (!live(c)) return;
               dispatch(notice);
               const forcing = c.forcing;
+              if (!forcing) return;
+              if (
+                notice.type === "playbackStarted" &&
+                forcing.responseId !== undefined &&
+                notice.responseId === forcing.responseId
+              ) {
+                forcing.started = true;
+                forcing.generation = notice.generation;
+              }
               if (
                 notice.type === "playbackDrained" &&
-                forcing &&
-                notice.generation === forcing.generation &&
-                (forcing.responseId === undefined || forcing.started)
+                forcing.started &&
+                notice.generation === forcing.generation
               ) {
-                release(c);
+                forcing.drained = true;
+                settle(c);
               }
             },
           })

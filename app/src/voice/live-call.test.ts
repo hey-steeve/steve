@@ -97,7 +97,7 @@ function setup(
     constructor(options: BrowserAudioOptions) {
       this.options = options;
     }
-    readonly generation = 0;
+    generation = 0;
     setMuted(m: boolean) {
       this.muted = m;
     }
@@ -130,6 +130,7 @@ function setup(
     flush(next?: number) {
       this.flushes++;
       this.flushedWith.push(next);
+      this.generation = next ?? this.generation + 1;
       return this.snapshot;
     }
     close() {
@@ -932,10 +933,52 @@ describe("live call triage enforcement", () => {
     expect(audio.flushes).toBe(flushes);
     expect(socket.cancels).toBe(0);
     expect(audio.discarded).toEqual([]);
+    // The pre-force flush retired generation 0: that drain is stale.
     audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
     expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
     expect(audio.flushes).toBe(flushes);
     expect(socket.cancels).toBe(0);
+  });
+
+  it("releases the queue on the forced audio's own generation after the pre-force flush", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    // The pre-force flush retired generation 0; forced audio plays under 1.
+    expect(audio.generation).toBe(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    audio.options.onPlayback({
+      type: "playbackStarted",
+      responseId: "f1",
+      itemId: undefined,
+      generation: 1,
+    });
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    expect(socket.forced).toHaveLength(1);
+    // Stale drains: old generation, then a stale cancelled response's done.
+    audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    expect(socket.forced).toHaveLength(1);
+    // done without the drain of its own generation: still held.
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: 1 });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
   });
 
   it("does not cancel when no response is in flight", async () => {
