@@ -206,6 +206,22 @@ it("compacts a long recorded emergency to keep it with a whole current turn", ()
   expect(handoff.data.map((t) => t.text).join("\n").length).toBeLessThanOrEqual(8000);
 });
 
+it("keeps five recorded emergencies instead of reserving a slot for an ordinary predecessor", () => {
+  const mk = (id: string, text = "x".repeat(2000)): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text });
+  const emergencies = ["e0", "e1", "e2", "e3", "e4"].map((id) => mk(id));
+  const current = mk("c", "y".repeat(2000));
+  const handoff = buildHandoff({
+    current,
+    previous: [...emergencies, mk("n")],
+    decisions: emergencies.map((t) => ({ turnId: t.turnId, label: "emergency" })),
+  });
+  const ids = handoff.data.map((t) => t.turnId);
+  expect(ids).toEqual(["e0", "e1", "e2", "e3", "e4", "c"]);
+  expect(handoff.data.length).toBeLessThanOrEqual(6);
+  expect(handoff.data.map((t) => t.text).join("\n").length).toBeLessThanOrEqual(voiceTriageLimits.maxStateChars);
+  expect(handoff.data.at(-1)).toEqual(current);
+});
+
 it("does not protect turns without a recorded label", () => {
   const mk = (id: string): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text: "urgence ".repeat(250) });
   const handoff = buildHandoff({ current: mk("c"), previous: ["a", "b", "c0", "d"].map(mk) });

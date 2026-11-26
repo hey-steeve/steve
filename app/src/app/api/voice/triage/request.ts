@@ -80,7 +80,7 @@ export function buildHandoff(request: VoiceTriageRequest): Handoff<readonly Turn
 // turn is kept whole. Earlier turns with a recorded emergency label are kept (their
 // text compacted when needed); when they cannot all fit in 6 slots, the earliest ones
 // and the most recent ones win. The immediate predecessor is preferred, compacted if
-// it must be. Other turns fill the rest, newest first, only while whole. Order is kept.
+// it must be, but only in slots left after every recorded emergency. Other turns fill the rest, newest first, only while whole. Order is kept.
 function fitStateBudget(
   turns: readonly Turn[],
   decisions: readonly VoiceDecision[],
@@ -97,9 +97,7 @@ function fitStateBudget(
   }
   const kept = new Set<number>([last]);
   const compactable = new Set<number>();
-  const predecessorProtected = protectedIdx.includes(predecessor);
-  const wantPredecessor = predecessor >= 0 && !predecessorProtected;
-  const slots = stateTurns - 1 - (wantPredecessor && protectedIdx.length >= stateTurns - 1 ? 1 : 0);
+  const slots = stateTurns - 1;
   let chosen = protectedIdx;
   if (protectedIdx.length > slots) {
     const earliest = Math.ceil(slots / 2);
