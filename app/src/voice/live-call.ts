@@ -182,9 +182,20 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       },
       onAudio: ({ bytes, responseId, itemId }) => {
         if (!live(c)) return;
+        if (state.phase !== "active" || !state.generating) return;
         // Binary audio carries no ids. It belongs to the generating response.
-        const id = responseId ?? (state.phase === "active" ? state.responseId : undefined);
-        if (id !== undefined) audio.enqueue({ bytes, responseId: id, itemId });
+        // A chunk that names a response must match the current one (BC-45/63).
+        const id = responseId ?? state.responseId;
+        if (id === undefined || id !== state.responseId) return;
+        if (
+          responseId !== undefined &&
+          itemId !== undefined &&
+          state.generatingItemId !== undefined &&
+          itemId !== state.generatingItemId
+        ) {
+          return;
+        }
+        audio.enqueue({ bytes, responseId: id, itemId });
       },
     });
     c.socket = socket;

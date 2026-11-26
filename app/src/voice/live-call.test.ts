@@ -296,6 +296,12 @@ describe("live call", () => {
         responseId: "r1",
         itemId: "i1",
       };
+      options.onEvent?.({ type: "response.created", responseId: "r1" });
+      options.onEvent?.({
+        type: "response.output_item_added",
+        responseId: "r1",
+        itemId: "i1",
+      });
       // One millisecond before the cap the call still plays audio.
       h.skip(599_999);
       options.onAudio?.(chunk);
@@ -471,5 +477,61 @@ describe("live call", () => {
       text: "z",
     });
     expect(h.threads.length).toBe(2);
+  });
+
+  // BC-63: JSON chunks must pass the reducer's identity check, not just get an id.
+  describe("audio enqueue identity", () => {
+    const rows: {
+      name: string;
+      events: ("created" | "item" | "cancelled")[];
+      chunk: { responseId: string | undefined; itemId: string | undefined };
+      enqueued: number;
+    }[] = [
+      { name: "missing response", events: [], chunk: { responseId: "r1", itemId: "i1" }, enqueued: 0 },
+      {
+        name: "cancelled response",
+        events: ["created", "item", "cancelled"],
+        chunk: { responseId: "r1", itemId: "i1" },
+        enqueued: 0,
+      },
+      {
+        name: "mismatched item",
+        events: ["created", "item"],
+        chunk: { responseId: "r1", itemId: "other" },
+        enqueued: 0,
+      },
+      {
+        name: "valid JSON chunk",
+        events: ["created", "item"],
+        chunk: { responseId: "r1", itemId: "i1" },
+        enqueued: 1,
+      },
+      {
+        name: "binary chunk of the generating response",
+        events: ["created", "item"],
+        chunk: { responseId: undefined, itemId: undefined },
+        enqueued: 1,
+      },
+    ];
+    it.each(rows)("$name", async ({ events, chunk, enqueued }) => {
+      const h = setup();
+      await active(h);
+      const { options } = first(h.sockets);
+      if (events.includes("created")) {
+        options.onEvent?.({ type: "response.created", responseId: "r1" });
+      }
+      if (events.includes("item")) {
+        options.onEvent?.({
+          type: "response.output_item_added",
+          responseId: "r1",
+          itemId: "i1",
+        });
+      }
+      if (events.includes("cancelled")) {
+        options.onEvent?.({ type: "response.cancelled", responseId: "r1" });
+      }
+      options.onAudio?.({ bytes: new Uint8Array(2), ...chunk });
+      expect(first(h.audios).enqueued).toBe(enqueued);
+    });
   });
 });
