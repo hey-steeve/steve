@@ -16,6 +16,7 @@ import {
 } from "../../../chat/request";
 import { call3114Now, ensureEmergencyCalls } from "./emergency-templates";
 import { openRouterModel } from "./openrouter-model";
+import { ensureEmergencyCallsSafe } from "./safe-emergency-calls";
 import { systemPrompt } from "./system-prompt";
 import { recordTriageLog } from "./triage-log";
 
@@ -192,7 +193,7 @@ async function completeWithOpenRouter(
     const reply =
       calls === undefined
         ? completion.reply
-        : ensureEmergencyCalls(
+        : ensureEmergencyCallsSafe(
             completion.reply,
             calls.map((call) => call.number),
           );

@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
+import { call15Now, call3114, call3114Now } from "../emergency-templates.ts";
 import { systemPrompt } from "../system-prompt.ts";
 import { type DetectedKind, detectEmergencyNumbers } from "./check.ts";
 import {
@@ -26,9 +28,9 @@ const splitFailure = (span: string, kind: string): string =>
   `split across sentences: "${span}" (${kind}) crosses a sentence boundary`;
 
 const pair3114Then15 =
-  "Pour le 3114 puis le 15, tu écris « Appelle le 3114 maintenant. » puis « Appelle le 15 maintenant. ».";
+  `Pour le 3114 puis le 15, tu écris « ${call3114Now} » puis « ${call15Now} ».`;
 const pair15Then3114 =
-  "Pour le 15 puis le 3114, tu écris « Appelle le 15 maintenant. » puis « Appelle le 3114. ».";
+  `Pour le 15 puis le 3114, tu écris « ${call15Now} » puis « ${call3114} ».`;
 
 const refuse112Lead = "Tu ne donnes jamais le 112 ni SOS Médecins.";
 const refuse112Follow =
@@ -48,13 +50,13 @@ const samePhraseWidened = `${samePhraseLead}, et tu ne donnes pas le 15 pour des
 const samePhraseEdited = "Tu ne mets jamais le 15 et le 3114 dans la même réponse.";
 
 const redFlagHead =
-  "Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la première phrase";
-const redFlagTail = "« Appelle le 15 maintenant. », jamais seulement une phrase conditionnelle.";
-const redFlagOld = `${redFlagHead} est ${redFlagTail}`;
-const redFlagNew = `${redFlagHead} n'est jamais ${redFlagTail}`;
+  "Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la réponse s'ouvre exactement par ce bloc :";
+const redFlagTail = `« ${call15Now} », jamais seulement une phrase conditionnelle.`;
+const redFlagOld = `${redFlagHead} ${redFlagTail}`;
+const redFlagNew = `${redFlagHead} jamais ${redFlagTail}`;
 
 const anxietyTail =
-  "peut citer le 3114, sans l'exiger en première phrase, et cette phrase est exactement « Appelle le 3114. » ou « Appelle le 3114 maintenant. ».";
+  `peut citer le 3114, sans l'exiger en ouverture, et ce bloc est exactement « ${call3114} » ou « ${call3114Now} ».`;
 const anxietyOld = `Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, ${anxietyTail}`;
 const anxietyNew = `Une angoisse intense, des pensées suicidaires ou une crise de panique avec essoufflement, sans pensée suicidaire et sans danger, ${anxietyTail}`;
 
@@ -493,4 +495,95 @@ it("checks order only among rows that matched exactly once", () => {
     unpinnedFailure(["15"], row15.sentence),
     unpinnedFailure(["15"], row15.sentence),
   ]);
+});
+
+const COPY_IDENTIFIER = /\b(call15Now|call3114Now|call3114)\b/g;
+
+// Splits a TypeScript source into code (strings and comments blanked out) and
+// the contents of its string literals. Template literal text counts as a
+// string, but `${...}` expressions stay in the code, so interpolated bindings
+// are still seen.
+function splitSource(source: string): { code: string; strings: string[] } {
+  let code = "";
+  const strings: string[] = [];
+  const templateDepths: number[] = [];
+  let braceDepth = 0;
+  let i = 0;
+  const readText = (quote: string, isTemplate: boolean): void => {
+    let text = "";
+    while (i < source.length) {
+      const char = source.charAt(i);
+      if (char === "\\") {
+        text += source.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      if (char === quote) {
+        i += 1;
+        break;
+      }
+      if (isTemplate && char === "$" && source.charAt(i + 1) === "{") {
+        i += 2;
+        templateDepths.push(braceDepth);
+        braceDepth += 1;
+        break;
+      }
+      text += char;
+      i += 1;
+    }
+    strings.push(text);
+    code += " ";
+  };
+  while (i < source.length) {
+    const char = source.charAt(i);
+    const next = source.charAt(i + 1);
+    if (char === "/" && next === "/") {
+      while (i < source.length && source.charAt(i) !== "\n") i += 1;
+    } else if (char === "/" && next === "*") {
+      const end = source.indexOf("*/", i + 2);
+      i = end === -1 ? source.length : end + 2;
+    } else if (char === '"' || char === "'") {
+      i += 1;
+      readText(char, false);
+    } else if (char === "`") {
+      i += 1;
+      readText("`", true);
+    } else {
+      if (char === "{") braceDepth += 1;
+      if (char === "}") {
+        braceDepth -= 1;
+        if (templateDepths[templateDepths.length - 1] === braceDepth) {
+          templateDepths.pop();
+          i += 1;
+          readText("`", true);
+          continue;
+        }
+      }
+      code += char;
+      i += 1;
+    }
+  }
+  return { code, strings };
+}
+
+function copyBindingViolations(source: string): string[] {
+  const { code, strings } = splitSource(source);
+  const modules = strings.filter((text) => text.includes("emergency-templates"));
+  return [...modules, ...(code.match(COPY_IDENTIFIER) ?? [])];
+}
+
+it("flags aliased and semicolonless copy imports and interpolations in a fake source", () => {
+  const aliased =
+    'import { call15Now as physicalCopy } from "../emergency-templates.ts"\nexport const row = `Appelle ${physicalCopy}`';
+  expect(copyBindingViolations(aliased)).toEqual(["../emergency-templates.ts", "call15Now"]);
+  expect(copyBindingViolations("const a = `x ${call3114Now} y`")).toEqual(["call3114Now"]);
+  expect(copyBindingViolations('const a = "Appelle le 15 ou le 3114." // call15Now')).toEqual([]);
+});
+
+it("keeps the pin rows literal: no import from the copy module and no copy constant identifiers", () => {
+  const source = readFileSync(
+    new URL("./prompt-number-pin-rows.ts", import.meta.url),
+    "utf8",
+  );
+  expect(copyBindingViolations(source)).toEqual([]);
 });

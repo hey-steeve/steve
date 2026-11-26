@@ -40,7 +40,7 @@ const physicalReplies = [
     "partial",
     "partial",
     `${partial15} ${aside}`,
-    `${call15Now} ${partial15} ${aside}`,
+    `${call15Now} ${aside}`,
   ),
   modelReply("compliant", "compliant", `${call15Now} ${rest}`, `${call15Now} ${rest}`),
   modelReply(
@@ -75,7 +75,7 @@ const psychologicalReplies = [
     "partial",
     "partial",
     `${call3114Now} ${partial15} ${aside}`,
-    `${lead3114Then15} ${partial15} ${aside}`,
+    `${lead3114Then15} ${aside}`,
   ),
   modelReply(
     "compliant",
@@ -109,7 +109,7 @@ const bothNoReplies = [
     "partial",
     "partial",
     `${partial15} ${aside} ${call3114}`,
-    `${lead15Then3114} ${partial15} ${aside}`,
+    `${lead15Then3114} ${aside}`,
   ),
   modelReply(
     "compliant",
@@ -137,6 +137,13 @@ const keptReplies: readonly EmergencyModelReply[] = physicalReplies.map((row) =>
   model: row.model,
   reply: row.model,
 }));
+
+// A lone 3114 offer opens with the full call3114Now block, even off an emergency label.
+const offer3114Replies = [
+  modelReply("missing", "missing", rest, `${call3114Now} ${rest}`),
+  modelReply("compliant", "compliant", `${call3114Now} ${rest}`, `${call3114Now} ${rest}`),
+  modelReply("short-3114", "missing", `${call3114} ${rest}`, `${call3114Now} ${rest}`),
+] as const satisfies readonly EmergencyModelReply[];
 
 export type TriageDecisionCase = {
   readonly name: string;
@@ -193,7 +200,7 @@ export const triageDecisionCases: readonly TriageDecisionCase[] = [
     classify: { label: "consult", channel: "psychological", probability: 0.74 },
     calls: [offer3114] satisfies EmergencyCalls,
     guidance: consultGuidance.text,
-    replies: keptReplies,
+    replies: offer3114Replies,
   },
   {
     name: "consult",
@@ -205,7 +212,7 @@ export const triageDecisionCases: readonly TriageDecisionCase[] = [
     name: "self-care-3114",
     classify: { label: "self-care", channel: "psychological", probability: 0.7 },
     calls: [offer3114] satisfies EmergencyCalls,
-    replies: keptReplies,
+    replies: offer3114Replies,
   },
   {
     name: "self-care",
@@ -217,7 +224,7 @@ export const triageDecisionCases: readonly TriageDecisionCase[] = [
     classify: { label: "need-info", channel: "psychological", probability: 0.55 },
     calls: [offer3114] satisfies EmergencyCalls,
     guidance: needInfoGuidance.text,
-    replies: keptReplies,
+    replies: offer3114Replies,
   },
   {
     name: "need-info",
