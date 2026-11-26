@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { realpathSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { classify } from "../src/jev.ts";
 import type { ClassifyResult, EmergencyNumber } from "../src/types.ts";
@@ -50,6 +50,7 @@ export async function evaluateTriage(input: {
     }
     const latencyMs = Math.max(0, Math.round(now() - started));
     samples.push({
+      id: item.id,
       expected: item.label,
       predicted: result.label,
       expectedNumbers: item.numbers,
@@ -62,7 +63,7 @@ export async function evaluateTriage(input: {
   const gateFailed = triageGateFailed(samples);
   return {
     exitCode: gateFailed ? 1 : 0,
-    report: formatTriageReport(metrics, gateFailed),
+    report: formatTriageReport(metrics, gateFailed, samples),
     gateFailed,
   };
 }
@@ -73,16 +74,21 @@ export async function runTriageEval(input: {
   readonly fetchImpl?: typeof fetch;
   readonly cases?: readonly TriageEvalCase[];
   readonly now?: () => number;
+  readonly reportPath?: string;
 }): Promise<TriageEvalRun> {
   if (input.key === undefined) {
     return { exitCode: 0, report: skipReport, gateFailed: false };
   }
-  return evaluateTriage({
+  const outcome = await evaluateTriage({
     cases: input.cases ?? triageCases,
     fetch: jevFetch(input.key, input.fetchImpl ?? fetch),
     ...(input.model === undefined ? {} : { model: input.model }),
     ...(input.now === undefined ? {} : { now: input.now }),
   });
+  if (input.reportPath !== undefined) {
+    writeFileSync(input.reportPath, outcome.report);
+  }
+  return outcome;
 }
 
 function callNumbers(result: ClassifyResult): EmergencyNumber[] {
@@ -114,6 +120,10 @@ function readEnv(name: string): string | undefined {
   return trimmed;
 }
 
+function defaultReportPath(): string {
+  return fileURLToPath(new URL("./last-report.txt", import.meta.url));
+}
+
 function isCliEntry(): boolean {
   const entry = process.argv[1];
   if (entry === undefined) {
@@ -122,14 +132,46 @@ function isCliEntry(): boolean {
   return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
 }
 
+export function printThenSaveReport(
+  report: string,
+  reportPath: string | undefined,
+  io: {
+    readonly writeStdout: (text: string) => void;
+    readonly save: (path: string, text: string) => void;
+  } = {
+    writeStdout: (text) => {
+      process.stdout.write(text);
+    },
+    save: writeFileSync,
+  },
+): boolean {
+  io.writeStdout(report);
+  if (reportPath === undefined) {
+    return true;
+  }
+  try {
+    io.save(reportPath, report);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function runCli(): Promise<void> {
   try {
     const model = readEnv("JEV_MODEL");
+    const key = readEnv("JEV_API_KEY");
     const outcome = await runTriageEval({
-      key: readEnv("JEV_API_KEY"),
+      key,
       ...(model === undefined ? {} : { model }),
     });
-    process.stdout.write(outcome.report);
+    const reportPath = key === undefined ? undefined : (readEnv("TRIAGE_EVAL_REPORT") ?? defaultReportPath());
+    const saved = printThenSaveReport(outcome.report, reportPath);
+    if (!saved) {
+      process.stderr.write("failed to write the triage eval report\n");
+      process.exitCode = 1;
+      return;
+    }
     process.exitCode = outcome.exitCode;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "triage eval failed";

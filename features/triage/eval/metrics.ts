@@ -1,6 +1,7 @@
 import { triageLabels, type EmergencyNumber, type TriageLabel } from "../src/types.ts";
 
 export type TriageSample = {
+  readonly id?: string;
   readonly expected: TriageLabel;
   readonly predicted: TriageLabel;
   readonly expectedNumbers: readonly EmergencyNumber[];
@@ -103,7 +104,11 @@ export function scoreTriage(samples: readonly TriageSample[]): TriageMetrics {
   };
 }
 
-export function formatTriageReport(metrics: TriageMetrics, gateFailed: boolean): string {
+export function formatTriageReport(
+  metrics: TriageMetrics,
+  gateFailed: boolean,
+  samples: readonly TriageSample[] = [],
+): string {
   const lines = [
     `emergency recall ${formatRate(metrics.emergencyRecall)}`,
     `channel accuracy ${formatRate(metrics.channelAccuracy)}`,
@@ -120,7 +125,28 @@ export function formatTriageReport(metrics: TriageMetrics, gateFailed: boolean):
     lines.push(`${expected} ${row.join(" ")}`);
   }
   lines.push(gateFailed ? "gate fail" : "gate pass");
+  if (samples.length > 0) {
+    lines.push("cases id expected got expected_calls got_calls");
+    for (const sample of samples) {
+      lines.push(formatCaseLine(sample));
+    }
+  }
   return `${lines.join("\n")}\n`;
+}
+
+function formatCaseLine(sample: TriageSample): string {
+  const id = (sample.id ?? "-").replace(/\s+/g, "_");
+  return [
+    `case id=${id}`,
+    `expected=${sample.expected}`,
+    `got=${sample.predicted}`,
+    `expected_calls=${formatCalls(sample.expectedNumbers)}`,
+    `got_calls=${formatCalls(sample.predictedNumbers)}`,
+  ].join(" ");
+}
+
+function formatCalls(numbers: readonly EmergencyNumber[]): string {
+  return numbers.length === 0 ? "none" : numbers.join(",");
 }
 
 function formatRate(value: number): string {
