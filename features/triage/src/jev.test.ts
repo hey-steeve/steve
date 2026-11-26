@@ -148,7 +148,7 @@ it("posts one System One request and classifies a valid emergency body", async (
   expect(isRecord(labelQuestion)).toBe(true);
   if (isRecord(labelQuestion) && isRecord(labelQuestion["criteria"])) {
     expect(labelQuestion["criteria"]["emergency"]).toBe(
-      "Needs emergency services now. Immediate danger to life, or an acute suicide crisis. Suicidal talk with intent or a plan is an emergency, even when the person defers action. Severe breathlessness is an emergency, even when chest pain and heart disease are denied.",
+      "Needs emergency services now. Immediate danger to life, or an acute suicide crisis. Suicidal talk with intent or a plan is an emergency, even when the person defers action. Active suicidal thoughts are an emergency, even without a plan and even when the person defers action. Severe breathlessness is an emergency, even when chest pain and heart disease are denied.",
     );
   }
   expectChoice(questions["channel"], channelNames);
