@@ -234,7 +234,8 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       ]);
       open(c, secret.value, deps.instructions(history));
     } catch {
-      end("failed");
+      // Only the call that began this attempt may be failed by it.
+      if (call === c && !c.ended) end("failed");
     }
   };
 

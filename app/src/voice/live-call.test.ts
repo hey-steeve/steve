@@ -37,7 +37,13 @@ function first<T>(items: readonly T[]): T {
 
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 
-function setup(opts: { manualToken?: boolean; manualAudio?: boolean } = {}) {
+function setup(
+  opts: {
+    manualToken?: boolean;
+    manualAudio?: boolean;
+    gateFirstOnly?: boolean;
+  } = {},
+) {
   let t = 1_000;
   const timers: { id: number; fn: () => void; at: number }[] = [];
   let nextId = 1;
@@ -48,6 +54,7 @@ function setup(opts: { manualToken?: boolean; manualAudio?: boolean } = {}) {
   const tokenGate = deferred<{ value: string }>();
   const audioGate = deferred<void>();
   let mints = 0;
+  let starts = 0;
   let signal: AbortSignal | undefined;
 
   class FakeSocket implements RealtimeSocket {
@@ -110,7 +117,8 @@ function setup(opts: { manualToken?: boolean; manualAudio?: boolean } = {}) {
     fetchToken: (s) => {
       mints++;
       signal = s;
-      return opts.manualToken
+      const gated = opts.manualToken && (!opts.gateFirstOnly || mints === 1);
+      return gated
         ? tokenGate.promise
         : Promise.resolve({ value: "token" });
     },
@@ -121,7 +129,10 @@ function setup(opts: { manualToken?: boolean; manualAudio?: boolean } = {}) {
       return socket;
     },
     startAudio: async (o) => {
-      if (opts.manualAudio) await audioGate.promise;
+      starts++;
+      if (opts.manualAudio && (!opts.gateFirstOnly || starts === 1)) {
+        await audioGate.promise;
+      }
       const a = new FakeAudio(o);
       audios.push(a);
       return a;
@@ -342,6 +353,30 @@ describe("live call", () => {
     expect(h.reason()).toBe("failed");
     expect(h.sockets.length).toBe(0);
     expect(first(h.audios).closed).toBe(1);
+  });
+
+  it("does not fail a replacement call when an earlier start rejects late", async () => {
+    const h = setup({
+      manualToken: true,
+      manualAudio: true,
+      gateFirstOnly: true,
+    });
+    const first1 = h.ctl.start([]);
+    h.ctl.end("hang-up");
+    await h.ctl.start([]);
+    first(h.sockets).options.onOpen?.();
+    expect(h.ctl.getSnapshot().phase).toBe("active");
+    h.tokenGate.reject(new Error("late"));
+    await first1;
+    h.audioGate.resolve();
+    await flush();
+    expect(h.ctl.getSnapshot().phase).toBe("active");
+    expect(h.reason()).toBeUndefined();
+    expect(h.audios.length).toBe(2);
+    // audios[0] is the replacement's; audios[1] is the first call's late audio.
+    expect(h.audios[0]?.closed).toBe(0);
+    expect(h.audios[1]?.closed).toBe(1);
+    expect(first(h.sockets).socket.closed).toBe(0);
   });
 
   it("ignores stale events after end and after a new start", async () => {
