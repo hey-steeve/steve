@@ -13,6 +13,14 @@ function kinds112(text: string): number {
   return detectEmergencyNumbers(text).spans.filter((span) => span.kind === "112").length;
 }
 
+function read112(text: string): string[] {
+  const { normalized, spans } = detectEmergencyNumbers(text);
+  return spans
+    .filter((span) => span.kind === "112")
+    .map((span) => normalized.slice(span.start, span.end))
+    .sort();
+}
+
 type Row = {
   readonly name: string;
   readonly reply: string;
@@ -52,7 +60,26 @@ const cuts: Row[] = [
   },
 ];
 
-const table = [...creates112, ...erases112, ...cuts];
+const probes: Row[] = [
+  {
+    name: "cut-with-trailing-sentence",
+    reply:
+      "Garde ton téléphone. Appelle le 15 maintenant\nsur le téléphone de ton voisin. Je reste avec toi.",
+    calls: ["15"],
+  },
+  {
+    name: "swap-112-equal-count",
+    reply: `${call15Now.split(". ")[0]}. Appelle le 1\n12. Je reste avec toi. Appelle le cent\nAppelle le 15 maintenant.\ndouze.`,
+    calls: ["15"],
+  },
+  {
+    name: "fullwidth-period",
+    reply: "Garde ton téléphone. Appelle le 15 maintenant．\nReste assis.",
+    calls: ["15"],
+  },
+];
+
+const table = [...probes, ...creates112, ...erases112, ...cuts];
 
 const openings: Row[] = [
   { name: "open-15", reply: `${call15Now} Respire doucement.`, calls: ["15"] },
@@ -118,5 +145,31 @@ it("reads the same 112 before and after, minus the prefixed blocks", () => {
     const opening = ensureEmergencyCalls("", row.calls);
     const body = out.startsWith(opening) ? out.slice(opening.length) : out;
     expect(kinds112(body), row.name).toBe(kinds112(row.reply));
+    expect(read112(body), row.name).toEqual(read112(row.reply));
   }
+});
+
+it("keeps both halves when the cut line is followed by another sentence", () => {
+  const out = ensureEmergencyCallsSafe(probes[0]?.reply ?? "", ["15"]);
+  const first = out.indexOf("Appelle le 15 maintenant");
+  const second = out.indexOf("sur le téléphone de ton voisin.");
+  expect(first).toBeGreaterThanOrEqual(0);
+  expect(second).toBeGreaterThan(first);
+  expect(out).not.toContain("téléphone.sur");
+});
+
+it("does not trade one 112 for another at equal count", () => {
+  const row = probes[1];
+  const out = ensureEmergencyCallsSafe(row?.reply ?? "", ["15"]);
+  const opening = ensureEmergencyCalls("", ["15"]);
+  expect(read112(out.startsWith(opening) ? out.slice(opening.length) : out)).toEqual(
+    read112(row?.reply ?? ""),
+  );
+});
+
+it("drops a finished fullwidth-period sentence instead of repeating it", () => {
+  const row = probes[2];
+  const out = ensureEmergencyCallsSafe(row?.reply ?? "", ["15"]);
+  expect(out).toBe(ensureEmergencyCalls(row?.reply ?? "", ["15"]));
+  expect(out.split("Appelle le 15 maintenant").length - 1).toBe(1);
 });
