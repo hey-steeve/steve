@@ -879,8 +879,8 @@ describe("inbound frame size cap", () => {
 });
 
 describe("forceMessage and updateInstructions", () => {
-  const parse = (s: FakeSocket, i: number) =>
-    JSON.parse(sentText(s, i)) as Record<string, unknown>;
+  const parse = (s: FakeSocket, i: number): unknown =>
+    JSON.parse(sentText(s, i));
 
   it("sends one uninterruptible force_message with a part per sentence", () => {
     const { handle, socket } = setup(json);
