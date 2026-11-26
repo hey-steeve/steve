@@ -38,6 +38,9 @@ importers:
       '@steve/triage':
         specifier: workspace:*
         version: link:../features/triage
+      '@steve/voice':
+        specifier: workspace:*
+        version: link:../features/voice
       next:
         specifier: ^16.4.6
         version: 16.4.6(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
