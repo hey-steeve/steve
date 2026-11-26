@@ -109,6 +109,9 @@ type Call = {
   readonly forced: Set<string>;
   // Responses cut by an emergency. Their late audio is never played.
   readonly cancelled: Set<string>;
+  // Every response id seen so far. The forced response is one never seen
+  // before the forceMessage that produced it.
+  readonly seen: Set<string>;
   // Guidance on the session: tied to the patient item whose response it covers.
   guide: { readonly itemId: string } | undefined;
   // Patient item -> its answering response. done: that response has ended.
@@ -412,7 +415,8 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           if (
             event.type === "response.created" &&
             forcing.responseId === undefined &&
-            !c.cancelled.has(event.responseId)
+            !c.cancelled.has(event.responseId) &&
+            !c.seen.has(event.responseId)
           ) {
             forcing.responseId = event.responseId;
           }
@@ -421,6 +425,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
             settle(c);
           }
         }
+        if (event.type === "response.created") c.seen.add(event.responseId);
         if (
           event.type === "response.created" &&
           c.awaiting !== undefined &&
@@ -536,6 +541,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       decided: new Map(),
       forced: new Set(),
       cancelled: new Set(),
+      seen: new Set(),
       guide: undefined,
       answers: new Map(),
       answerOf: new Map(),

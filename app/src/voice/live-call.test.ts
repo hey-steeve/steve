@@ -943,6 +943,38 @@ describe("live call triage enforcement", () => {
     expect(socket.cancels).toBe(0);
   });
 
+  it("does not let an ordinary response claim the forced slot", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    // r0 already ended; r1 is still in flight when the emergency lands.
+    options.onEvent({ type: "response.created", responseId: "r0" });
+    options.onEvent({ type: "response.done", responseId: "r0" });
+    say(h, "t1", "douleur poitrine");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(socket.forced).toHaveLength(1);
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    // Late events of ordinary responses must not settle or stall the queue.
+    options.onEvent({ type: "response.created", responseId: "r0" });
+    options.onEvent({ type: "response.done", responseId: "r0" });
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.cancelled", responseId: "r1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    expect(socket.forced).toHaveLength(1);
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+  });
+
   it("does not flush, cancel or truncate a forced emergency on speech_started", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });
