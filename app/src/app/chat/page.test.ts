@@ -8,6 +8,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { chatRequestLimits } from "../../chat/request.js";
+import * as liveCall from "../../voice/live-call.js";
+import { createBrowserCallDeps } from "../../voice/mock-call.js";
+import type { RealtimeSocketOptions } from "../../voice/realtime-socket.js";
+import { call15Now, call3114Now } from "../api/chat/emergency-templates.js";
 import RootLayout from "../layout.js";
 import ChatPage from "./chat-page.js";
 
@@ -201,6 +205,201 @@ it("paints the current call card and composer on the home screen", async () => {
     document.documentElement.removeAttribute("style");
   }
 });
+
+it("starts one live call from the home CTA and shows its connection status", async () => {
+  const call = await mountCall();
+  expect(call.container.querySelector(".chat-thread-call")).toBeNull();
+  await clickCallControl(call.container, ".chat-call-cta");
+  expect(call.start).toHaveBeenCalledExactlyOnceWith([]);
+  expect(call.container.querySelector(".chat-call-bar [role='status']")?.textContent)
+    .toBe("Connexion…");
+  expect(call.container.querySelectorAll(".chat-thread li")).toHaveLength(0);
+  expect(call.container.querySelector(".chat-call-bar img")?.getAttribute("src"))
+    .toBe("/demo/steve-call-avatar.webp");
+  expect(call.container.querySelector<HTMLButtonElement>(".chat-call-control")?.disabled)
+    .toBe(true);
+  await call.connect();
+  expect(call.container.querySelector(".chat-call-wave")?.getAttribute("data-activity"))
+    .toBe("listening");
+  await call.emit({ type: "response.created", responseId: "reply" });
+  expect(call.container.querySelector(".chat-call-wave")?.getAttribute("data-activity"))
+    .toBe("speaking");
+  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Steve parle");
+});
+
+it("starts one live call from the thread header with the current text history", async () => {
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () =>
+    Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+  ));
+  const call = await mountCall();
+  await openConversation(call);
+  await clickCallControl(call.container, ".chat-thread-call");
+  expect(call.start).toHaveBeenCalledExactlyOnceWith([
+    { role: "user", content: "Bonjour" },
+    { role: "assistant", content: "D'accord." },
+  ]);
+  expect(call.container.querySelector(".chat-thread-call")).toBeNull();
+});
+
+it("does not start a live call while leaving the thread", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () =>
+    Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+  ));
+  const call = await mountCall();
+  const back = await openConversation(call);
+  await act(async () => back.click());
+  await clickCallControl(call.container, ".chat-thread-call");
+  expect(call.start).not.toHaveBeenCalled();
+});
+
+it("mutes and unmutes the live call and removes the bar on hang-up", async () => {
+  const call = await mountCall();
+  await clickCallControl(call.container, ".chat-call-cta");
+  await call.connect();
+  const mute = await clickCallControl(call.container, '[aria-label="Couper le micro"]');
+  expect(mute.getAttribute("aria-pressed")).toBe("true");
+  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Micro coupé");
+  await clickCallControl(call.container, '[aria-label="Couper le micro"]');
+  expect(call.setMuted.mock.calls).toEqual([[true], [false]]);
+  expect(mute.getAttribute("aria-pressed")).toBe("false");
+  await clickCallControl(call.container, ".chat-call-end");
+  expect(call.end).toHaveBeenCalledExactlyOnceWith("hang-up");
+  expect(call.container.querySelector(".chat-call-bar")).toBeNull();
+  expect(call.container.querySelector(".chat-call-cta")).not.toBeNull();
+});
+
+it("replaces live transcripts in place and keeps emergency sentences and actions visible", async () => {
+  const call = await mountCall(async () => ({
+    label: "emergency",
+    calls: [{ type: "call", number: "3114" }, { type: "call", number: "15" }],
+  }));
+  await clickCallControl(call.container, ".chat-call-cta");
+  await call.connect();
+  await call.emit({ type: "input.transcription_updated", itemId: "turn", text: "Brouillon" });
+  expect(call.container.querySelector(".chat-user")?.textContent).toBe("Brouillon");
+  const toggle = await clickCallControl(call.container, '[aria-label="Afficher la transcription"]');
+  expect(toggle.getAttribute("aria-pressed")).toBe("false");
+  expect(call.container.querySelector(".chat-user")).toBeNull();
+
+  await call.emit({ type: "input.transcription_completed", itemId: "turn", text: "Phrase finale" });
+  expect(call.container.querySelector(".chat-user")).toBeNull();
+  expect([...call.container.querySelectorAll(".chat-agent-text p")].map((p) => p.textContent))
+    .toEqual([call3114Now, call15Now]);
+  expect([...call.container.querySelectorAll(".chat-emergency-calls a")].map((link) =>
+    [link.textContent, link.getAttribute("href")],
+  )).toEqual([["Appeler le 3114", "tel:3114"], ["Appeler le 15", "tel:15"]]);
+
+  await clickCallControl(call.container, '[aria-label="Afficher la transcription"]');
+  expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  expect([...call.container.querySelectorAll(".chat-user")].map((p) => p.textContent))
+    .toEqual(["Phrase finale"]);
+  expect(call.container.querySelector(".chat-row-user + .chat-row-agent")).not.toBeNull();
+  await call.emit({ type: "input.transcription_updated", itemId: "silence", text: "Début" });
+  await call.emit({ type: "input.transcription_completed", itemId: "silence", text: "" });
+  expect(call.container.querySelectorAll(".chat-user")).toHaveLength(1);
+  await call.emit({ type: "input.transcription_updated", itemId: "draft", text: "Inachevé" });
+  expect(call.container.querySelectorAll(".chat-user")).toHaveLength(2);
+  await clickCallControl(call.container, '[aria-label="Afficher la transcription"]');
+  await clickCallControl(call.container, ".chat-call-end");
+  expect([...call.container.querySelectorAll(".chat-user")].map((p) => p.textContent))
+    .toEqual(["Phrase finale"]);
+  expect(call.container.querySelectorAll(".chat-emergency-calls a")).toHaveLength(2);
+  await clickCallControl(call.container, ".chat-thread-call");
+  expect(call.start).toHaveBeenLastCalledWith([
+    { role: "user", content: "Phrase finale" },
+    { role: "assistant", content: `${call3114Now} ${call15Now}` },
+  ]);
+  await clickCallControl(call.container, '[aria-label="Afficher la transcription"]');
+  expect([...call.container.querySelectorAll(".chat-user")].map((p) => p.textContent))
+    .toEqual(["Phrase finale"]);
+});
+
+it("shows offered phone actions without forcing speech", async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+    Response.json({ reply: "D'accord.", mocked: true, model: "mock" }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  const call = await mountCall(async () => ({
+    label: "self-care",
+    calls: [{ type: "call", number: "3114" }],
+  }));
+  await clickCallControl(call.container, ".chat-call-cta");
+  await call.connect();
+  await call.emit({ type: "input.transcription_completed", itemId: "turn", text: "Je cherche à qui parler" });
+  expect(call.container.querySelector('.chat-emergency-calls a[href="tel:3114"]')?.textContent)
+    .toBe("Appeler le 3114");
+  expect(call.container.querySelector(".chat-agent-text")).toBeNull();
+  expect(call.forceMessage).not.toHaveBeenCalled();
+  await clickCallControl(call.container, ".chat-call-end");
+  await openConversation(call);
+  const requestBody: unknown = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+  expect(requestBody).toEqual({ messages: [{ role: "user", content: "Bonjour" }] });
+});
+
+async function mountCall(triage?: liveCall.CallDeps["triage"]) {
+  const createLiveCall = liveCall.createLiveCall;
+  const start = vi.fn<liveCall.LiveCallController["start"]>();
+  const setMuted = vi.fn<liveCall.LiveCallController["setMuted"]>();
+  const end = vi.fn<liveCall.LiveCallController["end"]>();
+  vi.spyOn(liveCall, "createLiveCall").mockImplementation((deps) => {
+    const controller = createLiveCall(deps);
+    return {
+      ...controller,
+      start: start.mockImplementation(controller.start),
+      setMuted: setMuted.mockImplementation(controller.setMuted),
+      end: end.mockImplementation(controller.end),
+    };
+  });
+  let socket: RealtimeSocketOptions | undefined;
+  const forceMessage = vi.fn();
+  const callDeps = createBrowserCallDeps({
+    fetchToken: async () => ({ value: "test" }),
+    startAudio: async () => ({
+      generation: 0,
+      enqueue() {},
+      setMuted() {},
+      close() {},
+      playedMs: () => 0,
+      discardResponse() {},
+      flush: () => ({ generation: 0, responseId: undefined, itemId: undefined, playedMs: 0 }),
+    }),
+    connect: (options) => {
+      socket = options;
+      return {
+        mock: false,
+        sendAudio() {},
+        close() {},
+        truncate() {},
+        cancelResponse() {},
+        updateInstructions() {},
+        forceMessage,
+      };
+    },
+    now: () => 0,
+    setTimeout: () => 0,
+    clearTimeout() {},
+    triage: triage ?? (async () => null),
+  });
+  const view = await mount(createElement(ChatPage, { callDeps }));
+  function currentSocket() {
+    if (socket === undefined) throw new Error("missing live socket");
+    return socket;
+  }
+  return {
+    ...view, start, setMuted, end, forceMessage,
+    connect: () => act(async () => currentSocket().onOpen?.()),
+    emit: (event: Parameters<RealtimeSocketOptions["onEvent"]>[0]) =>
+      act(async () => currentSocket().onEvent(event)),
+  };
+}
+
+async function clickCallControl(container: ParentNode, selector: string) {
+  const button = container.querySelector(selector);
+  if (!(button instanceof HTMLButtonElement)) throw new Error(`missing call control ${selector}`);
+  await act(async () => button.click());
+  return button;
+}
 
 it("fills each message avatar with its photo and drops the white frame", async () => {
   const style = document.createElement("style");

@@ -253,7 +253,7 @@
 .chat-call-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--safe-gap);
   flex: none;
   min-height: 68px;
   padding: 8px var(--page-pad);
@@ -263,15 +263,12 @@
   animation: chat-enter-fade var(--motion-scene) var(--motion-ease) both;
 }
 
-.chat-call-bar-icon {
-  display: grid;
+.chat-call-bar-avatar {
   flex: none;
-  place-items: center;
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--color-indigo-50);
-  color: var(--color-primary);
+  object-fit: cover;
 }
 
 .chat-call-bar-title {
@@ -285,21 +282,73 @@
   font-size: 11px;
 }
 
+.chat-call-controls {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.chat-thread-call,
+.chat-call-control,
 .chat-call-end {
   display: grid;
   flex: none;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-left: auto;
+  width: var(--hit-min);
+  height: var(--hit-min);
   padding: 0;
+  border: 0;
   border-radius: 50%;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.chat-thread-call,
+.chat-call-control[aria-pressed="true"] {
+  background: var(--color-indigo-50);
+}
+
+.chat-call-control:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.chat-call-end {
   background: var(--color-danger);
   color: var(--color-canvas);
 }
 
 .chat-call-end svg {
   transform: rotate(135deg);
+}
+
+.chat-call-wave {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  color: var(--color-primary);
+}
+
+.chat-call-wave span {
+  width: 2px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.chat-call-wave span:nth-child(2) {
+  height: 10px;
+}
+
+.chat-call-wave[data-activity="speaking"] span {
+  height: 10px;
+}
+
+.chat-call-wave[data-activity="speaking"] span:nth-child(2) {
+  height: 16px;
 }
 
 .chat-back {
@@ -932,6 +981,9 @@
 }
 
 .chat-emergency-calls a:focus-visible,
+.chat-thread-call:focus-visible,
+.chat-call-control:focus-visible,
+.chat-call-end:focus-visible,
 .chat-action:focus-visible,
 .chat-profile:focus-visible,
 .chat-back:focus-visible,
