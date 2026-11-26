@@ -119,14 +119,13 @@ it.each(jevOrders)("keeps emergency calls in Jev order %j", async ({ calls }) =>
 });
 
 function streamPost(source: UnderlyingDefaultSource<Uint8Array>): Promise<Response> {
-  return POST(
-    new Request("http://localhost/api/voice/triage", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: new ReadableStream(source),
-      duplex: "half",
-    } as RequestInit),
-  );
+  const init: RequestInit = {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: new ReadableStream(source),
+  };
+  Object.assign(init, { duplex: "half" });
+  return POST(new Request("http://localhost/api/voice/triage", init));
 }
 
 it("returns 400 without calling Jev when the body read rejects", async () => {

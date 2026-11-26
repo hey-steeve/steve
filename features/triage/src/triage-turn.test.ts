@@ -562,7 +562,10 @@ it("types the shared handoff, the decision, and guidance placed after the system
 async function stateFor(lengths: readonly number[]): Promise<{ state: string; texts: string[] }> {
   const texts = lengths.map((length, index) => String.fromCharCode(97 + index).repeat(length));
   const turns = texts.map((text, index) => demoTurn(text, `turn-b-${index}`));
-  const current = turns.at(-1) as Turn;
+  const current = turns[turns.length - 1];
+  if (current === undefined) {
+    return { state: "", texts };
+  }
   const handoff: Handoff<readonly Turn[]> = {
     sessionId: current.sessionId,
     turnId: current.turnId,
@@ -584,14 +587,24 @@ async function stateFor(lengths: readonly number[]): Promise<{ state: string; te
 it("caps six 2000-character turns at 8000 characters, current turn whole", async () => {
   const { state, texts } = await stateFor([2000, 2000, 2000, 2000, 2000, 2000]);
   expect(state.length).toBeLessThanOrEqual(8000);
-  expect(state.endsWith(texts[5] as string)).toBe(true);
+  const currentText = texts[5];
+  expect(currentText).toBeDefined();
+  if (currentText === undefined) {
+    return;
+  }
+  expect(state.endsWith(currentText)).toBe(true);
   expect(state).toBe(texts.slice(3).join("\n"));
 });
 
 it("does not yield 8001 characters for turn lengths [3999, 1, 3999]", async () => {
   const { state, texts } = await stateFor([3999, 1, 3999]);
   expect(state.length).toBeLessThanOrEqual(8000);
-  expect(state.endsWith(texts[2] as string)).toBe(true);
+  const currentText = texts[2];
+  expect(currentText).toBeDefined();
+  if (currentText === undefined) {
+    return;
+  }
+  expect(state.endsWith(currentText)).toBe(true);
 });
 
 it("keeps a short current turn and the newest history that fits", async () => {
