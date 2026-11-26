@@ -643,6 +643,15 @@ describe("live call", () => {
       expect(h.sockets).toHaveLength(1);
     });
 
+    it("mute while still connecting", async () => {
+      const h = setup();
+      await h.ctl.start([]);
+      expect(h.ctl.getSnapshot().phase).toBe("connecting");
+      h.skip(callCapMs);
+      h.ctl.setMuted(true);
+      capped(h);
+    });
+
     it("audio resolves late while the mint is pending", async () => {
       const h = setup({ manualToken: true, manualAudio: true });
       const started = h.ctl.start([]);

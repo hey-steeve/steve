@@ -278,8 +278,8 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
   return {
     start,
     setMuted: (muted) => {
-      if (state.phase !== "active") return;
       if (call && !live(call)) return;
+      if (state.phase !== "active") return;
       call?.audio?.setMuted(muted);
       dispatch({ type: "setMuted", muted });
     },
