@@ -72,7 +72,10 @@ function setup(opts: { manualToken?: boolean; manualAudio?: boolean } = {}) {
     setMuted(m: boolean) {
       this.muted = m;
     }
-    enqueue() {}
+    enqueued = 0;
+    enqueue() {
+      this.enqueued++;
+    }
     discardResponse() {}
     playedMs() {
       return 420;
@@ -183,6 +186,31 @@ describe("live call", () => {
     expect(h.reason()).toBe("hang-up");
   });
 
+  it("opens no socket when hang-up lands after audio is ready but before the token", async () => {
+    const h = setup({ manualToken: true });
+    const started = h.ctl.start([]);
+    await flush();
+    expect(h.audios.length).toBe(1);
+    h.ctl.end("hang-up");
+    h.tokenGate.resolve({ value: "token" });
+    await started;
+    await flush();
+    expect(h.sockets.length).toBe(0);
+    expect(first(h.audios).closed).toBe(1);
+    expect(h.reason()).toBe("hang-up");
+  });
+
+  it("sends no mic audio while the call is still connecting", async () => {
+    const h = setup();
+    await h.ctl.start([]);
+    expect(h.ctl.getSnapshot().phase).toBe("connecting");
+    first(h.audios).options.onMicChunk(new Uint8Array(2));
+    expect(first(h.sockets).socket.sentAudio).toBe(0);
+    first(h.sockets).options.onOpen?.();
+    first(h.audios).options.onMicChunk(new Uint8Array(2));
+    expect(first(h.sockets).socket.sentAudio).toBe(1);
+  });
+
   it("hang-up closes socket and audio and is idempotent", async () => {
     const h = setup();
     await active(h);
@@ -263,9 +291,12 @@ describe("live call", () => {
     old.options.onOpen?.();
     old.options.onClose?.();
     old.options.onEvent({ type: "error", message: "x" });
+    old.options.onAudio?.({ bytes: new Uint8Array(2), responseId: "r1", itemId: "i1" });
     oldAudio.options.onMicChunk(new Uint8Array(2));
     expect(h.ctl.getSnapshot().phase).toBe("connecting");
     expect(old.socket.sentAudio).toBe(0);
+    expect(old.socket.closed).toBe(1);
+    expect(oldAudio.enqueued).toBe(0);
     h.advance(callCapMs);
     expect(h.reason()).toBe("cap");
   });
