@@ -1021,6 +1021,42 @@ describe("live call triage enforcement", () => {
     expect(socket.instructions.length).toBe(4);
   });
 
+  it("drops consult guidance that lands after its response finished", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "x");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    g.requests[0]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([]);
+    say(h, "t2", "y");
+    options.onEvent({ type: "response.created", responseId: "r2" });
+    expect(socket.instructions).toEqual([]);
+  });
+
+  it("ignores a stale response.done for another item and restores on speech", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "x");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    say(h, "t2", "y");
+    options.onEvent({ type: "response.created", responseId: "r2" });
+    g.requests[1]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([`base\n\n${consultGuidance.text}`]);
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    expect(socket.instructions.length).toBe(1);
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.instructions[1]).toBe("base");
+    options.onEvent({ type: "response.done", responseId: "r2" });
+    expect(socket.instructions.length).toBe(2);
+  });
+
   it("emits a non-forcing offer for non-emergency calls", async () => {
     const g = gated();
     const h = setup({ triage: g.triage });

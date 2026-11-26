@@ -109,7 +109,13 @@ type Call = {
   readonly forced: Set<string>;
   // Responses cut by an emergency. Their late audio is never played.
   readonly cancelled: Set<string>;
-  guided: boolean;
+  // Guidance on the session: tied to the patient item whose response it covers.
+  guide: { readonly itemId: string } | undefined;
+  // Patient item -> its answering response. done: that response has ended.
+  readonly answers: Map<string, { responseId: string | undefined; done: boolean }>;
+  readonly answerOf: Map<string, string>;
+  // The patient item still waiting for its response to start.
+  awaiting: string | undefined;
   // The forced emergency message in flight: uninterruptible until it drains.
   forcing: { responseId: string | undefined; started: boolean; generation: number } | undefined;
   // Later emergencies wait here, in order, for that playback to drain.
@@ -192,8 +198,8 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
   };
 
   const restore = (c: Call): void => {
-    if (!c.guided) return;
-    c.guided = false;
+    if (!c.guide) return;
+    c.guide = undefined;
     quiet(() => c.socket?.updateInstructions(c.base));
   };
 
@@ -251,7 +257,11 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           ? (d.guidance?.text ?? needInfoGuidance.text)
           : undefined;
     if (text === undefined || !live(c)) return;
-    c.guided = true;
+    // Triage is async: if the response for this item already ended (or the
+    // patient moved on), the guidance would land on the next turn. Drop it.
+    const answer = c.answers.get(itemId);
+    if (!answer || answer.done) return;
+    c.guide = { itemId };
     quiet(() => c.socket?.updateInstructions(`${c.base}\n\n${text}`));
   };
 
@@ -322,7 +332,16 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         const before = state;
         dispatch({ type: "server", event });
         // Guidance covers one response: it ends with that response or the next turn.
-        if (event.type === "response.done" || event.type === "input.speech_started") restore(c);
+        if (event.type === "input.speech_started") restore(c);
+        if (event.type === "response.done") {
+          // Only the guided item's own response ends its guidance.
+          const item = c.answerOf.get(event.responseId);
+          if (item !== undefined) {
+            const answer = c.answers.get(item);
+            if (answer) answer.done = true;
+            if (c.guide?.itemId === item) restore(c);
+          }
+        }
         const forcing = c.forcing;
         if (forcing) {
           if (event.type === "response.created" && forcing.responseId === undefined) {
@@ -345,7 +364,28 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
             release(c);
           }
         }
+        if (
+          event.type === "response.created" &&
+          c.awaiting !== undefined &&
+          c.forcing?.responseId !== event.responseId &&
+          !c.answerOf.has(event.responseId)
+        ) {
+          const answer = c.answers.get(c.awaiting);
+          if (answer) answer.responseId = event.responseId;
+          c.answerOf.set(event.responseId, c.awaiting);
+          c.awaiting = undefined;
+        }
         if (event.type === "input.transcription_completed" && event.itemId) {
+          // A patient item that never got a response is superseded by this one.
+          if (c.awaiting !== undefined && c.awaiting !== event.itemId) {
+            const old = c.answers.get(c.awaiting);
+            if (old) old.done = true;
+            if (c.guide?.itemId === c.awaiting) restore(c);
+          }
+          if (!c.answers.has(event.itemId)) {
+            c.answers.set(event.itemId, { responseId: undefined, done: false });
+            c.awaiting = event.itemId;
+          }
           triage(c, audio, event.itemId, event.text);
         }
         if (
@@ -440,7 +480,10 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       decided: new Map(),
       forced: new Set(),
       cancelled: new Set(),
-      guided: false,
+      guide: undefined,
+      answers: new Map(),
+      answerOf: new Map(),
+      awaiting: undefined,
       forcing: undefined,
       queued: [],
     };
