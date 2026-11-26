@@ -71,15 +71,15 @@ The patient-facing sentences live in `app/src/app/api/chat/emergency-templates.t
 - `refusalMedication` is `Je ne peux pas te conseiller de médicament.` (`emergency-templates.ts:13`).
 - `redirectMedication` is `Demande conseil à un pharmacien ou à un médecin.` (`emergency-templates.ts:14`).
 
-The live reply uses the Jev call list, then `ensureEmergencyCalls`.
+The live reply uses the Jev call list, then `ensureEmergencyCallsSafe`, which wraps `ensureEmergencyCalls`.
 
 `triageTurn` returns `{ label: "emergency", calls: result.calls }` when the label is emergency (`features/triage/src/triage-turn.ts:97`).
 
-When `triage.calls` is present, the route passes the model reply through `ensureEmergencyCalls` (`app/src/app/api/chat/route.ts:191-198`). The numbers are `calls.map((call) => call.number)`.
+When `triage.calls` is present, the route passes the model reply through `ensureEmergencyCallsSafe` (`app/src/app/api/chat/route.ts:196`, defined in `app/src/app/api/chat/safe-emergency-calls.ts`), which calls `ensureEmergencyCalls`. The numbers are `calls.map((call) => call.number)`.
 
 `ensureEmergencyCalls` reads that list (`app/src/app/api/chat/emergency-templates.ts:339`). It acts when the list includes 15, or when the list is only 3114 (`is3114Only`, `emergency-templates.ts:386`). A list that is only 15 takes `keepsModel3114` (`emergency-templates.ts:390`) and keeps the model's 3114 blocks. Any other acting list goes through `templatesFor` (`emergency-templates.ts:360`), which builds the opening sentences. `[3114]` alone gets `call3114Now`. For `[3114, 15]` the sentences are `call3114Now`, then `call15Now`. If the reply, after `normalizeEmergencyText`, does not already start with those blocks, the function prefixes them. `startsWithBlocks` (`emergency-templates.ts:374`) makes that check, block by block. `dropLoneBlockSentences` removes a lone block sentence when prefixing.
 
-On model failure, a list that includes 15 uses `ensureEmergencyCalls("", numbers)` (`app/src/app/api/chat/route.ts:218-219`).
+On model failure, a list that includes 15 uses `ensureEmergencyCalls("", numbers)` (`app/src/app/api/chat/route.ts:220`).
 
 When Jev returns both numbers, both sentences are shown live. The order follows the call list.
 
