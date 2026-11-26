@@ -13,6 +13,7 @@ import {
   SUBPROTOCOL_PREFIX,
   connectRealtime,
   fromBase64,
+  maxInboundFrameBytes,
   toBase64,
   type InboundAudio,
   type SocketHandlers,
@@ -739,5 +740,42 @@ describe("inbound token scrub", () => {
     r.socket().open();
     r.socket().receive(errorWire("rate limited"));
     expect(r.events).toEqual([{ type: "error", message: "rate limited" }]);
+  });
+});
+
+describe("inbound frame size cap", () => {
+  it("drops a JSON text frame one unit over the cap and still handles the next", () => {
+    const { socket, events, audio } = setup(json);
+    socket().open();
+    const head = '{"type":"response.created","response":{"id":"';
+    const make = (len: number) =>
+      head + "a".repeat(len - head.length - 3) + '"}}';
+    const atCap = make(maxInboundFrameBytes);
+    const over = make(maxInboundFrameBytes + 1);
+    expect(atCap.length === maxInboundFrameBytes).toBe(true);
+    expect(over.length === maxInboundFrameBytes + 1).toBe(true);
+    socket().receive(over);
+    expect(events.length === 0 && audio.length === 0).toBe(true);
+    socket().receive(atCap);
+    expect(events.length === 1).toBe(true);
+    socket().receive(
+      JSON.stringify({ type: "response.created", response: { id: "r2" } }),
+    );
+    expect(events.length === 2).toBe(true);
+  });
+
+  it("drops a binary frame one byte over the cap and still handles the next", () => {
+    const { socket, events, audio } = setup(binary);
+    socket().open();
+    socket().receive(new Uint8Array(maxInboundFrameBytes + 1).buffer);
+    expect(events.length === 0 && audio.length === 0).toBe(true);
+    socket().receive(new Uint8Array(maxInboundFrameBytes).buffer);
+    expect(audio.length === 1).toBe(true);
+    socket().receive(new Uint8Array([1, 2, 3, 4]).buffer);
+    expect(audio.length === 2).toBe(true);
+    socket().receive(
+      JSON.stringify({ type: "response.created", response: { id: "r1" } }),
+    );
+    expect(events.length === 1).toBe(true);
   });
 });

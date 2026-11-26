@@ -10,6 +10,10 @@ import { mockSecretValue } from "./mock-session";
 export const REALTIME_URL = `wss://api.x.ai/v1/realtime?model=${VOICE_MODEL}`;
 export const SUBPROTOCOL_PREFIX = "xai-client-secret.";
 const OPEN = 1;
+// Inbound cap: 256 KiB. Far above a session event or an audio frame. JSON text
+// frames are measured in JS string length (UTF-16 code units), binary frames
+// in byteLength. Larger frames are dropped before parse or codec checks.
+export const maxInboundFrameBytes = 256 * 1024;
 // RFC 6455 subprotocols are RFC 7230 tokens. Chromium echoes a rejected one in its exception.
 const SUBPROTOCOL_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
@@ -151,6 +155,7 @@ export function connectRealtime(
   const sendJson = (message: object): void => send(JSON.stringify(message));
 
   const handleText = (text: string): void => {
+    if (text.length > maxInboundFrameBytes) return;
     let event: ServerEvent | undefined;
     try {
       event = parseServerEvent(JSON.parse(text));
@@ -200,6 +205,7 @@ export function connectRealtime(
           if (closed) return;
           if (typeof data === "string") handleText(data);
           else if (binary && data instanceof ArrayBuffer) {
+            if (data.byteLength > maxInboundFrameBytes) return;
             const bytes = new Uint8Array(data);
             if (!isValidAudio(bytes, options.tuning.codec)) return;
             options.onAudio({
