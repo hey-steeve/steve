@@ -154,3 +154,93 @@ it("omits older turns from the head of the handoff when the state exceeds 8000 c
   ] });
   expect(tight.data.length).toBe(2);
 });
+
+it("keeps a recorded emergency turn the 8000-character cap would drop", async () => {
+  const mk = (id: string, letter: string): VoiceTurn => ({
+    sessionId: "s",
+    turnId: id,
+    channel: "voice",
+    text: letter.repeat(2000),
+  });
+  const previous = [mk("t0", "a"), mk("t1", "b"), mk("t2", "c"), mk("t3", "d"), mk("t4", "e"), mk("t5", "f")];
+  const current = mk("t6", "g");
+  const result = await readVoiceTriageRequest(
+    req(JSON.stringify({ current, previous, decisions: [{ turnId: "t0", label: "emergency" }, { turnId: "t1", label: "consult" }] })),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) {
+    return;
+  }
+  const ids = result.handoff.data.map((turn) => turn.turnId);
+  expect(ids).toEqual(["t0", "t5", "t6"]);
+  expect(result.handoff.data.at(-1)).toEqual(current);
+  expect(result.handoff.data.slice(-6).map((turn) => turn.turnId)).toContain("t0");
+});
+
+it("fits six recorded emergencies plus current into 6 turns and 8000 characters", () => {
+  const mk = (id: string, text = "x".repeat(2000)): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text });
+  const previous = ["e0", "e1", "e2", "e3", "e4", "e5"].map((id) => mk(id));
+  const current = mk("c", "y".repeat(2000));
+  const handoff = buildHandoff({
+    current,
+    previous,
+    decisions: previous.map((t) => ({ turnId: t.turnId, label: "emergency" })),
+  });
+  const last6 = handoff.data.slice(-6);
+  expect(handoff.data.length).toBeLessThanOrEqual(6);
+  expect(last6.map((t) => t.text).join("\n").length).toBeLessThanOrEqual(voiceTriageLimits.maxStateChars);
+  const ids = handoff.data.map((t) => t.turnId);
+  expect(ids).toContain("e0");
+  expect(ids).toContain("e5");
+  expect(handoff.data.at(-1)).toEqual(current);
+});
+
+it("compacts a long recorded emergency to keep it with a whole current turn", () => {
+  const mk = (id: string, text: string): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text });
+  const previous = [mk("e0", "a".repeat(2000)), mk("n1", "b".repeat(2000)), mk("n2", "c".repeat(2000)), mk("n3", "d".repeat(2000))];
+  const current = mk("c", "y".repeat(2000));
+  const handoff = buildHandoff({ current, previous, decisions: [{ turnId: "e0", label: "emergency" }] });
+  const ids = handoff.data.map((t) => t.turnId);
+  expect(ids).toEqual(["e0", "n3", "c"]);
+  expect(handoff.data.at(-1)).toEqual(current);
+  expect(handoff.data.map((t) => t.text).join("\n").length).toBeLessThanOrEqual(8000);
+});
+
+it("keeps five recorded emergencies instead of reserving a slot for an ordinary predecessor", () => {
+  const mk = (id: string, text = "x".repeat(2000)): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text });
+  const emergencies = ["e0", "e1", "e2", "e3", "e4"].map((id) => mk(id));
+  const current = mk("c", "y".repeat(2000));
+  const handoff = buildHandoff({
+    current,
+    previous: [...emergencies, mk("n")],
+    decisions: emergencies.map((t) => ({ turnId: t.turnId, label: "emergency" })),
+  });
+  const ids = handoff.data.map((t) => t.turnId);
+  expect(ids).toEqual(["e0", "e1", "e2", "e3", "e4", "c"]);
+  expect(handoff.data.length).toBeLessThanOrEqual(6);
+  expect(handoff.data.map((t) => t.text).join("\n").length).toBeLessThanOrEqual(voiceTriageLimits.maxStateChars);
+  expect(handoff.data.at(-1)).toEqual(current);
+});
+
+it("does not protect turns without a recorded label", () => {
+  const mk = (id: string): VoiceTurn => ({ sessionId: "s", turnId: id, channel: "voice", text: "urgence ".repeat(250) });
+  const handoff = buildHandoff({ current: mk("c"), previous: ["a", "b", "c0", "d"].map(mk) });
+  expect(handoff.data.map((t) => t.turnId)).toEqual(["c0", "d", "c"]);
+  expect(handoff.data.map((t) => t.turnId)).not.toContain("a");
+});
+
+it("parses a body with or without decisions and rejects bad decisions", async () => {
+  expect(await status({ current: cur, previous: prev })).toBe("ok");
+  expect(await status({ current: cur, previous: prev, decisions: [{ turnId: "t0", label: "emergency" }] })).toBe("ok");
+  const bad: unknown[] = [
+    "no",
+    [{ turnId: "t0", label: "urgent" }],
+    [{ turnId: "", label: "emergency" }],
+    [{ turnId: "t0" }],
+    [{ turnId: "t0", label: "emergency", extra: 1 }],
+    Array.from({ length: voiceTriageLimits.maxPrevious + 1 }, () => ({ turnId: "t0", label: "consult" })),
+  ];
+  for (const decisions of bad) {
+    expect(await status({ current: cur, previous: prev, decisions })).toBe(400);
+  }
+});

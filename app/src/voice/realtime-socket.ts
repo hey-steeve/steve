@@ -60,6 +60,9 @@ export type RealtimeSocket = {
   sendAudio(bytes: Uint8Array): void;
   cancelResponse(): void;
   truncate(itemId: string, playedMs: number): void;
+  // Speaks the exact sentences, uninterruptible. Sends no response.create.
+  forceMessage(sentences: readonly string[]): void;
+  updateInstructions(instructions: string): void;
   close(): void;
 };
 
@@ -166,6 +169,8 @@ const inertSocket: RealtimeSocket = {
   sendAudio: noop,
   cancelResponse: noop,
   truncate: noop,
+  forceMessage: noop,
+  updateInstructions: noop,
   close: noop,
 };
 
@@ -293,6 +298,20 @@ export function connectRealtime(
         content_index: 0,
         audio_end_ms: Math.max(0, Math.round(playedMs)),
       }),
+    forceMessage: (sentences) => {
+      if (sentences.length === 0) return;
+      sendJson({
+        type: "conversation.item.create",
+        item: {
+          type: "force_message",
+          role: "assistant",
+          interruptible: false,
+          content: sentences.map((text) => ({ type: "output_text", text })),
+        },
+      });
+    },
+    updateInstructions: (instructions) =>
+      sendJson({ type: "session.update", session: { instructions } }),
     close() {
       if (closed) return;
       closed = true;

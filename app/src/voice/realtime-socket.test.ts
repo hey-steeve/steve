@@ -877,3 +877,89 @@ describe("inbound frame size cap", () => {
     expect(events.length === 1).toBe(true);
   });
 });
+
+describe("forceMessage and updateInstructions", () => {
+  const parse = (s: FakeSocket, i: number): unknown =>
+    JSON.parse(sentText(s, i));
+
+  it("sends one uninterruptible force_message with a part per sentence", () => {
+    const { handle, socket } = setup(json);
+    socket().open();
+    const before = socket().sent.length;
+    handle.forceMessage(["Un.", "Deux."]);
+    expect(socket().sent).toHaveLength(before + 1);
+    expect(parse(socket(), before)).toEqual({
+      type: "conversation.item.create",
+      item: {
+        type: "force_message",
+        role: "assistant",
+        interruptible: false,
+        content: [
+          { type: "output_text", text: "Un." },
+          { type: "output_text", text: "Deux." },
+        ],
+      },
+    });
+    expect(
+      socket().sent.some((d) => String(d).includes("response.create")),
+    ).toBe(false);
+    expect(socket().sent.some((d) => String(d).includes(TOKEN))).toBe(false);
+  });
+
+  it("sends nothing for empty sentences", () => {
+    const { handle, socket } = setup(json);
+    socket().open();
+    const before = socket().sent.length;
+    handle.forceMessage([]);
+    expect(socket().sent).toHaveLength(before);
+  });
+
+  it("sends session.update with the new instructions", () => {
+    const { handle, socket } = setup(json);
+    socket().open();
+    const before = socket().sent.length;
+    handle.updateInstructions("new instr");
+    expect(socket().sent).toHaveLength(before + 1);
+    expect(parse(socket(), before)).toEqual({
+      type: "session.update",
+      session: { instructions: "new instr" },
+    });
+  });
+
+  it("sends nothing after close", () => {
+    const { handle, socket } = setup(json);
+    socket().open();
+    handle.close();
+    const before = socket().sent.length;
+    handle.forceMessage(["Un."]);
+    handle.updateInstructions("x");
+    expect(socket().sent).toHaveLength(before);
+  });
+
+  it("no-ops on the mock and failed sockets", () => {
+    const mock = connectRealtime({
+      token: mockSecretValue,
+      instructions: "i",
+      keyterms: [],
+      tuning: json,
+      onEvent: () => undefined,
+      onAudio: () => undefined,
+    });
+    expect(() => {
+      mock.forceMessage(["x"]);
+      mock.updateInstructions("x");
+    }).not.toThrow();
+    const failed = connectRealtime({
+      token: "bad token",
+      instructions: "i",
+      keyterms: [],
+      tuning: json,
+      onEvent: () => undefined,
+      onAudio: () => undefined,
+    });
+    expect(() => {
+      failed.forceMessage(["x"]);
+      failed.updateInstructions("x");
+    }).not.toThrow();
+  });
+});

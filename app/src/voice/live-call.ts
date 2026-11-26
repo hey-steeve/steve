@@ -7,7 +7,16 @@ import {
   type EndReason,
   type VoiceTuning,
 } from "@steve/voice";
+import type { Turn } from "@steve/shared";
+import {
+  consultGuidance,
+  needInfoGuidance,
+  type EmergencyCalls,
+  type TriageDecision,
+} from "@steve/triage";
+import type { VoiceDecision, VoiceTurn } from "../app/api/voice/triage/request";
 import type { BrowserAudio, BrowserAudioOptions } from "./browser-audio";
+import { forcedSentences, type ForcedSentences } from "./voice-safety";
 import type { RealtimeSocket, RealtimeSocketOptions } from "./realtime-socket";
 
 export type { EndReason };
@@ -22,12 +31,26 @@ export type ThreadMessage = {
 };
 
 // Keyed transcript update. A later update for the same itemId replaces the text.
-export type ThreadEvent = {
-  readonly type: "transcript";
-  readonly itemId: string;
-  readonly text: string;
-  readonly final: boolean;
-};
+export type ThreadEvent =
+  | {
+      readonly type: "transcript";
+      readonly itemId: string;
+      readonly text: string;
+      readonly final: boolean;
+    }
+  // Jev said emergency: the exact sentences Steve is forced to say, in order.
+  | {
+      readonly type: "emergency";
+      readonly itemId: string;
+      readonly calls: EmergencyCalls;
+      readonly sentences: ForcedSentences;
+    }
+  // A non-emergency decision that offers calls. Nothing is forced.
+  | {
+      readonly type: "offer";
+      readonly itemId: string;
+      readonly calls: NonNullable<Exclude<TriageDecision, { label: "emergency" }>["calls"]>;
+    };
 
 export type CallSnapshot = {
   readonly phase: CallState["phase"];
@@ -47,6 +70,13 @@ export type CallDeps = {
   readonly now: () => number;
   readonly setTimeout: (fn: () => void, ms: number) => unknown;
   readonly clearTimeout: (handle: unknown) => void;
+  // Omitted: no triage. Null: fail closed, the call goes on unforced.
+  readonly triage?: (
+    current: VoiceTurn,
+    previous: readonly Turn[],
+    signal: AbortSignal,
+    decisions?: readonly VoiceDecision[],
+  ) => Promise<TriageDecision | null>;
   readonly onThreadEvent?: (event: ThreadEvent) => void;
 };
 
@@ -69,7 +99,53 @@ type Call = {
   timer: unknown;
   audio: BrowserAudio | undefined;
   socket: RealtimeSocket | undefined;
+  readonly sessionId: string;
+  base: string;
+  // Patient turns in order: start() history, then finalized in-call turns.
+  readonly turns: Turn[];
+  readonly asked: Set<string>;
+  // Recorded Jev labels by turnId, sent with the next triage request.
+  readonly decided: Map<string, VoiceDecision["label"]>;
+  readonly forced: Set<string>;
+  // Responses cut by an emergency. Their late audio is never played.
+  readonly cancelled: Set<string>;
+  // Every response id seen so far. The forced response is one never seen
+  // before the forceMessage that produced it.
+  readonly seen: Set<string>;
+  // Guidance on the session: tied to the patient item whose response it covers.
+  guide: { readonly itemId: string } | undefined;
+  // Patient item -> its answering response. done: that response has ended.
+  readonly answers: Map<string, { responseId: string | undefined; done: boolean }>;
+  readonly answerOf: Map<string, string>;
+  // The patient item still waiting for its response to start.
+  awaiting: string | undefined;
+  // The forced emergency message in flight: uninterruptible until it drains.
+  forcing:
+    | {
+        responseId: string | undefined;
+        // Unseen responses created since the force. The wire carries no
+        // force-message correlation, so none is trusted as the forced one
+        // (an automatic VAD response looks the same) until its audio arrives.
+        readonly candidates: Set<string>;
+        // Its audio reached the adapter, under `generation` (the adapter's own).
+        started: boolean;
+        generation: number | undefined;
+        // Its response.done arrived.
+        done: boolean;
+        // Its audio drained under `generation` (reset if more audio follows).
+        drained: boolean;
+        // Bounds the wait for forced audio to bind; cleared on release.
+        timer: unknown;
+      }
+    | undefined;
+  // Later emergencies wait here, in order, for that playback to drain.
+  readonly queued: (readonly string[])[];
 };
+
+const maxPrevious = 12;
+const maxText = 2_000;
+// How long a force may go without forced audio before later emergencies proceed.
+const forceBindMs = 5_000;
 
 const quiet = (fn: () => void): void => {
   try {
@@ -131,6 +207,8 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
 
   const onCancel = (c: Call, audio: BrowserAudio, generating: boolean): void => {
     if (state.phase !== "active" || !state.cancel) return;
+    // A forced emergency is uninterruptible: it plays to its own drain.
+    if (c.forcing) return;
     const { generation } = state;
     // One clock read pairs the item id with its offset (BC-68).
     const snap = audio.flush(generation);
@@ -143,9 +221,177 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     }
   };
 
+  const restore = (c: Call): void => {
+    if (!c.guide) return;
+    c.guide = undefined;
+    quiet(() => c.socket?.updateInstructions(c.base));
+  };
+
+  // Every decision made so far loses the right to guide the session.
+  const expire = (c: Call): void => {
+    for (const answer of c.answers.values()) answer.done = true;
+  };
+
+  // Register a patient item as the one awaiting its response (idempotent).
+  const bind = (c: Call, itemId: string): void => {
+    if (c.answers.has(itemId)) return;
+    // A patient item that never got a response is superseded by this one.
+    if (c.awaiting !== undefined) {
+      const old = c.answers.get(c.awaiting);
+      if (old) old.done = true;
+      if (c.guide?.itemId === c.awaiting) restore(c);
+    }
+    c.answers.set(itemId, { responseId: undefined, done: false });
+    c.awaiting = itemId;
+  };
+
+  const emergency = (c: Call, audio: BrowserAudio, itemId: string, calls: EmergencyCalls): void => {
+    if (c.forced.has(itemId)) return;
+    c.forced.add(itemId);
+    const sentences = forcedSentences(calls);
+    // The buttons and sentences go out first: later audio failures cannot lose them.
+    quiet(() => deps.onThreadEvent?.({ type: "emergency", itemId, calls, sentences }));
+    restore(c);
+    if (!live(c)) return;
+    if (c.forcing) {
+      // The previous forced message is uninterruptible: wait for it to drain.
+      c.queued.push(sentences);
+      return;
+    }
+    if (state.phase === "active") {
+      const inFlight = state.generating ? state.responseId : undefined;
+      const ids = [inFlight, state.playback?.responseId].filter((id) => id !== undefined);
+      // Retire the reducer generation first, then flush the adapter into it,
+      // so forced playback events carry a generation both sides agree on.
+      dispatch({ type: "generationRetired" });
+      const next = state.phase === "active" ? state.generation : undefined;
+      quiet(() => audio.flush(next));
+      if (!live(c)) return;
+      if (inFlight !== undefined) quiet(() => c.socket?.cancelResponse());
+      for (const id of ids) {
+        c.cancelled.add(id);
+        quiet(() => audio.discardResponse(id));
+      }
+    }
+    send(c, sentences);
+  };
+
+  const send = (c: Call, sentences: readonly string[]): void => {
+    if (!live(c)) return;
+    const f: NonNullable<Call["forcing"]> = {
+      responseId: undefined,
+      candidates: new Set(),
+      started: false,
+      generation: undefined,
+      done: false,
+      drained: false,
+      timer: undefined,
+    };
+    c.forcing = f;
+    f.timer = deps.setTimeout(() => {
+      // Forced audio never arrived: a failed or silent force must not stall the queue.
+      if (c.forcing === f && f.responseId === undefined) release(c);
+    }, forceBindMs);
+    try {
+      c.socket?.forceMessage(sentences);
+    } catch {
+      // The force never left: nothing will speak, so free the slot.
+      if (c.forcing === f) release(c);
+    }
+  };
+
+  // Release only when the forced message ended on the server and its own audio
+  // drained (or it ended with no audio at all).
+  const settle = (c: Call): void => {
+    const f = c.forcing;
+    if (f?.done && (!f.started || f.drained)) release(c);
+  };
+
+  const release = (c: Call): void => {
+    const f = c.forcing;
+    if (f?.timer !== undefined) deps.clearTimeout(f.timer);
+    c.forcing = undefined;
+    const next = c.queued.shift();
+    if (!next) return;
+    // The forced audio has drained. Ordinary responses that arrived meanwhile
+    // must not speak ahead of the next emergency.
+    const audio = c.audio;
+    if (audio && live(c) && state.phase === "active") {
+      const inFlight = state.generating ? state.responseId : undefined;
+      const ids = new Set<string>(f?.candidates ?? []);
+      for (const id of [inFlight, state.playback?.responseId]) {
+        if (id !== undefined) ids.add(id);
+      }
+      if (f?.responseId !== undefined) ids.delete(f.responseId);
+      if (ids.size > 0) {
+        dispatch({ type: "generationRetired" });
+        const gen = state.phase === "active" ? state.generation : undefined;
+        quiet(() => audio.flush(gen));
+        if (!live(c)) return;
+        if (inFlight !== undefined && ids.has(inFlight)) quiet(() => c.socket?.cancelResponse());
+        for (const id of ids) {
+          c.cancelled.add(id);
+          quiet(() => audio.discardResponse(id));
+        }
+      }
+    }
+    send(c, next);
+  };
+
+  const decide = (c: Call, audio: BrowserAudio, itemId: string, d: TriageDecision): void => {
+    if (d.label === "emergency") return emergency(c, audio, itemId, d.calls);
+    const offered = d.calls;
+    if (offered) quiet(() => deps.onThreadEvent?.({ type: "offer", itemId, calls: offered }));
+    const text =
+      d.label === "consult"
+        ? consultGuidance.text
+        : d.label === "need-info"
+          ? (d.guidance?.text ?? needInfoGuidance.text)
+          : undefined;
+    if (text === undefined || !live(c)) return;
+    // Triage is async: if the response for this item already ended (or the
+    // patient moved on), the guidance would land on the next turn. Drop it.
+    const answer = c.answers.get(itemId);
+    if (!answer || answer.done) return;
+    c.guide = { itemId };
+    quiet(() => c.socket?.updateInstructions(`${c.base}\n\n${text}`));
+  };
+
+  const triage = (c: Call, audio: BrowserAudio, itemId: string, text: string): void => {
+    const port = deps.triage;
+    if (c.asked.has(itemId) || text.trim() === "") return;
+    c.asked.add(itemId);
+    const current: VoiceTurn = {
+      sessionId: c.sessionId,
+      turnId: itemId,
+      channel: "voice",
+      text: text.slice(0, maxText),
+    };
+    const previous = c.turns.slice(-maxPrevious);
+    const decisions: VoiceDecision[] = previous.flatMap((t) => {
+      const label = c.decided.get(t.turnId);
+      return label === undefined ? [] : [{ turnId: t.turnId, label }];
+    });
+    c.turns.push(current);
+    if (!port || !live(c)) return;
+    void (async () => {
+      let decision: TriageDecision | null = null;
+      try {
+        decision = await port(current, previous, c.abort.signal, decisions);
+      } catch {
+        // Fail closed.
+      }
+      if (decision && live(c)) {
+        c.decided.set(itemId, decision.label);
+        decide(c, audio, itemId, decision);
+      }
+    })();
+  };
+
   const open = (c: Call, token: string, instructions: string): void => {
     const audio = c.audio;
     if (!audio || !live(c)) return;
+    c.base = instructions;
     const onClose = (): void => {
       if (!live(c)) return;
       end(state.phase === "active" ? "connection-lost" : "failed");
@@ -176,9 +422,96 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           });
         }
         const before = state;
-        dispatch({ type: "server", event });
+        // A forced emergency is uninterruptible: the reducer's barge-in
+        // transition would drop its playback, so it never sees this event.
+        if (!(c.forcing && event.type === "input.speech_started")) {
+          dispatch({ type: "server", event });
+        }
+        // Guidance covers one response: it ends with that response or the next turn.
+        if (event.type === "input.speech_started") {
+          // The patient spoke again: no earlier decision may guide anything now.
+          expire(c);
+          restore(c);
+        }
+        if (
+          (event.type === "input.speech_started" ||
+            event.type === "input.speech_stopped" ||
+            event.type === "input.transcription_updated" ||
+            event.type === "input.transcription_completed") &&
+          event.itemId
+        ) {
+          // Bind the item before its transcript is final, so a response that
+          // ends first still belongs to it.
+          bind(c, event.itemId);
+        }
+        if (event.type === "response.cancelled") {
+          const item = c.answerOf.get(event.responseId);
+          const answer = item === undefined ? undefined : c.answers.get(item);
+          if (answer) answer.done = true;
+          if (item !== undefined && c.guide?.itemId === item) restore(c);
+        }
+        if (event.type === "response.done") {
+          // Only the guided item's own response ends its guidance.
+          const item = c.answerOf.get(event.responseId);
+          if (item !== undefined) {
+            const answer = c.answers.get(item);
+            if (answer) answer.done = true;
+            if (c.guide?.itemId === item) restore(c);
+          }
+        }
+        const forcing = c.forcing;
+        // A server error with no forced response in sight: the force failed.
+        if (
+          forcing &&
+          event.type === "error" &&
+          forcing.responseId === undefined &&
+          forcing.candidates.size === 0
+        ) {
+          release(c);
+        }
+        if (forcing) {
+          if (
+            event.type === "response.created" &&
+            !c.cancelled.has(event.responseId) &&
+            !c.seen.has(event.responseId)
+          ) {
+            forcing.candidates.add(event.responseId);
+          }
+          if (event.type === "response.done" || event.type === "response.cancelled") {
+            forcing.candidates.delete(event.responseId);
+          }
+          if (event.type === "response.done" && event.responseId === forcing.responseId) {
+            forcing.done = true;
+            settle(c);
+          }
+          if (
+            event.type === "response.cancelled" &&
+            forcing.responseId !== undefined &&
+            event.responseId === forcing.responseId
+          ) {
+            // Cancelled audio never drains cleanly: do not wait for playback.
+            release(c);
+          }
+        }
+        if (event.type === "response.created") c.seen.add(event.responseId);
+        if (
+          event.type === "response.created" &&
+          c.awaiting !== undefined &&
+          c.forcing?.responseId !== event.responseId &&
+          !c.answerOf.has(event.responseId)
+        ) {
+          const answer = c.answers.get(c.awaiting);
+          if (answer) answer.responseId = event.responseId;
+          c.answerOf.set(event.responseId, c.awaiting);
+          c.awaiting = undefined;
+        }
+        if (event.type === "input.transcription_completed" && event.itemId) {
+          bind(c, event.itemId);
+          triage(c, audio, event.itemId, event.text);
+        }
         if (
           event.type === "response.output_item_added" &&
+          !c.cancelled.has(event.responseId) &&
           state.phase === "active" &&
           state.generating &&
           state.responseId === event.responseId &&
@@ -197,6 +530,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           state.cancel !== undefined &&
           !(before.phase === "active" && before.cancel === state.cancel);
         if (fresh) {
+          expire(c);
           onCancel(c, audio, before.phase === "active" && before.generating);
         }
       },
@@ -209,6 +543,10 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
         if (responseId === undefined && itemId !== undefined) return;
         const id = responseId ?? state.responseId;
         if (id === undefined || id !== state.responseId) return;
+        if (c.cancelled.has(id)) return;
+        // Once the forced slot is bound, no other response may speak.
+        const bound = c.forcing?.responseId;
+        if (bound !== undefined && id !== bound) return;
         if (
           responseId !== undefined &&
           itemId !== undefined &&
@@ -218,6 +556,22 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
           return;
         }
         audio.enqueue({ bytes, responseId: id, itemId });
+        const forcing = c.forcing;
+        if (
+          forcing &&
+          bytes.length > 0 &&
+          forcing.responseId === undefined &&
+          forcing.candidates.has(id)
+        ) {
+          // The first candidate to speak is the forced message.
+          forcing.responseId = id;
+        }
+        if (forcing && bytes.length > 0 && id === forcing.responseId) {
+          // The adapter plays this under its own generation, not state's.
+          forcing.started = true;
+          forcing.generation = audio.generation;
+          forcing.drained = false;
+        }
         // Binary audio reaches the reducer only through the ticker's first
         // playbackStarted. Record the queued playback now, so response.done
         // before that tick keeps the call speaking and barge-in can flush.
@@ -245,6 +599,7 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
     if (state.phase === "connecting" || state.phase === "active") return;
     state = initialCallState;
     const abort = new AbortController();
+    const sessionId = globalThis.crypto.randomUUID();
     const c: Call = {
       ended: false,
       deadline: deps.now() + callCapMs,
@@ -252,6 +607,27 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
       timer: undefined,
       audio: undefined,
       socket: undefined,
+      sessionId,
+      base: "",
+      turns: history
+        .filter((m) => m.role === "user" && m.content.trim() !== "")
+        .map((m, i) => ({
+          sessionId,
+          turnId: `history-${i}`,
+          channel: "text" as const,
+          text: m.content.slice(0, maxText),
+        })),
+      asked: new Set(),
+      decided: new Map(),
+      forced: new Set(),
+      cancelled: new Set(),
+      seen: new Set(),
+      guide: undefined,
+      answers: new Map(),
+      answerOf: new Map(),
+      awaiting: undefined,
+      forcing: undefined,
+      queued: [],
     };
     call = c;
     dispatch({ type: "start" });
@@ -275,7 +651,28 @@ export function createLiveCall(deps: CallDeps): LiveCallController {
               if (!live(c)) return;
               if (state.phase === "active") c.socket?.sendAudio(bytes);
             },
-            onPlayback: (notice) => live(c) && dispatch(notice),
+            onPlayback: (notice) => {
+              if (!live(c)) return;
+              dispatch(notice);
+              const forcing = c.forcing;
+              if (!forcing) return;
+              if (
+                notice.type === "playbackStarted" &&
+                forcing.responseId !== undefined &&
+                notice.responseId === forcing.responseId
+              ) {
+                forcing.started = true;
+                forcing.generation = notice.generation;
+              }
+              if (
+                notice.type === "playbackDrained" &&
+                forcing.started &&
+                notice.generation === forcing.generation
+              ) {
+                forcing.drained = true;
+                settle(c);
+              }
+            },
           })
           .then((audio) => {
             // Late permission or a passed deadline: nothing owns this audio.
