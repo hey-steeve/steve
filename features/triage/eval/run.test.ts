@@ -1,3 +1,6 @@
+import { mkdtempSync, existsSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { JEV_URL } from "../src/jev.ts";
 import { evaluateTriage, runTriageEval } from "./run.ts";
@@ -83,6 +86,42 @@ it("sends the key on the injected fetch and not to the report", async () => {
   expect(authorization).toBe(`Bearer ${key}`);
   expect(outcome.report).not.toContain(key);
   expect(outcome.exitCode).toBe(0);
+});
+
+it("prints one line per case and saves the same report to a file", async () => {
+  const dual: TriageEvalCase = {
+    id: "dual",
+    state: "Idées suicidaires et douleur thoracique.",
+    label: "emergency",
+    numbers: ["3114", "15"],
+  };
+  const key = "test-jev-key";
+  const dir = mkdtempSync(join(tmpdir(), "triage-eval-"));
+  const reportPath = join(dir, "report.txt");
+  const bodies = [jevBody("emergency", "both", "no"), jevBody("consult", "physical", "no")];
+  let call = 0;
+  const outcome = await runTriageEval({
+    key,
+    cases: [dual, emergency],
+    now: () => 0,
+    reportPath,
+    fetchImpl: async () => Response.json(bodies[call++]),
+  });
+  const lines = outcome.report.split("\n");
+  expect(lines).toContain(
+    "case id=dual expected=emergency got=emergency expected_calls=3114,15 got_calls=15,3114",
+  );
+  expect(lines).toContain(
+    "case id=stroke expected=emergency got=consult expected_calls=15 got_calls=none",
+  );
+  expect(outcome.report).not.toContain(key);
+  expect(readFileSync(reportPath, "utf8")).toBe(outcome.report);
+});
+
+it("does not write a report file when the key is missing", async () => {
+  const reportPath = join(mkdtempSync(join(tmpdir(), "triage-eval-")), "report.txt");
+  await runTriageEval({ key: undefined, reportPath });
+  expect(existsSync(reportPath)).toBe(false);
 });
 
 function readModel(body: unknown): string | undefined {

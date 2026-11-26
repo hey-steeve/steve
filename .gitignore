@@ -12,3 +12,4 @@ app/public/icons.tmp-*
 app/public/mascot/
 app/public/mascot.tmp-*
 app/public/demo/*.png
+features/triage/eval/last-report.txt
