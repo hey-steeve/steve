@@ -529,7 +529,10 @@ function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
   return (
     bare.length > 0 &&
     /\d/u.test(bare) &&
-    lone.withNumber.some((sentence) => sentence.startsWith(bare))
+    lone.withNumber.some(
+      (sentence) =>
+        sentence.startsWith(bare) && !/[\p{L}\p{N}]/u.test(sentence.charAt(bare.length)),
+    )
   );
 }
 

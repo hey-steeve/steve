@@ -726,3 +726,11 @@ it("never repeats a lone sentence of any block after the required opening", () =
     }
   }
 });
+
+it("keeps the 112 when a fragment ends in a digit that would continue into a longer number", () => {
+  const reply = "Garde ton téléphone. Appelle le 1\n12.";
+  const fixed = ensureEmergencyCalls(reply, ["15"]);
+  expect(detectEmergencyNumbers(fixed).spans.some((hit) => hit.kind === "112")).toBe(true);
+  expect(checkEmergencyReply(fixed, ["15"]).pass).toBe(false);
+  expect(fixed.startsWith(call15Now)).toBe(true);
+});
