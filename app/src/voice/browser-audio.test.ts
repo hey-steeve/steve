@@ -6,6 +6,7 @@ import {
   type AudioDeps,
   type CaptureNodeLike,
   type ContextLike,
+  type FlushSnapshot,
   type PlaybackNotice,
   type SourceLike,
 } from "./browser-audio";
@@ -73,7 +74,7 @@ function harness(
   let trackStops = 0;
   let tickFn: (() => void) | undefined;
   let cleared = 0;
-  const deps: AudioDeps = {
+  const ports = {
     createContext: () => context,
     getUserMedia: () =>
       Promise.resolve({
@@ -83,6 +84,11 @@ function harness(
         ],
       }),
     loadWorklet: () => Promise.resolve(node),
+  };
+  const deps: AudioDeps = {
+    createContext: () => ports.createContext(),
+    getUserMedia: () => ports.getUserMedia(),
+    loadWorklet: () => ports.loadWorklet(),
     clock: {
       setInterval: (fn) => {
         tickFn = fn;
@@ -133,6 +139,7 @@ function harness(
     notices,
     start,
     advance,
+    ports,
     stops: () => trackStops,
     cleared: () => cleared,
     ticking: () => tickFn !== undefined,
@@ -548,11 +555,7 @@ describe("flush snapshot", () => {
     readonly run: (
       h: ReturnType<typeof harness>,
       audio: Awaited<ReturnType<typeof startBrowserAudio>>,
-    ) => {
-      readonly itemId: string | undefined;
-      readonly playedMs: number;
-      readonly responseId: string | undefined;
-    };
+    ) => FlushSnapshot;
   }[] = [
     {
       name: "a: after announcing A, flush during B returns B and 25 ms",
@@ -662,10 +665,10 @@ describe("startup failure cleanup", () => {
   const fail = new Error("startup failed");
   const rows: [string, (h: ReturnType<typeof harness>) => void][] = [
     ["getUserMedia", (h) => {
-      h.deps.getUserMedia = () => Promise.reject(fail);
+      h.ports.getUserMedia = () => Promise.reject(fail);
     }],
     ["context create", (h) => {
-      h.deps.createContext = () => {
+      h.ports.createContext = () => {
         throw fail;
       };
     }],
@@ -676,7 +679,7 @@ describe("startup failure cleanup", () => {
       h.context.resume = () => Promise.reject(fail);
     }],
     ["worklet load", (h) => {
-      h.deps.loadWorklet = () => Promise.reject(fail);
+      h.ports.loadWorklet = () => Promise.reject(fail);
     }],
     ["graph connect", (h) => {
       h.node.connect = () => {
@@ -704,6 +707,73 @@ describe("startup failure cleanup", () => {
       }
     });
   }
+});
+
+describe("codec re-entry", () => {
+  it("does not send a mic chunk if encode flushes or closes", async () => {
+    const cases: ("flush" | "close")[] = ["flush", "close"];
+    for (const action of cases) {
+      let audio: Awaited<ReturnType<typeof startBrowserAudio>> | undefined;
+      const opus = {
+        encode: (samples: Float32Array) => {
+          if (action === "flush") audio?.flush();
+          else audio?.close();
+          return encodePcm16(samples);
+        },
+        decode: (bytes: Uint8Array) => new Float32Array(bytes.length / 2),
+      };
+      const h = harness("opus", opus);
+      audio = await h.start();
+      const before = h.mic.length;
+      h.send(new Float32Array(16));
+      expect(h.mic.length === before).toBe(true);
+    }
+  });
+
+  it("does not start playback if decode flushes or closes", async () => {
+    const cases: ("flush" | "close")[] = ["flush", "close"];
+    for (const action of cases) {
+      let audio: Awaited<ReturnType<typeof startBrowserAudio>> | undefined;
+      const opus = {
+        encode: (samples: Float32Array) => encodePcm16(samples),
+        decode: (bytes: Uint8Array) => {
+          if (action === "flush") audio?.flush();
+          else audio?.close();
+          return new Float32Array(bytes.length / 2 || 1);
+        },
+      };
+      const h = harness("opus", opus);
+      audio = await h.start();
+      const before = h.context.sources.length;
+      audio.enqueue(chunk("r1", "i1"));
+      expect(h.context.sources.length === before).toBe(true);
+    }
+  });
+});
+
+describe("empty chunk retirement", () => {
+  it("retires a response admitted with an empty chunk", async () => {
+    const h = harness();
+    const audio = await h.start();
+    audio.enqueue({ bytes: new Uint8Array(0), responseId: "r1", itemId: undefined });
+    expect(h.context.sources).toHaveLength(0);
+    audio.flush();
+    audio.enqueue(chunk("r1", "i1"));
+    expect(h.context.sources).toHaveLength(0);
+  });
+});
+
+describe("playedMs after close", () => {
+  it("returns 0 after drain and close", async () => {
+    const h = harness();
+    const audio = await h.start();
+    audio.enqueue(chunk("r1", "i1"));
+    h.advance(0.2);
+    const drained = h.notices.some((n) => n.type === "playbackDrained");
+    expect(drained).toBe(true);
+    audio.close();
+    expect(audio.playedMs() === 0).toBe(true);
+  });
 });
 
 describe("close", () => {
