@@ -318,11 +318,12 @@ export async function startBrowserAudio(
     enqueue(chunk) {
       if (closed || blocked.has(chunk.responseId)) return;
       const admittedEpoch = epoch;
+      // Admit before decode, even an empty chunk, so a flush from inside the
+      // codec or a later flush retires this response.
+      seen.add(chunk.responseId);
       const samples = codec.decode(chunk.bytes);
       if (closed || blocked.has(chunk.responseId) || epoch !== admittedEpoch)
         return;
-      // Admit even an empty chunk so a later flush retires this response.
-      seen.add(chunk.responseId);
       if (samples.length === 0) return;
       const buffer = ctx.createBuffer(1, samples.length, SAMPLE_RATE);
       buffer.copyToChannel(samples, 0);

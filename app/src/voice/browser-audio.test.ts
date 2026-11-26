@@ -789,6 +789,32 @@ describe("codec re-entry with an unchanged public generation", () => {
   });
 });
 
+describe("decode-time flush retires the in-flight response", () => {
+  // BC-63: a flush() from inside decode must block the response being decoded.
+  it("BC-63 blocks later r1 chunks but still plays r2", async () => {
+    let audio: Awaited<ReturnType<typeof startBrowserAudio>> | undefined;
+    let flushNext = true;
+    const opus = {
+      encode: (samples: Float32Array) => encodePcm16(samples),
+      decode: (bytes: Uint8Array) => {
+        if (flushNext) {
+          flushNext = false;
+          audio?.flush();
+        }
+        return new Float32Array(bytes.length / 2 || 1);
+      },
+    };
+    const h = harness("opus", opus);
+    audio = await h.start();
+    audio.enqueue(chunk("r1", "i1"));
+    expect(h.context.sources).toHaveLength(0);
+    audio.enqueue(chunk("r1", "i1"));
+    expect(h.context.sources).toHaveLength(0);
+    audio.enqueue(chunk("r2", "i2"));
+    expect(h.context.sources).toHaveLength(1);
+  });
+});
+
 describe("empty chunk retirement", () => {
   it("retires a response admitted with an empty chunk", async () => {
     const h = harness();
