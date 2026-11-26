@@ -6,9 +6,12 @@ import type {
   FlushSnapshot,
 } from "./browser-audio";
 import type { RealtimeSocket, RealtimeSocketOptions } from "./realtime-socket";
+import { consultGuidance, needInfoGuidance } from "@steve/triage";
+import { forcedSentences } from "./voice-safety";
 import {
   callCapMs,
   createLiveCall,
+  type CallDeps,
   type EndReason,
   type ThreadEvent,
 } from "./live-call";
@@ -42,6 +45,8 @@ function setup(
     manualToken?: boolean;
     manualAudio?: boolean;
     gateFirstOnly?: boolean;
+    triage?: CallDeps["triage"];
+    enqueueThrows?: boolean;
   } = {},
 ) {
   let t = 1_000;
@@ -72,6 +77,14 @@ function setup(
     truncate(id: string, ms: number) {
       this.truncates.push([id, ms]);
     }
+    forced: (readonly string[])[] = [];
+    instructions: string[] = [];
+    forceMessage(sentences: readonly string[]) {
+      this.forced.push(sentences);
+    }
+    updateInstructions(text: string) {
+      this.instructions.push(text);
+    }
     close() {
       this.closed++;
     }
@@ -84,13 +97,14 @@ function setup(
     constructor(options: BrowserAudioOptions) {
       this.options = options;
     }
-    readonly generation = 0;
+    generation = 0;
     setMuted(m: boolean) {
       this.muted = m;
     }
     enqueued = 0;
     chunks: { responseId: string; itemId: string | undefined; length: number }[] = [];
     enqueue(chunk: { bytes: Uint8Array; responseId: string; itemId: string | undefined }) {
+      if (opts.enqueueThrows) throw new Error("tts down");
       // `enqueued` counts audible audio; announce chunks are zero-length.
       if (chunk.bytes.length > 0) this.enqueued++;
       this.chunks.push({
@@ -99,7 +113,10 @@ function setup(
         length: chunk.bytes.length,
       });
     }
-    discardResponse() {}
+    discarded: string[] = [];
+    discardResponse(id: string) {
+      this.discarded.push(id);
+    }
     playedMs() {
       return 420;
     }
@@ -113,6 +130,7 @@ function setup(
     flush(next?: number) {
       this.flushes++;
       this.flushedWith.push(next);
+      this.generation = next ?? this.generation + 1;
       return this.snapshot;
     }
     close() {
@@ -145,6 +163,7 @@ function setup(
       return a;
     },
     instructions: () => "base",
+    ...(opts.triage ? { triage: opts.triage } : {}),
     onThreadEvent: (e) => threads.push(e),
     keyterms: [],
     tuning,
@@ -566,11 +585,12 @@ describe("live call", () => {
       itemId: undefined,
       text: "x",
     });
-    expect(h.threads.map((e) => [e.itemId, e.final])).toEqual([
+    const transcripts = h.threads.filter((e) => e.type === "transcript");
+    expect(transcripts.map((e) => [e.itemId, e.final])).toEqual([
       ["t1", false],
       ["t1", true],
     ]);
-    expect(h.threads[1]?.text === "ab").toBe(true);
+    expect(transcripts[1]?.text === "ab").toBe(true);
     h.ctl.end("hang-up");
     options.onEvent({
       type: "input.transcription_updated",
@@ -785,5 +805,635 @@ describe("live call", () => {
       expect(first(h.sockets).options.canHandshake?.()).toBe(true);
       expect(h.reason()).toBeUndefined();
     });
+  });
+});
+
+describe("live call triage enforcement", () => {
+  type Decision = NonNullable<Awaited<ReturnType<NonNullable<CallDeps["triage"]>>>>;
+  const c15 = { type: "call", number: "15" } as const;
+  const c3114 = { type: "call", number: "3114" } as const;
+  const emergency15: Decision = { label: "emergency", calls: [c15] };
+
+  // Triage stub: every request waits for the test to answer it.
+  function gated() {
+    const requests: {
+      current: { turnId: string; sessionId: string; text: string };
+      previous: readonly { text: string }[];
+      decisions: readonly { turnId: string; label: string }[] | undefined;
+      signal: AbortSignal;
+      answer: (d: Decision | null) => void;
+    }[] = [];
+    const triage: CallDeps["triage"] = (current, previous, signal, decisions) =>
+      new Promise((resolve) => {
+        requests.push({ current, previous, decisions, signal, answer: resolve });
+      });
+    return { requests, triage };
+  }
+  const say = (h: ReturnType<typeof setup>, itemId: string, text: string) =>
+    first(h.sockets).options.onEvent({ type: "input.transcription_completed", itemId, text });
+  const emergencies = (h: ReturnType<typeof setup>) => h.threads.filter((e) => e.type === "emergency");
+
+  it("triages one finalized item once, with preceding patient turns in order", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await h.ctl.start([
+      { role: "user", content: "h1" },
+      { role: "assistant", content: "a" },
+      { role: "user", content: "h2" },
+    ]);
+    first(h.sockets).options.onOpen?.();
+    say(h, "t1", "first");
+    first(h.sockets).options.onEvent({ type: "input.transcription_updated", itemId: "t2", text: "x" });
+    say(h, "t1", "first");
+    say(h, "t2", "second");
+    await flush();
+    expect(g.requests.map((r) => r.current.turnId)).toEqual(["t1", "t2"]);
+    expect(g.requests[0]?.previous.map((t) => t.text)).toEqual(["h1", "h2"]);
+    expect(g.requests[1]?.previous.map((t) => t.text)).toEqual(["h1", "h2", "first"]);
+    expect(new Set(g.requests.map((r) => r.current.sessionId)).size).toBe(1);
+  });
+
+  it("sends recorded labels by turnId with the next triage request", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await h.ctl.start([{ role: "user", content: "h1" }]);
+    first(h.sockets).options.onOpen?.();
+    say(h, "t1", "first");
+    await flush();
+    expect(g.requests[0]?.decisions).toEqual([]);
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "second");
+    await flush();
+    expect(g.requests[1]?.decisions).toEqual([{ turnId: "t1", label: "emergency" }]);
+  });
+
+  it("skips triage when the port is omitted", async () => {
+    const h = setup();
+    await active(h);
+    say(h, "t1", "mal au coeur");
+    await flush();
+    expect(first(h.sockets).socket.forced).toEqual([]);
+  });
+
+  it("ignores a result after end()", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    h.ctl.end("hang-up");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    const { socket } = first(h.sockets);
+    expect(socket.forced).toEqual([]);
+    expect(socket.instructions).toEqual([]);
+    expect(emergencies(h)).toEqual([]);
+  });
+
+  it("late emergency: cancels in flight, flushes, forces the exact sentences", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    // Another turn and a response have started before the result lands.
+    say(h, "t2", "et puis");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(socket.cancels).toBe(1);
+    expect(audio.flushes).toBe(1);
+    expect(audio.discarded).toEqual(["r1"]);
+    expect(socket.forced).toEqual([[...forcedSentences([c15])]]);
+    expect(emergencies(h)).toEqual([
+      { type: "emergency", itemId: "t1", calls: [c15], sentences: forcedSentences([c15]) },
+    ]);
+  });
+
+  it("queues a second emergency until the forced playback drains", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(socket.forced).toEqual([[...forcedSentences([c15])]]);
+    // The forced message is now speaking.
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    const flushes = audio.flushes;
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    expect(socket.forced).toEqual([[...forcedSentences([c15])]]);
+    expect(audio.flushes).toBe(flushes);
+    expect(socket.cancels).toBe(0);
+    expect(audio.discarded).toEqual([]);
+    // The pre-force flush retired generation 0: that drain is stale.
+    audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+    expect(audio.flushes).toBe(flushes);
+    expect(socket.cancels).toBe(0);
+  });
+
+  it("discards an ordinary VAD response queued during the forced drain", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    // An automatic VAD response starts while the forced clip still drains.
+    options.onEvent({ type: "response.created", responseId: "vad1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "vad1", itemId: undefined });
+    expect(audio.chunks.filter((x) => x.responseId === "vad1" && x.length > 0)).toEqual([]);
+    expect(socket.forced).toHaveLength(1);
+    expect(socket.cancels).toBe(0);
+    expect(audio.discarded).not.toContain("f1");
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+    expect(audio.discarded).toContain("vad1");
+    expect(audio.discarded).not.toContain("f1");
+    expect(socket.cancels).toBe(1);
+    // Late ordinary audio is still never played.
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "vad1", itemId: undefined });
+    expect(audio.chunks.filter((x) => x.responseId === "vad1" && x.length > 0)).toEqual([]);
+  });
+
+  it("does not let an ordinary response claim the forced slot", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    // r0 already ended; r1 is still in flight when the emergency lands.
+    options.onEvent({ type: "response.created", responseId: "r0" });
+    options.onEvent({ type: "response.done", responseId: "r0" });
+    say(h, "t1", "douleur poitrine");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(socket.forced).toHaveLength(1);
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    // Late events of ordinary responses must not settle or stall the queue.
+    options.onEvent({ type: "response.created", responseId: "r0" });
+    options.onEvent({ type: "response.done", responseId: "r0" });
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.cancelled", responseId: "r1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    expect(socket.forced).toHaveLength(1);
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+  });
+
+  it("does not let a new ordinary response claim the forced slot", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(socket.forced).toHaveLength(1);
+    // An automatic response created after the force, with no forced audio.
+    options.onEvent({ type: "response.created", responseId: "vad1" });
+    options.onEvent({ type: "response.done", responseId: "vad1" });
+    expect(socket.forced).toHaveLength(1);
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+  });
+
+  it("does not flush, cancel or truncate a forced emergency on speech_started", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    const flushes = audio.flushes;
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    await flush();
+    expect(audio.flushes).toBe(flushes);
+    expect(socket.cancels).toBe(0);
+    expect(socket.truncates).toEqual([]);
+    expect(audio.discarded).toEqual([]);
+    // Still playing: a second emergency stays queued until the forced drain.
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toHaveLength(2);
+  });
+
+  it("keeps both forced chunks playing when speech_started lands mid-playback", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    const flushes = audio.flushes;
+    options.onEvent({ type: "input.speech_started", itemId: "t2" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    await flush();
+    // Neither chunk was flushed or dropped by a barge-in.
+    expect(audio.enqueued).toBe(2);
+    expect(audio.flushes).toBe(flushes);
+    expect(audio.discarded).toEqual([]);
+    expect(socket.cancels).toBe(0);
+    expect(socket.truncates).toEqual([]);
+    // Still treated as playing: a second emergency waits for the forced drain.
+    say(h, "t3", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(socket.forced).toHaveLength(2);
+  });
+
+  it("releases the queue on the forced audio's own generation after the pre-force flush", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    // The pre-force flush retired generation 0; forced audio plays under 1.
+    expect(audio.generation).toBe(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+    audio.options.onPlayback({
+      type: "playbackStarted",
+      responseId: "f1",
+      itemId: undefined,
+      generation: 1,
+    });
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    expect(socket.forced).toHaveLength(1);
+    // Stale drains: old generation, then a stale cancelled response's done.
+    audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    audio.options.onPlayback({ type: "playbackDrained", generation: 0 });
+    expect(socket.forced).toHaveLength(1);
+    // done without the drain of its own generation: still held.
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    expect(socket.forced).toHaveLength(1);
+    audio.options.onPlayback({ type: "playbackDrained", generation: 1 });
+    expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+  });
+
+  it("keeps adapter and reducer generations in step through a forced clip", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "douleur poitrine");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: "fi" });
+    audio.options.onPlayback({
+      type: "playbackStarted",
+      responseId: "f1",
+      itemId: "fi",
+      generation: audio.generation,
+    });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+    expect(h.ctl.getSnapshot().activity).not.toBe("speaking");
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.truncates).toEqual([]);
+    expect(socket.cancels).toBe(1);
+  });
+
+  it("frees the queue when forceMessage throws", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { socket } = first(h.sockets);
+    let attempts = 0;
+    socket.forceMessage = () => {
+      attempts++;
+      throw new Error("send failed");
+    };
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    expect(attempts).toBe(2);
+  });
+
+  it("frees the queue on a server error with no forced response", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    expect(socket.forced).toHaveLength(1);
+    options.onEvent({ type: "error", message: "rejected" });
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    expect(socket.forced).toHaveLength(2);
+  });
+
+  it("frees the queue when the forced response ends with no audio", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "douleur poitrine");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    say(h, "t2", "suicidaire");
+    g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+    await flush();
+    options.onEvent({ type: "response.created", responseId: "f1" });
+    options.onEvent({ type: "response.done", responseId: "f1" });
+    // A silent created/done alone must not release early.
+    expect(socket.forced).toHaveLength(1);
+    h.advance(5_000);
+    expect(socket.forced).toHaveLength(2);
+    expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+  });
+
+  it.each(["done", "cancelled", "timeout"] as const)(
+    "releases the force slot on a bound forced response terminal: %s",
+    async (terminal) => {
+      const g = gated();
+      const h = setup({ triage: g.triage });
+      await active(h);
+      const { options, socket } = first(h.sockets);
+      const audio = first(h.audios);
+      say(h, "t1", "douleur poitrine");
+      g.requests[0]?.answer(emergency15);
+      await flush();
+      say(h, "t2", "suicidaire");
+      g.requests[1]?.answer({ label: "emergency", calls: [c3114] });
+      await flush();
+      expect(socket.forced).toHaveLength(1);
+      if (terminal === "timeout") {
+        h.advance(5_000);
+      } else {
+        options.onEvent({ type: "response.created", responseId: "f1" });
+        options.onAudio?.({ bytes: new Uint8Array(2), responseId: "f1", itemId: undefined });
+        expect(socket.forced).toHaveLength(1);
+        if (terminal === "done") {
+          options.onEvent({ type: "response.done", responseId: "f1" });
+          audio.options.onPlayback({ type: "playbackDrained", generation: audio.generation });
+        } else {
+          options.onEvent({ type: "response.cancelled", responseId: "f1" });
+        }
+      }
+      expect(socket.forced).toEqual([[...forcedSentences([c15])], [...forcedSentences([c3114])]]);
+      expect(emergencies(h).map((e) => e.itemId)).toEqual(["t1", "t2"]);
+    },
+  );
+
+  it("does not cancel when no response is in flight", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(first(h.sockets).socket.cancels).toBe(0);
+    expect(first(h.sockets).socket.forced.length).toBe(1);
+  });
+
+  it.each<[string, Decision & { label: "emergency" }]>([
+    ["15", { label: "emergency", calls: [c15] }],
+    ["3114", { label: "emergency", calls: [c3114] }],
+    ["3114 then 15", { label: "emergency", calls: [c3114, c15] }],
+    ["15 then 3114", { label: "emergency", calls: [c15, c3114] }],
+  ])("forces the shared sentences for %s", async (_n, decision) => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    g.requests[0]?.answer(decision);
+    await flush();
+    const expected = [...forcedSentences(decision.calls)];
+    expect(first(h.sockets).socket.forced).toEqual([expected]);
+    expect(emergencies(h).map((e) => (e.type === "emergency" ? [...e.sentences] : []))).toEqual([expected]);
+  });
+
+  it("drops cancelled-response chunks and keeps forced-response audio", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options } = first(h.sockets);
+    const audio = first(h.audios);
+    say(h, "t1", "x");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: undefined, itemId: undefined });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "r1", itemId: undefined });
+    expect(audio.enqueued).toBe(0);
+    options.onEvent({ type: "response.created", responseId: "r2" });
+    options.onAudio?.({ bytes: new Uint8Array(2), responseId: "r2", itemId: undefined });
+    expect(audio.enqueued).toBe(1);
+  });
+
+  it("does not force twice for the same item", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    say(h, "t1", "x");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(first(h.sockets).socket.forced.length).toBe(1);
+    expect(emergencies(h).length).toBe(1);
+  });
+
+  it("applies guidance to one response, then restores the base", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "x");
+    g.requests[0]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([`base\n\n${consultGuidance.text}`]);
+    expect(socket.forced).toEqual([]);
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    expect(socket.instructions[1]).toBe("base");
+    say(h, "t2", "y");
+    g.requests[1]?.answer({ label: "need-info" });
+    await flush();
+    expect(socket.instructions[2]).toBe(`base\n\n${needInfoGuidance.text}`);
+    // A later user turn restores before it can inherit.
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.instructions[3]).toBe("base");
+    expect(socket.instructions.length).toBe(4);
+  });
+
+  it("drops consult guidance that lands after its response finished", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "x");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    g.requests[0]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([]);
+    say(h, "t2", "y");
+    options.onEvent({ type: "response.created", responseId: "r2" });
+    expect(socket.instructions).toEqual([]);
+  });
+
+  it("drops a consult when the response finished before the transcript was final", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    options.onEvent({ type: "input.speech_stopped", itemId: "t1" });
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    say(h, "t1", "x");
+    g.requests[0]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([]);
+  });
+
+  it("drops a consult that arrives after the next speech started", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "x");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    g.requests[0]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([]);
+  });
+
+  it("ignores a stale response.done for another item and restores on speech", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    const { options, socket } = first(h.sockets);
+    say(h, "t1", "x");
+    options.onEvent({ type: "response.created", responseId: "r1" });
+    say(h, "t2", "y");
+    options.onEvent({ type: "response.created", responseId: "r2" });
+    g.requests[1]?.answer({ label: "consult", guidance: consultGuidance });
+    await flush();
+    expect(socket.instructions).toEqual([`base\n\n${consultGuidance.text}`]);
+    options.onEvent({ type: "response.done", responseId: "r1" });
+    expect(socket.instructions.length).toBe(1);
+    options.onEvent({ type: "input.speech_started", itemId: undefined });
+    expect(socket.instructions[1]).toBe("base");
+    options.onEvent({ type: "response.done", responseId: "r2" });
+    expect(socket.instructions.length).toBe(2);
+  });
+
+  it("emits a non-forcing offer for non-emergency calls", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    g.requests[0]?.answer({ label: "self-care", calls: [c3114] });
+    await flush();
+    expect(h.threads.filter((e) => e.type === "offer")).toEqual([
+      { type: "offer", itemId: "t1", calls: [c3114] },
+    ]);
+    expect(first(h.sockets).socket.forced).toEqual([]);
+  });
+
+  it("still emits the emergency event when audio fails", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage, enqueueThrows: true });
+    await active(h);
+    say(h, "t1", "x");
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(emergencies(h).length).toBe(1);
+  });
+
+  it("sends no triage and no force past the cap", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    h.skip(callCapMs + 1);
+    say(h, "t1", "x");
+    await flush();
+    expect(g.requests).toEqual([]);
+    expect(first(h.sockets).socket.forced).toEqual([]);
+  });
+
+  it("ignores a result that lands after the cap", async () => {
+    const g = gated();
+    const h = setup({ triage: g.triage });
+    await active(h);
+    say(h, "t1", "x");
+    h.skip(callCapMs + 1);
+    g.requests[0]?.answer(emergency15);
+    await flush();
+    expect(first(h.sockets).socket.forced).toEqual([]);
+    expect(emergencies(h)).toEqual([]);
   });
 });

@@ -41,6 +41,8 @@ function mount() {
     },
     cancelResponse() {},
     truncate() {},
+    forceMessage() {},
+    updateInstructions() {},
     close() {
       counts.socketClose += 1;
     },
@@ -124,7 +126,7 @@ it("forwards transcripts and drops stale ones after end", async () => {
   act(() =>
     options?.onEvent({ type: "input.transcription_completed", itemId: "t1", text: "ok" }),
   );
-  expect(h.events.map((e) => [e.itemId, e.final])).toEqual([["t1", true]]);
+  expect(h.events.map((e) => [e.itemId, e.type === "transcript" && e.final])).toEqual([["t1", true]]);
   act(() => h.current().end());
   act(() =>
     options?.onEvent({ type: "input.transcription_updated", itemId: "t2", text: "late" }),

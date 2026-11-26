@@ -31,8 +31,9 @@ describe("defaultInstructions", () => {
       role: "user" as const,
       content: `m${i} ${"x".repeat(500)}`,
     }));
-    const lines = defaultInstructions(history).split("\n");
-    expect(lines.length).toBe(10 + 3);
+    const out = defaultInstructions(history);
+    const lines = out.slice(out.indexOf("<historique>")).split("\n");
+    expect(lines.length).toBe(10 + 2);
     expect(Math.max(...lines.map((l) => l.length))).toBeLessThan(400);
   });
 });
@@ -70,6 +71,8 @@ describe("createMockCall", () => {
       sendAudio() {},
       cancelResponse() {},
       truncate() {},
+      forceMessage() {},
+      updateInstructions() {},
       close() {},
     };
     const audio: BrowserAudio = {
@@ -114,6 +117,8 @@ describe("default call clock", () => {
       sendAudio() {},
       cancelResponse() {},
       truncate() {},
+      forceMessage() {},
+      updateInstructions() {},
       close() {},
     };
     const audio: BrowserAudio = {

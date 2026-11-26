@@ -71,6 +71,9 @@ export type CallEvent =
     }
   // The hook's local audio queue for this generation is empty or flushed.
   | { readonly type: "playbackDrained"; readonly generation: number }
+  // The caller flushed local audio for a forced message. Retires the playback
+  // generation without a barge-in truncate or cancel.
+  | { readonly type: "generationRetired" }
   | { readonly type: "end"; readonly reason: EndReason }
   | { readonly type: "server"; readonly event: ServerEvent };
 
@@ -272,6 +275,13 @@ export function reduceCall(state: CallState, event: CallEvent): CallState {
         }
         const playedMs = Math.max(0, event.playedMs);
         return { ...state, playback: { ...state.playback, playedMs } };
+      }
+      if (event.type === "generationRetired") {
+        return withActivity({
+          ...state,
+          generation: state.generation + 1,
+          playback: undefined,
+        });
       }
       if (event.type === "playbackDrained") {
         // A drain clears only its own generation's playback and pending cancel.

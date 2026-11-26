@@ -1,4 +1,4 @@
-import { type CallEvent, type CallState, parseServerEvent, reduceCall } from "./index.ts";
+import { type CallEvent, type CallState, initialCallState, parseServerEvent, reduceCall } from "./index.ts";
 import { describe, expect, it } from "vitest";
 
 const run = (events: readonly CallEvent[], from: CallState = { phase: "idle" }) =>
@@ -684,5 +684,14 @@ describe("PR 60 regression table", () => {
 
   it.each(cases)("%s", (_name, actual, expected) => {
     expect(actual()).toEqual(expected);
+  });
+});
+
+describe("generationRetired", () => {
+  it("bumps generation and drops playback without a cancel", () => {
+    let s = reduceCall(reduceCall(initialCallState, { type: "start" }), { type: "connected" });
+    s = reduceCall(s, { type: "playbackStarted", responseId: "r", itemId: "i", generation: 0 });
+    s = reduceCall(s, { type: "generationRetired" });
+    expect(s).toMatchObject({ generation: 1, playback: undefined, cancel: undefined, activity: "listening" });
   });
 });

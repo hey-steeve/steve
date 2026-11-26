@@ -2,9 +2,16 @@ import type { Handoff, Turn } from "@steve/shared";
 
 export type VoiceTurn = Turn & { readonly channel: "voice" };
 
+export type VoiceDecision = {
+  readonly turnId: string;
+  readonly label: "emergency" | "consult" | "self-care" | "need-info";
+};
+
 export type VoiceTriageRequest = {
   readonly current: VoiceTurn;
   readonly previous: readonly Turn[];
+  // App-only: Jev labels the client recorded for earlier turns, by turnId.
+  readonly decisions?: readonly VoiceDecision[];
 };
 
 export type VoiceTriageRequestResult =
@@ -64,31 +71,98 @@ export function buildHandoff(request: VoiceTriageRequest): Handoff<readonly Turn
     turnId: request.current.turnId,
     target: "triage",
     intent: "care_request",
-    data: fitStateBudget([...request.previous, request.current]),
+    data: fitStateBudget([...request.previous, request.current], request.decisions ?? []),
   };
 }
 
-// Voice-only budget: triageTurn joins the last 6 turns with "\n". Keep the current
-// turn, then older turns of that window while the joined state stays within the
-// budget; whatever does not fit is omitted from the head, separators included.
-function fitStateBudget(turns: readonly Turn[]): readonly Turn[] {
-  const window = turns.slice(-voiceTriageLimits.stateTurns);
+// Voice-only budget. The returned turns are exactly what triageTurn reads: at most
+// 6 turns whose texts joined with "\n" stay within the character cap. The current
+// turn is kept whole. Earlier turns with a recorded emergency label are kept (their
+// text compacted when needed); when they cannot all fit in 6 slots, the earliest ones
+// and the most recent ones win. The immediate predecessor is preferred, compacted if
+// it must be, but only in slots left after every recorded emergency. Other turns fill the rest, newest first, only while whole. Order is kept.
+function fitStateBudget(
+  turns: readonly Turn[],
+  decisions: readonly VoiceDecision[],
+): readonly Turn[] {
+  const { stateTurns, maxStateChars } = voiceTriageLimits;
+  const emergencies = new Set(
+    decisions.filter((d) => d.label === "emergency").map((d) => d.turnId),
+  );
+  const last = turns.length - 1;
+  const predecessor = last - 1;
+  const protectedIdx: number[] = [];
+  for (let index = 0; index < last; index += 1) {
+    if (emergencies.has(turns[index]?.turnId ?? "")) protectedIdx.push(index);
+  }
+  const kept = new Set<number>([last]);
+  const compactable = new Set<number>();
+  const slots = stateTurns - 1;
+  let chosen = protectedIdx;
+  if (protectedIdx.length > slots) {
+    const earliest = Math.ceil(slots / 2);
+    chosen = [
+      ...protectedIdx.slice(0, earliest),
+      ...protectedIdx.slice(protectedIdx.length - (slots - earliest)),
+    ];
+  }
+  for (const index of chosen) {
+    kept.add(index);
+    compactable.add(index);
+  }
+  const size = (index: number): number => turns[index]?.text.length ?? 0;
   let length = 0;
-  let start = window.length;
-  for (let index = window.length - 1; index >= 0; index -= 1) {
-    const size = (window[index]?.text.length ?? 0) + (index === window.length - 1 ? 0 : 1);
-    if (index !== window.length - 1 && length + size > voiceTriageLimits.maxStateChars) {
+  for (const index of kept) length += size(index);
+  length += kept.size - 1;
+  for (let index = last - 1; index >= 0; index -= 1) {
+    if (kept.has(index)) continue;
+    const cost = size(index) + 1;
+    if (kept.size >= stateTurns) break;
+    if (length + cost > maxStateChars) {
+      if (index === predecessor) {
+        kept.add(index);
+        compactable.add(index);
+        length += cost;
+      }
       break;
     }
-    length += size;
-    start = index;
+    length += cost;
+    kept.add(index);
   }
-  return window.slice(start);
+  const caps = new Map<number, number>();
+  if (length > maxStateChars) {
+    let fixed = kept.size - 1;
+    for (const index of kept) if (!compactable.has(index)) fixed += size(index);
+    let remaining = Math.max(0, maxStateChars - fixed);
+    const order = [...compactable].sort((x, y) => size(x) - size(y));
+    order.forEach((index, position) => {
+      const cap = Math.min(size(index), Math.floor(remaining / (order.length - position)));
+      caps.set(index, cap);
+      remaining -= cap;
+    });
+  }
+  return turns.flatMap((turn, index) => {
+    if (!kept.has(index)) return [];
+    const cap = caps.get(index);
+    return [cap === undefined || cap >= turn.text.length ? turn : { ...turn, text: turn.text.slice(0, cap) }];
+  });
 }
 
 export function parseVoiceTriageRequest(body: unknown): VoiceTriageRequest | null {
-  if (!hasExactKeys(body, ["current", "previous"])) {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return null;
+  }
+  const hasDecisions = Object.keys(body).includes("decisions");
+  if (!hasExactKeys(body, hasDecisions ? ["current", "previous", "decisions"] : ["current", "previous"])) {
+    return null;
+  }
+  let decisions: VoiceDecision[] | undefined;
+  if (hasDecisions) {
+    const parsed = parseDecisions(Reflect.get(body, "decisions"));
+    if (parsed === null) {
+      return null;
+    }
+    decisions = parsed;
   }
   const current = parseTurn(Reflect.get(body, "current"));
   if (current === null || current.channel !== "voice") {
@@ -107,7 +181,37 @@ export function parseVoiceTriageRequest(body: unknown): VoiceTriageRequest | nul
     }
     turns.push(turn);
   }
-  return { current: { ...current, channel: "voice" }, previous: turns };
+  return {
+    current: { ...current, channel: "voice" },
+    previous: turns,
+    ...(decisions ? { decisions } : {}),
+  };
+}
+
+function isLabel(value: unknown): value is VoiceDecision["label"] {
+  return (
+    value === "emergency" || value === "consult" || value === "self-care" || value === "need-info"
+  );
+}
+
+function parseDecisions(value: unknown): VoiceDecision[] | null {
+  if (!Array.isArray(value) || value.length > voiceTriageLimits.maxPrevious) {
+    return null;
+  }
+  const out: VoiceDecision[] = [];
+  const items: readonly unknown[] = value;
+  for (const item of items) {
+    if (!hasExactKeys(item, ["turnId", "label"])) {
+      return null;
+    }
+    const turnId: unknown = Reflect.get(item, "turnId");
+    const label: unknown = Reflect.get(item, "label");
+    if (!isId(turnId) || !isLabel(label)) {
+      return null;
+    }
+    out.push({ turnId, label });
+  }
+  return out;
 }
 
 async function readCapped(request: Request): Promise<Uint8Array | "too-large" | "unreadable"> {
