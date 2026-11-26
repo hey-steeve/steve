@@ -357,6 +357,11 @@ export function ensureEmergencyCalls(
   return joinPrefix(templates.join(" "), withoutExactCallTemplates(reply, blocks));
 }
 
+// True when the reply already opens with the exact required blocks for these calls.
+export function opensWithCallBlocks(reply: string, calls: readonly EmergencyCall[]): boolean {
+  return startsWithBlocks(rawPieces(reply), templatesFor(calls).map(blockFor));
+}
+
 function templatesFor(calls: readonly EmergencyCall[]): string[] {
   const first15 = calls.indexOf("15");
   return calls.map((call, index) => {
@@ -671,7 +676,7 @@ function sentenceGap(previous: string): string {
   return /[.!?]$/u.test(normalizeEmergencyText(previous)) ? " " : ". ";
 }
 
-function joinPrefix(prefix: string, body: string): string {
+export function joinPrefix(prefix: string, body: string): string {
   const trimmed = body.trim();
   if (trimmed.length === 0) {
     return prefix;
