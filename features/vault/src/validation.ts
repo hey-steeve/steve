@@ -5,6 +5,7 @@ import {
   type StoredDocument,
   type SupportedDocumentMimeType,
   type VaultDocumentMetadata,
+  type VaultDocumentListItem,
   type VaultError,
   type VaultResult,
 } from "./contracts.ts";
@@ -14,10 +15,20 @@ const controlCharacterPattern = /[\u0000-\u001f\u007f]/;
 const fileControlCharacterPattern = /[\u0000-\u001f\u007f]/;
 const evidenceControlCharacterPattern = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 const letterOrDigitPattern = /[\p{L}\p{N}]/u;
+const contentDigestPattern = /^[a-f0-9]{64}$/;
 
-type ValidatedDocument = {
+type UnhashedDocument = Omit<
+  StoredDocument,
+  "contentDigest" | "extractedText"
+>;
+
+type ValidatedDocumentInput = {
+  readonly document: UnhashedDocument;
+  readonly text: string | null;
+};
+
+type ValidatedStoredDocument = {
   readonly document: StoredDocument;
-  readonly text: string;
 };
 
 type ValidatedSummary = {
@@ -278,11 +289,51 @@ function decodeText(content: Uint8Array): VaultResult<string> {
   return { ok: true, value: text };
 }
 
+function hasPdfHeader(content: Uint8Array): boolean {
+  return (
+    content.byteLength >= 5 &&
+    content[0] === 0x25 &&
+    content[1] === 0x50 &&
+    content[2] === 0x44 &&
+    content[3] === 0x46 &&
+    content[4] === 0x2d
+  );
+}
+
+function validateDocumentText(
+  mimeType: SupportedDocumentMimeType,
+  content: Uint8Array,
+): VaultResult<string | null> {
+  if (mimeType === "application/pdf") {
+    return hasPdfHeader(content)
+      ? { ok: true, value: null }
+      : failure(
+        "INVALID_DOCUMENT",
+        "Document content is not a valid PDF.",
+        "content",
+      );
+  }
+  return decodeText(content);
+}
+
+function validExtractedText(
+  value: unknown,
+  maximum: number,
+): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= maximum &&
+    value.trim() !== "" &&
+    !value.includes("\u0000")
+  );
+}
+
 export function validateDocumentInput(
   input: unknown,
   generateId: () => string,
   storedAt: string,
-): VaultResult<ValidatedDocument> {
+): VaultResult<ValidatedDocumentInput> {
   if (
     !isRecord(input) ||
     !hasOnlyKeys(input, ["id", "fileName", "mimeType", "content", "metadata"])
@@ -343,7 +394,7 @@ export function validateDocumentInput(
   }
   const content = contentSnapshot.value;
 
-  const text = decodeText(content);
+  const text = validateDocumentText(mimeType, content);
   if (!text.ok) {
     return text;
   }
@@ -371,7 +422,7 @@ export function validateDocumentInput(
 
 export function validateStoredDocument(
   input: unknown,
-): VaultResult<ValidatedDocument> {
+): VaultResult<ValidatedStoredDocument> {
   if (
     !isRecord(input) ||
     !hasOnlyKeys(input, [
@@ -380,6 +431,8 @@ export function validateStoredDocument(
       "mimeType",
       "sizeBytes",
       "content",
+      "extractedText",
+      "contentDigest",
       "metadata",
       "storedAt",
     ])
@@ -392,6 +445,8 @@ export function validateStoredDocument(
   const mimeType: unknown = Reflect.get(input, "mimeType");
   const sizeBytes: unknown = Reflect.get(input, "sizeBytes");
   const contentSnapshot = snapshotBytes(Reflect.get(input, "content"));
+  const extractedText: unknown = Reflect.get(input, "extractedText");
+  const contentDigest: unknown = Reflect.get(input, "contentDigest");
   const metadataInput: unknown = Reflect.get(input, "metadata");
   const storedAt: unknown = Reflect.get(input, "storedAt");
   if (
@@ -402,15 +457,26 @@ export function validateStoredDocument(
     !Number.isInteger(sizeBytes) ||
     contentSnapshot.kind !== "ok" ||
     sizeBytes !== contentSnapshot.value.byteLength ||
+    typeof contentDigest !== "string" ||
+    !contentDigestPattern.test(contentDigest) ||
     !validTimestamp(storedAt)
   ) {
     return failure("INVALID_DOCUMENT", "Stored document is invalid.");
   }
   const content = contentSnapshot.value;
 
-  const text = decodeText(content);
+  const text = validateDocumentText(mimeType, content);
   if (!text.ok) {
     return text;
+  }
+  const textLimit = mimeType === "application/pdf"
+    ? vaultLimits.extractedTextCharacters
+    : vaultLimits.contentBytes;
+  if (
+    !validExtractedText(extractedText, textLimit) ||
+    (text.value !== null && extractedText !== text.value)
+  ) {
+    return failure("INVALID_DOCUMENT", "Stored document is invalid.");
   }
   const metadata = validateMetadata(metadataInput);
   if (!metadata.ok) {
@@ -425,12 +491,93 @@ export function validateStoredDocument(
         mimeType,
         sizeBytes,
         content,
+        extractedText,
+        contentDigest,
         metadata: metadata.value,
         storedAt,
       },
-      text: text.value,
     },
   };
+}
+
+function validateListItem(input: unknown): VaultResult<VaultDocumentListItem> {
+  if (
+    !isRecord(input) ||
+    !hasOnlyKeys(input, [
+      "id",
+      "fileName",
+      "mimeType",
+      "sizeBytes",
+      "contentDigest",
+      "metadata",
+      "storedAt",
+    ])
+  ) {
+    return failure("INVALID_DOCUMENT", "Stored document list is invalid.");
+  }
+  const id: unknown = Reflect.get(input, "id");
+  const fileName: unknown = Reflect.get(input, "fileName");
+  const mimeType: unknown = Reflect.get(input, "mimeType");
+  const sizeBytes: unknown = Reflect.get(input, "sizeBytes");
+  const contentDigest: unknown = Reflect.get(input, "contentDigest");
+  const metadataInput: unknown = Reflect.get(input, "metadata");
+  const storedAt: unknown = Reflect.get(input, "storedAt");
+  if (
+    !validDocumentId(id) ||
+    !validFileName(fileName) ||
+    !isSupportedMimeType(mimeType) ||
+    typeof sizeBytes !== "number" ||
+    !Number.isInteger(sizeBytes) ||
+    sizeBytes <= 0 ||
+    sizeBytes > vaultLimits.contentBytes ||
+    typeof contentDigest !== "string" ||
+    !contentDigestPattern.test(contentDigest) ||
+    !validTimestamp(storedAt)
+  ) {
+    return failure("INVALID_DOCUMENT", "Stored document list is invalid.");
+  }
+  const metadata = validateMetadata(metadataInput);
+  if (!metadata.ok) {
+    return failure("INVALID_DOCUMENT", "Stored document list is invalid.");
+  }
+  return {
+    ok: true,
+    value: {
+      id,
+      fileName,
+      mimeType,
+      sizeBytes,
+      contentDigest,
+      metadata: metadata.value,
+      storedAt,
+    },
+  };
+}
+
+export function validateDocumentList(
+  input: unknown,
+): VaultResult<readonly VaultDocumentListItem[]> {
+  const items = snapshotArray(input, vaultLimits.listedDocuments);
+  if (items === null) {
+    return failure("INVALID_DOCUMENT", "Stored document list is invalid.");
+  }
+  const documents: VaultDocumentListItem[] = [];
+  const ids = new Set<string>();
+  const digests = new Set<string>();
+  for (const item of items) {
+    const validated = validateListItem(item);
+    if (
+      !validated.ok ||
+      ids.has(validated.value.id) ||
+      digests.has(validated.value.contentDigest)
+    ) {
+      return failure("INVALID_DOCUMENT", "Stored document list is invalid.");
+    }
+    ids.add(validated.value.id);
+    digests.add(validated.value.contentDigest);
+    documents.push(validated.value);
+  }
+  return { ok: true, value: documents };
 }
 
 export function validateLookupId(id: string): VaultResult<string> {

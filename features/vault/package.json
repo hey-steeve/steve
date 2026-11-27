@@ -8,5 +8,8 @@
   "scripts": {
     "typecheck": "pnpm --dir ../.. exec tsc --noEmit -p features/vault",
     "test": "pnpm --dir ../.. exec vitest run --passWithNoTests features/vault"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.5.438"
   }
 }

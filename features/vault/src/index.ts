@@ -8,6 +8,7 @@ export { createVault } from "./vault.ts";
 export type {
   DocumentStorage,
   DocumentStorageCreateResult,
+  DocumentStorageDeleteResult,
   DocumentSummary,
   FactualAssertion,
   FactualSummaryCandidate,
@@ -18,6 +19,7 @@ export type {
   Vault,
   VaultDependencies,
   VaultDocumentInput,
+  VaultDocumentListItem,
   VaultDocumentMetadata,
   VaultDocumentMetadataInput,
   VaultError,

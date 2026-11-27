@@ -55,7 +55,7 @@ describe("document validation", () => {
     });
   });
 
-  test("rejects unsupported and parameterized MIME types", async () => {
+  test("rejects a mismatched PDF body and parameterized MIME types", async () => {
     const service = vault();
     const pdfInput = input();
     const parameterizedInput = input();
@@ -64,24 +64,18 @@ describe("document validation", () => {
     const pdf = await service.store(pdfInput);
     const parameterized = await service.store(parameterizedInput);
 
-    expect([pdf, parameterized]).toEqual([
-      {
-        ok: false,
-        error: {
-          code: "UNSUPPORTED_CONTENT_TYPE",
-          message: "Document content type is not supported.",
-          field: "mimeType",
-        },
+    expect(pdf).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_DOCUMENT", field: "content" },
+    });
+    expect(parameterized).toEqual({
+      ok: false,
+      error: {
+        code: "UNSUPPORTED_CONTENT_TYPE",
+        message: "Document content type is not supported.",
+        field: "mimeType",
       },
-      {
-        ok: false,
-        error: {
-          code: "UNSUPPORTED_CONTENT_TYPE",
-          message: "Document content type is not supported.",
-          field: "mimeType",
-        },
-      },
-    ]);
+    });
   });
 
   test.each([
