@@ -28,8 +28,10 @@ it("stacks the home cards in order under the greeting", async () => {
     "chat-home-card chat-home-space",
     "chat-home-card chat-home-upcoming",
     "chat-home-tiles",
-    "chat-disclaimer chat-home-disclaimer",
   ]);
+  expect(view.querySelector(".chat-home-dock > .chat-disclaimer")?.textContent).toBe(
+    "Steve n’est pas médecin et ne pose pas de diagnostic.",
+  );
   expect(view.querySelector(".chat-home-chip")?.textContent).toBe("Dans 5 jours");
   expect(view.querySelector(".chat-home-appt-name")?.textContent).toBe("Dr Camille Lunéval");
   expect(view.querySelector(".chat-home-appt-foot")?.textContent).toBe("Mer. 2 déc.10:00");

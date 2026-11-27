@@ -196,7 +196,6 @@ export default function RemindersClient() {
     <FeatureShell
       current="/reminders"
       title="Mes rappels"
-      badge="Démonstration"
       heroMascot={{ src: "/mascot/bubbles.webp", width: 1137, height: 840 }}
     >
       <section className="steve-card" aria-labelledby="reminder-card-title">
@@ -248,8 +247,6 @@ export default function RemindersClient() {
           </li>
         </ul>
 
-        <hr className="steve-divider" />
-        <p className="steve-demo-note">Données de démonstration</p>
 
         {editing ? (
           <div className="reminders-editor">

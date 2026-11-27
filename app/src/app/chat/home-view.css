@@ -33,8 +33,7 @@
   color: var(--color-canvas);
 }
 
-.chat-home-glass:focus-visible,
-.chat-home-tab:focus-visible {
+.chat-home-glass:focus-visible {
   outline: 2px solid var(--color-canvas);
   outline-offset: 2px;
 }
@@ -375,49 +374,36 @@
   color: #124548;
 }
 
-.chat-home-tabbar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 12px var(--page-pad) calc(16px + env(safe-area-inset-bottom));
-  animation: chat-enter-fade var(--motion-scene) var(--motion-ease) both;
-}
-
-.chat-page[data-keyboard-open] .chat-home-tabbar {
-  display: none;
-}
-
-.chat-home-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-canvas);
-  box-shadow: var(--shadow-faint);
-}
-
-.chat-home-tab {
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 48px;
-  border-radius: var(--radius-pill);
-  color: var(--color-caption);
-}
-
-.chat-home-tab[aria-current="page"] {
-  background: var(--color-indigo-50);
-  color: var(--color-indigo-900);
-}
-
 @media (max-width: 350px) {
-  .chat-home-tab {
-    width: 44px;
-  }
-
   .chat-greeting {
     font-size: 34px;
+  }
+}
+
+.chat-hero:not(.chat-hero-leave) .chat-home-actions > * {
+  animation: app-screen-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chat-home-actions > :nth-child(2) { animation-delay: 50ms; }
+.chat-home-actions > :nth-child(3) { animation-delay: 100ms; }
+.chat-home-actions > :nth-child(4) { animation-delay: 150ms; }
+.chat-home-actions > :nth-child(n + 5) { animation-delay: 200ms; }
+
+.chat-home-appt,
+.chat-home-card,
+.chat-home-tile,
+.chat-home-glass {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-home-appt:active,
+.chat-home-tile:active,
+.chat-home-glass:active {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-hero:not(.chat-hero-leave) .chat-home-actions > * {
+    animation: none;
   }
 }

@@ -11,7 +11,6 @@ import {
   homeSpace,
   homeUpcoming,
 } from "../../chat/home-summary";
-import { PhoneIcon } from "./agent-call-bar";
 import "./home-view.css";
 
 export function HomeTopBar() {
@@ -81,6 +80,7 @@ export function HomeAppointmentCard() {
 }
 
 export function HomeAskCard(props: {
+  readonly disclaimer: ReactNode;
   readonly composer: ReactNode;
   readonly starters: ReactNode;
 }) {
@@ -95,7 +95,10 @@ export function HomeAskCard(props: {
           <span className="chat-home-prompt-copy">Écris-moi ici ou appelle-moi.</span>
         </span>
       </div>
-      <div className="chat-dock chat-home-dock">{props.composer}</div>
+      <div className="chat-dock chat-home-dock">
+        {props.disclaimer}
+        {props.composer}
+      </div>
       {props.starters}
     </section>
   );
@@ -179,36 +182,6 @@ export function HomeTiles() {
         <span>Steve appelle le cabinet</span>
       </Link>
     </nav>
-  );
-}
-
-export function HomeTabBar(props: { readonly onCall: () => void }) {
-  return (
-    <div className="chat-home-tabbar">
-      <nav className="chat-home-tabs" aria-label="Espaces Steve">
-        <Link href="/chat" aria-label="Accueil" aria-current="page" className="chat-home-tab">
-          <HomeIcon />
-        </Link>
-        <Link href="/agenda" aria-label="Agenda" className="chat-home-tab">
-          <CalendarIcon />
-        </Link>
-        <Link href="/vault" aria-label="Documents" className="chat-home-tab">
-          <FileIcon />
-        </Link>
-        <Link href="/profile" aria-label="Mon profil" className="chat-home-tab">
-          <UserIcon />
-        </Link>
-      </nav>
-      <button
-        type="button"
-        className="chat-call-cta"
-        aria-label="Appeler Steve"
-        title="Appeler Steve"
-        onClick={props.onCall}
-      >
-        <PhoneIcon />
-      </button>
-    </div>
   );
 }
 
@@ -308,22 +281,5 @@ function SearchIcon() {
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-4-4" />
     </Svg>
-  );
-}
-
-function FileIcon() {
-  return (
-    <Svg>
-      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-      <path d="M14 3v5h5M9 13h6M9 17h4" />
-    </Svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M4 10.5 12 4l8 6.5V19a2 2 0 0 1-2 2h-3v-6H9v6H6a2 2 0 0 1-2-2z" />
-    </svg>
   );
 }

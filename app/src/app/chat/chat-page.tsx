@@ -15,13 +15,13 @@ import { useDictation } from "../../chat/speech";
 import type { CallDeps, ThreadMessage } from "../../voice/live-call";
 import { createBrowserCallDeps } from "../../voice/mock-call";
 import { useLiveCall, type ThreadEvent } from "../../voice/use-live-call";
+import { AppTabBar } from "../tab-bar";
 import { AgentCallBar, PhoneIcon } from "./agent-call-bar";
 import { DirectoryActivity, DirectoryWidget } from "./directory-widget";
 import {
   HomeAppointmentCard,
   HomeAskCard,
   HomeSpaceCard,
-  HomeTabBar,
   HomeTiles,
   HomeTopBar,
   HomeUpcomingCard,
@@ -30,8 +30,7 @@ import { runPractitionerSearch, type DirectoryResult } from "./search-practition
 import "./chat.css";
 import "./directory-widget.css";
 
-const disclaimer =
-  "Steve n'est pas un médecin ni un dispositif médical.";
+const disclaimer = "Steve n’est pas médecin et ne pose pas de diagnostic.";
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
 const clientTimeoutMs = 35_000;
@@ -597,14 +596,12 @@ export default function ChatPage(props: {
     </div>
   );
 
-  const footnote = (
-    <>
-      <p className="chat-disclaimer">{disclaimer}</p>
-      {dictation.notice === null || dictation.notice.includes("HTTPS") ? null : (
-        <p className="chat-notice">{dictation.notice}</p>
-      )}
-    </>
-  );
+  const disclaimerLine = <p className="chat-disclaimer">{disclaimer}</p>;
+
+  const footnote =
+    dictation.notice === null || dictation.notice.includes("HTTPS") ? null : (
+      <p className="chat-notice">{dictation.notice}</p>
+    );
 
   function showLatest() {
     const thread = threadRef.current;
@@ -726,6 +723,7 @@ export default function ChatPage(props: {
                 <div className="chat-home-actions">
                   <HomeAppointmentCard />
                   <HomeAskCard
+                    disclaimer={disclaimerLine}
                     composer={composer}
                     starters={
                       <ul className="chat-starters" aria-label="Suggestions pour commencer">
@@ -749,9 +747,6 @@ export default function ChatPage(props: {
                   <HomeSpaceCard />
                   <HomeUpcomingCard />
                   <HomeTiles />
-                  <p className="chat-disclaimer chat-home-disclaimer">
-                    Steve n’est pas médecin et ne pose pas de diagnostic.
-                  </p>
                 </div>
               ) : null}
             </div>
@@ -831,7 +826,7 @@ export default function ChatPage(props: {
             </ol>
           )}
         </div>
-        {empty ? <HomeTabBar onCall={startCall} /> : null}
+        {empty ? <AppTabBar current="/chat" onCall={startCall} /> : null}
         {unseenReply ? (
           <div className="chat-new-message-row">
             <button
@@ -860,7 +855,12 @@ export default function ChatPage(props: {
                   Nouvelle conversation
                 </button>
               </section>
-            ) : composer}
+            ) : (
+              <>
+                {disclaimerLine}
+                {composer}
+              </>
+            )}
             {footnote}
           </div>
         )}

@@ -235,7 +235,6 @@ export default function InboxClient() {
     <FeatureShell
       current="/inbox"
       title="Ma messagerie"
-      badge="Démonstration"
       heroMascot={{ src: "/mascot/state-done.webp", width: 256, height: 256 }}
     >
       <section className="steve-card" aria-labelledby="inbox-address-title">
@@ -337,8 +336,6 @@ export default function InboxClient() {
             );
           })}
         </ul>
-
-        <p className="steve-demo-note">Données de démonstration</p>
 
         <button
           type="button"

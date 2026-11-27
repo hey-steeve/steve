@@ -223,7 +223,6 @@ export default function BookingClient(props: {
       <FeatureShell
         current="/booking"
         title="Appel au cabinet"
-        badge="Démonstration"
         heroMascot={{ src: "/mascot/state-calling.webp", width: 256, height: 256 }}
       >
         <section className="steve-card" aria-live="polite" aria-busy="true">
@@ -232,7 +231,6 @@ export default function BookingClient(props: {
               {selectedPractitioner.firstName} {selectedPractitioner.lastName}
             </h2>
             <p className="steve-detail-secondary">{selectedPractitioner.specialtyLabel}</p>
-            <p className="steve-demo-note">Données de démonstration</p>
           </div>
           <ol className="booking-steps">
             <li className="booking-step-row">
@@ -253,7 +251,6 @@ export default function BookingClient(props: {
     <FeatureShell
       current="/booking"
       title="Prise de rendez-vous"
-      badge="Démonstration"
       headerMascot={{
         src: phase === "confirmed" ? "/mascot/state-done.webp" : "/mascot/state-listening.webp",
         width: 256,
@@ -322,9 +319,7 @@ export default function BookingClient(props: {
               </li>
             </ul>
             <hr className="steve-divider" />
-            <p className="steve-demo-note">
-              Données de démonstration · Réf. {result.confirmationId}
-            </p>
+            <p className="steve-demo-note">Réf. {result.confirmationId}</p>
             <Link className="steve-btn-action" href="/agenda">
               <span className="steve-icon-circle" aria-hidden="true">
                 <CalendarIcon />
@@ -349,7 +344,6 @@ export default function BookingClient(props: {
               </li>
             ))}
           </ul>
-          <p className="steve-demo-note">Données de démonstration</p>
         </section>
       )}
 

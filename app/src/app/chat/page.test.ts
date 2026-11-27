@@ -23,6 +23,10 @@ const chatCss = readFileSync(
   path.join(process.cwd(), "app/src/app/chat/chat.css"),
   "utf8",
 );
+const tabBarCss = readFileSync(
+  path.join(process.cwd(), "app/src/app/tab-bar.css"),
+  "utf8",
+);
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -153,7 +157,7 @@ it("anchors the mascot beside the greeting, behind the home cards", () => {
 it("paints the call button and composer on the home screen", async () => {
   const canvas = designTokens.color.canvas;
   const style = document.createElement("style");
-  style.textContent = chatCss;
+  style.textContent = chatCss + tabBarCss;
   document.head.append(style);
   vi.stubGlobal(
     "fetch",

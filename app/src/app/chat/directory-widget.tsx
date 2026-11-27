@@ -74,7 +74,7 @@ export function DirectoryWidget({ filters, practitioners, demo, onRefine }: {
         )}
         {onRefine && <button type="button" onClick={onRefine}>Affiner la recherche</button>}
       </section>
-      <p className="chat-directory-source">{demo ? "Données de démonstration" : "Source : Annuaire Santé"}</p>
+      {demo ? null : <p className="chat-directory-source">Source : Annuaire Santé</p>}
     </>
   );
 }

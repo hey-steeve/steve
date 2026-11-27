@@ -93,3 +93,13 @@
   line-height: 1.45;
   white-space: pre;
 }
+
+.agenda-ics-details summary {
+  color: var(--color-caption);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.agenda-ics-details[open] summary {
+  margin-bottom: 8px;
+}

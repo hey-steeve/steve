@@ -60,7 +60,7 @@ export default function VaultClient(props: {
   }
 
   return (
-    <FeatureShell current="/vault" title="Mes documents" badge="Démonstration">
+    <FeatureShell current="/vault" title="Mes documents">
       {documents.map((doc) => (
         <button
           key={doc.id}
@@ -80,7 +80,6 @@ export default function VaultClient(props: {
             <span className="vault-doc-title">{doc.title}</span>
             <span className="steve-detail-secondary">{doc.dateLabel}</span>
             <span className="steve-pill steve-pill-soft">{doc.formatLabel}</span>
-            <span className="steve-demo-note">Données de démonstration</span>
           </span>
           <span className="steve-row-chevron" aria-hidden="true">
             <ChevronRightIcon />

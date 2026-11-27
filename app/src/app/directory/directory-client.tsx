@@ -88,7 +88,6 @@ export default function DirectoryClient() {
       <section aria-labelledby="directory-results" className="directory-results">
         <div className="directory-results-header">
           <h2 id="directory-results">Résultats</h2>
-          <p>Données de démonstration</p>
         </div>
         <div aria-live="polite">
           {validation.ok && (results.length > 0 ? (
