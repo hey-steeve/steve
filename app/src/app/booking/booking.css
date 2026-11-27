@@ -1,0 +1,70 @@
+.booking-steps {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.booking-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-heading);
+  font-size: 16px;
+  font-weight: var(--font-weight-heading);
+}
+
+.booking-step-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 10px 14px;
+  border-radius: var(--steve-radius-row);
+  background: var(--color-indigo-50);
+  color: var(--color-heading);
+  font-size: 15px;
+  font-weight: var(--font-weight-heading);
+}
+
+.booking-check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--color-indigo-100);
+  color: var(--color-primary);
+}
+
+.booking-spinner {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--color-indigo-100);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: booking-spin 0.9s linear infinite;
+}
+
+.booking-pending-ring {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-primary);
+  border-radius: 50%;
+}
+
+@keyframes booking-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-spinner {
+    animation: none;
+  }
+}
