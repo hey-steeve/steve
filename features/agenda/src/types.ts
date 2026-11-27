@@ -5,6 +5,10 @@ export const agendaLimits = {
   locationLength: 500,
   dateTimeLength: 40,
   calendarExternalEventIdLength: 256,
+  scriptedCalendarGatewayScenarioCount: 100,
+  scriptedCalendarGatewayStepsPerScenario: 100,
+  scriptedCalendarGatewayHistoryLength: 1_000,
+  defaultScriptedCalendarGatewayHistoryLength: 100,
   defaultAppointments: 1_000,
   maximumConfigurableAppointments: 10_000,
 } as const;
@@ -133,6 +137,27 @@ export type CalendarSyncResult =
       value: Extract<CalendarGatewayResponse, { status: "synced" }>;
     }
   | { status: "error"; error: CalendarSyncError };
+
+export type ScriptedCalendarGatewayStep =
+  | {
+      readonly type: "synced";
+      readonly externalEventId: string;
+      readonly syncedAt: string;
+    }
+  | { readonly type: "rejected" }
+  | { readonly type: "failure" };
+
+export interface ScriptedCalendarGatewayScenario {
+  readonly idempotencyKey: string;
+  readonly steps: readonly ScriptedCalendarGatewayStep[];
+}
+
+export interface ScriptedCalendarGatewayOptions {
+  readonly scenarios: readonly ScriptedCalendarGatewayScenario[];
+  readonly historyLimit?: number;
+}
+
+export type ScriptedCalendarGatewayHistoryEntry = CalendarGatewayRequest;
 
 export interface Agenda {
   register(input: AppointmentInput): AgendaResult<ConfirmedAppointment>;
