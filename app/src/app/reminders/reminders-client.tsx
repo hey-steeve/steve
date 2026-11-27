@@ -166,8 +166,14 @@ export default function RemindersClient() {
     setErrorMessage(null);
     setStatusMessage(null);
 
+    let cancelledReminder: Reminder | null = null;
     if (activeReminder.status === "scheduled") {
-      await service.cancel(activeReminder.id);
+      const cancelled = await service.cancel(activeReminder.id);
+      if (!cancelled.ok) {
+        setErrorMessage("Impossible de modifier ce rappel pour le moment.");
+        return;
+      }
+      cancelledReminder = cancelled.value.reminder;
     }
 
     const scheduled = await service.schedule({
@@ -177,6 +183,7 @@ export default function RemindersClient() {
       details: { type: "appointment" },
     });
     if (!scheduled.ok) {
+      if (cancelledReminder !== null) setActiveReminder(cancelledReminder);
       setErrorMessage("Impossible de planifier ce rappel. Vérifie l’horaire choisi.");
       return;
     }
@@ -195,7 +202,11 @@ export default function RemindersClient() {
       <section className="steve-card" aria-labelledby="reminder-card-title">
         <div className="reminders-pill-row">
           <span className="steve-pill">
-            {activeReminder.status === "scheduled" ? "Planifié" : "Mis à jour"}
+            {activeReminder.status === "scheduled"
+              ? "Planifié"
+              : activeReminder.status === "cancelled"
+                ? "Annulé"
+                : "Mis à jour"}
           </span>
         </div>
 
