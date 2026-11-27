@@ -38,6 +38,9 @@ importers:
       '@steve/directory':
         specifier: workspace:*
         version: link:../features/directory
+      '@steve/inbox':
+        specifier: workspace:*
+        version: link:../features/inbox
       '@steve/profile':
         specifier: workspace:*
         version: link:../features/profile

@@ -18,6 +18,7 @@ export default async function nextConfig(): Promise<NextConfig> {
       "@steve/agenda",
       "@steve/booking",
       "@steve/directory",
+      "@steve/inbox",
       "@steve/profile",
       "@steve/reminders",
       "@steve/shared",

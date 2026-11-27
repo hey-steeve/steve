@@ -14,6 +14,7 @@
     "@steve/agenda": "workspace:*",
     "@steve/booking": "workspace:*",
     "@steve/directory": "workspace:*",
+    "@steve/inbox": "workspace:*",
     "@steve/profile": "workspace:*",
     "@steve/reminders": "workspace:*",
     "@steve/shared": "workspace:*",
