@@ -175,4 +175,104 @@ describe("handleConversationTurn", () => {
     expect(ended.outcome).toEqual({ kind: "ended", reply: "À bientôt, prends soin de toi." });
     expect(ended.state.phase).toBe("ended");
   });
+
+  it("keeps running triageGate after an emergency referral and lets a new emergency through (15 then 3114)", async () => {
+    const initial = createConversation("sess-1", "voice");
+    const resolveIntent = vi.fn();
+    const dispatchHandoff = vi.fn();
+    const triageGate = vi
+      .fn<ConversationDeps["triageGate"]>()
+      .mockResolvedValueOnce({
+        status: "emergency",
+        calls: ["15"],
+        reply: "Appelle le 15 maintenant.",
+      })
+      .mockResolvedValueOnce({
+        status: "emergency",
+        calls: ["3114"],
+        reply: "Appelle le 3114 maintenant.",
+      });
+
+    const deps: ConversationDeps = { triageGate, resolveIntent, dispatchHandoff };
+
+    const first = await handleConversationTurn(
+      initial,
+      makeTurn({ channel: "voice", turnId: "t-1", text: "J'ai mal à la poitrine" }),
+      deps,
+    );
+    expect(first.outcome).toEqual({
+      kind: "emergency-referral",
+      calls: ["15"],
+      reply: "Appelle le 15 maintenant.",
+    });
+    expect(first.state.phase).toBe("emergency-referred");
+
+    const second = await handleConversationTurn(
+      first.state,
+      makeTurn({ channel: "voice", turnId: "t-2", text: "Je n'en peux plus, je veux en finir" }),
+      deps,
+    );
+    expect(second.outcome).toEqual({
+      kind: "emergency-referral",
+      calls: ["3114"],
+      reply: "Appelle le 3114 maintenant.",
+    });
+    expect(second.state.phase).toBe("emergency-referred");
+    expect(triageGate).toHaveBeenCalledTimes(2);
+    expect(triageGate).toHaveBeenLastCalledWith({
+      sessionId: "sess-1",
+      turnId: "t-2",
+      channel: "voice",
+      patientHistory: ["J'ai mal à la poitrine", "Je n'en peux plus, je veux en finir"],
+    });
+    expect(resolveIntent).not.toHaveBeenCalled();
+    expect(dispatchHandoff).not.toHaveBeenCalled();
+  });
+
+  it("runs the normal flow for a booking request after a 15 referral", async () => {
+    const initial = createConversation("sess-1", "text");
+    const seenHandoffs: Handoff[] = [];
+    const resolveIntent = vi.fn<ConversationDeps["resolveIntent"]>(async () => ({
+      kind: "handoff",
+      target: "booking",
+      intent: "book-appointment",
+      data: { specialty: "dermatologue" },
+    }));
+    const dispatchHandoff = vi.fn(async (handoff: Handoff): Promise<FeatureResult> => {
+      seenHandoffs.push(handoff);
+      return { ok: true, reply: "Je m'occupe de ton rendez-vous." };
+    });
+    const triageGate = vi
+      .fn<ConversationDeps["triageGate"]>()
+      .mockResolvedValueOnce({
+        status: "emergency",
+        calls: ["15"],
+        reply: "Appelle le 15 maintenant.",
+      })
+      .mockResolvedValueOnce({ status: "continue" });
+
+    const deps: ConversationDeps = { triageGate, resolveIntent, dispatchHandoff };
+
+    const first = await handleConversationTurn(
+      initial,
+      makeTurn({ turnId: "t-1", text: "J'ai mal à la poitrine" }),
+      deps,
+    );
+    expect(first.state.phase).toBe("emergency-referred");
+
+    const second = await handleConversationTurn(
+      first.state,
+      makeTurn({ turnId: "t-2", text: "Prends-moi un rendez-vous chez un dermato" }),
+      deps,
+    );
+
+    expect(triageGate).toHaveBeenCalledTimes(2);
+    expect(resolveIntent).toHaveBeenCalledTimes(1);
+    expect(dispatchHandoff).toHaveBeenCalledTimes(1);
+    expect(seenHandoffs[0]?.target).toBe("booking");
+    expect(second.outcome.kind).toBe("handoff-result");
+    expect(second.state.phase).toBe("handed-off");
+    expect(second.state.activeHandoff?.target).toBe("booking");
+    expect(second.state.endedReason).toBeUndefined();
+  });
 });

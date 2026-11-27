@@ -17,6 +17,9 @@ export const inboxLimits = {
   scriptedMailGatewayScenarios: 100,
   scriptedMailGatewayStepsPerScenario: 20,
   scriptedMailGatewayHistoryEntries: 100,
+  scriptedScenarios: 100,
+  scriptedStepsPerScenario: 20,
+  scriptedHistoryEntries: 100,
 } as const;
 
 export interface InboxAttachment {

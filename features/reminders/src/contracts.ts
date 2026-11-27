@@ -7,7 +7,11 @@ export const reminderLimits = Object.freeze({
   appointmentTitleCharacters: 160,
   appointmentLocationCharacters: 300,
   medicationInstructionCharacters: 500,
+  messageBodyCharacters: 1_000,
   storedReminders: 1_000,
+  scriptedScenarios: 100,
+  scriptedStepsPerScenario: 20,
+  scriptedHistoryEntries: 200,
 } as const);
 
 export type AgendaAppointment = {

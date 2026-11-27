@@ -10,6 +10,7 @@ import {
 } from "../../../chat/request";
 import { envString } from "../env";
 import { triageWithJev } from "../jev";
+import { directoryIntent } from "./directory-intent";
 import { call3114Now, ensureEmergencyCalls } from "./emergency-templates";
 import { openRouterModel } from "./openrouter-model";
 import { ensureEmergencyCallsSafe } from "./safe-emergency-calls";
@@ -43,18 +44,33 @@ export async function POST(request: Request): Promise<Response> {
   if (messages === null) {
     return Response.json({ error: "Requête invalide." }, { status: 400 });
   }
-  if (!liveChatEnabled()) {
-    const result = mockChatResult(messages);
-    return Response.json(result.body, { status: result.status });
+  const live = liveChatEnabled();
+  if (!live) {
+    const directory = directoryReply(messages);
+    if (directory !== undefined) return directory;
   }
-  const apiKey = envString("OPENROUTER_API_KEY");
+  const apiKey = live ? envString("OPENROUTER_API_KEY") : undefined;
   if (apiKey === undefined) {
     const result = mockChatResult(messages);
     return Response.json(result.body, { status: result.status });
   }
-  const triage = await triageLive(messages);
+  const decision = await triageWithJev(chatHandoff(messages));
+  const triage = decision === null ? {} : triageFields(decision);
+  if (canSearchDirectory(decision)) {
+    const directory = directoryReply(messages);
+    if (directory !== undefined) return directory;
+  }
   const result = await completeWithOpenRouter(messages, apiKey, requestedModel(), triage);
   return Response.json(result.body, { status: result.status });
+}
+
+function directoryReply(messages: readonly ChatTurn[]): Response | undefined {
+  const intent = directoryIntent(messages);
+  if (intent === undefined) return;
+  if (typeof intent === "string") {
+    return Response.json({ reply: intent, model: "directory", mocked: false });
+  }
+  return Response.json({ directory: intent });
 }
 
 type LiveTriage = {
@@ -62,12 +78,9 @@ type LiveTriage = {
   readonly calls?: EmergencyCalls;
 };
 
-async function triageLive(messages: readonly ChatTurn[]): Promise<LiveTriage> {
-  const decision = await triageWithJev(chatHandoff(messages));
-  if (decision === null) {
-    return {};
-  }
-  return triageFields(decision);
+function canSearchDirectory(decision: TriageDecision | null): boolean {
+  return (decision?.label === "consult" || decision?.label === "self-care") &&
+    decision.calls === undefined;
 }
 
 function triageFields(decision: TriageDecision): LiveTriage {

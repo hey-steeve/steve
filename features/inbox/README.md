@@ -51,6 +51,8 @@ The package entry point exports:
   boundaries;
 - `InMemoryInboxStorage` for tests and local integration;
 - `ScriptedMailGateway` for deterministic tests, demos, and local integration;
+- `ScriptedInboundMessageClassifier` for deterministic tests, demos, and local
+  integration;
 - `inboxLimits`, the validation and storage bounds.
 
 ## Normalized email boundary
@@ -99,6 +101,84 @@ The stable provider message identifier makes ingestion idempotent. The storage
 performs create-if-absent recording, so only one concurrent caller returns the
 events. Storage and classifier exception details are contained and are never
 included in public errors.
+
+## Scripted inbound classification
+
+`ScriptedInboundMessageClassifier` is an in-memory test adapter. It provides
+deterministic classification without an LLM, email provider, network request,
+raw MIME parser, timer, or worker. Scenarios are keyed by the normalized
+message `providerMessageId`, and each valid call consumes exactly one step.
+
+This scenario fails on the first attempt and returns an appointment
+confirmation on the retry:
+
+```ts
+import { ScriptedInboundMessageClassifier } from "@steve/inbox";
+
+const classifier = new ScriptedInboundMessageClassifier([
+  {
+    providerMessageId: "synthetic-message-1",
+    steps: [
+      { type: "failure" },
+      {
+        type: "appointment-confirmation",
+        reference: "synthetic-confirmation-1",
+        startsAt: "2026-12-02T09:00:00+01:00",
+        endsAt: "2026-12-02T09:30:00+01:00",
+        practitionerName: "Dr Synthetic",
+      },
+    ],
+  },
+]);
+```
+
+When this classifier is passed to `createInbox`, the first failure becomes a
+generic `CLASSIFICATION_FAILURE`. Inbox does not mark that message as
+processed, so a retry consumes the confirmation step. The resulting event
+still has `requiresOwnerValidation: true`; scripted classification does not
+turn an email confirmation directly into an Agenda entry.
+
+A synthetic report scenario names attachments by their normalized identifiers:
+
+```ts
+const reportClassifier = new ScriptedInboundMessageClassifier([
+  {
+    providerMessageId: "synthetic-report-message-1",
+    steps: [
+      {
+        type: "report",
+        attachmentIds: ["synthetic-document-1", "synthetic-document-2"],
+      },
+    ],
+  },
+]);
+```
+
+At classification time, every scripted report identifier must be present on
+the received normalized message. If any identifier is absent, the adapter
+returns `unsupported`; it never creates a document event itself. `createInbox`
+alone converts a valid report into `document-received` events, and those
+documents remain `verification: "unverified"`.
+
+Unknown provider message identifiers and exhausted step sequences both return
+`{ type: "unsupported" }`. A `failure` step throws a fixed generic error. All
+valid classification calls, including failures, unknown messages, and calls
+after exhaustion, are recorded in order before the step is executed.
+
+`getHistory()` returns complete defensive snapshots of normalized messages,
+including copied attachment arrays and bytes. Its default bound is 100 entries;
+when full, it drops the oldest entry. Configuration is copied at construction
+and is limited by default to 100 scenarios and 20 steps per scenario. Lower
+`maximumScenarios`, `maximumStepsPerScenario`, and `historyLimit` values can be
+provided, but every limit must be an integer from 1 through its exported
+maximum in `inboxLimits`.
+
+The adapter validates its complete configuration at construction. It rejects
+duplicate or invalid provider identifiers, unknown or extended steps, invalid
+confirmations, duplicate or empty report attachment identifiers, empty step
+sequences, and values over the configured bounds. It also revalidates and
+copies every normalized message before adding it to history. Invalid messages
+throw a generic error and are not recorded.
 
 ## Authorized document delivery
 
@@ -208,9 +288,9 @@ writes attachment contents to disk.
 Other public limits include 200 characters for provider and outbound request
 identifiers, 254 for email addresses, 998 for subjects, and 100,000 for text
 bodies. The in-memory adapter tracks at most 1,000 inbound messages and 1,000
-outbound requests. Scripted delivery supports at most 100 scenarios, 20 steps
-per scenario, and 100 history entries. Lower capacities can be configured for
-tests.
+outbound requests. Scripted classification and scripted delivery each have
+distinct limits of 100 scenarios, 20 steps per scenario, and 100 history
+entries. Lower capacities can be configured for tests.
 
 ## Storage and data handling
 
@@ -240,6 +320,8 @@ repository fixtures use synthetic addresses and content.
   real or sensitive data should be provided to this milestone.
 - The scripted mail gateway never delivers a real email and is not a
   production provider adapter.
+- The scripted classifier is not a production classifier and performs no
+  language understanding or medical interpretation.
 
 ## Check
 
