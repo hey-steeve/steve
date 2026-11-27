@@ -770,8 +770,8 @@ export default function ChatPage(props: {
                   className="chat-hero-mascot"
                   src={heroSrc}
                   alt=""
-                  width={1137}
-                  height={840}
+                  width={1459}
+                  height={1078}
                 />
               </div>
               {empty ? (

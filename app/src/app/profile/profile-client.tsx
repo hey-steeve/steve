@@ -1,6 +1,6 @@
 "use client";
 
-import { heroSrc } from "../../chat/faces";
+import { pageMascots } from "../../chat/faces";
 import {
   createInMemoryProfileStore,
   loadDemoPatientMemory,
@@ -88,7 +88,7 @@ export default function ProfileClient(props: {
     <FeatureShell
       current="/profile"
       title="Mon profil"
-      heroMascot={{ src: heroSrc, width: 1137, height: 840 }}
+      heroMascot={{ src: pageMascots.profile, width: 600, height: 600 }}
     >
       <section className="profile-identity-card" aria-label="Identité du patient">
         <span className="profile-avatar" aria-hidden="true">

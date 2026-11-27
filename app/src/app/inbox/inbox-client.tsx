@@ -1,5 +1,6 @@
 "use client";
 
+import { pageMascots } from "../../chat/faces";
 import {
   createInbox,
   InMemoryInboxStorage,
@@ -235,7 +236,7 @@ export default function InboxClient() {
     <FeatureShell
       current="/inbox"
       title="Ma messagerie"
-      heroMascot={{ src: "/mascot/state-done.webp", width: 256, height: 256 }}
+      heroMascot={{ src: pageMascots.inbox, width: 600, height: 600 }}
     >
       <section className="steve-card" aria-labelledby="inbox-address-title">
         <h2 id="inbox-address-title" className="steve-card-title">

@@ -1,5 +1,6 @@
 "use client";
 
+import { pageMascots } from "../../chat/faces";
 import { useState } from "react";
 import {
   ChevronRightIcon,
@@ -60,7 +61,11 @@ export default function VaultClient(props: {
   }
 
   return (
-    <FeatureShell current="/vault" title="Mes documents">
+    <FeatureShell
+      current="/vault"
+      title="Mes documents"
+      heroMascot={{ src: pageMascots.documents, width: 600, height: 600 }}
+    >
       {documents.map((doc) => (
         <button
           key={doc.id}

@@ -84,7 +84,7 @@ it("renders the home greeting", async () => {
   expect(view.container.querySelector(".chat-home-mark")).toBeNull();
 });
 
-it("shows the same bubbles pose as the profile, resting on the home card", () => {
+it("shows the HD bubbles pose resting on the home card", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
   const host = document.createElement("div");
   host.innerHTML = html;
@@ -92,9 +92,9 @@ it("shows the same bubbles pose as the profile, resting on the home card", () =>
   if (!(img instanceof HTMLImageElement)) {
     throw new Error("missing home hero");
   }
-  expect(img.getAttribute("src")).toBe("/mascot/bubbles.webp");
-  expect(img.getAttribute("width")).toBe("1137");
-  expect(img.getAttribute("height")).toBe("840");
+  expect(img.getAttribute("src")).toBe("/mascot/bubbles-hd.webp");
+  expect(img.getAttribute("width")).toBe("1459");
+  expect(img.getAttribute("height")).toBe("1078");
   const heroStart = chatCss.indexOf(".chat-hero-mascot {");
   const heroEnd = chatCss.indexOf("}", heroStart);
   if (heroStart < 0 || heroEnd < 0) {
@@ -106,7 +106,7 @@ it("shows the same bubbles pose as the profile, resting on the home card", () =>
     overlap: chatCss.includes("--mascot-overlap"),
     fit: hero.includes("object-fit: contain;"),
     float: chatCss.includes("float"),
-    aspect: hero.includes("aspect-ratio: 1137 / 840"),
+    aspect: hero.includes("aspect-ratio: 1459 / 1078"),
     shadow: hero.includes("filter:") || hero.includes("box-shadow"),
     inert: hero.includes("pointer-events: none;"),
   }).toEqual({
@@ -138,13 +138,13 @@ it("anchors the mascot beside the greeting, behind the home cards", () => {
   expect({
     width: img.getAttribute("width"),
     height: img.getAttribute("height"),
-    aspect: hero.includes("aspect-ratio: 1137 / 840"),
+    aspect: hero.includes("aspect-ratio: 1459 / 1078"),
     absolute: hero.includes("position: absolute;"),
     right: hero.includes("right: -14px;"),
     below: hero.includes("z-index: 1;"),
   }).toEqual({
-    width: "1137",
-    height: "840",
+    width: "1459",
+    height: "1078",
     aspect: true,
     absolute: true,
     right: true,

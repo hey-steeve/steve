@@ -1,5 +1,6 @@
 "use client";
 
+import { heroSrc } from "../../chat/faces";
 import { createAgenda, InMemoryAppointmentStorage } from "@steve/agenda";
 import {
   createReminderService,
@@ -196,7 +197,7 @@ export default function RemindersClient() {
     <FeatureShell
       current="/reminders"
       title="Mes rappels"
-      heroMascot={{ src: "/mascot/bubbles.webp", width: 1137, height: 840 }}
+      heroMascot={{ src: heroSrc, width: 1459, height: 1078 }}
     >
       <section className="steve-card" aria-labelledby="reminder-card-title">
         <div className="reminders-pill-row">
