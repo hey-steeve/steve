@@ -91,6 +91,12 @@ and over-limit PDFs are rejected before storage. Extracted text is stored with
 the document after successful ingestion, so `get()` and `summarize()` never
 parse the PDF again.
 
+At most two PDF extraction workers run concurrently in one process. Additional
+PDF stores fail fast with `PROCESSING_BUSY`; Vault does not retain an unbounded
+queue of document bytes. A worker slot is released after success, validation
+failure, timeout, startup failure, or worker termination. Text and Markdown do
+not consume PDF worker capacity.
+
 Vault also rejects:
 
 - unknown input and metadata fields;
