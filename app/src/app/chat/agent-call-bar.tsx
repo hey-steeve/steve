@@ -6,33 +6,15 @@ export function AgentCallBar({
   call,
   showTranscript,
   onToggleTranscript,
-  onRetry,
 }: {
   readonly call: LiveCall;
   readonly showTranscript: boolean;
   readonly onToggleTranscript: () => void;
-  readonly onRetry?: () => void;
 }) {
   if (call.phase === "idle") return null;
   if (call.phase === "ended") {
     if (call.endReason === "failed" || call.endReason === "connection-lost") {
-      return (
-        <div className="chat-call-error">
-          <img
-            className="chat-call-error-mascot"
-            src="/mascot/state-listening.webp"
-            alt=""
-            width={64}
-            height={64}
-          />
-          <p className="chat-notice" role="status">L’appel a été interrompu. Réessaie.</p>
-          {onRetry === undefined ? null : (
-            <button type="button" className="chat-call-retry" onClick={onRetry}>
-              Réessayer
-            </button>
-          )}
-        </div>
-      );
+      return <p className="chat-notice" role="status">L’appel a été interrompu. Réessaie.</p>;
     }
     return null;
   }
