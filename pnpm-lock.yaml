@@ -29,6 +29,9 @@ importers:
 
   app:
     dependencies:
+      '@steve/directory':
+        specifier: workspace:*
+        version: link:../features/directory
       '@steve/profile':
         specifier: workspace:*
         version: link:../features/profile

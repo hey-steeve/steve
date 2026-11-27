@@ -259,3 +259,55 @@ it("shows the error and accepts another send when the chat fetch times out", asy
   });
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
+
+it("prefills an editable starter without sending it", async () => {
+  const fetchChat = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchChat);
+  const container = await renderPage();
+  const starter = buttonWithText(container, "Préparer une consultation");
+
+  await act(async () => starter.click());
+
+  const field = fieldIn(container);
+  expect(field.value).toBe("Peux-tu m’aider à préparer ma prochaine consultation ?");
+  expect(document.activeElement).toBe(field);
+  expect(fetchChat).not.toHaveBeenCalled();
+  await act(async () => setField(field, "Je prépare une consultation lundi."));
+  expect(field.value).toBe("Je prépare une consultation lundi.");
+});
+
+it("keeps the transcript after finishing and clears it for the next conversation", async () => {
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  const container = await sendForReply(
+    { reply: "Voici ma réponse.", mocked: true, model: "mock" },
+    200,
+  );
+
+  const finish = container.querySelector('header button[aria-label="Terminer la conversation"]');
+  if (!(finish instanceof HTMLButtonElement)) {
+    throw new Error("Missing finish action in the chat header");
+  }
+  expect(container.querySelector('.chat-dock button[aria-label="Terminer la conversation"]')).toBeNull();
+
+  await act(async () => finish.click());
+
+  expect(container.querySelector(".chat-thread")?.textContent).toContain("Voici ma réponse.");
+  expect(container.querySelector("textarea")).toBeNull();
+  expect(container.querySelector("h2")?.textContent).toBe("Conversation terminée");
+  const restart = buttonWithText(container, "Nouvelle conversation");
+  expect(document.activeElement).toBe(restart);
+
+  await act(async () => restart.click());
+
+  expect(container.querySelector(".chat-thread")).toBeNull();
+  expect(fieldIn(container).value).toBe("");
+  expect(buttonWithText(container, "Préparer une consultation")).toBeTruthy();
+});
+
+function buttonWithText(container: ParentNode, text: string): HTMLButtonElement {
+  const button = [...container.querySelectorAll("button")].find((item) => item.textContent === text);
+  if (button === undefined) {
+    throw new Error(`Missing button: ${text}`);
+  }
+  return button;
+}
