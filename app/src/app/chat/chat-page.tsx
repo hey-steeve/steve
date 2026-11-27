@@ -25,6 +25,10 @@ const clientTimeoutMs = 35_000;
 const homeLeaveMs = 240;
 const keyboardOpenGap = 120;
 const nearBottomGap = 80;
+const conversationStarters = [
+  { label: "Trouver un praticien", draft: "Je voudrais trouver un praticien près de chez moi." },
+  { label: "Préparer une consultation", draft: "Peux-tu m’aider à préparer ma prochaine consultation ?" },
+];
 
 type UiMessage = { readonly voice?: true } & (
   | {
@@ -52,6 +56,8 @@ export default function ChatPage(props: {
   const [draft, setDraft] = useState("");
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
   const [demo, setDemo] = useState(false);
+  const [ended, setEnded] = useState(false);
+  const newConversationRef = useRef<HTMLButtonElement>(null);
   const [showTranscript, setShowTranscript] = useState(true);
   const [callDeps] = useState(() => props.callDeps ?? createBrowserCallDeps());
   const callNumber = useRef(0);
@@ -85,6 +91,12 @@ export default function ChatPage(props: {
     listening: dictation.listening,
     supported: dictation.supported,
   });
+
+  useEffect(() => {
+    if (ended) {
+      newConversationRef.current?.focus();
+    }
+  }, [ended]);
 
   useEffect(() => {
     if (call.phase === "ended") {
@@ -209,6 +221,7 @@ export default function ChatPage(props: {
     setMessages([]);
     setDraft("");
     setDemo(false);
+    setEnded(false);
     setShowTranscript(true);
     setExchange("idle");
     setHomeMounted(true);
@@ -325,6 +338,7 @@ export default function ChatPage(props: {
   function send(text: string, restoreComposerFocus = true) {
     const content = text.trim();
     if (
+      ended ||
       content.length === 0 ||
       busy.current ||
       backExit.current !== "idle" ||
@@ -366,8 +380,14 @@ export default function ChatPage(props: {
     setLeaving(true);
   }
 
+  function finishConversation() {
+    if (busy.current || callOpen || backExit.current !== "idle") return;
+    dictation.stop();
+    setEnded(true);
+  }
+
   function startCall() {
-    if (callOpen || backExit.current !== "idle") return;
+    if (ended || callOpen || backExit.current !== "idle") return;
     dictation.stop();
     callNumber.current += 1;
     if (empty) setHomeMounted(true);
@@ -600,7 +620,7 @@ export default function ChatPage(props: {
           )}
           {empty ? null : (
             <span className="chat-header-spacer">
-              {callOpen ? null : (
+              {callOpen || ended ? null : (
                 <button
                   type="button"
                   className="chat-thread-call"
@@ -645,6 +665,22 @@ export default function ChatPage(props: {
                       Écris-moi ici ou appelle-moi, comme tu préfères.
                     </p>
                   </div>
+                  <ul className="chat-starters" aria-label="Suggestions pour commencer">
+                    {conversationStarters.map(({ label, draft: suggestion }) => (
+                      <li key={label}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            dictation.stop();
+                            setDraft(suggestion);
+                            fieldRef.current?.focus();
+                          }}
+                        >
+                          {label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                   <button
                     className="chat-call-cta"
                     type="button"
@@ -737,7 +773,28 @@ export default function ChatPage(props: {
         ) : null}
         {empty ? null : (
           <div className="chat-dock chat-dock-enter">
-            {composer}
+            {ended ? (
+              <section className="chat-ended" aria-labelledby="chat-ended-title">
+                <h2 id="chat-ended-title">Conversation terminée</h2>
+                <button ref={newConversationRef} type="button" onClick={leaveToHome}>
+                  Nouvelle conversation
+                </button>
+              </section>
+            ) : (
+              <>
+                {composer}
+                {callOpen ? null : (
+                  <button
+                    className="chat-finish"
+                    type="button"
+                    disabled={exchange === "awaiting"}
+                    onClick={finishConversation}
+                  >
+                    Terminer la conversation
+                  </button>
+                )}
+              </>
+            )}
             {footnote}
           </div>
         )}
