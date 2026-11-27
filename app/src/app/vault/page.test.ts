@@ -103,3 +103,16 @@ it("ingests and summarizes a new synthetic text document through @steve/vault", 
     "La convocation confirme un examen le 5 décembre à 9 h.",
   );
 });
+
+it("labels the demo text letter as TXT", async () => {
+  const documents = await loadDemoVaultSnapshot();
+  expect(documents[0]?.fileName).toBe("lettre-de-rendez-vous.txt");
+  expect(documents[0]?.formatLabel).toBe("TXT");
+});
+
+it("returns a clean error when the action input is not text", async () => {
+  const result: unknown = await Reflect.apply(summarizeTextDocumentAction, undefined, [
+    { title: 42, text: null },
+  ]);
+  expect(result).toMatchObject({ ok: false });
+});
