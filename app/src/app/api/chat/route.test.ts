@@ -1388,6 +1388,34 @@ it("does not call Jev on the mock path", async () => {
   expect(readTriageLog()).toEqual([]);
 });
 
+it("keeps the specialty when the patient replies with a postal code and refines the sector", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "");
+  const messages = [
+    { role: "user", content: "Tu peux me trouver un dermatologue près de chez moi ?" },
+  ];
+  const clarification = await post({ messages });
+  expect(await clarification.json()).toMatchObject({ reply: "Dans quel code postal dois-je chercher ?" });
+  messages.push(
+    { role: "assistant", content: "Dans quel code postal dois-je chercher ?" },
+    { role: "user", content: "75011" },
+    { role: "assistant", content: "J’ai trouvé trois praticiens pour ces critères." },
+    { role: "user", content: "Seulement en secteur 1" },
+  );
+  const refined = await post({ messages });
+  expect(await refined.json()).toEqual({ directory: {
+    specialty: "Dermatologie et vénéréologie", postalCode: "75011", conventionnement: "secteur-1",
+  } });
+});
+
+it("keeps emergency call actions when a message also matches a directory search", async () => {
+  const fetchMock = triageFetch(() => Response.json(jevBody("emergency", 0.99, "physical")));
+  vi.stubGlobal("fetch", fetchMock);
+  const response = await post({
+    messages: [{ role: "user", content: "Trouve-moi un dermatologue près du 75011." }],
+  });
+  expect(await response.json()).toMatchObject({ calls: [{ type: "call", number: "15" }] });
+});
+
 function post(body: unknown): Promise<Response> {
   return POST(
     new Request("http://localhost/api/chat", {

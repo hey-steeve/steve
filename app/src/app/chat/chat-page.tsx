@@ -4,6 +4,7 @@ import type { EmergencyCalls } from "@steve/triage";
 import { useEffect, useRef, useState } from "react";
 import { composerControl, type ComposerControl } from "../../chat/composer-control";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar";
+import { parseDirectoryFilters, type DirectoryFilters } from "../../chat/directory-query";
 import type { ExchangeKind } from "../../chat/exchange";
 import { headerAvatarSrc, heroSrc, replyAvatarSrc } from "../../chat/faces";
 import { homeGreeting } from "../../chat/home-greeting";
@@ -15,7 +16,10 @@ import type { CallDeps, ThreadMessage } from "../../voice/live-call";
 import { createBrowserCallDeps } from "../../voice/mock-call";
 import { useLiveCall, type ThreadEvent } from "../../voice/use-live-call";
 import { AgentCallBar, PhoneIcon } from "./agent-call-bar";
+import { DirectoryActivity, DirectoryWidget } from "./directory-widget";
+import { runPractitionerSearch, type DirectoryResult } from "./search-practitioners";
 import "./chat.css";
+import "./directory-widget.css";
 
 const disclaimer =
   "Steve n'est pas un médecin ni un dispositif médical.";
@@ -43,6 +47,7 @@ type UiMessage = { readonly voice?: true } & (
       readonly content: string;
       readonly calls?: EmergencyCalls | undefined;
       readonly forcedSentences?: readonly string[];
+      readonly directory?: { readonly filters: DirectoryFilters; readonly result: DirectoryResult };
     }
 );
 
@@ -56,6 +61,8 @@ export default function ChatPage(props: {
   const [draft, setDraft] = useState("");
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
   const [demo, setDemo] = useState(false);
+  const [pendingDirectory, setPendingDirectory] = useState<DirectoryFilters>();
+  const [refining, setRefining] = useState(false);
   const [ended, setEnded] = useState(false);
   const newConversationRef = useRef<HTMLButtonElement>(null);
   const [showTranscript, setShowTranscript] = useState(true);
@@ -160,7 +167,7 @@ export default function ChatPage(props: {
       return;
     }
     scrollThreadToBottom(thread);
-  }, [messages, showTranscript, callOpen]);
+  }, [messages, showTranscript, callOpen, pendingDirectory]);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -222,6 +229,8 @@ export default function ChatPage(props: {
     setDraft("");
     setDemo(false);
     setEnded(false);
+    setPendingDirectory(undefined);
+    setRefining(false);
     setShowTranscript(true);
     setExchange("idle");
     setHomeMounted(true);
@@ -352,6 +361,7 @@ export default function ChatPage(props: {
     pinned.current = true;
     setUnseenReply(false);
     dictation.stop();
+    setRefining(false);
     const ticket = conversation.current;
     const message: UiMessage = { id: newMessageId(), role: "user", content };
     const history = [
@@ -465,6 +475,13 @@ export default function ChatPage(props: {
         setExchange("failed");
         return;
       }
+      const directory = typeof payload === "object" && payload !== null && "directory" in payload
+        ? parseDirectoryFilters(payload.directory)
+        : undefined;
+      if (directory !== undefined) {
+        await postDirectorySearch(directory, ticket);
+        return;
+      }
       const reply = parseChatReply(payload);
       if (reply.kind === "invalid") {
         pushReply("error", fallbackReply);
@@ -485,6 +502,29 @@ export default function ChatPage(props: {
         busy.current = false;
       }
     }
+  }
+
+  async function postDirectorySearch(filters: DirectoryFilters, ticket: number) {
+    setPendingDirectory(filters);
+    let result: DirectoryResult;
+    try {
+      result = await runPractitionerSearch(filters);
+    } catch {
+      result = { kind: "failed" };
+    }
+    if (conversation.current !== ticket) return;
+    setPendingDirectory(undefined);
+    const count = result.kind === "found" ? result.practitioners.length : 0;
+    const content = result.kind === "failed"
+      ? "La recherche est indisponible. Réessaie dans un instant."
+      : count === 0
+        ? "Je n’ai trouvé aucun praticien pour ces critères."
+        : `J’ai trouvé ${count} praticien${count === 1 ? "" : "s"} pour ces critères.`;
+    if (!pinned.current) setUnseenReply(true);
+    setMessages((current) => [...current, {
+      id: newMessageId(), role: "agent", content, directory: { filters, result },
+    }]);
+    setExchange(result.kind === "failed" ? "failed" : "settled");
   }
 
   function pushReply(role: "agent" | "error", content: string, calls?: EmergencyCalls) {
@@ -512,7 +552,7 @@ export default function ChatPage(props: {
         value={draft}
         rows={1}
         maxLength={chatRequestLimits.maxMessageChars}
-        placeholder="Demande n'importe quoi"
+        placeholder={refining ? "Précise le secteur ou le code postal" : "Demande n'importe quoi"}
         aria-label="Message pour Steve"
         onChange={(event) => {
           setDraft(event.target.value);
@@ -720,6 +760,25 @@ export default function ChatPage(props: {
                       <EmergencyCallActions calls={message.calls} />
                     </div>
                   </li>
+                ) : message.directory !== undefined ? (
+                  <li key={message.id} className="chat-directory-turn" tabIndex={-1}>
+                    <DirectoryActivity filters={message.directory.filters} status={message.directory.result.kind === "found" ? "done" : "failed"} />
+                    <div className="chat-row chat-row-agent">
+                      <SteveAvatar />
+                      <div className="chat-agent chat-agent-text"><p>{message.content}</p></div>
+                    </div>
+                    {message.directory.result.kind === "found" && (
+                      <DirectoryWidget
+                        filters={message.directory.filters}
+                        practitioners={message.directory.result.practitioners}
+                        demo={message.directory.result.demo}
+                        onRefine={message === visibleMessages.at(-1) && !ended ? () => {
+                          setRefining(true);
+                          fieldRef.current?.focus();
+                        } : undefined}
+                      />
+                    )}
+                  </li>
                 ) : (
                   <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
@@ -738,7 +797,11 @@ export default function ChatPage(props: {
                   </li>
                 ),
               )}
-              {exchange === "awaiting" ? (
+              {pendingDirectory !== undefined ? (
+                <li className="chat-directory-turn">
+                  <DirectoryActivity filters={pendingDirectory} status="searching" />
+                </li>
+              ) : exchange === "awaiting" ? (
                 <li
                   className="chat-row chat-row-agent"
                   role="status"

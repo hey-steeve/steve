@@ -10,6 +10,7 @@ import {
 } from "../../../chat/request";
 import { envString } from "../env";
 import { triageWithJev } from "../jev";
+import { directoryIntent } from "./directory-intent";
 import { call3114Now, ensureEmergencyCalls } from "./emergency-templates";
 import { openRouterModel } from "./openrouter-model";
 import { ensureEmergencyCallsSafe } from "./safe-emergency-calls";
@@ -43,18 +44,29 @@ export async function POST(request: Request): Promise<Response> {
   if (messages === null) {
     return Response.json({ error: "Requête invalide." }, { status: 400 });
   }
-  if (!liveChatEnabled()) {
-    const result = mockChatResult(messages);
-    return Response.json(result.body, { status: result.status });
-  }
-  const apiKey = envString("OPENROUTER_API_KEY");
+  const apiKey = liveChatEnabled() ? envString("OPENROUTER_API_KEY") : undefined;
   if (apiKey === undefined) {
+    const directory = directoryReply(messages);
+    if (directory !== undefined) return directory;
     const result = mockChatResult(messages);
     return Response.json(result.body, { status: result.status });
   }
   const triage = await triageLive(messages);
+  if (triage.calls === undefined) {
+    const directory = directoryReply(messages);
+    if (directory !== undefined) return directory;
+  }
   const result = await completeWithOpenRouter(messages, apiKey, requestedModel(), triage);
   return Response.json(result.body, { status: result.status });
+}
+
+function directoryReply(messages: readonly ChatTurn[]): Response | undefined {
+  const intent = directoryIntent(messages);
+  if (intent === undefined) return;
+  if (typeof intent === "string") {
+    return Response.json({ reply: intent, model: "directory", mocked: false });
+  }
+  return Response.json({ directory: intent });
 }
 
 type LiveTriage = {
