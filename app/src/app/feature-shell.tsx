@@ -9,6 +9,7 @@ export const featureNavItems = [
   { href: "/chat", label: "Accueil" },
   { href: "/directory", label: "Annuaire" },
   { href: "/booking", label: "Rendez-vous" },
+  { href: "/agenda", label: "Agenda" },
 ] as const;
 
 export type FeatureRoute = (typeof featureNavItems)[number]["href"];
