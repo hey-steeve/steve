@@ -10,6 +10,17 @@ import { headerAvatarSrc, heroSrc, replyAvatarSrc, steveFace } from "../../chat/
 import { homeGreeting } from "../../chat/home-greeting";
 import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
+import {
+  answerStep,
+  baseSteps,
+  parseTriageOutcome,
+  readStep,
+  searchStep,
+  thinkStep,
+  triageTraceHeader,
+  type FinishedTrace,
+  type TraceStep,
+} from "../../chat/thinking-trace";
 import { chatRequestLimits, parseChatCalls, parseChatReply, toProviderMessages } from "../../chat/request";
 import { useDictation } from "../../chat/speech";
 import type { CallDeps, ThreadMessage } from "../../voice/live-call";
@@ -17,7 +28,8 @@ import { createBrowserCallDeps } from "../../voice/mock-call";
 import { useLiveCall, type ThreadEvent } from "../../voice/use-live-call";
 import { AppTabBar } from "../tab-bar";
 import { AgentCallBar, PhoneIcon } from "./agent-call-bar";
-import { DirectoryActivity, DirectoryWidget } from "./directory-widget";
+import { DirectoryWidget } from "./directory-widget";
+import { LiveTrace, TraceSummary } from "./thinking-trace";
 import {
   HomeAppointmentCard,
   HomeAskCard,
@@ -56,6 +68,7 @@ type UiMessage = { readonly voice?: true } & (
       readonly calls?: EmergencyCalls | undefined;
       readonly forcedSentences?: readonly string[];
       readonly directory?: { readonly filters: DirectoryFilters; readonly result: DirectoryResult };
+      readonly trace?: FinishedTrace;
     }
 );
 
@@ -70,6 +83,11 @@ export default function ChatPage(props: {
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
   const [demo, setDemo] = useState(false);
   const [pendingDirectory, setPendingDirectory] = useState<DirectoryFilters>();
+  const [liveTrace, setLiveTrace] = useState<{
+    readonly startedAt: number;
+    readonly steps: readonly TraceStep[];
+  }>();
+  const traceStart = useRef(0);
   const [refining, setRefining] = useState(false);
   const [ended, setEnded] = useState(false);
   const newConversationRef = useRef<HTMLButtonElement>(null);
@@ -238,6 +256,7 @@ export default function ChatPage(props: {
     setDemo(false);
     setEnded(false);
     setPendingDirectory(undefined);
+    setLiveTrace(undefined);
     setRefining(false);
     setShowTranscript(true);
     setExchange("idle");
@@ -379,6 +398,8 @@ export default function ChatPage(props: {
     setMessages((current) => [...current, message]);
     setDraft((current) => (current.trim() === content ? "" : current));
     setExchange("awaiting");
+    traceStart.current = Date.now();
+    setLiveTrace({ startedAt: traceStart.current, steps: [readStep, thinkStep] });
     void post(history, ticket);
   }
 
@@ -477,7 +498,9 @@ export default function ChatPage(props: {
       if (conversation.current !== ticket) {
         return;
       }
+      const base = baseSteps(parseTriageOutcome(triageLabel(response)));
       if (!response.ok) {
+        setLiveTrace(undefined);
         const calls = response.status === 502 ? parseChatCalls(payload) : undefined;
         pushReply("error", errorText(payload), calls);
         setExchange("failed");
@@ -487,22 +510,24 @@ export default function ChatPage(props: {
         ? parseDirectoryFilters(payload.directory)
         : undefined;
       if (directory !== undefined) {
-        await postDirectorySearch(directory, ticket);
+        await postDirectorySearch(directory, ticket, base);
         return;
       }
       const reply = parseChatReply(payload);
+      setLiveTrace(undefined);
       if (reply.kind === "invalid") {
         pushReply("error", fallbackReply);
         setExchange("failed");
         return;
       }
       setDemo(reply.mocked);
-      pushReply("agent", reply.reply, reply.calls);
+      pushReply("agent", reply.reply, reply.calls, finishTrace([...base, answerStep]));
       setExchange("rendering");
     } catch {
       if (conversation.current !== ticket) {
         return;
       }
+      setLiveTrace(undefined);
       pushReply("error", fallbackReply);
       setExchange("failed");
     } finally {
@@ -512,8 +537,20 @@ export default function ChatPage(props: {
     }
   }
 
-  async function postDirectorySearch(filters: DirectoryFilters, ticket: number) {
+  function finishTrace(steps: readonly TraceStep[]): FinishedTrace {
+    return { steps, ms: Date.now() - traceStart.current };
+  }
+
+  async function postDirectorySearch(
+    filters: DirectoryFilters,
+    ticket: number,
+    base: readonly TraceStep[],
+  ) {
     setPendingDirectory(filters);
+    setLiveTrace({
+      startedAt: traceStart.current,
+      steps: [...base, searchStep(filters, { kind: "searching" })],
+    });
     let result: DirectoryResult;
     try {
       result = await runPractitionerSearch(filters);
@@ -522,6 +559,17 @@ export default function ChatPage(props: {
     }
     if (conversation.current !== ticket) return;
     setPendingDirectory(undefined);
+    setLiveTrace(undefined);
+    const trace = finishTrace([
+      ...base,
+      searchStep(
+        filters,
+        result.kind === "found"
+          ? { kind: "found", count: result.practitioners.length, demo: result.demo }
+          : { kind: "failed" },
+      ),
+      answerStep,
+    ]);
     const count = result.kind === "found" ? result.practitioners.length : 0;
     const content = result.kind === "failed"
       ? "La recherche est indisponible. Réessaie dans un instant."
@@ -530,16 +578,26 @@ export default function ChatPage(props: {
         : `J’ai trouvé ${count} praticien${count === 1 ? "" : "s"} pour ces critères.`;
     if (!pinned.current) setUnseenReply(true);
     setMessages((current) => [...current, {
-      id: newMessageId(), role: "agent", content, directory: { filters, result },
+      id: newMessageId(), role: "agent", content, directory: { filters, result }, trace,
     }]);
     setExchange(result.kind === "failed" ? "failed" : "settled");
   }
 
-  function pushReply(role: "agent" | "error", content: string, calls?: EmergencyCalls) {
+  function pushReply(
+    role: "agent" | "error",
+    content: string,
+    calls?: EmergencyCalls,
+    trace?: FinishedTrace,
+  ) {
     if (!pinned.current) {
       setUnseenReply(true);
     }
-    setMessages((current) => [...current, { id: newMessageId(), role, content, calls }]);
+    setMessages((current) => [
+      ...current,
+      trace === undefined
+        ? { id: newMessageId(), role, content, calls }
+        : { id: newMessageId(), role, content, calls, trace },
+    ]);
   }
 
   const composer = (
@@ -769,7 +827,11 @@ export default function ChatPage(props: {
                   </li>
                 ) : message.directory !== undefined ? (
                   <li key={message.id} className="chat-directory-turn" tabIndex={-1}>
-                    <DirectoryActivity filters={message.directory.filters} status={message.directory.result.kind === "found" ? "done" : "failed"} />
+                    {message.trace === undefined ? null : (
+                      <div className="chat-trace-row">
+                        <TraceSummary trace={message.trace} />
+                      </div>
+                    )}
                     <div className="chat-row chat-row-agent">
                       <SteveAvatar />
                       <div className="chat-agent chat-agent-text"><p>{message.content}</p></div>
@@ -789,38 +851,26 @@ export default function ChatPage(props: {
                 ) : (
                   <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
-                    <div className={message.calls !== undefined && message.calls.length > 0 ? "chat-agent chat-urgent-card" : "chat-agent"}>
-                      {message.content === "" ? null : (
-                        <div className="chat-agent-text">
-                          {message.forcedSentences === undefined ? (
-                            <ChatMarkdown text={message.content} />
-                          ) : (
-                            message.forcedSentences.map((sentence) => <p key={sentence}>{sentence}</p>)
-                          )}
-                        </div>
-                      )}
-                      <EmergencyCallActions calls={message.calls} />
-                    </div>
+                    {message.trace === undefined ? (
+                      <AgentBubble message={message} />
+                    ) : (
+                      <div className="chat-agent-stack">
+                        <TraceSummary trace={message.trace} />
+                        <AgentBubble message={message} />
+                      </div>
+                    )}
                   </li>
                 ),
               )}
-              {pendingDirectory !== undefined ? (
-                <li className="chat-directory-turn">
-                  <DirectoryActivity filters={pendingDirectory} status="searching" />
-                </li>
-              ) : exchange === "awaiting" ? (
+              {liveTrace !== undefined && (pendingDirectory !== undefined || exchange === "awaiting") ? (
                 <li
                   className="chat-row chat-row-agent"
                   role="status"
                   aria-live="polite"
-                  aria-label="Steve écrit"
+                  aria-label="Steve réfléchit"
                 >
                   <SteveAvatar />
-                  <div className="chat-typing">
-                    <span className="chat-dot" />
-                    <span className="chat-dot" />
-                    <span className="chat-dot" />
-                  </div>
+                  <LiveTrace steps={liveTrace.steps} startedAt={liveTrace.startedAt} />
                 </li>
               ) : null}
             </ol>
@@ -1040,4 +1090,31 @@ function errorText(body: unknown): string {
     return fallbackReply;
   }
   return error;
+}
+
+function AgentBubble({ message }: {
+  readonly message: {
+    readonly content: string;
+    readonly calls?: EmergencyCalls | undefined;
+    readonly forcedSentences?: readonly string[];
+  };
+}) {
+  return (
+    <div className={message.calls !== undefined && message.calls.length > 0 ? "chat-agent chat-urgent-card" : "chat-agent"}>
+      {message.content === "" ? null : (
+        <div className="chat-agent-text">
+          {message.forcedSentences === undefined ? (
+            <ChatMarkdown text={message.content} />
+          ) : (
+            message.forcedSentences.map((sentence) => <p key={sentence}>{sentence}</p>)
+          )}
+        </div>
+      )}
+      <EmergencyCallActions calls={message.calls} />
+    </div>
+  );
+}
+
+function triageLabel(response: Response): string | null {
+  return response.headers instanceof Headers ? response.headers.get(triageTraceHeader) : null;
 }

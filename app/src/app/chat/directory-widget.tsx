@@ -2,37 +2,6 @@ import type { Practitioner } from "@steve/shared";
 import Link from "next/link";
 import { sectorLabels, type DirectoryFilters } from "../../chat/directory-query";
 
-type SearchActivity = "searching" | "done" | "failed";
-const activityLabel: Record<SearchActivity, string> = {
-  searching: "Recherche en cours",
-  done: "Voir les étapes de recherche",
-  failed: "Recherche interrompue",
-};
-
-export function DirectoryActivity({ filters, status }: {
-  readonly filters: DirectoryFilters;
-  readonly status: SearchActivity;
-}) {
-  return (
-    <details className="chat-directory-activity" open={status === "searching"}>
-      <summary>
-        <span aria-hidden="true">{status === "searching" ? "◌" : status === "done" ? "✓" : "!"}</span>
-        {activityLabel[status]}
-      </summary>
-      <div>
-        {status === "searching" && <p>Je sors ma loupe.</p>}
-        <ol>
-          <li>
-            <strong>Critères reçus</strong>
-            <span>{criteriaText(filters)}</span>
-          </li>
-          <li>{status === "failed" ? "L’annuaire est indisponible." : "Recherche dans l’annuaire"}</li>
-        </ol>
-      </div>
-    </details>
-  );
-}
-
 const distanceFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 
 export function DirectoryWidget({ filters, practitioners, demo, onRefine }: {
@@ -77,10 +46,6 @@ export function DirectoryWidget({ filters, practitioners, demo, onRefine }: {
       {demo ? null : <p className="chat-directory-source">Source : Annuaire Santé</p>}
     </>
   );
-}
-
-function criteriaText({ specialty, postalCode, conventionnement }: DirectoryFilters): string {
-  return `${specialty} · ${placeAndSector({ postalCode, conventionnement })}`;
 }
 
 function placeAndSector({ postalCode, conventionnement }: {

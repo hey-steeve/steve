@@ -129,7 +129,7 @@ it("preserves the 500 error text and hides valid call actions", async () => {
   expectCallActions(container, ".chat-error", []);
 });
 
-it("shows a typing indicator while the reply is pending and removes it after the reply", async () => {
+it("shows the live thinking trace while the reply is pending, then folds it above the reply", async () => {
   const pending: Array<(value: Response | PromiseLike<Response>) => void> = [];
   vi.stubGlobal(
     "fetch",
@@ -149,21 +149,60 @@ it("shows a typing indicator while the reply is pending and removes it after the
     sendButton(container).click();
   });
 
-  const typing = container.querySelector('[aria-label="Steve écrit"]');
-  expect(typing?.getAttribute("aria-live")).toBe("polite");
-  expect(typing?.querySelectorAll(".chat-dot")).toHaveLength(3);
+  const live = container.querySelector('[aria-label="Steve réfléchit"]');
+  expect(live?.getAttribute("aria-live")).toBe("polite");
+  expect([...(live?.querySelectorAll(".chat-trace-step") ?? [])].map((step) => step.className)).toEqual([
+    "chat-trace-step chat-trace-done",
+    "chat-trace-step chat-trace-doing",
+  ]);
+  expect(live?.textContent).toContain("Je lis ta demande");
   expect(container.querySelector(".chat-agent")).toBeNull();
 
   const finish = pending[0];
   if (finish === undefined) {
     throw new Error("missing release");
   }
+  const reply = Response.json({ reply: "D'accord.", mocked: true, model: "mock" });
+  reply.headers.set("x-steve-triage", "consult");
   await act(async () => {
-    finish(Response.json({ reply: "D'accord.", mocked: true, model: "mock" }));
+    finish(reply);
   });
 
-  expect(container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Steve réfléchit"]')).toBeNull();
   expect(container.textContent).toContain("D'accord.");
+  const summary = container.querySelector(".chat-agent-stack .chat-trace-summary");
+  if (!(summary instanceof HTMLButtonElement)) {
+    throw new Error("missing trace summary");
+  }
+  expect(summary.getAttribute("aria-expanded")).toBe("false");
+  expect(summary.textContent).toMatch(/^Réfléchi \d+ s · 3 étapes$/);
+  await act(async () => summary.click());
+  const steps = [...container.querySelectorAll(".chat-agent-stack .chat-trace-step-title")].map(
+    (step) => step.textContent,
+  );
+  expect(steps).toEqual([
+    "Je lis ta demande",
+    "Je vérifie s’il y a une urgence",
+    "Je prépare ma réponse",
+  ]);
+  expect(container.textContent).toContain("Pas de signe d’urgence repéré");
+});
+
+it("leaves the urgency step out when triage did not run", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () => Response.json({ reply: "D'accord.", mocked: true, model: "mock" })),
+  );
+  const container = await renderPage();
+  await act(async () => {
+    setField(fieldIn(container), "Bonjour");
+  });
+  await act(async () => {
+    sendButton(container).click();
+  });
+  const summary = container.querySelector(".chat-trace-summary");
+  expect(summary?.textContent).toMatch(/· 2 étapes$/);
+  expect(container.textContent).not.toContain("urgence");
 });
 
 it("disables send while the chat request is in flight", async () => {
