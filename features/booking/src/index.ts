@@ -121,7 +121,11 @@ export async function bookAppointment(
       continue;
     }
 
-    const attempt = toBookingAttempt(response, practitioner);
+    const attempt = toBookingAttempt(
+      response,
+      practitioner,
+      requestSnapshot.requestedWindow,
+    );
     attempts.push(attempt);
 
     if (attempt.kind === "confirmed") {
@@ -147,6 +151,7 @@ export async function bookAppointment(
 function toBookingAttempt(
   response: unknown,
   practitioner: PractitionerCandidate,
+  requestedWindow: AppointmentWindow,
 ): BookingAttempt {
   if (!isRecord(response) || typeof response["kind"] !== "string") {
     return invalidResponseAttempt(practitioner);
@@ -162,7 +167,8 @@ function toBookingAttempt(
   if (
     response["kind"] === "confirmed" &&
     isNonEmptyString(response["confirmationId"]) &&
-    isValidWindow(response["slot"])
+    isValidWindow(response["slot"]) &&
+    isWindowWithin(requestedWindow, response["slot"])
   ) {
     return {
       kind: "confirmed",
@@ -173,6 +179,16 @@ function toBookingAttempt(
   }
 
   return invalidResponseAttempt(practitioner);
+}
+
+function isWindowWithin(
+  requestedWindow: AppointmentWindow,
+  confirmedSlot: ConfirmedSlot,
+): boolean {
+  return (
+    Date.parse(requestedWindow.startsAt) <= Date.parse(confirmedSlot.startsAt) &&
+    Date.parse(confirmedSlot.endsAt) <= Date.parse(requestedWindow.endsAt)
+  );
 }
 
 function invalidResponseAttempt(practitioner: PractitionerCandidate): BookingAttempt {

@@ -89,7 +89,7 @@ export async function loadDemoVaultSnapshot(): Promise<readonly VaultDocumentVie
       id: stored.value.id,
       title: stored.value.metadata.title ?? stored.value.fileName,
       fileName: stored.value.fileName,
-      formatLabel: "PDF",
+      formatLabel: "TXT",
       dateLabel: formatFrenchDate(stored.value.metadata.documentDate ?? "2026-11-27"),
       source: stored.value.metadata.source ?? "Cabinet",
       summaryLines,
@@ -106,6 +106,12 @@ export async function summarizeTextDocumentAction(input: {
   readonly title: string;
   readonly text: string;
 }): Promise<AddDocumentActionResult> {
+  if (typeof input?.title !== "string" || typeof input.text !== "string") {
+    return {
+      ok: false,
+      error: "Renseigne un titre et un texte d’au moins 8 caractères.",
+    };
+  }
   const title = input.title.trim();
   const text = input.text.trim();
   if (title.length === 0 || text.length < 8) {
