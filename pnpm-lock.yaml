@@ -74,7 +74,11 @@ importers:
         specifier: workspace:*
         version: link:../../shared
 
-  features/directory: {}
+  features/directory:
+    dependencies:
+      '@steve/shared':
+        specifier: workspace:*
+        version: link:../../shared
 
   features/inbox: {}
 

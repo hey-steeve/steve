@@ -2,6 +2,9 @@
   "name": "@steve/directory",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@steve/shared": "workspace:*"
+  },
   "exports": {
     ".": "./src/index.ts"
   },

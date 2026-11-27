@@ -12,6 +12,7 @@ const pdfWorkerResourceLimits = Object.freeze({
   codeRangeSizeMb: 16,
   stackSizeMb: 4,
 });
+let activePdfExtractions = 0;
 
 function failure(
   code: VaultError["code"],
@@ -40,10 +41,18 @@ function decodeUtf8(content: Uint8Array): VaultResult<string> {
 }
 
 async function extractPdfText(content: Uint8Array): Promise<VaultResult<string>> {
-  const workerContent = new Uint8Array(content);
+  if (activePdfExtractions >= vaultLimits.concurrentPdfExtractions) {
+    return failure(
+      "PROCESSING_BUSY",
+      "PDF extraction capacity is busy. Retry later.",
+    );
+  }
+  activePdfExtractions += 1;
   return new Promise((resolve) => {
+    let workerContent: Uint8Array<ArrayBuffer>;
     let worker: Worker;
     try {
+      workerContent = new Uint8Array(content);
       worker = new Worker(new URL("./pdf-text-worker.mjs", import.meta.url), {
         workerData: {
           content: workerContent,
@@ -54,6 +63,7 @@ async function extractPdfText(content: Uint8Array): Promise<VaultResult<string>>
         resourceLimits: pdfWorkerResourceLimits,
       });
     } catch {
+      activePdfExtractions -= 1;
       resolve(failure(
         "DEPENDENCY_FAILURE",
         "PDF extraction worker could not be started.",
@@ -66,6 +76,7 @@ async function extractPdfText(content: Uint8Array): Promise<VaultResult<string>>
         return;
       }
       settled = true;
+      activePdfExtractions -= 1;
       clearTimeout(timeout);
       worker.removeAllListeners();
       void worker.terminate();
