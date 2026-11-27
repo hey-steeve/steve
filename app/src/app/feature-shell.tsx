@@ -13,6 +13,7 @@ export const featureNavItems = [
   { href: "/profile", label: "Mon profil" },
   { href: "/vault", label: "Documents" },
   { href: "/reminders", label: "Rappels" },
+  { href: "/inbox", label: "Messagerie" },
 ] as const;
 
 export type FeatureRoute = (typeof featureNavItems)[number]["href"];
