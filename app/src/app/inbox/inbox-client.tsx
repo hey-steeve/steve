@@ -18,6 +18,7 @@ import {
   DocumentIcon,
   FeatureShell,
   MailIcon,
+  UploadIcon,
 } from "../feature-shell";
 import "./inbox.css";
 
@@ -135,9 +136,15 @@ function createDemoInbox(): Inbox {
 
 export default function InboxClient() {
   const inboxRef = useRef<Inbox | null>(null);
+  const requestCounter = useRef(0);
   const [events, setEvents] = useState<readonly InboxEvent[]>(initialEvents);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [recipient, setRecipient] = useState("cabinet.luneval@example.test");
+  const [subject, setSubject] = useState("Transmission de ma lettre de rendez-vous");
+  const [authorized, setAuthorized] = useState(false);
+  const [sendStatus, setSendStatus] = useState<{ readonly kind: "ok" | "error"; readonly text: string } | null>(null);
 
   useEffect(() => {
     const inbox = createDemoInbox();
@@ -165,6 +172,49 @@ export default function InboxClient() {
       // Clipboard API may be unavailable in non-secure test contexts.
     }
     setCopied(true);
+  }
+
+  async function handleSendDocument(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSendStatus(null);
+    if (!authorized) {
+      setSendStatus({
+        kind: "error",
+        text: "Confirme ton autorisation avant d’envoyer un document à un praticien.",
+      });
+      return;
+    }
+    const inbox = inboxRef.current ?? createDemoInbox();
+    inboxRef.current = inbox;
+    requestCounter.current += 1;
+    const outcome = await inbox.sendDocument({
+      requestId: `send-demo-${requestCounter.current}`,
+      practitionerEmail: recipient.trim(),
+      subject: subject.trim(),
+      textBody: "Document transmis depuis la messagerie Steve (données de démonstration).",
+      attachments: [
+        {
+          id: "att-out-1",
+          fileName: "lettre-de-rendez-vous.pdf",
+          mimeType: "application/pdf",
+          bytes: new TextEncoder().encode("Lettre de rendez-vous — données de démonstration."),
+        },
+      ],
+      authorization: { authorized: true },
+    });
+    if (outcome.status !== "sent") {
+      setSendStatus({
+        kind: "error",
+        text: "Impossible d’envoyer ce document. Vérifie l’adresse du destinataire.",
+      });
+      return;
+    }
+    setSendStatus({
+      kind: "ok",
+      text: `Document envoyé à ${recipient.trim()} (réf. ${outcome.providerMessageId}).`,
+    });
+    setSendOpen(false);
+    setAuthorized(false);
   }
 
   return (
@@ -270,6 +320,74 @@ export default function InboxClient() {
         </ul>
 
         <p className="steve-demo-note">Données de démonstration</p>
+
+        <button
+          type="button"
+          className="steve-btn-action"
+          aria-expanded={sendOpen}
+          onClick={() => {
+            setSendOpen((open) => !open);
+            setSendStatus(null);
+          }}
+        >
+          <span className="steve-icon-circle" aria-hidden="true">
+            <UploadIcon />
+          </span>
+          <span>Envoyer un document</span>
+        </button>
+
+        {sendOpen ? (
+          <form
+            className="inbox-send-form"
+            onSubmit={(event) => {
+              void handleSendDocument(event);
+            }}
+          >
+            <div className="steve-field-group">
+              <label className="steve-field-label" htmlFor="inbox-recipient">
+                Adresse du cabinet
+              </label>
+              <input
+                id="inbox-recipient"
+                className="steve-input"
+                type="email"
+                value={recipient}
+                onChange={(event) => setRecipient(event.target.value)}
+              />
+            </div>
+            <div className="steve-field-group">
+              <label className="steve-field-label" htmlFor="inbox-subject">
+                Objet
+              </label>
+              <input
+                id="inbox-subject"
+                className="steve-input"
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+              />
+            </div>
+            <label className="inbox-checkbox-row">
+              <input
+                type="checkbox"
+                checked={authorized}
+                onChange={(event) => setAuthorized(event.target.checked)}
+              />
+              <span>J’autorise Steve à envoyer ce document au cabinet indiqué.</span>
+            </label>
+            <button type="submit" className="steve-btn-primary">
+              Confirmer l’envoi
+            </button>
+          </form>
+        ) : null}
+
+        {sendStatus === null ? null : (
+          <p
+            className={sendStatus.kind === "error" ? "steve-alert" : "steve-status"}
+            role={sendStatus.kind === "error" ? "alert" : "status"}
+          >
+            {sendStatus.text}
+          </p>
+        )}
       </section>
     </FeatureShell>
   );
