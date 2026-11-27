@@ -5,6 +5,7 @@ import {
   type Reminder,
   type ReminderDetails,
   type ReminderError,
+  type ReminderMessage,
   type ReminderResult,
   type ScheduleReminderInput,
 } from "./contracts.ts";
@@ -301,6 +302,48 @@ export function snapshotScheduleInput(
     };
   } catch {
     return failure("INVALID_INPUT", "Reminder input is invalid.");
+  }
+}
+
+export function validateReminderMessage(
+  message: ReminderMessage,
+): ReminderResult<ReminderMessage> {
+  try {
+    const reminderId: unknown = message.reminderId;
+    const appointmentId: unknown = message.appointmentId;
+    const channel: unknown = message.channel;
+    const body: unknown = message.body;
+    const validReminderId = validIdentifier(reminderId, "reminderId");
+    const validAppointmentId = validIdentifier(appointmentId, "appointmentId");
+    const validBody = boundedText(
+      body,
+      reminderLimits.messageBodyCharacters,
+      "body",
+      true,
+    );
+    if (
+      !validReminderId.ok ||
+      validReminderId.value !== reminderId ||
+      !validAppointmentId.ok ||
+      validAppointmentId.value !== appointmentId ||
+      (channel !== "sms" && channel !== "call") ||
+      !validBody.ok ||
+      validBody.value === undefined ||
+      validBody.value !== body
+    ) {
+      return failure("INVALID_INPUT", "Reminder message is invalid.");
+    }
+    return {
+      ok: true,
+      value: {
+        reminderId: validReminderId.value,
+        appointmentId: validAppointmentId.value,
+        channel,
+        body: validBody.value,
+      },
+    };
+  } catch {
+    return failure("INVALID_INPUT", "Reminder message is invalid.");
   }
 }
 

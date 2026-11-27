@@ -6,6 +6,7 @@ import {
 } from "./contracts.ts";
 
 const pdfExtractionTimeoutMilliseconds = 1_500;
+const pdfWorkerStartupTimeoutMilliseconds = 5_000;
 const pdfWorkerResourceLimits = Object.freeze({
   maxOldGenerationSizeMb: 64,
   maxYoungGenerationSizeMb: 16,
@@ -70,24 +71,46 @@ async function extractPdfText(content: Uint8Array): Promise<VaultResult<string>>
       ));
       return;
     }
+    let startupTimeout: ReturnType<typeof setTimeout> | undefined;
+    let extractionTimeout: ReturnType<typeof setTimeout> | undefined;
     let settled = false;
     const settle = (result: VaultResult<string>): void => {
       if (settled) {
         return;
       }
       settled = true;
-      activePdfExtractions -= 1;
-      clearTimeout(timeout);
+      clearTimeout(startupTimeout);
+      clearTimeout(extractionTimeout);
       worker.removeAllListeners();
-      void worker.terminate();
-      resolve(result);
+      void worker.terminate().then(
+        () => {
+          activePdfExtractions -= 1;
+          resolve(result);
+        },
+        () => {
+          resolve(failure(
+            "DEPENDENCY_FAILURE",
+            "PDF extraction worker could not be stopped safely.",
+          ));
+        },
+      );
     };
-    const timeout = setTimeout(() => {
+    startupTimeout = setTimeout(() => {
       settle(failure(
-        "CONTENT_TOO_LARGE",
-        "PDF document exceeded safe processing limits.",
+        "DEPENDENCY_FAILURE",
+        "PDF extraction worker did not start safely.",
       ));
-    }, pdfExtractionTimeoutMilliseconds);
+    }, pdfWorkerStartupTimeoutMilliseconds);
+    worker.once("online", () => {
+      clearTimeout(startupTimeout);
+      startupTimeout = undefined;
+      extractionTimeout = setTimeout(() => {
+        settle(failure(
+          "CONTENT_TOO_LARGE",
+          "PDF document exceeded safe processing limits.",
+        ));
+      }, pdfExtractionTimeoutMilliseconds);
+    });
     worker.once("message", (message: unknown) => {
       const kind = message !== null && typeof message === "object"
         ? Reflect.get(message, "kind")

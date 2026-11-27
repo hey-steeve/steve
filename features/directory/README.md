@@ -18,31 +18,31 @@
 
 ## Inputs and outputs
 
-- The input is the specialty, the distance, and the conventionnement. The contracts are to be defined.
-- The output is the practitioners found. The contract is to be defined.
+- Input: `DirectoryQuery` (`specialty`, optional `postalCode`, `origin`, `maxDistanceKm`, `conventionnement`, `limit`), defined in `@steve/shared`.
+- Output: `DirectorySearchOutcome`, wrapping `DirectorySearchResult` (`practitioners`, `source`) on success or a typed failure reason.
 
 ## Depends on
 
-`@steve/shared`. The public Annuaire Santé: RPPS, annuaire.sante.fr, and ANS open data.
+`@steve/shared`. The public Annuaire Santé FHIR v2 API (`https://gateway.api.esante.gouv.fr/fhir/v2`, header `ESANTE-API-KEY`).
 
 ## Rules
 
 - The source is the real public Annuaire Santé.
-- The access mode, API or extracts, is to be checked.
+- Access mode: ANS Annuaire Santé FHIR v2 API (`PractitionerRole` with `_include` for `Practitioner` and `Organization`, plus `as-ext-practitionerrole-contracted` for conventionnement).
 - `directory` does not book.
 - Never diagnose.
 - Doctolib stays a future partnership, with no public booking API.
 
 ## Demo and production
 
-The source stays the real Annuaire Santé. The access mode, API or extracts, is to be checked.
+Both use the real ANS Annuaire Santé FHIR v2 API via `ESANTE_API_KEY`. Tests inject `fetch` or `PractitionerSource` with synthetic data only.
 
 ## Check
 
 `pnpm --filter @steve/directory test`
 
-The tests are to be defined. Access, API or extracts, is to be checked.
+`pnpm --filter @steve/directory typecheck`
 
 ## Status
 
-To do. Owner:
+Done (contracts, domain primitives, and ANS FHIR v2 client). Owner:
