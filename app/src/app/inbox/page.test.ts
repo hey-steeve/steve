@@ -78,6 +78,18 @@ it("sends an authorized document through @steve/inbox", async () => {
   });
   await act(async () => {
     buttonWithText(container, "Confirmer l’envoi").click();
+  });
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    "Confirme ton autorisation",
+  );
+  const consent = container.querySelector('input[type="checkbox"]');
+  if (!(consent instanceof HTMLInputElement)) throw new Error("Missing consent checkbox");
+  expect(consent.checked).toBe(false);
+  await act(async () => {
+    consent.click();
+  });
+  await act(async () => {
+    buttonWithText(container, "Confirmer l’envoi").click();
     await new Promise((resolve) => setTimeout(resolve, 20));
   });
   expect(container.querySelector('[role="status"]')?.textContent).toContain(

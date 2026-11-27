@@ -143,7 +143,7 @@ export default function InboxClient() {
   const [sendOpen, setSendOpen] = useState(false);
   const [recipient, setRecipient] = useState("cabinet.luneval@example.test");
   const [subject, setSubject] = useState("Transmission de ma lettre de rendez-vous");
-  const [authorized, setAuthorized] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
   const [sendStatus, setSendStatus] = useState<{ readonly kind: "ok" | "error"; readonly text: string } | null>(null);
 
   useEffect(() => {
