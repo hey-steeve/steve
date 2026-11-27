@@ -1,33 +1,160 @@
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { headerAvatarSrc } from "../../chat/faces";
 import {
   appointmentDay,
   appointmentTime,
   countdownLabel,
   daysUntil,
+  homeAccountLinks,
   homeDemoNow,
   homeNextAppointment,
+  homeNotifications,
   homeSpace,
   homeUpcoming,
 } from "../../chat/home-summary";
 import "./home-view.css";
 
-export function HomeTopBar() {
+type TopPanel = "notifications" | "account";
+
+export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
+  const [panel, setPanel] = useState<TopPanel | null>(null);
+  const [unread, setUnread] = useState(true);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (panel === null) {
+      return;
+    }
+    panelRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        close();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [panel]);
+
+  function toggle(next: TopPanel, opener: HTMLButtonElement) {
+    openerRef.current = opener;
+    setPanel((current) => (current === next ? null : next));
+    if (next === "notifications") {
+      setUnread(false);
+    }
+  }
+
+  function close() {
+    setPanel(null);
+    openerRef.current?.focus();
+  }
+
+  const name = props.firstName?.trim() ?? "";
   return (
     <>
       <span className="chat-home-logo">
         <img src={headerAvatarSrc} alt="Steve" width={44} height={44} />
       </span>
       <span className="chat-home-glass-row">
-        <Link className="chat-home-glass" href="/inbox" aria-label="Messagerie, nouveaux messages">
+        <button
+          type="button"
+          className="chat-home-glass"
+          aria-label={unread ? "Notifications, 3 nouvelles" : "Notifications"}
+          aria-haspopup="dialog"
+          aria-expanded={panel === "notifications"}
+          aria-controls="chat-home-notifications"
+          onClick={(event) => toggle("notifications", event.currentTarget)}
+        >
           <BellIcon />
-          <span className="chat-home-glass-dot" aria-hidden="true" />
-        </Link>
-        <Link className="chat-home-glass" href="/profile" aria-label="Mon profil">
+          {unread ? <span className="chat-home-glass-dot" aria-hidden="true" /> : null}
+        </button>
+        <button
+          type="button"
+          className="chat-home-glass"
+          aria-label="Mon compte"
+          aria-haspopup="dialog"
+          aria-expanded={panel === "account"}
+          aria-controls="chat-home-account"
+          onClick={(event) => toggle("account", event.currentTarget)}
+        >
           <UserIcon />
-        </Link>
+        </button>
       </span>
+      {panel === null ? null : (
+        <>
+          <button
+            type="button"
+            className="chat-home-pop-backdrop"
+            aria-label="Fermer"
+            tabIndex={-1}
+            onClick={close}
+          />
+          {panel === "notifications" ? (
+            <div
+              ref={panelRef}
+              id="chat-home-notifications"
+              className="chat-home-pop chat-home-notifications"
+              role="dialog"
+              aria-label="Notifications"
+            >
+              <p className="chat-home-pop-title">Notifications</p>
+              <ul>
+                {homeNotifications.map((item) => (
+                  <li key={item.id}>
+                    <Link href={item.href} className="chat-home-notif">
+                      <span className={`chat-home-notif-app chat-home-notif-${item.tone}`} aria-hidden="true">
+                        {item.tone === "indigo" ? <CalendarIcon /> : item.tone === "teal" ? <MailIcon /> : <BellIcon size={18} />}
+                      </span>
+                      <span className="chat-home-notif-copy">
+                        <span className="chat-home-notif-meta">
+                          <span>{item.app}</span>
+                          <span>{item.when}</span>
+                        </span>
+                        <strong>{item.title}</strong>
+                        <span>{item.body}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div
+              ref={panelRef}
+              id="chat-home-account"
+              className="chat-home-pop chat-home-account"
+              role="dialog"
+              aria-label="Mon compte"
+            >
+              <div className="chat-home-account-head">
+                <span className="chat-home-account-avatar" aria-hidden="true">
+                  {name === "" ? "?" : name.charAt(0).toUpperCase()}
+                </span>
+                <span>
+                  <strong>{name === "" ? "Mon compte" : name}</strong>
+                  <span>Ton espace Steve</span>
+                </span>
+              </div>
+              <ul>
+                {homeAccountLinks.map((item) => (
+                  <li key={item.href}>
+                    <Link href={item.href} className="chat-home-account-link">
+                      <span>
+                        <strong>{item.label}</strong>
+                        <span>{item.detail}</span>
+                      </span>
+                      <ChevronIcon />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }

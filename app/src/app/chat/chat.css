@@ -150,7 +150,7 @@
 .chat-home-brand {
   position: relative;
   z-index: 2;
-  width: 54%;
+  width: 50%;
   min-width: 0;
 }
 
@@ -457,17 +457,19 @@
   content: "";
   position: absolute;
   z-index: -1;
-  inset: 0 0 -32px;
+  inset: 0 0 -72px;
   background: linear-gradient(
     180deg,
     var(--color-indigo-700) 0%,
-    rgba(47, 51, 168, 0.92) 60%,
+    rgba(47, 51, 168, 0.97) 42%,
+    rgba(47, 51, 168, 0.75) 62%,
+    rgba(47, 51, 168, 0.35) 80%,
     rgba(47, 51, 168, 0) 100%
   );
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 62%, transparent 100%);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 48%, rgba(0, 0, 0, 0.6) 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 48%, rgba(0, 0, 0, 0.6) 72%, transparent 100%);
   pointer-events: none;
 }
 
@@ -484,10 +486,10 @@
   content: "";
   position: absolute;
   z-index: 0;
-  right: -40px;
-  bottom: -40px;
-  width: 280px;
-  height: 280px;
+  right: -30px;
+  bottom: -50px;
+  width: 300px;
+  height: 260px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 68%);
   pointer-events: none;
@@ -496,33 +498,14 @@
 .chat-hero-mascot {
   position: absolute;
   z-index: 1;
-  right: -22px;
-  bottom: -78px;
-  width: 248px;
-  max-width: 66%;
+  right: -14px;
+  bottom: -10px;
+  width: 262px;
+  max-width: 70%;
   height: auto;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 1137 / 840;
   object-fit: contain;
   pointer-events: none;
-  animation: chat-mascot-wave 5s ease-in-out 600ms infinite;
-  transform-origin: 50% 90%;
-}
-
-@keyframes chat-mascot-wave {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0);
-  }
-
-  50% {
-    transform: translateY(-6px) rotate(-1.5deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-hero-mascot {
-    animation: none;
-  }
 }
 
 .chat-badge {

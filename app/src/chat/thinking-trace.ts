@@ -10,7 +10,7 @@ export type TriageOutcome = (typeof triageOutcomes)[number];
 export type TraceStatus = "done" | "doing" | "failed";
 
 export type TraceStep = {
-  readonly id: "read" | "think" | "triage" | "search" | "answer";
+  readonly id: "read" | "triage" | "search" | "answer";
   readonly title: string;
   readonly status: TraceStatus;
   readonly detail?: string;
@@ -27,8 +27,6 @@ export function parseTriageOutcome(value: string | null): TriageOutcome | undefi
 }
 
 export const readStep: TraceStep = { id: "read", title: "Je lis ta demande", status: "done" };
-
-export const thinkStep: TraceStep = { id: "think", title: "Je réfléchis", status: "doing" };
 
 export const answerStep: TraceStep = { id: "answer", title: "Je prépare ma réponse", status: "done" };
 

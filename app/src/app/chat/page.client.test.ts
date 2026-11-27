@@ -129,7 +129,7 @@ it("preserves the 500 error text and hides valid call actions", async () => {
   expectCallActions(container, ".chat-error", []);
 });
 
-it("shows the live thinking trace while the reply is pending, then folds it above the reply", async () => {
+it("shows a typing indicator for a plain reply and attaches no trace", async () => {
   const pending: Array<(value: Response | PromiseLike<Response>) => void> = [];
   vi.stubGlobal(
     "fetch",
@@ -149,14 +149,10 @@ it("shows the live thinking trace while the reply is pending, then folds it abov
     sendButton(container).click();
   });
 
-  const live = container.querySelector('[aria-label="Steve réfléchit"]');
-  expect(live?.getAttribute("aria-live")).toBe("polite");
-  expect([...(live?.querySelectorAll(".chat-trace-step") ?? [])].map((step) => step.className)).toEqual([
-    "chat-trace-step chat-trace-done",
-    "chat-trace-step chat-trace-doing",
-  ]);
-  expect(live?.textContent).toContain("Je lis ta demande");
-  expect(container.querySelector(".chat-agent")).toBeNull();
+  const typing = container.querySelector('[aria-label="Steve écrit"]');
+  expect(typing?.getAttribute("aria-live")).toBe("polite");
+  expect(typing?.querySelectorAll(".chat-dot")).toHaveLength(3);
+  expect(container.querySelector(".chat-trace")).toBeNull();
 
   const finish = pending[0];
   if (finish === undefined) {
@@ -168,41 +164,44 @@ it("shows the live thinking trace while the reply is pending, then folds it abov
     finish(reply);
   });
 
-  expect(container.querySelector('[aria-label="Steve réfléchit"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
   expect(container.textContent).toContain("D'accord.");
-  const summary = container.querySelector(".chat-agent-stack .chat-trace-summary");
-  if (!(summary instanceof HTMLButtonElement)) {
-    throw new Error("missing trace summary");
-  }
-  expect(summary.getAttribute("aria-expanded")).toBe("false");
-  expect(summary.textContent).toMatch(/^Réfléchi \d+ s · 3 étapes$/);
-  await act(async () => summary.click());
-  const steps = [...container.querySelectorAll(".chat-agent-stack .chat-trace-step-title")].map(
-    (step) => step.textContent,
-  );
-  expect(steps).toEqual([
-    "Je lis ta demande",
-    "Je vérifie s’il y a une urgence",
-    "Je prépare ma réponse",
-  ]);
-  expect(container.textContent).toContain("Pas de signe d’urgence repéré");
+  expect(container.querySelector(".chat-trace-summary")).toBeNull();
 });
 
-it("leaves the urgency step out when triage did not run", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof fetch>(async () => Response.json({ reply: "D'accord.", mocked: true, model: "mock" })),
-  );
+it("traces a practitioner search live, then folds it above the result", async () => {
+  const reply = Response.json({ directory: { specialty: "médecin généraliste", postalCode: "75011" } });
+  reply.headers.set("x-steve-triage", "consult");
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => reply));
   const container = await renderPage();
   await act(async () => {
-    setField(fieldIn(container), "Bonjour");
+    setField(fieldIn(container), "Je cherche un généraliste près de 75011");
   });
   await act(async () => {
     sendButton(container).click();
   });
+  for (let tries = 0; tries < 20 && container.querySelector(".chat-trace-summary") === null; tries += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  }
   const summary = container.querySelector(".chat-trace-summary");
-  expect(summary?.textContent).toMatch(/· 2 étapes$/);
-  expect(container.textContent).not.toContain("urgence");
+  if (!(summary instanceof HTMLButtonElement)) {
+    throw new Error("missing trace summary");
+  }
+  expect(container.querySelector('[aria-label="Steve réfléchit"]')).toBeNull();
+  expect(summary.getAttribute("aria-expanded")).toBe("false");
+  expect(summary.textContent).toMatch(/^Réfléchi \d+ s · 4 étapes$/);
+  await act(async () => summary.click());
+  expect(
+    [...container.querySelectorAll(".chat-trace-step-title")].map((step) => step.textContent),
+  ).toEqual([
+    "Je lis ta demande",
+    "Je vérifie s’il y a une urgence",
+    "Je cherche : médecin généraliste près de 75011",
+    "Je prépare ma réponse",
+  ]);
+  expect(container.textContent).toContain("Pas de signe d’urgence repéré");
 });
 
 it("disables send while the chat request is in flight", async () => {

@@ -55,13 +55,14 @@ it("puts Steve and the quick links in the home header and the greeting in the he
     expect(header.querySelector(".chat-greeting")).toBeNull();
     expect(header.querySelector(".chat-profile")).toBeNull();
     expect(header.querySelector(".chat-home-logo img")?.getAttribute("alt")).toBe("Steve");
-    const links = [...header.querySelectorAll("a")].map((link) => [
-      link.getAttribute("href"),
-      link.getAttribute("aria-label"),
+    expect(header.querySelectorAll("a")).toHaveLength(0);
+    const buttons = [...header.querySelectorAll("button")].map((button) => [
+      button.getAttribute("aria-label"),
+      button.getAttribute("aria-expanded"),
     ]);
-    expect(links).toEqual([
-      ["/inbox", "Messagerie, nouveaux messages"],
-      ["/profile", "Mon profil"],
+    expect(buttons).toEqual([
+      ["Notifications, 3 nouvelles", "false"],
+      ["Mon compte", "false"],
     ]);
     expect(greeting.textContent).toBe("Bonjour Peter,");
     const row = getComputedStyle(header);

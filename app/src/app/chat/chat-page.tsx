@@ -14,9 +14,7 @@ import {
   answerStep,
   baseSteps,
   parseTriageOutcome,
-  readStep,
   searchStep,
-  thinkStep,
   triageTraceHeader,
   type FinishedTrace,
   type TraceStep,
@@ -399,7 +397,6 @@ export default function ChatPage(props: {
     setDraft((current) => (current.trim() === content ? "" : current));
     setExchange("awaiting");
     traceStart.current = Date.now();
-    setLiveTrace({ startedAt: traceStart.current, steps: [readStep, thinkStep] });
     void post(history, ticket);
   }
 
@@ -521,7 +518,7 @@ export default function ChatPage(props: {
         return;
       }
       setDemo(reply.mocked);
-      pushReply("agent", reply.reply, reply.calls, finishTrace([...base, answerStep]));
+      pushReply("agent", reply.reply, reply.calls);
       setExchange("rendering");
     } catch {
       if (conversation.current !== ticket) {
@@ -692,7 +689,7 @@ export default function ChatPage(props: {
       >
         <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <HomeTopBar />
+            <HomeTopBar firstName={props.patientFirstName} />
           ) : (
             <button
               type="button"
@@ -773,8 +770,8 @@ export default function ChatPage(props: {
                   className="chat-hero-mascot"
                   src={heroSrc}
                   alt=""
-                  width={512}
-                  height={512}
+                  width={682}
+                  height={504}
                 />
               </div>
               {empty ? (
@@ -862,7 +859,7 @@ export default function ChatPage(props: {
                   </li>
                 ),
               )}
-              {liveTrace !== undefined && (pendingDirectory !== undefined || exchange === "awaiting") ? (
+              {liveTrace !== undefined && pendingDirectory !== undefined ? (
                 <li
                   className="chat-row chat-row-agent"
                   role="status"
@@ -871,6 +868,20 @@ export default function ChatPage(props: {
                 >
                   <SteveAvatar />
                   <LiveTrace steps={liveTrace.steps} startedAt={liveTrace.startedAt} />
+                </li>
+              ) : exchange === "awaiting" ? (
+                <li
+                  className="chat-row chat-row-agent"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Steve écrit"
+                >
+                  <SteveAvatar />
+                  <div className="chat-typing">
+                    <span className="chat-dot" />
+                    <span className="chat-dot" />
+                    <span className="chat-dot" />
+                  </div>
                 </li>
               ) : null}
             </ol>

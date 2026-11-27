@@ -79,3 +79,40 @@ export function appointmentTime(startsAt: string): string {
     minute: "2-digit",
   }).format(new Date(startsAt));
 }
+
+export const homeNotifications = [
+  {
+    id: "agenda-confirmed",
+    app: "Agenda",
+    tone: "indigo",
+    href: "/agenda",
+    when: "Il y a 2 h",
+    title: "Rendez-vous confirmé",
+    body: "Dr Camille Lunéval a confirmé mercredi 2 déc. à 10:00.",
+  },
+  {
+    id: "inbox-document",
+    app: "Messagerie",
+    tone: "teal",
+    href: "/inbox",
+    when: "Hier",
+    title: "Document du cabinet",
+    body: "Le cabinet Lunéval t’a envoyé une lettre de rendez-vous.",
+  },
+  {
+    id: "reminder-scheduled",
+    app: "Rappels",
+    tone: "orange",
+    href: "/reminders",
+    when: "Hier",
+    title: "Rappel programmé",
+    body: "Tu recevras un SMS le 1er déc. à 18 h.",
+  },
+] as const;
+
+export const homeAccountLinks = [
+  { href: "/profile", label: "Mon profil", detail: "Identité, antécédents, préférences" },
+  { href: "/vault", label: "Mes documents", detail: "Ordonnances, comptes rendus" },
+  { href: "/reminders", label: "Mes rappels", detail: "SMS et appels" },
+  { href: "/inbox", label: "Messagerie", detail: "Ton adresse Steve" },
+] as const;

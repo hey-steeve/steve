@@ -1,7 +1,7 @@
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import sharp from "sharp";
+import sharp, { type Sharp } from "sharp";
 import { createStaging, publishStaging, removeStaleStaging } from "./stage-publish";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,10 +22,11 @@ export const mascotWebps = [
   },
   { file: "bubbles.webp", source: "body/bubbles.png", lossless: true },
   {
-    file: "hello.webp",
-    source: "body/hello.png",
-    width: 512,
-    height: 512,
+    file: "bubbles-home.webp",
+    source: "body/bubbles.png",
+    width: 682,
+    height: 504,
+    cleanAlpha: true,
   },
   {
     file: "state-calling.webp",
@@ -77,7 +78,8 @@ export async function syncMascotWebps(target?: MascotSyncTarget): Promise<void> 
   try {
     await Promise.all(
       mascotWebps.map(async (item) => {
-        let image = sharp(path.join(sourceRoot, item.source));
+        const source = path.join(sourceRoot, item.source);
+        let image = "cleanAlpha" in item ? await cleanAlphaEdges(source) : sharp(source);
         if ("width" in item) {
           image = image.resize({
             width: item.width,
@@ -88,7 +90,9 @@ export async function syncMascotWebps(target?: MascotSyncTarget): Promise<void> 
         const webp =
           "lossless" in item
             ? { lossless: true as const }
-            : { quality: 80, alphaQuality: 80, effort: 4 };
+            : "cleanAlpha" in item
+              ? { quality: 90, alphaQuality: 100, effort: 4 }
+              : { quality: 80, alphaQuality: 80, effort: 4 };
         await image.webp(webp).toFile(path.join(staging, item.file));
       }),
     );
@@ -96,4 +100,19 @@ export async function syncMascotWebps(target?: MascotSyncTarget): Promise<void> 
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
+}
+
+// The bubbles in body/bubbles.png have a speckled cut-out fringe. A 3 px
+// median on the alpha channel drops the stray pixels and a light blur
+// smooths the rim, so the home pose reads clean on the indigo hero.
+async function cleanAlphaEdges(source: string): Promise<Sharp> {
+  const { data, info } = await sharp(source)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const alpha = await sharp(source).extractChannel("alpha").median(3).blur(0.7).raw().toBuffer();
+  for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+    data[pixel * 4 + 3] = alpha[pixel] ?? 0;
+  }
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } });
 }

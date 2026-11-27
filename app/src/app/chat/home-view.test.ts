@@ -79,13 +79,64 @@ it("hides the appointment card when dismissed", async () => {
   expect(view.querySelector(".chat-home-ask")).not.toBeNull();
 });
 
-async function mount(): Promise<HTMLDivElement> {
+it("opens the notification list from the bell without leaving the home", async () => {
+  const view = await mount();
+  const bell = view.querySelector('button[aria-label="Notifications, 3 nouvelles"]');
+  if (!(bell instanceof HTMLButtonElement)) {
+    throw new Error("missing bell");
+  }
+  await act(async () => bell.click());
+  const panel = view.querySelector('[role="dialog"][aria-label="Notifications"]');
+  expect(bell.getAttribute("aria-expanded")).toBe("true");
+  expect(bell.getAttribute("aria-label")).toBe("Notifications");
+  expect(view.querySelector(".chat-home-glass-dot")).toBeNull();
+  expect([...(panel?.querySelectorAll(".chat-home-notif strong") ?? [])].map((n) => n.textContent)).toEqual([
+    "Rendez-vous confirmé",
+    "Document du cabinet",
+    "Rappel programmé",
+  ]);
+  expect([...(panel?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"))).toEqual([
+    "/agenda",
+    "/inbox",
+    "/reminders",
+  ]);
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  });
+  expect(view.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.activeElement).toBe(bell);
+});
+
+it("opens the account menu and closes it from the backdrop", async () => {
+  const view = await mount("Peter");
+  const account = view.querySelector('button[aria-label="Mon compte"]');
+  if (!(account instanceof HTMLButtonElement)) {
+    throw new Error("missing account button");
+  }
+  await act(async () => account.click());
+  const panel = view.querySelector('[role="dialog"][aria-label="Mon compte"]');
+  expect(panel?.querySelector(".chat-home-account-head strong")?.textContent).toBe("Peter");
+  expect([...(panel?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"))).toEqual([
+    "/profile",
+    "/vault",
+    "/reminders",
+    "/inbox",
+  ]);
+  const backdrop = view.querySelector(".chat-home-pop-backdrop");
+  if (!(backdrop instanceof HTMLButtonElement)) {
+    throw new Error("missing backdrop");
+  }
+  await act(async () => backdrop.click());
+  expect(view.querySelector('[role="dialog"]')).toBeNull();
+});
+
+async function mount(patientFirstName?: string): Promise<HTMLDivElement> {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   roots.push(root);
   await act(async () => {
-    root.render(createElement(ChatPage));
+    root.render(createElement(ChatPage, patientFirstName === undefined ? {} : { patientFirstName }));
   });
   return container;
 }
