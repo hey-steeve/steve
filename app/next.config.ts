@@ -21,6 +21,7 @@ export default async function nextConfig(): Promise<NextConfig> {
       "@steve/profile",
       "@steve/shared",
       "@steve/triage",
+      "@steve/vault",
       "@steve/voice",
     ],
     outputFileTracingRoot: root,
