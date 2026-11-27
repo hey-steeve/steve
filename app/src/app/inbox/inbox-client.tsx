@@ -212,6 +212,12 @@ export default function InboxClient() {
         ],
         authorization: { authorized: true },
       });
+    } catch {
+      setSendStatus({
+        kind: "error",
+        text: "Impossible d’envoyer ce document pour le moment. Réessaie dans un instant.",
+      });
+      return;
     } finally {
       sendingRef.current = false;
       setSending(false);
