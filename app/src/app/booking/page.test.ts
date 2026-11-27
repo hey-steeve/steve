@@ -39,7 +39,7 @@ function buttonByText(container: ParentNode, text: string): HTMLButtonElement {
   return found;
 }
 
-it("renders the confirmed booking card with practitioner details", async () => {
+it("renders the confirmed booking card with practitioner details and agenda link", async () => {
   const container = await mount(createElement(BookingClient, { callDelayMs: 0 }));
   expect(container.querySelector("h1")?.textContent).toBe("Prise de rendez-vous");
   expect(container.textContent).toContain("Appel au cabinet");
@@ -48,6 +48,9 @@ it("renders the confirmed booking card with practitioner details", async () => {
   expect(container.textContent).toContain("Camille Lunéval");
   expect(container.textContent).toContain("Mercredi 2 décembre · 10 h");
   expect(container.textContent).toContain("1 rue des Nuages Mauves");
+  expect(container.querySelector('a[href="/agenda"]')?.textContent).toContain(
+    "Voir dans l’agenda",
+  );
 });
 
 it("renders the in-progress calling state with the phone mascot", async () => {
@@ -69,4 +72,29 @@ it("runs the practice call and confirms the first practitioner's slot", async ()
   });
   expect(container.textContent).toContain("Rendez-vous confirmé");
   expect(container.textContent).toContain("Mercredi 2 décembre · 10 h");
+});
+
+it("falls back to a second practitioner when the first practice refuses", async () => {
+  const container = await mount(createElement(BookingClient, { callDelayMs: 0 }));
+  await act(async () => {
+    buttonByText(container, "2e praticien si refus").click();
+  });
+  await act(async () => {
+    buttonByText(container, "Lancer l’appel au cabinet").click();
+  });
+  expect(container.textContent).toContain("Rendez-vous confirmé");
+  expect(container.textContent).toContain("Noé Brumelac");
+  expect(container.textContent).toContain("Mercredi 2 décembre · 14 h");
+});
+
+it("reports when at most 2 practices refuse without confirming a slot", async () => {
+  const container = await mount(createElement(BookingClient, { callDelayMs: 0 }));
+  await act(async () => {
+    buttonByText(container, "Aucun créneau libre").click();
+  });
+  await act(async () => {
+    buttonByText(container, "Lancer l’appel au cabinet").click();
+  });
+  expect(container.textContent).toContain("Aucun créneau confirmé");
+  expect(container.querySelectorAll(".booking-attempt-item")).toHaveLength(2);
 });
