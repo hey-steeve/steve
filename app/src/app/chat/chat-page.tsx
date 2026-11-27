@@ -1,14 +1,12 @@
 "use client";
 
 import type { EmergencyCalls } from "@steve/triage";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { composerControl, type ComposerControl } from "../../chat/composer-control";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar";
 import { parseDirectoryFilters, type DirectoryFilters } from "../../chat/directory-query";
 import type { ExchangeKind } from "../../chat/exchange";
 import { headerAvatarSrc, heroSrc, replyAvatarSrc, steveFace } from "../../chat/faces";
-import { featureNavItems } from "../feature-shell";
 import { homeGreeting } from "../../chat/home-greeting";
 import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
@@ -19,6 +17,15 @@ import { createBrowserCallDeps } from "../../voice/mock-call";
 import { useLiveCall, type ThreadEvent } from "../../voice/use-live-call";
 import { AgentCallBar, PhoneIcon } from "./agent-call-bar";
 import { DirectoryActivity, DirectoryWidget } from "./directory-widget";
+import {
+  HomeAppointmentCard,
+  HomeAskCard,
+  HomeSpaceCard,
+  HomeTabBar,
+  HomeTiles,
+  HomeTopBar,
+  HomeUpcomingCard,
+} from "./home-view";
 import { runPractitionerSearch, type DirectoryResult } from "./search-practitioners";
 import "./chat.css";
 import "./directory-widget.css";
@@ -622,7 +629,7 @@ export default function ChatPage(props: {
   return (
     <main
       ref={pageRef}
-      className="chat-page"
+      className={empty ? "chat-page chat-page-home" : "chat-page"}
     >
       <div
         ref={columnRef}
@@ -630,18 +637,7 @@ export default function ChatPage(props: {
       >
         <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <>
-              <div className="chat-home-brand">
-                <div className="chat-home-brand-copy">
-                  <h1 className="chat-greeting">
-                    {homeGreeting(props.patientFirstName)}
-                  </h1>
-                  <p className="chat-home-subtitle">
-                    Je vais t'aider à organiser tes soins.
-                  </p>
-                </div>
-              </div>
-            </>
+            <HomeTopBar />
           ) : (
             <button
               type="button"
@@ -707,62 +703,52 @@ export default function ChatPage(props: {
               aria-hidden={empty ? undefined : true}
               inert={empty ? undefined : true}
             >
-              <img
-                className="chat-hero-mascot"
-                src={heroSrc}
-                alt=""
-                width={1137}
-                height={840}
-              />
-              {empty ? (
-                <div className="chat-home-actions">
-                  <div className="chat-home-prompt">
-                    <p className="chat-home-prompt-title">Comment puis-je t’aider ?</p>
-                    <p className="chat-home-prompt-copy">
-                      Écris-moi ici ou appelle-moi, comme tu préfères.
+              <div className="chat-home-hero">
+                {empty ? (
+                  <div className="chat-home-brand">
+                    <h1 className="chat-greeting">
+                      {homeGreeting(props.patientFirstName)}
+                    </h1>
+                    <p className="chat-home-subtitle">
+                      Je vais t’aider à organiser tes soins.
                     </p>
                   </div>
-                  <ul className="chat-starters" aria-label="Suggestions pour commencer">
-                    {conversationStarters.map(({ label, draft: suggestion }) => (
-                      <li key={label}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            dictation.stop();
-                            setDraft(suggestion);
-                            fieldRef.current?.focus();
-                          }}
-                        >
-                          {label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    className="chat-call-cta"
-                    type="button"
-                    onClick={startCall}
-                  >
-                    <span className="chat-call-cta-icon" aria-hidden="true">
-                      <span className="chat-call-cta-glyph">
-                        <PhoneIcon />
-                      </span>
-                    </span>
-                    <span className="chat-call-cta-copy">
-                      <span className="chat-call-cta-title">On s’appelle ?</span>
-                      <span className="chat-call-cta-label">Appeler Steve</span>
-                    </span>
-                    <span className="chat-call-cta-arrow" aria-hidden="true">›</span>
-                  </button>
-                  <nav className="chat-home-nav" aria-label="Espaces Steve">
-                    {featureNavItems
-                      .filter(({ href }) => href !== "/chat")
-                      .map(({ href, label }) => (
-                        <Link key={href} href={href} className="chat-home-nav-link">
-                          {label}
-                        </Link>
-                      ))}
-                  </nav>
+                ) : null}
+                <img
+                  className="chat-hero-mascot"
+                  src={heroSrc}
+                  alt=""
+                  width={1137}
+                  height={840}
+                />
+              </div>
+              {empty ? (
+                <div className="chat-home-actions">
+                  <HomeAppointmentCard />
+                  <HomeAskCard
+                    composer={composer}
+                    starters={
+                      <ul className="chat-starters" aria-label="Suggestions pour commencer">
+                        {conversationStarters.map(({ label, draft: suggestion }) => (
+                          <li key={label}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dictation.stop();
+                                setDraft(suggestion);
+                                fieldRef.current?.focus();
+                              }}
+                            >
+                              {label}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    }
+                  />
+                  <HomeSpaceCard />
+                  <HomeUpcomingCard />
+                  <HomeTiles />
                   <p className="chat-disclaimer chat-home-disclaimer">
                     Steve n’est pas médecin et ne pose pas de diagnostic.
                   </p>
@@ -845,9 +831,7 @@ export default function ChatPage(props: {
             </ol>
           )}
         </div>
-        {empty ? (
-          <div className="chat-dock chat-home-dock">{composer}</div>
-        ) : null}
+        {empty ? <HomeTabBar onCall={startCall} /> : null}
         {unseenReply ? (
           <div className="chat-new-message-row">
             <button

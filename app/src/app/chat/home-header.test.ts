@@ -29,7 +29,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("places the Alan-style greeting in the home header without a profile photo", async () => {
+it("puts Steve and the quick links in the home header and the greeting in the hero", async () => {
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -41,39 +41,45 @@ it("places the Alan-style greeting in the home header without a profile photo", 
         createElement(ChatPage, { patientFirstName: "Peter" }),
       ),
     );
+    const page = view.container.querySelector(".chat-page");
     const header = view.container.querySelector(".chat-header-home");
-    const brand = header?.querySelector(":scope > .chat-home-brand");
-    const greeting = header?.querySelector(".chat-greeting");
+    const greeting = view.container.querySelector(".chat-hero .chat-home-brand .chat-greeting");
     if (
+      !(page instanceof HTMLElement) ||
       !(header instanceof HTMLElement) ||
-      !(brand instanceof HTMLElement) ||
       !(greeting instanceof HTMLElement)
     ) {
-      throw new Error("missing home header row");
+      throw new Error("missing home header or hero greeting");
     }
-    expect(brand.textContent).toContain("Bonjour Peter,");
+    expect(page.classList.contains("chat-page-home")).toBe(true);
+    expect(header.querySelector(".chat-greeting")).toBeNull();
     expect(header.querySelector(".chat-profile")).toBeNull();
+    expect(header.querySelector(".chat-home-logo img")?.getAttribute("alt")).toBe("Steve");
+    const links = [...header.querySelectorAll("a")].map((link) => [
+      link.getAttribute("href"),
+      link.getAttribute("aria-label"),
+    ]);
+    expect(links).toEqual([
+      ["/inbox", "Messagerie, nouveaux messages"],
+      ["/profile", "Mon profil"],
+    ]);
     expect(greeting.textContent).toBe("Bonjour Peter,");
     const row = getComputedStyle(header);
     expect(row.display).toBe("flex");
-    expect(["", "row"]).toContain(row.flexDirection);
     expect(row.alignItems).toBe("center");
     expect(row.justifyContent).toBe("space-between");
-    expect(getComputedStyle(greeting).position).toBe("relative");
     const greetingStyle = getComputedStyle(greeting);
     expect(greetingStyle.fontWeight).toBe(
       String(designTokens.font.weight.heading),
     );
-    expect(greetingStyle.fontSize).toBe("28px");
-    expect(greetingStyle.textOverflow).toBe("ellipsis");
+    expect(greetingStyle.fontSize).toBe("40px");
+    expect(greetingStyle.whiteSpace).not.toBe("nowrap");
     expect(designTokens.space[3]).toBe("12px");
     const published = getComputedStyle(document.documentElement)
       .getPropertyValue("--space-3")
       .trim();
     expect(published).toBe(designTokens.space[3]);
     expect(row.columnGap).toBe(designTokens.space[3]);
-    header.style.setProperty("--space-3", "21px");
-    expect(getComputedStyle(header).columnGap).toBe("21px");
   } finally {
     style.remove();
     document.documentElement.removeAttribute("style");

@@ -100,33 +100,23 @@ it("shows the bubbles pose on the empty home sheet", () => {
   expect({
     alt: img.getAttribute("alt"),
     overlap: chatCss.includes("--mascot-overlap"),
-    width: hero.includes("width: min(320px, calc(100vw - 48px));"),
-    left: hero.includes("align-self: flex-start;"),
-    top: hero.includes("margin-top: -5px;"),
-    align: hero.includes("align-self: center;"),
     fit: hero.includes("object-fit: contain;"),
-    clippedTop: hero.includes("-16px"),
-    sheet: hero.includes("margin-bottom: calc(284px * (718 - 840) / 1137)"),
     float: chatCss.includes("float"),
     aspect: hero.includes("aspect-ratio: 1137 / 840"),
     shadow: hero.includes("filter:") || hero.includes("box-shadow"),
+    inert: hero.includes("pointer-events: none;"),
   }).toEqual({
     alt: "",
     overlap: false,
-    width: true,
-    left: false,
-    top: false,
-    align: true,
     fit: true,
-    clippedTop: false,
-    sheet: false,
     float: false,
     aspect: true,
     shadow: false,
+    inert: true,
   });
 });
 
-it("centers the mascot above the current home actions", () => {
+it("anchors the mascot beside the greeting, behind the home cards", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
   const host = document.createElement("div");
   host.innerHTML = html;
@@ -140,22 +130,27 @@ it("centers the mascot above the current home actions", () => {
     throw new Error("missing hero rule");
   }
   const hero = chatCss.slice(heroStart, heroEnd);
+  expect(img.closest(".chat-home-hero")?.querySelector(".chat-greeting")).not.toBeNull();
   expect({
     width: img.getAttribute("width"),
     height: img.getAttribute("height"),
     aspect: hero.includes("aspect-ratio: 1137 / 840"),
-    centered: hero.includes("align-self: center;"),
-    responsive: hero.includes("width: min(320px, calc(100vw - 48px));"),
+    absolute: hero.includes("position: absolute;"),
+    right: hero.includes("right: -84px;"),
+    below: hero.includes("z-index: 1;"),
   }).toEqual({
     width: "1137",
     height: "840",
     aspect: true,
-    centered: true,
-    responsive: true,
+    absolute: true,
+    right: true,
+    below: true,
   });
+  const actionsStart = chatCss.indexOf(".chat-home-actions {");
+  expect(chatCss.slice(actionsStart, chatCss.indexOf("}", actionsStart))).toContain("z-index: 3;");
 });
 
-it("paints the current call card and composer on the home screen", async () => {
+it("paints the call button and composer on the home screen", async () => {
   const canvas = designTokens.color.canvas;
   const style = document.createElement("style");
   style.textContent = chatCss;
@@ -175,15 +170,19 @@ it("paints the current call card and composer on the home screen", async () => {
     if (!(call instanceof HTMLElement) || !(composer instanceof HTMLElement)) {
       throw new Error("missing home call card or composer");
     }
-    expect(channels(getComputedStyle(call).backgroundColor)).toBe(channels(canvas));
+    expect(channels(getComputedStyle(call).backgroundColor)).toBe(
+      channels(designTokens.color.indigo900),
+    );
+    expect(call.getAttribute("aria-label")).toBe("Appeler Steve");
     const homeField = composer.querySelector(".chat-field");
     if (!(homeField instanceof HTMLTextAreaElement)) {
       throw new Error("missing composer field");
     }
     expect(getComputedStyle(homeField).backgroundColor).toBe("transparent");
     expect(channels(getComputedStyle(composer).backgroundColor)).toBe(
-      channels(canvas),
+      channels(designTokens.color.surface),
     );
+    expect(composer.closest(".chat-home-ask")).not.toBeNull();
     expect(view.container.querySelectorAll(".chat-chip")).toHaveLength(0);
     expect(view.container.querySelector('.chat-header [aria-label="Profil"]')).toBeNull();
     await act(async () => setField(homeField, "Bonjour"));

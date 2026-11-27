@@ -1,0 +1,89 @@
+// @vitest-environment happy-dom
+
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, expect, it } from "vitest";
+import ChatPage from "./chat-page.js";
+
+Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
+
+const roots: Root[] = [];
+
+afterEach(() => {
+  for (const root of roots.splice(0)) {
+    act(() => {
+      root.unmount();
+    });
+  }
+  document.body.replaceChildren();
+});
+
+it("stacks the home cards in order under the greeting", async () => {
+  const view = await mount();
+  const actions = view.querySelector(".chat-home-actions");
+  const order = [...(actions?.children ?? [])].map((child) => child.className);
+  expect(order).toEqual([
+    "chat-home-appt",
+    "chat-home-card chat-home-ask",
+    "chat-home-card chat-home-space",
+    "chat-home-card chat-home-upcoming",
+    "chat-home-tiles",
+    "chat-disclaimer chat-home-disclaimer",
+  ]);
+  expect(view.querySelector(".chat-home-chip")?.textContent).toBe("Dans 5 jours");
+  expect(view.querySelector(".chat-home-appt-name")?.textContent).toBe("Dr Camille Lunéval");
+  expect(view.querySelector(".chat-home-appt-foot")?.textContent).toBe("Mer. 2 déc.10:00");
+  expect(view.querySelector(".chat-home-ask .chat-starters")).not.toBeNull();
+  expect(view.querySelector(".chat-home-stats")?.textContent).toBe(
+    "1document1rappel2messages",
+  );
+});
+
+it("reaches every Steve space from the home screen", async () => {
+  const view = await mount();
+  const hrefs = new Set(
+    [...view.querySelectorAll("a")].map((link) => link.getAttribute("href")),
+  );
+  for (const href of [
+    "/chat",
+    "/directory",
+    "/booking",
+    "/agenda",
+    "/profile",
+    "/vault",
+    "/reminders",
+    "/inbox",
+  ]) {
+    expect(hrefs.has(href)).toBe(true);
+  }
+  const tabs = [...view.querySelectorAll('nav[aria-label="Espaces Steve"] a')];
+  expect(tabs.map((tab) => tab.getAttribute("aria-label"))).toEqual([
+    "Accueil",
+    "Agenda",
+    "Documents",
+    "Mon profil",
+  ]);
+  expect(tabs[0]?.getAttribute("aria-current")).toBe("page");
+});
+
+it("hides the appointment card when dismissed", async () => {
+  const view = await mount();
+  const close = view.querySelector('button[aria-label="Masquer le rendez-vous"]');
+  if (!(close instanceof HTMLButtonElement)) {
+    throw new Error("missing dismiss button");
+  }
+  await act(async () => close.click());
+  expect(view.querySelector(".chat-home-appt")).toBeNull();
+  expect(view.querySelector(".chat-home-ask")).not.toBeNull();
+});
+
+async function mount(): Promise<HTMLDivElement> {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  roots.push(root);
+  await act(async () => {
+    root.render(createElement(ChatPage));
+  });
+  return container;
+}
