@@ -10,6 +10,7 @@ exports them as iCalendar content.
 - Validates and records an appointment only when its confirmation is explicit.
 - Retrieves, lists, and removes recorded appointments.
 - Exports one recorded appointment as an `.ics` calendar string.
+- Synchronizes a recorded appointment through an injectable calendar gateway.
 - Uses an injectable storage contract.
 - Provides an in-memory adapter for tests and local integration.
 
@@ -18,7 +19,7 @@ exports them as iCalendar content.
 - Records nothing provisional, refused, ambiguous, or invalid.
 - Does not update or reschedule appointments.
 - Does not send reminders.
-- Does not call Google Calendar or any other external service.
+- Does not include Google Calendar, OAuth, secrets, or network code.
 - Does not persist data across process restarts.
 
 ## Inputs and outputs
@@ -36,7 +37,9 @@ The public API is exported from `src/index.ts`:
 - `Agenda.remove(id)` deletes one appointment and returns the deleted value.
 - `Agenda.exportIcs(id)` returns an iCalendar `VCALENDAR` string for one stored
   appointment. It does not write a file.
+- `Agenda.syncCalendar(id)` explicitly synchronizes one stored appointment.
 - `InMemoryAppointmentStorage` is the local, non-persistent adapter.
+- `ScriptedCalendarGateway` is the deterministic local calendar adapter.
 
 All operation results are discriminated by `status`. Errors are discriminated
 by `kind`; storage exceptions become the generic `storage-error` and never
@@ -61,6 +64,9 @@ The public `agendaLimits` value documents the bounds enforced by the core:
 - practitioner names: 200 characters;
 - addresses and remote labels: 500 characters;
 - zoned ISO timestamps: 40 characters;
+- external calendar event identifiers: 256 characters;
+- scripted scenarios and steps per scenario: 100 each;
+- scripted history: 1,000 entries maximum, 100 by default;
 - default agenda capacity: 1,000 appointments;
 - maximum configurable capacity: 10,000 appointments.
 
@@ -75,6 +81,35 @@ timestamps to UTC, escapes reserved text characters and newlines, and includes
 `LOCATION` when one is available. `DTSTAMP` uses the injected clock, so callers
 and tests can produce deterministic output.
 
+## Calendar synchronization
+
+`CalendarGateway.upsert()` is the provider boundary. `syncCalendar()` loads an
+already recorded confirmed appointment and sends a defensive copy with its
+Agenda identifier as the stable idempotency key. A real provider must honor
+that key with an upsert rather than a blind insert. The core does not promise
+exactly-once delivery across a network.
+
+The optional gateway distinguishes missing configuration, invalid identifiers,
+missing appointments, rejection, provider exceptions, invalid responses, and
+storage errors. Responses are untrusted: exact properties, external IDs, and
+zoned timestamps are validated before success. Exception details are hidden.
+
+```ts
+const gateway = new ScriptedCalendarGateway({
+  scenarios: [{
+    idempotencyKey: "appointment-demo-1",
+    steps: [{ type: "rejected" }],
+  }],
+});
+const agenda = createAgenda({ storage, clock, calendarGateway: gateway });
+await agenda.syncCalendar("appointment-demo-1");
+```
+
+The scripted adapter consumes steps in order. Unknown and exhausted scenarios
+return `rejected`; `failure` throws a fixed error. Every valid call is copied
+into bounded history before execution. Configuration and history are copied
+defensively.
+
 ## Depends on
 
 No workspace package and no external service. The core emits the `.ics` format
@@ -87,8 +122,8 @@ directly.
 
 ## Demo and production
 
-Google Calendar synchronization, durable persistence, app integration, and the
-reminders integration remain future work.
+Real Google Calendar synchronization, OAuth, network transport, durable
+persistence, app integration, and reminders integration remain future work.
 
 ## Check
 
@@ -98,5 +133,5 @@ reminders integration remain future work.
 
 ## Status
 
-Confirmed appointment core implemented. Google Calendar, persistence, and app
-integration remain to do.
+Confirmed appointment core and calendar boundary implemented. A real provider,
+persistence, and app integration remain to do.

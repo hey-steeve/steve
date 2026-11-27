@@ -1,4 +1,5 @@
 import { copyAppointment } from "./copy.ts";
+import { validateCalendarGatewayResponse } from "./calendar-sync.ts";
 import { generateAppointmentIcs } from "./ics.ts";
 import {
   agendaLimits,
@@ -8,6 +9,9 @@ import {
   type AppointmentInput,
   type AppointmentStorage,
   type ConfirmedAppointment,
+  type CalendarGateway,
+  type CalendarGatewayResponse,
+  type CalendarSyncResult,
 } from "./types.ts";
 import {
   errorResult,
@@ -20,6 +24,7 @@ import {
 export interface CreateAgendaOptions {
   storage: AppointmentStorage;
   clock: AgendaClock;
+  calendarGateway?: CalendarGateway;
   maximumAppointments?: number;
 }
 
@@ -135,5 +140,44 @@ export const createAgenda = (options: CreateAgendaOptions): Agenda => {
     }
   };
 
-  return { register, get, list, remove, exportIcs };
+  const syncCalendar = async (id: string): Promise<CalendarSyncResult> => {
+    if (validateAppointmentId(id).status === "error") {
+      return { status: "error", error: { kind: "invalid-id" } };
+    }
+    if (options.calendarGateway === undefined) {
+      return { status: "error", error: { kind: "not-configured" } };
+    }
+    let appointment: ConfirmedAppointment | undefined;
+    try {
+      appointment = options.storage.get(id);
+    } catch {
+      return { status: "error", error: { kind: "storage-error" } };
+    }
+    if (appointment === undefined) {
+      return { status: "error", error: { kind: "not-found", id } };
+    }
+    let response: unknown;
+    try {
+      response = await options.calendarGateway.upsert({
+        idempotencyKey: appointment.id,
+        appointment: copyAppointment(appointment),
+      });
+    } catch {
+      return { status: "error", error: { kind: "gateway-error" } };
+    }
+    let validated: CalendarGatewayResponse | undefined;
+    try {
+      validated = validateCalendarGatewayResponse(response);
+    } catch {
+      return { status: "error", error: { kind: "invalid-response" } };
+    }
+    if (validated === undefined) {
+      return { status: "error", error: { kind: "invalid-response" } };
+    }
+    return validated.status === "rejected"
+      ? { status: "error", error: { kind: "rejected" } }
+      : { status: "success", value: { ...validated } };
+  };
+
+  return { register, get, list, remove, exportIcs, syncCalendar };
 };
