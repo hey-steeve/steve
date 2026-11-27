@@ -1,0 +1,75 @@
+.profile-identity-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--steve-radius-card);
+  background: var(--color-canvas);
+  box-shadow: var(--shadow-faint);
+}
+
+.profile-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--color-canvas);
+  font-size: 22px;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: -0.02em;
+}
+
+.profile-name {
+  margin: 0;
+  color: var(--color-heading);
+  font-size: 22px;
+  font-weight: var(--font-weight-heading);
+  line-height: 1.2;
+}
+
+.profile-entry-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-entry {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-indigo-50);
+  color: var(--color-foreground);
+  font-size: 14px;
+}
+
+.profile-entry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.profile-remove-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-canvas);
+  box-shadow: none;
+  color: var(--color-indigo-700);
+  font-size: 13px;
+  font-weight: var(--font-weight-heading);
+}
+
+.profile-form {
+  display: grid;
+  gap: 12px;
+}
