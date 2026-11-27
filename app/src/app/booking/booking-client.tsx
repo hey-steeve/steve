@@ -8,7 +8,6 @@ import {
   type ScriptedPracticeScenario,
 } from "@steve/booking";
 import type { Practitioner } from "@steve/shared";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { demoPractitioners } from "../directory/demo-practitioners";
 import {
@@ -20,20 +19,7 @@ import {
 } from "../feature-shell";
 import "./booking.css";
 
-type ScenarioId = "confirm-first" | "fallback-second" | "all-refused";
 type BookingPhase = "confirmed" | "calling" | "not-confirmed";
-
-const scenarioOrder: readonly ScenarioId[] = [
-  "confirm-first",
-  "fallback-second",
-  "all-refused",
-];
-
-const scenarioLabels: Record<ScenarioId, string> = {
-  "confirm-first": "Confirmation directe",
-  "fallback-second": "2e praticien si refus",
-  "all-refused": "Aucun créneau libre",
-};
 
 const attemptStatusLabel: Record<string, string> = {
   confirmed: "Créneau confirmé",
@@ -51,11 +37,6 @@ const requestedWindow = {
 const defaultConfirmedSlot = {
   startsAt: "2026-12-02T10:00:00+01:00",
   endsAt: "2026-12-02T10:30:00+01:00",
-} as const;
-
-const fallbackConfirmedSlot = {
-  startsAt: "2026-12-02T14:00:00+01:00",
-  endsAt: "2026-12-02T14:30:00+01:00",
 } as const;
 
 function pickPractitioner(rpps: string | undefined): Practitioner {
@@ -81,46 +62,23 @@ function toCandidate(item: Practitioner): PractitionerCandidate {
   };
 }
 
-function buildScenarios(
+function buildConfirmScenario(
   candidates: readonly Practitioner[],
-  scenario: ScenarioId,
 ): readonly ScriptedPracticeScenario[] {
   const first = candidates[0];
-  const second = candidates[1];
   if (first === undefined) return [];
-  if (scenario === "confirm-first") {
-    return [
-      {
-        practitionerId: first.rpps,
-        steps: [
-          {
-            kind: "confirmed",
-            confirmationId: `CONF-${first.rpps.slice(-4)}`,
-            slot: defaultConfirmedSlot,
-          },
-        ],
-      },
-    ];
-  }
-  if (scenario === "fallback-second" && second !== undefined) {
-    return [
-      { practitionerId: first.rpps, steps: [{ kind: "refused" }] },
-      {
-        practitionerId: second.rpps,
-        steps: [
-          {
-            kind: "confirmed",
-            confirmationId: `CONF-${second.rpps.slice(-4)}`,
-            slot: fallbackConfirmedSlot,
-          },
-        ],
-      },
-    ];
-  }
-  return candidates.map((item) => ({
-    practitionerId: item.rpps,
-    steps: [{ kind: "refused" }],
-  }));
+  return [
+    {
+      practitionerId: first.rpps,
+      steps: [
+        {
+          kind: "confirmed",
+          confirmationId: `CONF-${first.rpps.slice(-4)}`,
+          slot: defaultConfirmedSlot,
+        },
+      ],
+    },
+  ];
 }
 
 function formatFrenchSlot(iso: string): string {
@@ -157,7 +115,6 @@ export default function BookingClient(props: {
   const [selectedRpps, setSelectedRpps] = useState(
     () => pickPractitioner(props.initialPractitionerRpps).rpps,
   );
-  const [scenario, setScenario] = useState<ScenarioId>("confirm-first");
   const initialPractitioner = pickPractitioner(props.initialPractitionerRpps);
   const [phase, setPhase] = useState<BookingPhase>(props.initialPhase ?? "confirmed");
   const [result, setResult] = useState<BookingResult>(() => ({
@@ -204,7 +161,7 @@ export default function BookingClient(props: {
     if (activeRun.current !== ticket) return;
 
     const candidates = buildCandidates(selectedPractitioner);
-    const caller = new ScriptedPracticeCaller(buildScenarios(candidates, scenario));
+    const caller = new ScriptedPracticeCaller(buildConfirmScenario(candidates));
     const outcome = await bookAppointment(
       {
         requestId: `req-demo-${runCounter.current}`,
@@ -325,12 +282,6 @@ export default function BookingClient(props: {
             <p className="steve-demo-note">
               Données de démonstration · Réf. {result.confirmationId}
             </p>
-            <Link className="steve-btn-action" href="/agenda">
-              <span className="steve-icon-circle" aria-hidden="true">
-                <CalendarIcon />
-              </span>
-              <span>Voir dans l’agenda</span>
-            </Link>
           </section>
         </>
       ) : (
@@ -373,21 +324,6 @@ export default function BookingClient(props: {
               </option>
             ))}
           </select>
-        </div>
-        <div className="steve-field-group">
-          <span className="steve-field-label">Scénario d’appel</span>
-          <div className="booking-scenarios" role="group" aria-label="Scénario d’appel">
-            {scenarioOrder.map((id) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={scenario === id}
-                onClick={() => setScenario(id)}
-              >
-                {scenarioLabels[id]}
-              </button>
-            ))}
-          </div>
         </div>
         <button
           type="button"
