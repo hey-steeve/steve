@@ -84,10 +84,13 @@ The core accepts UTF-8 `text/plain`, UTF-8 `text/markdown`, and
 does not render pages, load a remote document URL, enable XFA, or perform OCR.
 
 PDF ingestion is bounded to 1 MiB of source bytes, 50 pages, 100,000 extracted
-characters, 1.5 seconds of processing after the worker is online, and a
-resource-limited worker thread. Worker startup has a separate 5-second guard,
-so a slow startup cannot consume the document processing budget. A PDF is
-accepted only when it parses successfully and contains extractable text.
+characters, 1.5 seconds of processing after the worker is ready, and a
+resource-limited worker thread. After loading PDF.js and validating its startup
+data, the worker sends a `ready` message. The parent arms the processing budget
+and replies with `start` before parsing begins. Worker startup has a separate
+5-second guard, so module loading cannot consume the document processing
+budget. A PDF is accepted only when it parses successfully and contains
+extractable text.
 Corrupt, encrypted, empty, image-only, decompression-heavy, timed-out, and
 over-limit PDFs are rejected before storage. Extracted text is stored with the
 document after successful ingestion, so `get()` and `summarize()` never parse

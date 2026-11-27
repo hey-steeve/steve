@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 type ControlledWorker = {
   emit(event: string, ...arguments_: unknown[]): boolean;
+  readonly postedMessages: unknown[];
   readonly terminateCalls: number;
   finishTermination(): void;
 };
@@ -16,6 +17,7 @@ vi.mock("node:worker_threads", async () => {
   class Worker extends EventEmitter {
     readonly #termination: Promise<number>;
     #resolveTermination: (code: number) => void = () => {};
+    postedMessages: unknown[] = [];
     terminateCalls = 0;
 
     constructor() {
@@ -29,6 +31,10 @@ vi.mock("node:worker_threads", async () => {
     terminate(): Promise<number> {
       this.terminateCalls += 1;
       return this.#termination;
+    }
+
+    postMessage(message: unknown): void {
+      this.postedMessages.push(message);
     }
 
     finishTermination(): void {
@@ -62,7 +68,7 @@ afterEach(() => {
 });
 
 describe("PDF worker lifecycle", () => {
-  test("starts the extraction budget after online and resolves after termination", async () => {
+  test("starts the extraction budget after ready and resolves after termination", async () => {
     vi.useFakeTimers();
     let resolved = false;
     const extraction = extractPdf().then((result) => {
@@ -75,6 +81,11 @@ describe("PDF worker lifecycle", () => {
     expect(resolved).toBe(false);
 
     worker.emit("online");
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(resolved).toBe(false);
+
+    worker.emit("message", { kind: "ready" });
+    expect(worker.postedMessages).toEqual([{ kind: "start" }]);
     await vi.advanceTimersByTimeAsync(1_499);
     expect(resolved).toBe(false);
 
@@ -89,7 +100,7 @@ describe("PDF worker lifecycle", () => {
     });
   });
 
-  test("fails a worker that never reaches online within the startup guard", async () => {
+  test("fails a worker that never reaches ready within the startup guard", async () => {
     vi.useFakeTimers();
     let resolved = false;
     const extraction = extractPdf().then((result) => {
@@ -112,6 +123,21 @@ describe("PDF worker lifecycle", () => {
     });
   });
 
+  test("rejects an extraction result sent before the ready handshake", async () => {
+    const extraction = extractPdf();
+    const worker = latestWorker();
+
+    worker.emit("message", { kind: "ok", text: "Premature text." });
+    expect(worker.postedMessages).toEqual([]);
+    expect(worker.terminateCalls).toBe(1);
+
+    worker.finishTermination();
+    await expect(extraction).resolves.toMatchObject({
+      ok: false,
+      error: { code: "DEPENDENCY_FAILURE" },
+    });
+  });
+
   test("keeps capacity occupied until the worker has terminated", async () => {
     vi.useFakeTimers();
     const first = extractPdf();
@@ -124,7 +150,7 @@ describe("PDF worker lifecycle", () => {
       error: { code: "PROCESSING_BUSY" },
     });
 
-    firstWorker.emit("online");
+    firstWorker.emit("message", { kind: "ready" });
     firstWorker.emit("message", { kind: "ok", text: "Synthetic text." });
     expect(firstWorker.terminateCalls).toBe(1);
     await expect(extractPdf()).resolves.toMatchObject({
@@ -141,10 +167,10 @@ describe("PDF worker lifecycle", () => {
     const afterTermination = extractPdf();
     const replacementWorker = latestWorker();
 
-    secondWorker.emit("online");
+    secondWorker.emit("message", { kind: "ready" });
     secondWorker.emit("message", { kind: "invalid" });
     secondWorker.finishTermination();
-    replacementWorker.emit("online");
+    replacementWorker.emit("message", { kind: "ready" });
     replacementWorker.emit("message", {
       kind: "ok",
       text: "Replacement text.",

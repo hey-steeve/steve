@@ -2,6 +2,8 @@ import {
   reminderChannels,
   reminderLimits,
   type AgendaAppointment,
+  type AppointmentReminderPlanRule,
+  type PlanAppointmentRemindersInput,
   type Reminder,
   type ReminderDetails,
   type ReminderError,
@@ -19,6 +21,101 @@ export type ScheduleInputSnapshot = {
     readonly instruction: unknown;
   };
 };
+
+export function validateAppointmentPlanInput(
+  input: PlanAppointmentRemindersInput,
+): ReminderResult<PlanAppointmentRemindersInput> {
+  try {
+    if (!hasExactProperties(input, ["appointmentId", "rules"])) {
+      return failure("INVALID_INPUT", "Appointment plan input is invalid.");
+    }
+    const appointmentId: unknown = input.appointmentId;
+    const rules: unknown = input.rules;
+    const validAppointmentId = validIdentifier(appointmentId, "appointmentId");
+    if (
+      !validAppointmentId.ok ||
+      validAppointmentId.value !== appointmentId
+    ) {
+      return validAppointmentId.ok
+        ? failure("INVALID_INPUT", "appointmentId is invalid.", "appointmentId")
+        : validAppointmentId;
+    }
+    if (
+      !Array.isArray(rules) ||
+      rules.length < 1 ||
+      rules.length > reminderLimits.appointmentPlanRules
+    ) {
+      return failure(
+        "INVALID_INPUT",
+        `rules must contain between 1 and ${reminderLimits.appointmentPlanRules} entries.`,
+        "rules",
+      );
+    }
+
+    const validatedRules: AppointmentReminderPlanRule[] = [];
+    const deduplicationKeys = new Set<string>();
+    for (const [index, rule] of rules.entries()) {
+      const field = `rules[${index}]`;
+      if (!hasExactProperties(rule, ["minutesBefore", "channel"])) {
+        return failure("INVALID_INPUT", `${field} is invalid.`, field);
+      }
+      const minutesBefore: unknown = Reflect.get(rule, "minutesBefore");
+      const channel: unknown = Reflect.get(rule, "channel");
+      if (
+        typeof minutesBefore !== "number" ||
+        !Number.isInteger(minutesBefore) ||
+        minutesBefore < 1 ||
+        minutesBefore > reminderLimits.appointmentPlanMinutesBefore
+      ) {
+        return failure(
+          "INVALID_INPUT",
+          `${field}.minutesBefore must be an integer between 1 and ${reminderLimits.appointmentPlanMinutesBefore}.`,
+          `${field}.minutesBefore`,
+        );
+      }
+      if (channel !== "sms" && channel !== "call") {
+        return failure(
+          "INVALID_INPUT",
+          `${field}.channel must be sms or call.`,
+          `${field}.channel`,
+        );
+      }
+      const key = `${channel}:${minutesBefore}`;
+      if (deduplicationKeys.has(key)) {
+        return failure(
+          "INVALID_INPUT",
+          "Duplicate appointment reminder rules are not allowed.",
+          "rules",
+        );
+      }
+      deduplicationKeys.add(key);
+      validatedRules.push({ minutesBefore, channel });
+    }
+    return {
+      ok: true,
+      value: {
+        appointmentId: validAppointmentId.value,
+        rules: validatedRules,
+      },
+    };
+  } catch {
+    return failure("INVALID_INPUT", "Appointment plan input is invalid.");
+  }
+}
+
+function hasExactProperties(
+  value: unknown,
+  expected: readonly string[],
+): value is object {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const keys = Reflect.ownKeys(value);
+  return (
+    keys.length === expected.length &&
+    keys.every((key) => typeof key === "string" && expected.includes(key))
+  );
+}
 
 const isoTimestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|[+-](\d{2}):(\d{2}))$/;
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
