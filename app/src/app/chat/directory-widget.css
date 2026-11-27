@@ -122,10 +122,11 @@
   margin-top: var(--safe-gap);
   padding: var(--safe-gap);
   border: 0;
-  border-radius: var(--radius-lg);
-  background: var(--color-profile);
-  color: var(--color-primary);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-canvas);
   font: inherit;
+  font-size: 15px;
   font-weight: var(--font-weight-heading);
   cursor: pointer;
 }
