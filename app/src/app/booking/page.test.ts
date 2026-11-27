@@ -39,7 +39,7 @@ function buttonByText(container: ParentNode, text: string): HTMLButtonElement {
   return found;
 }
 
-it("renders the confirmed booking card with practitioner details", async () => {
+it("renders the confirmed booking card with practitioner details and agenda link", async () => {
   const container = await mount(createElement(BookingClient, { callDelayMs: 0 }));
   expect(container.querySelector("h1")?.textContent).toBe("Prise de rendez-vous");
   expect(container.textContent).toContain("Appel au cabinet");
@@ -48,6 +48,9 @@ it("renders the confirmed booking card with practitioner details", async () => {
   expect(container.textContent).toContain("Camille Lunéval");
   expect(container.textContent).toContain("Mercredi 2 décembre · 10 h");
   expect(container.textContent).toContain("1 rue des Nuages Mauves");
+  expect(container.querySelector('a[href="/agenda"]')?.textContent).toContain(
+    "Voir dans l’agenda",
+  );
 });
 
 it("renders the in-progress calling state with the phone mascot", async () => {

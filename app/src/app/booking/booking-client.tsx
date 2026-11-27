@@ -8,6 +8,7 @@ import {
   type ScriptedPracticeScenario,
 } from "@steve/booking";
 import type { Practitioner } from "@steve/shared";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { demoPractitioners } from "../directory/demo-practitioners";
 import {
@@ -274,6 +275,12 @@ export default function BookingClient(props: {
             <p className="steve-demo-note">
               Données de démonstration · Réf. {result.confirmationId}
             </p>
+            <Link className="steve-btn-action" href="/agenda">
+              <span className="steve-icon-circle" aria-hidden="true">
+                <CalendarIcon />
+              </span>
+              <span>Voir dans l’agenda</span>
+            </Link>
           </section>
         </>
       ) : (
