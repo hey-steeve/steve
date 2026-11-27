@@ -11,6 +11,7 @@
     "eval:rescore": "node --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/rescore.ts"
   },
   "dependencies": {
+    "@steve/booking": "workspace:*",
     "@steve/directory": "workspace:*",
     "@steve/profile": "workspace:*",
     "@steve/shared": "workspace:*",

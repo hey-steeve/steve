@@ -29,6 +29,9 @@ importers:
 
   app:
     dependencies:
+      '@steve/booking':
+        specifier: workspace:*
+        version: link:../features/booking
       '@steve/directory':
         specifier: workspace:*
         version: link:../features/directory
