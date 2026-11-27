@@ -1,0 +1,79 @@
+.inbox-address-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 6px 8px 6px 14px;
+  border-radius: var(--steve-radius-row);
+  background: var(--color-indigo-50);
+  color: var(--color-heading);
+}
+
+.inbox-address-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: var(--font-weight-button);
+  overflow-wrap: anywhere;
+}
+
+.inbox-copy-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-primary);
+}
+
+.inbox-copy-btn:hover {
+  background: var(--color-indigo-100);
+}
+
+.inbox-item-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.inbox-item-title {
+  color: var(--color-heading);
+  font-size: 15px;
+  font-weight: var(--font-weight-heading);
+  line-height: 1.25;
+}
+
+.inbox-detail-panel {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-indigo-50);
+  font-size: 14px;
+}
+
+.inbox-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--color-heading);
+}
+
+.inbox-checkbox-row input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  accent-color: var(--color-primary);
+}
+
+.inbox-send-form {
+  display: grid;
+  gap: 12px;
+}
