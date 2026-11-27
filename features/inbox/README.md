@@ -50,6 +50,7 @@ The package entry point exports:
 - `InboundMessageClassifier`, `MailGateway`, and `InboxStorage` adapter
   boundaries;
 - `InMemoryInboxStorage` for tests and local integration;
+- `ScriptedMailGateway` for deterministic tests, demos, and local integration;
 - `ScriptedInboundMessageClassifier` for deterministic tests, demos, and local
   integration;
 - `inboxLimits`, the validation and storage bounds.
@@ -207,6 +208,66 @@ confirms delivery but recording that result fails, Inbox truthfully returns
 `sent` with `tracking: "unavailable"` and leaves the reservation in place to
 avoid an automatic duplicate send.
 
+## Scripted document delivery
+
+`ScriptedMailGateway` is an in-memory test adapter. It simulates deterministic
+gateway responses without delivering an email or using a network request,
+email provider, timer, or worker. Scenarios are keyed by the stable outbound
+`requestId`, and each valid gateway call consumes at most one ordered step.
+
+```ts
+import { ScriptedMailGateway } from "@steve/inbox";
+
+const mailGateway = new ScriptedMailGateway([
+  {
+    requestId: "synthetic-delivery-1",
+    steps: [
+      { type: "not-sent" },
+      { type: "failure" },
+      {
+        type: "sent",
+        providerMessageId: "synthetic-provider-message-1",
+        sentAt: "2026-11-27T12:00:00.000Z",
+      },
+    ],
+  },
+]);
+```
+
+- `sent` returns a valid sent gateway response.
+- `not-sent` returns `{ status: "not-sent" }`.
+- `failure` throws a fixed generic error.
+
+Unknown request identifiers and exhausted scenarios both return `not-sent`.
+Every valid call is added to history before its step executes, including calls
+that fail or return `not-sent`.
+
+When the adapter is used with `createInbox`, Inbox converts `not-sent` to
+`GATEWAY_REJECTED` and `failure` to `DELIVERY_FAILURE`. Both outcomes release
+the outbound storage reservation, so a retry with the same `requestId` can
+consume the next scripted step. After a successful response is recorded, the
+Inbox storage deduplicates another request with that identifier without
+calling the gateway again. The adapter supplements this core idempotence; it
+does not replace a production provider idempotency guarantee.
+
+`getHistory()` returns complete defensive snapshots of the validated gateway
+requests, including new attachment arrays and copied `Uint8Array` values.
+Configuration is also copied at construction. Mutating input requests,
+scenario arrays, step objects, or returned history cannot change adapter
+state.
+
+The default limits are 100 scenarios, 20 steps per scenario, and 100 history
+entries. Once full, history drops its oldest request. Lower
+`maximumScenarios`, `maximumStepsPerScenario`, and `historyLimit` values can be
+configured. Every limit must be an integer from 1 through its separately named
+maximum in `inboxLimits`.
+
+The complete configuration is validated at construction. Empty scenarios,
+duplicate or invalid request identifiers, unknown or extended steps, invalid
+provider message identifiers, invalid timestamps, and values over configured
+bounds are rejected with a generic error. Requests are revalidated before
+history or scenario state changes; invalid requests are not recorded.
+
 ## Attachment bounds
 
 The same validation applies to inbound and outbound attachments:
@@ -227,9 +288,9 @@ writes attachment contents to disk.
 Other public limits include 200 characters for provider and outbound request
 identifiers, 254 for email addresses, 998 for subjects, and 100,000 for text
 bodies. The in-memory adapter tracks at most 1,000 inbound messages and 1,000
-outbound requests. Scripted classification supports at most 100 scenarios, 20
-steps per scenario, and 100 history entries. Lower capacities can be configured
-for tests.
+outbound requests. Scripted classification and scripted delivery each have
+distinct limits of 100 scenarios, 20 steps per scenario, and 100 history
+entries. Lower capacities can be configured for tests.
 
 ## Storage and data handling
 
@@ -257,6 +318,8 @@ repository fixtures use synthetic addresses and content.
   appointments, or create reminders.
 - The in-memory adapter is suitable only for tests and local integration. No
   real or sensitive data should be provided to this milestone.
+- The scripted mail gateway never delivers a real email and is not a
+  production provider adapter.
 - The scripted classifier is not a production classifier and performs no
   language understanding or medical interpretation.
 
