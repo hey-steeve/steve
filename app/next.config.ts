@@ -15,6 +15,7 @@ export default async function nextConfig(): Promise<NextConfig> {
   return {
     reactStrictMode: true,
     transpilePackages: [
+      "@steve/agenda",
       "@steve/booking",
       "@steve/directory",
       "@steve/profile",

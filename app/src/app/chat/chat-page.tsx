@@ -697,6 +697,7 @@ export default function ChatPage(props: {
           call={call}
           showTranscript={showTranscript}
           onToggleTranscript={() => setShowTranscript((current) => !current)}
+          onRetry={startCall}
         />
         <div className="chat-scroll" ref={threadRef}>
           {homeMounted || empty ? (
