@@ -11,6 +11,7 @@ export const featureNavItems = [
   { href: "/booking", label: "Rendez-vous" },
   { href: "/agenda", label: "Agenda" },
   { href: "/profile", label: "Mon profil" },
+  { href: "/vault", label: "Documents" },
 ] as const;
 
 export type FeatureRoute = (typeof featureNavItems)[number]["href"];
