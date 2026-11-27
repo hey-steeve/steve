@@ -46,6 +46,10 @@ function isIdentifier(value: unknown, maximum: number): value is string {
   );
 }
 
+export function isOutboundRequestId(value: unknown): value is string {
+  return isIdentifier(value, inboxLimits.outboundRequestIdCharacters);
+}
+
 export function isProviderMessageId(value: unknown): value is string {
   return isIdentifier(value, inboxLimits.providerMessageIdCharacters);
 }
@@ -251,7 +255,7 @@ export function parseSendDocumentRequest(value: unknown): SendRequestValidation 
   const textBody = value["textBody"];
   const attachments = parseAttachments(value["attachments"]);
   if (
-    !isIdentifier(requestId, inboxLimits.outboundRequestIdCharacters) ||
+    !isOutboundRequestId(requestId) ||
     !isEmailAddress(practitionerEmail) ||
     !isHeaderText(subject, inboxLimits.subjectCharacters) ||
     (textBody !== undefined &&
@@ -287,6 +291,33 @@ export function gatewayRequestOf(request: SendDocumentRequest): MailGatewayReque
   return request.textBody === undefined ? snapshot : { ...snapshot, textBody: request.textBody };
 }
 
+export function parseMailGatewayRequest(value: unknown): MailGatewayRequest | undefined {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, ["requestId", "to", "subject", "textBody", "attachments"])
+  ) {
+    return undefined;
+  }
+  const requestId = value["requestId"];
+  const to = value["to"];
+  const subject = value["subject"];
+  const textBody = value["textBody"];
+  const attachments = parseAttachments(value["attachments"]);
+  if (
+    !isOutboundRequestId(requestId) ||
+    !isEmailAddress(to) ||
+    !isHeaderText(subject, inboxLimits.subjectCharacters) ||
+    (textBody !== undefined &&
+      (typeof textBody !== "string" || textBody.length > inboxLimits.textBodyCharacters)) ||
+    attachments === undefined ||
+    attachments.length === 0
+  ) {
+    return undefined;
+  }
+  const snapshot = { requestId, to, subject, attachments };
+  return textBody === undefined ? snapshot : { ...snapshot, textBody };
+}
+
 export function parseMailGatewayResponse(value: unknown): MailGatewayResponse | undefined {
   if (!isRecord(value)) {
     return undefined;
@@ -303,7 +334,7 @@ export function parseMailGatewayResponse(value: unknown): MailGatewayResponse | 
   const providerMessageId = value["providerMessageId"];
   const sentAt = value["sentAt"];
   if (
-    !isIdentifier(providerMessageId, inboxLimits.providerMessageIdCharacters) ||
+    !isProviderMessageId(providerMessageId) ||
     !isTimestampWithTimezone(sentAt)
   ) {
     return undefined;
