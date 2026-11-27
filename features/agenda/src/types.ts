@@ -4,6 +4,7 @@ export const agendaLimits = {
   practitionerNameLength: 200,
   locationLength: 500,
   dateTimeLength: 40,
+  calendarExternalEventIdLength: 256,
   defaultAppointments: 1_000,
   maximumConfigurableAppointments: 10_000,
 } as const;
@@ -100,10 +101,44 @@ export interface AgendaClock {
   now(): Date;
 }
 
+export interface CalendarGatewayRequest {
+  readonly idempotencyKey: string;
+  readonly appointment: ConfirmedAppointment;
+}
+
+export interface CalendarGateway {
+  upsert(request: CalendarGatewayRequest): Promise<unknown>;
+}
+
+export type CalendarGatewayResponse =
+  | {
+      readonly status: "synced";
+      readonly externalEventId: string;
+      readonly syncedAt: string;
+    }
+  | { readonly status: "rejected" };
+
+export type CalendarSyncError =
+  | { kind: "invalid-id" }
+  | { kind: "not-configured" }
+  | { kind: "not-found"; id: string }
+  | { kind: "rejected" }
+  | { kind: "gateway-error" }
+  | { kind: "invalid-response" }
+  | { kind: "storage-error" };
+
+export type CalendarSyncResult =
+  | {
+      status: "success";
+      value: Extract<CalendarGatewayResponse, { status: "synced" }>;
+    }
+  | { status: "error"; error: CalendarSyncError };
+
 export interface Agenda {
   register(input: AppointmentInput): AgendaResult<ConfirmedAppointment>;
   get(id: string): AgendaResult<ConfirmedAppointment>;
   list(): AgendaResult<readonly ConfirmedAppointment[]>;
   remove(id: string): AgendaResult<ConfirmedAppointment>;
   exportIcs(id: string): AgendaResult<string>;
+  syncCalendar(id: string): Promise<CalendarSyncResult>;
 }
