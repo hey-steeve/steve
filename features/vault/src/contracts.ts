@@ -49,12 +49,16 @@ export type StoredDocument = {
   readonly mimeType: SupportedDocumentMimeType;
   readonly sizeBytes: number;
   readonly content: Uint8Array;
+  readonly extractedText: string;
   readonly contentDigest: string;
   readonly metadata: VaultDocumentMetadata;
   readonly storedAt: string;
 };
 
-export type VaultDocumentListItem = Omit<StoredDocument, "content">;
+export type VaultDocumentListItem = Omit<
+  StoredDocument,
+  "content" | "extractedText"
+>;
 
 export type DocumentStorageCreateResult =
   | "created"

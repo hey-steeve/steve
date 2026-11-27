@@ -8,7 +8,10 @@ import {
   type StoredDocument,
 } from "./index.ts";
 import { digestContent } from "./content-digest.ts";
-import { syntheticPdf } from "./test-pdf-fixture.ts";
+import {
+  syntheticCompressedOperatorPdf,
+  syntheticPdf,
+} from "./test-pdf-fixture.ts";
 
 function service(summarizer?: FactualSummaryProvider) {
   return createVault({
@@ -84,7 +87,7 @@ describe("PDF document ingestion", () => {
     });
   });
 
-  test("rejects malformed PDF bytes returned by storage", async () => {
+  test("rejects invalid extracted text returned by storage", async () => {
     const content = new TextEncoder().encode("%PDF-not-a-document");
     const contentDigest = await digestContent(content);
     if (contentDigest === null) {
@@ -96,6 +99,7 @@ describe("PDF document ingestion", () => {
       mimeType: "application/pdf",
       sizeBytes: content.byteLength,
       content,
+      extractedText: "",
       contentDigest,
       metadata: {},
       storedAt: "2026-11-26T12:00:00.000Z",
@@ -121,6 +125,31 @@ describe("PDF document ingestion", () => {
       },
     });
   });
+
+  test.each([
+    ["medium", 8_000_000],
+    ["large", 16_000_000],
+  ])(
+    "rejects a %s compressed operator stream within the processing deadline",
+    async (_size, operatorPairs) => {
+      const content = syntheticCompressedOperatorPdf(operatorPairs);
+      expect(content.byteLength).toBeLessThan(vaultLimits.contentBytes);
+      const startedAt = performance.now();
+
+      const result = await service().store({
+        fileName: "compressed-operator-stream.pdf",
+        mimeType: "application/pdf",
+        content,
+      });
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: "CONTENT_TOO_LARGE", field: "content" },
+      });
+      expect(performance.now() - startedAt).toBeLessThan(3_000);
+    },
+    5_000,
+  );
 
   test("rejects a PDF without extractable text", async () => {
     const result = await service().store({

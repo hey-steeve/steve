@@ -17,7 +17,10 @@ const evidenceControlCharacterPattern = /[\u0000-\u0008\u000b\u000c\u000e-\u001f
 const letterOrDigitPattern = /[\p{L}\p{N}]/u;
 const contentDigestPattern = /^[a-f0-9]{64}$/;
 
-type UnhashedDocument = Omit<StoredDocument, "contentDigest">;
+type UnhashedDocument = Omit<
+  StoredDocument,
+  "contentDigest" | "extractedText"
+>;
 
 type ValidatedDocumentInput = {
   readonly document: UnhashedDocument;
@@ -26,7 +29,6 @@ type ValidatedDocumentInput = {
 
 type ValidatedStoredDocument = {
   readonly document: StoredDocument;
-  readonly text: string | null;
 };
 
 type ValidatedSummary = {
@@ -314,6 +316,19 @@ function validateDocumentText(
   return decodeText(content);
 }
 
+function validExtractedText(
+  value: unknown,
+  maximum: number,
+): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= maximum &&
+    value.trim() !== "" &&
+    !value.includes("\u0000")
+  );
+}
+
 export function validateDocumentInput(
   input: unknown,
   generateId: () => string,
@@ -416,6 +431,7 @@ export function validateStoredDocument(
       "mimeType",
       "sizeBytes",
       "content",
+      "extractedText",
       "contentDigest",
       "metadata",
       "storedAt",
@@ -429,6 +445,7 @@ export function validateStoredDocument(
   const mimeType: unknown = Reflect.get(input, "mimeType");
   const sizeBytes: unknown = Reflect.get(input, "sizeBytes");
   const contentSnapshot = snapshotBytes(Reflect.get(input, "content"));
+  const extractedText: unknown = Reflect.get(input, "extractedText");
   const contentDigest: unknown = Reflect.get(input, "contentDigest");
   const metadataInput: unknown = Reflect.get(input, "metadata");
   const storedAt: unknown = Reflect.get(input, "storedAt");
@@ -452,6 +469,15 @@ export function validateStoredDocument(
   if (!text.ok) {
     return text;
   }
+  const textLimit = mimeType === "application/pdf"
+    ? vaultLimits.extractedTextCharacters
+    : vaultLimits.contentBytes;
+  if (
+    !validExtractedText(extractedText, textLimit) ||
+    (text.value !== null && extractedText !== text.value)
+  ) {
+    return failure("INVALID_DOCUMENT", "Stored document is invalid.");
+  }
   const metadata = validateMetadata(metadataInput);
   if (!metadata.ok) {
     return metadata;
@@ -465,11 +491,11 @@ export function validateStoredDocument(
         mimeType,
         sizeBytes,
         content,
+        extractedText,
         contentDigest,
         metadata: metadata.value,
         storedAt,
       },
-      text: text.value,
     },
   };
 }

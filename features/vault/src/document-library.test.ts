@@ -59,6 +59,7 @@ function storedDocument(
     mimeType: "text/plain",
     sizeBytes: encoder.encode(firstText).byteLength,
     content: encoder.encode(firstText),
+    extractedText: firstText,
     contentDigest: firstDigest,
     metadata: { title: "Title doc_alpha", source: "synthetic fixture" },
     storedAt: "2026-11-26T12:00:00.000Z",
@@ -96,7 +97,11 @@ describe("document library lifecycle", () => {
     if (!listed.ok) {
       throw new Error("document list fixture failed");
     }
-    expect(listed.value.every((item) => !("content" in item))).toBe(true);
+    expect(
+      listed.value.every((item) => (
+        !("content" in item) && !("extractedText" in item)
+      )),
+    ).toBe(true);
     Reflect.set(listed.value[0]?.metadata ?? {}, "title", "Changed");
     await expect(vault.list()).resolves.toMatchObject({
       ok: true,
@@ -180,7 +185,11 @@ describe("document library lifecycle", () => {
   });
 
   test("validates hostile list output without consulting custom iterators", async () => {
-    const { content: _content, ...item } = storedDocument();
+    const {
+      content: _content,
+      extractedText: _extractedText,
+      ...item
+    } = storedDocument();
     const listed = [item];
     Object.defineProperty(listed, Symbol.iterator, {
       value: function* emptyIterator() {

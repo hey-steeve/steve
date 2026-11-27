@@ -83,10 +83,13 @@ The core accepts UTF-8 `text/plain`, UTF-8 `text/markdown`, and
 `application/pdf` documents. PDF.js extracts text from local bytes only. Vault
 does not render pages, load a remote document URL, enable XFA, or perform OCR.
 
-PDF ingestion is bounded to 1 MiB of source bytes, 50 pages, and 100,000
-extracted characters. A PDF is accepted only when it parses successfully and
-contains extractable text. Corrupt, encrypted, empty, image-only, and
-over-limit PDFs are rejected before storage.
+PDF ingestion is bounded to 1 MiB of source bytes, 50 pages, 100,000 extracted
+characters, 1.5 seconds of processing, and a resource-limited worker thread.
+A PDF is accepted only when it parses successfully and contains extractable
+text. Corrupt, encrypted, empty, image-only, decompression-heavy, timed-out,
+and over-limit PDFs are rejected before storage. Extracted text is stored with
+the document after successful ingestion, so `get()` and `summarize()` never
+parse the PDF again.
 
 Vault also rejects:
 
@@ -113,7 +116,10 @@ storage. The in-memory adapter uses it to reject identical content under a
 different identifier. Retrieval recomputes the digest and rejects a record if
 its bytes no longer match its stored digest. The digest provides integrity and
 deduplication; it is not encryption and must not be treated as an access
-control.
+control. The current adapter is single-user. When owner or tenant identity is
+introduced, both the digest index and `DUPLICATE_CONTENT` result must be scoped
+to that owner or tenant; global deduplication must not reveal whether another
+user has stored the same bytes.
 
 ## Document library
 
@@ -128,8 +134,8 @@ releases its digest in the in-memory adapter, so the same content can be stored
 again deliberately. There is no update or restore operation.
 
 Storage adapters are treated as an external boundary. Retrieved records are
-validated again, including byte length, timestamp, metadata, content type, and
-UTF-8 content.
+validated again, including byte length, timestamp, metadata, content type,
+persisted extracted text, and UTF-8 content.
 
 ## Factual summaries
 

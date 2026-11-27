@@ -64,9 +64,13 @@ export function createVault(dependencies: VaultDependencies): Vault {
     summaryCache.delete(id);
   }
 
+  function forgetDocumentVersion(id: string): void {
+    documentVersions.delete(id);
+    summaryCache.delete(id);
+  }
+
   async function load(id: string): Promise<VaultResult<{
     readonly document: StoredDocument;
-    readonly text: string;
   }>> {
     const validId = validateLookupId(id);
     if (!validId.ok) {
@@ -98,17 +102,9 @@ export function createVault(dependencies: VaultDependencies): Vault {
     if (digest !== validated.value.document.contentDigest) {
       return failure("STORAGE_FAILURE", "Document storage returned invalid data.");
     }
-    let text = validated.value.text;
-    if (text === null) {
-      const extracted = await extractDocumentText(validated.value.document);
-      if (!extracted.ok) {
-        return failure("STORAGE_FAILURE", "Document storage returned invalid data.");
-      }
-      text = extracted.value;
-    }
     return {
       ok: true,
-      value: { document: validated.value.document, text },
+      value: { document: validated.value.document },
     };
   }
 
@@ -186,16 +182,18 @@ export function createVault(dependencies: VaultDependencies): Vault {
       if (contentDigest === null) {
         return failure("DEPENDENCY_FAILURE", "Document integrity check failed.");
       }
+      const extracted = await extractDocumentText(
+        validated.value.document.mimeType,
+        validated.value.document.content,
+      );
+      if (!extracted.ok) {
+        return extracted;
+      }
       const document: StoredDocument = {
         ...validated.value.document,
+        extractedText: extracted.value,
         contentDigest,
       };
-      if (validated.value.text === null) {
-        const extracted = await extractDocumentText(document);
-        if (!extracted.ok) {
-          return extracted;
-        }
-      }
 
       let outcome: "created" | "duplicate" | "duplicate-content";
       try {
@@ -274,7 +272,7 @@ export function createVault(dependencies: VaultDependencies): Vault {
       if (outcome !== "deleted") {
         return failure("STORAGE_FAILURE", "Document storage returned invalid data.");
       }
-      advanceDocumentVersion(validId.value);
+      forgetDocumentVersion(validId.value);
       return { ok: true, value: { id: validId.value } };
     },
 
@@ -296,7 +294,7 @@ export function createVault(dependencies: VaultDependencies): Vault {
       }
       const generation = generateSummary(
         result.value.document,
-        result.value.text,
+        result.value.document.extractedText,
         documentVersion(result.value.document.id),
       );
       inFlightSummaries.set(result.value.document.id, {

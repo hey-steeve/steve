@@ -11,6 +11,7 @@ export function copyDocument(document: StoredDocument): StoredDocument {
     mimeType: document.mimeType,
     sizeBytes: document.sizeBytes,
     content: new Uint8Array(document.content),
+    extractedText: document.extractedText,
     contentDigest: document.contentDigest,
     metadata: { ...document.metadata },
     storedAt: document.storedAt,
