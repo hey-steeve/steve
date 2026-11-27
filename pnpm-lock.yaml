@@ -41,6 +41,9 @@ importers:
       '@steve/profile':
         specifier: workspace:*
         version: link:../features/profile
+      '@steve/reminders':
+        specifier: workspace:*
+        version: link:../features/reminders
       '@steve/shared':
         specifier: workspace:*
         version: link:../shared

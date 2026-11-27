@@ -15,6 +15,7 @@
     "@steve/booking": "workspace:*",
     "@steve/directory": "workspace:*",
     "@steve/profile": "workspace:*",
+    "@steve/reminders": "workspace:*",
     "@steve/shared": "workspace:*",
     "@steve/triage": "workspace:*",
     "@steve/vault": "workspace:*",
