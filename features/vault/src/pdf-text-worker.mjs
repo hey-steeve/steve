@@ -18,6 +18,20 @@ async function extract() {
     return { kind: "invalid" };
   }
 
+  const start = new Promise((resolve) => {
+    parentPort.once("message", (message) => {
+      resolve(
+        message !== null &&
+        typeof message === "object" &&
+        message.kind === "start",
+      );
+    });
+  });
+  parentPort.postMessage({ kind: "ready" });
+  if (!await start) {
+    return { kind: "invalid" };
+  }
+
   const loadingTask = getDocument({
     data: workerData.content,
     disableFontFace: true,
