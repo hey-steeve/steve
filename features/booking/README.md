@@ -44,6 +44,10 @@ No workspace package. An implementation of `PracticeCaller` is injected by the c
 
 - At most two practitioners are called, in input order.
 - A slot is confirmed only when the adapter explicitly returns `kind: "confirmed"`, a non-empty confirmation identifier, and a valid slot.
+- A confirmed slot must be entirely contained in the validated `requestedWindow`.
+- Slots may start or end exactly at the requested bounds. Timestamp comparisons use their actual instants, so equivalent timestamps with different UTC offsets are handled correctly.
+- An out-of-window confirmation becomes an `invalid-response` attempt, and Booking continues to the next selected practitioner when one remains.
+- Booking never accepts or negotiates an alternative slot outside the requested window automatically.
 - Ambiguous or incomplete adapter responses are never promoted to confirmations.
 - Adapter exceptions become `caller-error` attempts; exception details are not returned.
 - Inputs and adapter values are defensively copied.
@@ -115,6 +119,8 @@ const result = await bookAppointment(request, practitioners, caller);
 - `getHistory()` returns defensive copies of validated call input snapshots in call order.
 
 Production still requires a separate `PracticeCaller` implementation. This package does not provide a Twilio adapter, telephony configuration, credentials, call scripts, persistence, or a real outbound call. Demo integrations must use synthetic data and must never contact a real practice.
+
+The requested-window rule is part of the Booking core only. It does not add an Agenda or App integration, a user interface for negotiating alternative slots, or any real outbound call.
 
 ## Check
 

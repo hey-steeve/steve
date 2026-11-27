@@ -12,6 +12,8 @@ export const reminderLimits = Object.freeze({
   scriptedScenarios: 100,
   scriptedStepsPerScenario: 20,
   scriptedHistoryEntries: 200,
+  appointmentPlanRules: 20,
+  appointmentPlanMinutesBefore: 525_600,
 } as const);
 
 export type AgendaAppointment = {
@@ -43,6 +45,37 @@ export type ScheduleReminderInput = {
   readonly remindAt: string;
   readonly channel: ReminderChannel;
   readonly details: ReminderDetailsInput;
+};
+
+export type AppointmentReminderPlanRule = {
+  readonly minutesBefore: number;
+  readonly channel: ReminderChannel;
+};
+
+export type PlanAppointmentRemindersInput = {
+  readonly appointmentId: string;
+  readonly rules: readonly AppointmentReminderPlanRule[];
+};
+
+export type PlannedAppointmentReminder = {
+  readonly appointmentId: string;
+  readonly remindAt: string;
+  readonly channel: ReminderChannel;
+  readonly details: { readonly type: "appointment" };
+};
+
+export type SkippedAppointmentReminderReason = "not-in-future";
+
+export type SkippedAppointmentReminderRule = {
+  readonly rule: AppointmentReminderPlanRule;
+  readonly reason: SkippedAppointmentReminderReason;
+};
+
+export type AppointmentReminderPlan = {
+  readonly appointmentId: string;
+  readonly appointmentStartAt: string;
+  readonly planned: readonly PlannedAppointmentReminder[];
+  readonly skipped: readonly SkippedAppointmentReminderRule[];
 };
 
 export type ReminderDetails =
@@ -191,6 +224,9 @@ export type ReminderDependencies = {
 };
 
 export interface ReminderService {
+  planAppointmentReminders(
+    input: PlanAppointmentRemindersInput,
+  ): Promise<ReminderResult<AppointmentReminderPlan>>;
   schedule(
     input: ScheduleReminderInput,
   ): Promise<ReminderResult<ScheduledReminder>>;

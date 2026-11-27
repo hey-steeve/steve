@@ -2,7 +2,6 @@
 
 import { filterAndRankPractitioners, resolveSpecialty, validateDirectoryQuery } from "@steve/directory";
 import { conventionnements, type Conventionnement, type DirectoryQuery, type Practitioner } from "@steve/shared";
-import Link from "next/link";
 import { useState } from "react";
 import { demoPractitioners, parisOrigin } from "./demo-practitioners";
 
@@ -124,15 +123,7 @@ function PractitionerCard({ item }: { item: Practitioner }) {
         <p>{item.address.line}, {item.address.postalCode} {item.address.city}</p>
         {item.distanceKm !== undefined && <span>{distanceFormat.format(item.distanceKm)} km</span>}
       </div>
-      <div className="directory-card-footer">
-        <p>{item.phone}</p>
-        <Link
-          className="directory-book"
-          href={`/booking?practitioner=${encodeURIComponent(item.rpps)}`}
-        >
-          Prendre rendez-vous
-        </Link>
-      </div>
+      <p>{item.phone}</p>
     </li>
   );
 }
