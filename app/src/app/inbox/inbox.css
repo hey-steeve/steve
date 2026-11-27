@@ -57,23 +57,3 @@
   background: var(--color-indigo-50);
   font-size: 14px;
 }
-
-.inbox-checkbox-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 14px;
-  color: var(--color-heading);
-}
-
-.inbox-checkbox-row input {
-  width: 20px;
-  height: 20px;
-  margin: 2px 0 0;
-  accent-color: var(--color-primary);
-}
-
-.inbox-send-form {
-  display: grid;
-  gap: 12px;
-}
