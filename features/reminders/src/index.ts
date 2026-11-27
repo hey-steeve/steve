@@ -11,6 +11,8 @@ export {
 export type {
   AgendaAppointment,
   AgendaSource,
+  AppointmentReminderPlan,
+  AppointmentReminderPlanRule,
   AppointmentReminderInput,
   CancelledReminder,
   CancelReminderOutcome,
@@ -19,6 +21,8 @@ export type {
   DispatchReport,
   FailedReminder,
   MedicationReminderInput,
+  PlanAppointmentRemindersInput,
+  PlannedAppointmentReminder,
   Reminder,
   ReminderChannel,
   ReminderDependencies,
@@ -38,6 +42,8 @@ export type {
   ScheduleReminderInput,
   ScheduledReminder,
   SentReminder,
+  SkippedAppointmentReminderReason,
+  SkippedAppointmentReminderRule,
 } from "./contracts.ts";
 export type {
   ScriptedReminderScenario,

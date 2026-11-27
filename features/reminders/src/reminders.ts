@@ -1,12 +1,15 @@
 import {
   reminderLimits,
   type AgendaAppointment,
+  type AppointmentReminderPlan,
   type CancelledReminder,
   type CancelReminderOutcome,
   type DispatchOutcome,
   type DispatchReport,
   type DispatchingReminder,
   type FailedReminder,
+  type PlanAppointmentRemindersInput,
+  type PlannedAppointmentReminder,
   type Reminder,
   type ReminderDependencies,
   type ReminderError,
@@ -16,12 +19,14 @@ import {
   type ScheduleReminderInput,
   type ScheduledReminder,
   type SentReminder,
+  type SkippedAppointmentReminderRule,
 } from "./contracts.ts";
 import { buildReminderMessage, copyMessage } from "./reminder-message.ts";
 import { copyReminder } from "./reminder-copy.ts";
 import {
   isValidReminder,
   snapshotScheduleInput,
+  validateAppointmentPlanInput,
   validateAppointment,
   validateScheduleInput,
   validIdentifier,
@@ -79,6 +84,22 @@ function sortReminders(reminders: readonly Reminder[]): Reminder[] {
   );
 }
 
+function sortPlannedReminders(
+  reminders: PlannedAppointmentReminder[],
+): PlannedAppointmentReminder[] {
+  return reminders.sort((left, right) => {
+    const timestampOrder = left.remindAt.localeCompare(right.remindAt);
+    if (timestampOrder !== 0) {
+      return timestampOrder;
+    }
+    return left.channel < right.channel
+      ? -1
+      : left.channel > right.channel
+        ? 1
+        : 0;
+  });
+}
+
 function validatedStorageRecords(
   records: readonly Reminder[],
 ): Reminder[] | null {
@@ -112,6 +133,59 @@ export function createReminderService(
     (() => `rem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`);
 
   return {
+    async planAppointmentReminders(
+      input: PlanAppointmentRemindersInput,
+    ): Promise<ReminderResult<AppointmentReminderPlan>> {
+      const validated = validateAppointmentPlanInput(input);
+      if (!validated.ok) {
+        return validated;
+      }
+      const appointment = await appointmentFromAgenda(
+        validated.value.appointmentId,
+        agendaSource,
+      );
+      if (!appointment.ok) {
+        return appointment;
+      }
+      const timestamp = currentTimestamp(now);
+      if (!timestamp.ok) {
+        return timestamp;
+      }
+
+      const appointmentEpoch = Date.parse(appointment.value.startAt);
+      const planned: PlannedAppointmentReminder[] = [];
+      const skipped: SkippedAppointmentReminderRule[] = [];
+      for (const rule of validated.value.rules) {
+        const remindAtEpoch =
+          appointmentEpoch - rule.minutesBefore * 60_000;
+        if (remindAtEpoch <= timestamp.value.epoch) {
+          skipped.push({
+            rule: {
+              minutesBefore: rule.minutesBefore,
+              channel: rule.channel,
+            },
+            reason: "not-in-future",
+          });
+          continue;
+        }
+        planned.push({
+          appointmentId: validated.value.appointmentId,
+          remindAt: new Date(remindAtEpoch).toISOString(),
+          channel: rule.channel,
+          details: { type: "appointment" },
+        });
+      }
+      return {
+        ok: true,
+        value: {
+          appointmentId: validated.value.appointmentId,
+          appointmentStartAt: appointment.value.startAt,
+          planned: sortPlannedReminders(planned),
+          skipped,
+        },
+      };
+    },
+
     async schedule(
       input: ScheduleReminderInput,
     ): Promise<ReminderResult<ScheduledReminder>> {

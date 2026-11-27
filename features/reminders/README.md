@@ -15,6 +15,8 @@ It does not start a timer, worker, or background loop.
 The package exports its public API from `src/index.ts`:
 
 - `createReminderService(dependencies)` creates the reminder service.
+- `planAppointmentReminders(input)` calculates side-effect-free appointment
+  reminder proposals from orchestrator-supplied rules.
 - `InMemoryReminderStorage` is a bounded, defensive in-memory adapter.
 - `AgendaSource` looks up an appointment by identifier.
 - `ReminderSender` sends a prepared message through `sms` or `call`.
@@ -90,6 +92,57 @@ records also use discriminated states: `scheduled`, `dispatching`, `sent`,
 
 The supported channels are `sms` and `call`. Both go through the same injected
 `ReminderSender`; this core contains no Twilio or real delivery integration.
+
+## Appointment reminder planning
+
+`planAppointmentReminders` calculates appointment reminder proposals without
+storing or sending them. The orchestrator supplies every rule; the package has
+no default delay, channel, or reminder policy.
+
+```ts
+const plan = await reminders.planAppointmentReminders({
+  appointmentId: "apt_synthetic",
+  rules: [
+    { minutesBefore: 24 * 60, channel: "sms" },
+    { minutesBefore: 2 * 60, channel: "call" },
+  ],
+});
+
+if (plan.ok) {
+  for (const proposal of plan.value.planned) {
+    await reminders.schedule(proposal);
+  }
+}
+```
+
+The planner looks up the appointment once through `AgendaSource`, validates its
+start timestamp, reads the injected clock once, and subtracts elapsed minutes
+from the appointment instant. Offset and daylight-saving transitions therefore
+do not change the duration calculation. Every planned proposal contains only
+`{ type: "appointment" }` details and can be passed directly to `schedule()`.
+
+The result separates:
+
+- `planned`, containing proposals whose calculated time is strictly after the
+  injected clock; and
+- `skipped`, containing every rule whose calculated time is at or before the
+  clock, with the stable `not-in-future` reason.
+
+Planned proposals are ordered by ascending `remindAt`, then by channel when two
+instants match. Skipped rules retain their validated input order. Duplicate
+rules with the same channel and `minutesBefore` are rejected rather than
+silently collapsed.
+
+`reminderLimits.appointmentPlanRules` allows at most 20 rules per plan.
+`reminderLimits.appointmentPlanMinutesBefore` allows at most 525,600 minutes
+before an appointment. A plan must contain at least one rule, and every offset
+must be a strictly positive integer within that public limit.
+
+Planning is only a proposal. It does not call `ReminderSender`, write to
+`ReminderStorage`, generate reminder identifiers, or schedule background work.
+The orchestrator decides which planned proposals to pass to `schedule()`. No
+timer, worker, retry policy, Twilio adapter, real delivery, or App integration
+is included.
 
 ## Scripted sender
 
