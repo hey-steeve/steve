@@ -19,12 +19,12 @@
 ## Inputs and outputs
 
 - The input is the identity, the declared history, the preferences, and the call history.
-- The output is that memory, read back through `loadDemoPatientMemory`.
-- `@steve/shared` exports no patient-memory contract. `parsePatientMemory` checks the demo record in this package.
+- The output is that memory, read back through `loadDemoPatientMemory` or managed through `createInMemoryProfileStore` (`PatientMemoryStore`) with bounded lists and defensive snapshot cloning.
+- `@steve/shared` exports no patient-memory contract yet. `parsePatientMemory` checks the demo record in this package.
 
 ## Depends on
 
-`@steve/shared`, once that package exports a patient-memory contract. It does not yet, so this fixture stays in the package.
+`@steve/shared`, once that package exports a patient-memory contract. It does not yet, so this fixture and store stay in the package.
 
 ## Rules
 
@@ -33,7 +33,7 @@
 
 ## Demo and production
 
-`loadDemoPatientMemory` returns the demo patient Peter Parker. He is 32 on `2026-11-22`. His child Lina is 4 on that date. The record has `demo: true`.
+`loadDemoPatientMemory` returns the demo patient Peter Parker. He is 32 on `2026-11-22`. His child Lina is 4 on that date. The record has `demo: true`. `createInMemoryProfileStore` seeds from `loadDemoPatientMemory` by default and bounds preferences, declared history, and call history.
 
 Practitioner names, practice names, and street names are invented. Identifiers follow `DEMO-RPPS-0001`, with a different four-digit suffix for each practitioner. They are placeholders, not RPPS numbers and not ADELI numbers. The record has no phone, no email, and no document. The knee X-ray is one sentence in the declared history.
 
@@ -43,6 +43,8 @@ The recorded waits are chosen delays for a non-urgent visit in Île-de-France. T
 
 `pnpm --filter @steve/profile test`
 
+`pnpm --filter @steve/profile typecheck`
+
 ## Status
 
-Demo fixture only. Owner:
+Done (demo fixture and bounded in-memory profile store). Owner:
