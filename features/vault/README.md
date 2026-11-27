@@ -55,7 +55,8 @@ const stored = await vault.store({
 });
 ```
 
-`store`, `get`, and `summarize` return `VaultResult<T>`, a discriminated result:
+`store`, `get`, `list`, `delete`, and `summarize` return `VaultResult<T>`, a
+discriminated result:
 
 ```ts
 type VaultResult<T> =
@@ -70,16 +71,33 @@ for deterministic tests.
 The package entry point exports:
 
 - `createVault` and the `Vault` interface;
-- document, metadata, result, error, `FactualAssertion`,
+- document, list item, metadata, result, error, `FactualAssertion`,
   `FactualSummaryCandidate`, and summary contracts;
 - `DocumentStorage` and `FactualSummaryProvider` adapter boundaries;
 - `InMemoryDocumentStorage` for tests and local integration;
 - supported MIME types, validation limits, and factual summary rules.
 
-## Document validation
+## Document ingestion and validation
 
-The core currently accepts UTF-8 `text/plain` and `text/markdown` documents.
-It rejects:
+The core accepts UTF-8 `text/plain`, UTF-8 `text/markdown`, and
+`application/pdf` documents. PDF.js extracts text from local bytes only. Vault
+does not render pages, load a remote document URL, enable XFA, or perform OCR.
+
+PDF ingestion is bounded to 1 MiB of source bytes, 50 pages, 100,000 extracted
+characters, 1.5 seconds of processing, and a resource-limited worker thread.
+A PDF is accepted only when it parses successfully and contains extractable
+text. Corrupt, encrypted, empty, image-only, decompression-heavy, timed-out,
+and over-limit PDFs are rejected before storage. Extracted text is stored with
+the document after successful ingestion, so `get()` and `summarize()` never
+parse the PDF again.
+
+At most two PDF extraction workers run concurrently in one process. Additional
+PDF stores fail fast with `PROCESSING_BUSY`; Vault does not retain an unbounded
+queue of document bytes. A worker slot is released after success, validation
+failure, timeout, startup failure, or worker termination. Text and Markdown do
+not consume PDF worker capacity.
+
+Vault also rejects:
 
 - unknown input and metadata fields;
 - missing, empty, malformed, NUL-containing, or non-UTF-8 content;
@@ -94,13 +112,36 @@ It rejects:
 Filenames are metadata only. Vault never treats them as filesystem paths.
 
 `DocumentStorage.create` is a create-if-absent operation. It must atomically
-return `created` or `duplicate`; the in-memory adapter provides this behavior.
-There is no update operation, so duplicate identifiers cannot silently replace
-stored state. Stored bytes and metadata are copied on write and on read.
+return `created`, `duplicate`, or `duplicate-content`; the in-memory adapter
+provides this behavior. There is no update operation, so duplicate identifiers
+cannot silently replace stored state. Stored bytes and metadata are copied on
+write and on read.
+
+Vault computes a lowercase SHA-256 digest from the snapshotted content before
+storage. The in-memory adapter uses it to reject identical content under a
+different identifier. Retrieval recomputes the digest and rejects a record if
+its bytes no longer match its stored digest. The digest provides integrity and
+deduplication; it is not encryption and must not be treated as an access
+control. The current adapter is single-user. When owner or tenant identity is
+introduced, both the digest index and `DUPLICATE_CONTENT` result must be scoped
+to that owner or tenant; global deduplication must not reveal whether another
+user has stored the same bytes.
+
+## Document library
+
+`list()` returns document metadata in newest-first order. List items include
+the identifier, filename, MIME type, byte size, content digest, metadata, and
+storage timestamp, but never document bytes. The result is capped at 500 items
+and every adapter value is snapshotted and validated before it is returned.
+
+`delete(id)` removes one document and invalidates its cached summary. It returns
+`DOCUMENT_NOT_FOUND` when the identifier is absent. Deleting a document also
+releases its digest in the in-memory adapter, so the same content can be stored
+again deliberately. There is no update or restore operation.
 
 Storage adapters are treated as an external boundary. Retrieved records are
-validated again, including byte length, timestamp, metadata, content type, and
-UTF-8 content.
+validated again, including byte length, timestamp, metadata, content type,
+persisted extracted text, and UTF-8 content.
 
 ## Factual summaries
 
@@ -134,6 +175,12 @@ Inbox must never present these assertions as verified facts. A production
 provider must enforce the factual-summary contract as well; it must not infer a
 condition, urgency, diagnosis, medication change, or treatment.
 
+Successful summaries are cached inside one Vault instance by document
+identifier and content digest. Concurrent requests for the same document share
+one in-flight provider call. Returned cached values are defensive copies, and
+deletion prevents an in-flight result from being retained. Failures are never
+cached. This cache is process-local and is not durable storage.
+
 ## Errors and content safety
 
 Errors have stable codes and generic messages. Exceptions from storage, the
@@ -157,20 +204,21 @@ planned shared logger, so this package performs no logging.
 
 ## Dependencies
 
-The feature imports no other feature and currently needs no runtime package.
-Its contracts remain local because there is no confirmed cross-feature
-consumer contract.
+The feature imports no other feature. It uses Mozilla's `pdfjs-dist` package to
+parse local PDF bytes and extract text. Its contracts remain local because
+there is no confirmed cross-feature consumer contract.
 
 ## Current limitations
 
 - The in-memory adapter is process-local and non-persistent.
-- Only UTF-8 text and Markdown are supported.
-- PDF parsing, OCR, binary documents, object storage, metadata persistence,
-  encryption, access control, and retention policies are not implemented.
+- PDF text extraction is supported, but OCR and arbitrary binary documents are
+  not. Image-only and encrypted PDFs are rejected.
+- Object storage, metadata persistence, encryption at rest, access control,
+  retention policies, and restore are not implemented.
 - There is no owner or tenant scope yet because the repository has no shared
   identity contract. A production integration must add authorization and
   tenant isolation at its owning boundary before storing real documents.
-- Summaries are generated on demand and are not cached or persisted.
+- Summaries are cached only in the current Vault process and are not persisted.
 - Storage and summarizer adapters do not yet receive an abort signal. A future
   live adapter must add real cancellation rather than a timeout that leaves an
   operation running in the background.
