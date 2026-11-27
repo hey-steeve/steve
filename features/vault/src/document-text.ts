@@ -73,6 +73,7 @@ async function extractPdfText(content: Uint8Array): Promise<VaultResult<string>>
     }
     let startupTimeout: ReturnType<typeof setTimeout> | undefined;
     let extractionTimeout: ReturnType<typeof setTimeout> | undefined;
+    let ready = false;
     let settled = false;
     const settle = (result: VaultResult<string>): void => {
       if (settled) {
@@ -101,23 +102,40 @@ async function extractPdfText(content: Uint8Array): Promise<VaultResult<string>>
         "PDF extraction worker did not start safely.",
       ));
     }, pdfWorkerStartupTimeoutMilliseconds);
-    worker.once("online", () => {
-      clearTimeout(startupTimeout);
-      startupTimeout = undefined;
-      extractionTimeout = setTimeout(() => {
-        settle(failure(
-          "CONTENT_TOO_LARGE",
-          "PDF document exceeded safe processing limits.",
-        ));
-      }, pdfExtractionTimeoutMilliseconds);
-    });
-    worker.once("message", (message: unknown) => {
+    worker.on("message", (message: unknown) => {
       const kind = message !== null && typeof message === "object"
         ? Reflect.get(message, "kind")
         : undefined;
       const text = message !== null && typeof message === "object"
         ? Reflect.get(message, "text")
         : undefined;
+      if (kind === "ready" && !ready) {
+        ready = true;
+        clearTimeout(startupTimeout);
+        startupTimeout = undefined;
+        extractionTimeout = setTimeout(() => {
+          settle(failure(
+            "CONTENT_TOO_LARGE",
+            "PDF document exceeded safe processing limits.",
+          ));
+        }, pdfExtractionTimeoutMilliseconds);
+        try {
+          worker.postMessage({ kind: "start" });
+        } catch {
+          settle(failure(
+            "DEPENDENCY_FAILURE",
+            "PDF extraction worker protocol failed.",
+          ));
+        }
+        return;
+      }
+      if (!ready || kind === "ready") {
+        settle(failure(
+          "DEPENDENCY_FAILURE",
+          "PDF extraction worker protocol failed.",
+        ));
+        return;
+      }
       if (
         kind === "ok" &&
         typeof text === "string" &&
@@ -143,17 +161,19 @@ async function extractPdfText(content: Uint8Array): Promise<VaultResult<string>>
     });
     worker.once("error", () => {
       settle(failure(
-        "CONTENT_TOO_LARGE",
-        "PDF document exceeded safe processing limits.",
+        ready ? "CONTENT_TOO_LARGE" : "DEPENDENCY_FAILURE",
+        ready
+          ? "PDF document exceeded safe processing limits."
+          : "PDF extraction worker did not start safely.",
       ));
     });
     worker.once("exit", (code) => {
-      if (code !== 0) {
-        settle(failure(
-          "CONTENT_TOO_LARGE",
-          "PDF document exceeded safe processing limits.",
-        ));
-      }
+      settle(failure(
+        ready && code !== 0 ? "CONTENT_TOO_LARGE" : "DEPENDENCY_FAILURE",
+        ready && code !== 0
+          ? "PDF document exceeded safe processing limits."
+          : "PDF extraction worker protocol failed.",
+      ));
     });
   });
 }
