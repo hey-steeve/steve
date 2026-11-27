@@ -29,7 +29,9 @@ Conversation uses a `Handoff<Data>` to pass a request to a feature. `sessionId` 
 
 A `FeatureResult<Data>` is what the feature returns. `ok: true` includes `reply`. `data` is optional on success. `ok: false` includes `reply` and has no `data`. `reply` is what the patient hears. A feature with no payload returns `{ ok: true, reply }`.
 
-The `VoiceProvider` interface, the logger, and the LLM client are still to be defined. The value exports are the design tokens, the marmot avatar, and `turnChannels`.
+The `VoiceProvider` interface, the logger, and the LLM client are still to be defined. The value exports are the design tokens, the marmot avatar, `turnChannels`, `conventionnements`, and `directorySources`.
+
+`Conventionnement`, `DirectorySource`, `GeoPoint`, `PractitionerAddress`, `Practitioner`, `DirectoryQuery`, and `DirectorySearchResult` are the directory contracts. They live in `shared/src/directory.ts`.
 
 ## Glossary
 
