@@ -16,9 +16,6 @@ export const FALLBACK_CLARIFY_REPLY =
 export const FALLBACK_HANDOFF_ERROR_REPLY =
   "Je n'ai pas pu finaliser cette étape pour le moment. Veux-tu que je réessaie ?" as const;
 
-export const FALLBACK_POST_EMERGENCY_REPLY =
-  "Je ne peux pas chercher de praticien ni prendre de rendez-vous après une orientation d'urgence. Si ta situation évolue, dis-le-moi." as const;
-
 export type EmergencyCallNumber = "15" | "3114";
 
 export type TriageGateInput = {
@@ -128,18 +125,6 @@ export async function handleConversationTurn(
         calls: triageResult.calls,
         reply,
       },
-    };
-  }
-
-  if (withPatient.phase === "emergency-referred") {
-    const nextState = recordAssistantReply(
-      withPatient,
-      cleanTurn.turnId,
-      FALLBACK_POST_EMERGENCY_REPLY,
-    );
-    return {
-      state: nextState,
-      outcome: { kind: "clarify", reply: FALLBACK_POST_EMERGENCY_REPLY },
     };
   }
 

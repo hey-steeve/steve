@@ -1,7 +1,6 @@
 export {
   FALLBACK_CLARIFY_REPLY,
   FALLBACK_HANDOFF_ERROR_REPLY,
-  FALLBACK_POST_EMERGENCY_REPLY,
   handleConversationTurn,
 } from "./orchestrator.ts";
 export type {

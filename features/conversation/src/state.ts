@@ -132,11 +132,12 @@ export function recordPatientTurn(
   if (isTerminalPhase(state.phase)) {
     return state;
   }
-  const nextPhase: ConversationPhase =
-    state.phase === "greeting" ? "listening" : state.phase;
+  // A referral does not end the conversation: the next patient turn moves it on.
+  const movesOn = state.phase === "greeting" || state.phase === "emergency-referred";
+  const { endedReason: _cleared, ...rest } = state;
   return {
-    ...state,
-    phase: nextPhase,
+    ...(movesOn ? rest : state),
+    phase: movesOn ? "listening" : state.phase,
     messages: appendBoundedMessage(state.messages, {
       role: "patient",
       turnId: turn.turnId,
@@ -154,13 +155,9 @@ export function recordAssistantReply(
   if (isTerminalPhase(state.phase)) {
     return state;
   }
-  const resolvedPhase: ConversationPhase =
-    state.phase === "emergency-referred"
-      ? "emergency-referred"
-      : (nextPhase ?? state.phase);
   return {
     ...state,
-    phase: resolvedPhase,
+    phase: nextPhase ?? state.phase,
     messages: appendBoundedMessage(state.messages, {
       role: "assistant",
       turnId,
@@ -173,11 +170,7 @@ export function recordHandoff(
   state: ConversationState,
   handoff: Handoff,
 ): ConversationState {
-  if (
-    isTerminalPhase(state.phase) ||
-    state.phase === "emergency-referred" ||
-    handoff.sessionId !== state.sessionId
-  ) {
+  if (isTerminalPhase(state.phase) || handoff.sessionId !== state.sessionId) {
     return state;
   }
   return {
