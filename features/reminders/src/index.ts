@@ -1,6 +1,13 @@
 export { InMemoryReminderStorage } from "./in-memory-storage.ts";
 export { createReminderService } from "./reminders.ts";
 export { reminderChannels, reminderLimits } from "./contracts.ts";
+export {
+  MAX_SCRIPTED_HISTORY_ENTRIES,
+  MAX_SCRIPTED_MESSAGE_BODY_CHARACTERS,
+  MAX_SCRIPTED_REMINDERS,
+  MAX_SCRIPTED_STEPS_PER_REMINDER,
+  ScriptedReminderSender,
+} from "./scripted-reminder-sender.ts";
 export type {
   AgendaAppointment,
   AgendaSource,
@@ -32,3 +39,8 @@ export type {
   ScheduledReminder,
   SentReminder,
 } from "./contracts.ts";
+export type {
+  ScriptedReminderScenario,
+  ScriptedReminderSenderOptions,
+  ScriptedReminderStep,
+} from "./scripted-reminder-sender.ts";

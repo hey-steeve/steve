@@ -18,6 +18,12 @@ The package exports its public API from `src/index.ts`:
 - `InMemoryReminderStorage` is a bounded, defensive in-memory adapter.
 - `AgendaSource` looks up an appointment by identifier.
 - `ReminderSender` sends a prepared message through `sms` or `call`.
+- `ScriptedReminderSender` runs deterministic in-memory delivery scenarios for
+  tests, demos, and local integrations.
+- `ScriptedReminderScenario` assigns ordered safe steps to a reminder
+  identifier.
+- `ScriptedReminderStep` is a discriminated `sent`, `rejected`, or simulated
+  `failure` step.
 - `ReminderStorage` allows persistence to be replaced without changing the
   domain service.
 - `reminderChannels` and `reminderLimits` expose accepted channels and bounds.
@@ -84,6 +90,79 @@ records also use discriminated states: `scheduled`, `dispatching`, `sent`,
 
 The supported channels are `sms` and `call`. Both go through the same injected
 `ReminderSender`; this core contains no Twilio or real delivery integration.
+
+## Scripted sender
+
+`ScriptedReminderSender` implements `ReminderSender` without a network request,
+timer, worker, provider credential, or real phone number. Each send consumes the
+next configured step for that reminder identifier:
+
+- `sent` returns exactly `{ ok: true }`;
+- `rejected` returns exactly `{ ok: false }`; and
+- `failure` throws the generic `Scripted reminder delivery failed` error.
+
+An unknown reminder or an exhausted sequence safely returns `{ ok: false }`.
+The adapter records every valid send attempt, including rejected and failed
+attempts. `getHistory()` returns defensive copies in attempt order.
+
+```ts
+import {
+  InMemoryReminderStorage,
+  ScriptedReminderSender,
+  createReminderService,
+} from "@steve/reminders";
+
+const sender = new ScriptedReminderSender([
+  {
+    reminderId: "rem_synthetic",
+    steps: [
+      { kind: "rejected" },
+      { kind: "sent" },
+    ],
+  },
+]);
+
+let now = new Date("2026-11-27T09:00:00.000Z");
+const reminders = createReminderService({
+  agendaSource: {
+    async getAppointment() {
+      return {
+        id: "apt_synthetic",
+        startAt: "2026-11-28T10:00:00.000Z",
+        title: "Synthetic appointment",
+      };
+    },
+  },
+  sender,
+  storage: new InMemoryReminderStorage(),
+  now: () => new Date(now),
+  generateId: () => "rem_synthetic",
+});
+
+await reminders.schedule({
+  appointmentId: "apt_synthetic",
+  remindAt: "2026-11-27T10:00:00.000Z",
+  channel: "sms",
+  details: { type: "appointment" },
+});
+
+now = new Date("2026-11-27T10:00:00.000Z");
+await reminders.dispatchDue(); // rejected; the reminder becomes failed
+await reminders.dispatchDue(); // sent; the explicit retry succeeds
+```
+
+The constructor copies and validates its configuration. It rejects duplicate
+reminder identifiers, unknown or structurally ambiguous steps, and values over
+these exported limits:
+
+- `MAX_SCRIPTED_REMINDERS` is 100 scenarios;
+- `MAX_SCRIPTED_STEPS_PER_REMINDER` is 20 steps per scenario;
+- `MAX_SCRIPTED_HISTORY_ENTRIES` is 200 retained attempts; and
+- `MAX_SCRIPTED_MESSAGE_BODY_CHARACTERS` is 1,000 characters.
+
+`historyLimit` may reduce retained history but cannot exceed the package
+maximum. The adapter never mutates its scenario configuration or a received
+`ReminderMessage`.
 
 ## Scheduling rules
 
