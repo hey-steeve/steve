@@ -876,6 +876,48 @@
   color: var(--color-canvas);
 }
 
+.chat-call-error {
+  display: grid;
+  justify-items: center;
+  gap: var(--safe-gap);
+  margin: var(--safe-gap) var(--page-pad) 0;
+  padding: var(--card-pad);
+  border: var(--card-line);
+  border-radius: var(--radius-card);
+  background: var(--color-canvas);
+  box-shadow: var(--shadow-faint);
+  text-align: center;
+}
+
+.chat-call-error-mascot {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+
+.chat-call-retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--hit-min);
+  padding: 0 var(--card-pad);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-canvas);
+  font: inherit;
+  font-size: var(--caption);
+  font-weight: var(--font-weight-heading);
+  cursor: pointer;
+}
+
+.chat-call-retry:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .chat-dock-enter {
   animation: chat-enter-fade var(--motion-scene) var(--motion-ease) backwards;
 }
