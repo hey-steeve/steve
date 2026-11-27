@@ -80,23 +80,14 @@ Do not rebase.
 
 From your branch, run `git fetch origin` and then `git merge origin/main`. Keep the merge commit.
 
-Roman is the reviewer agent. Capri is the agent that merges.
+Roman is the reviewer and merge agent. Spidey's coding agent never merges.
 
-Capri merges only after the conditions below for that pull request's author are met. Spidey's coding agent never merges.
+Roman merges alone with `gh pr merge --admin --match-head-commit` once every condition below is met on the exact head commit.
 
-A pull request that Spidey's coding agent opens is a pull request that @spideystreet authors. Capri merges it only after every condition below is met.
-
-- Roman approves the exact head commit.
+- Roman finds no Blocking item on that head commit.
 - The `verify` check is green on that commit.
 - The `app-shared-boundary` check is green on that commit.
-- Spidey gives a local OK on the playground.
-
-A contributor pull request is any pull request that @spideystreet does not author. Capri merges it only after every condition below is met.
-
-- Roman approves the exact head commit.
-- @spideystreet gives the CODEOWNERS review, and `.github/CODEOWNERS` names @spideystreet. Roman's approval adds to the CODEOWNERS review and does not replace it.
-- The `verify` check is green on that commit.
-- The `app-shared-boundary` check is green on that commit.
+- If the pull request changes safety copy (emergency wording, including `app/src/app/api/chat/emergency-templates.ts` and `app/src/app/api/chat/system-prompt.ts`), Spidey gives an explicit approval before merge.
 
 Require a screenshot only when the change touches the UI. Otherwise, paste test output or command output that shows pass or fail.
 
