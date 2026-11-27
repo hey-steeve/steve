@@ -214,6 +214,7 @@ export default function InboxClient() {
       text: `Document envoyé à ${recipient.trim()} (réf. ${outcome.providerMessageId}).`,
     });
     setSendOpen(false);
+    setAuthorized(false);
   }
 
   return (

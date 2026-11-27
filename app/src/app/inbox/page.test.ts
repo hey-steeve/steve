@@ -95,4 +95,11 @@ it("sends an authorized document through @steve/inbox", async () => {
   expect(container.querySelector('[role="status"]')?.textContent).toContain(
     "Document envoyé à cabinet.luneval@example.test",
   );
+
+  await act(async () => {
+    buttonWithText(container, "Envoyer un document").click();
+  });
+  const secondConsent = container.querySelector('input[type="checkbox"]');
+  if (!(secondConsent instanceof HTMLInputElement)) throw new Error("Missing consent checkbox");
+  expect(secondConsent.checked).toBe(false);
 });
