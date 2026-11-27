@@ -38,15 +38,24 @@ importers:
       '@steve/directory':
         specifier: workspace:*
         version: link:../features/directory
+      '@steve/inbox':
+        specifier: workspace:*
+        version: link:../features/inbox
       '@steve/profile':
         specifier: workspace:*
         version: link:../features/profile
+      '@steve/reminders':
+        specifier: workspace:*
+        version: link:../features/reminders
       '@steve/shared':
         specifier: workspace:*
         version: link:../shared
       '@steve/triage':
         specifier: workspace:*
         version: link:../features/triage
+      '@steve/vault':
+        specifier: workspace:*
+        version: link:../features/vault
       '@steve/voice':
         specifier: workspace:*
         version: link:../features/voice

@@ -1,0 +1,75 @@
+.vault-doc-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--steve-radius-card);
+  background: var(--color-canvas);
+  box-shadow: var(--shadow-faint);
+  color: var(--color-heading);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vault-doc-card[aria-pressed="true"] {
+  border-color: var(--color-primary);
+  background: var(--color-canvas);
+  color: var(--color-heading);
+}
+
+.vault-doc-card:hover {
+  background: var(--color-indigo-50);
+}
+
+.vault-doc-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: var(--radius-lg);
+  background: var(--color-indigo-50);
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: var(--font-weight-heading);
+}
+
+.vault-doc-meta {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.vault-doc-title {
+  color: var(--color-heading);
+  font-size: 17px;
+  font-weight: var(--font-weight-heading);
+  line-height: 1.25;
+}
+
+.vault-summary-text {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.vault-content-box {
+  margin: 0;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-indigo-50);
+  color: var(--color-heading);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.vault-add-form {
+  display: grid;
+  gap: 12px;
+}
