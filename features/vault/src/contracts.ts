@@ -13,6 +13,7 @@ export const vaultLimits = Object.freeze({
   contentBytes: 1_048_576,
   pdfPages: 50,
   extractedTextCharacters: 100_000,
+  concurrentPdfExtractions: 2,
   listedDocuments: 500,
   metadataTitleCharacters: 200,
   metadataSourceCharacters: 100,
@@ -114,6 +115,7 @@ export type VaultErrorCode =
   | "INVALID_DOCUMENT"
   | "UNSUPPORTED_CONTENT_TYPE"
   | "CONTENT_TOO_LARGE"
+  | "PROCESSING_BUSY"
   | "DUPLICATE_DOCUMENT"
   | "DUPLICATE_CONTENT"
   | "DOCUMENT_NOT_FOUND"

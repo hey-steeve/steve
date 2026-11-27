@@ -151,6 +151,50 @@ describe("PDF document ingestion", () => {
     5_000,
   );
 
+  test("bounds concurrent PDF workers and releases capacity after timeouts", async () => {
+    const content = syntheticCompressedOperatorPdf(16_000_000);
+    const startedAt = performance.now();
+
+    const pdfRequests = Array.from(
+      { length: 20 },
+      (_, index) => service().store({
+        id: `doc_parallel_${index}`,
+        fileName: `parallel-${index}.pdf`,
+        mimeType: "application/pdf",
+        content,
+      }),
+    );
+    const [results, textResult] = await Promise.all([
+      Promise.all(pdfRequests),
+      service().store({
+        id: "doc_parallel_text",
+        fileName: "parallel.txt",
+        mimeType: "text/plain",
+        content: new TextEncoder().encode("Synthetic parallel text."),
+      }),
+    ]);
+
+    expect(textResult).toMatchObject({
+      ok: true,
+      value: { id: "doc_parallel_text" },
+    });
+
+    expect(results.filter((result) => (
+      !result.ok && result.error.code === "PROCESSING_BUSY"
+    ))).toHaveLength(18);
+    expect(results.filter((result) => (
+      !result.ok && result.error.code === "CONTENT_TOO_LARGE"
+    ))).toHaveLength(vaultLimits.concurrentPdfExtractions);
+    expect(performance.now() - startedAt).toBeLessThan(3_000);
+
+    await expect(service().store({
+      id: "doc_after_timeout",
+      fileName: "after-timeout.pdf",
+      mimeType: "application/pdf",
+      content: syntheticPdf(["Synthetic capacity recovery."]),
+    })).resolves.toMatchObject({ ok: true });
+  }, 5_000);
+
   test("rejects a PDF without extractable text", async () => {
     const result = await service().store({
       fileName: "scan.pdf",
