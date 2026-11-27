@@ -92,3 +92,13 @@ it.each([
   expect(names()).toEqual([]);
   expect(container.textContent).not.toContain("Aucun praticien trouvé");
 });
+
+it("links each practitioner card to the booking page with their RPPS", () => {
+  const links = Array.from(container.querySelectorAll(".directory-card a.directory-book"), (item) =>
+    item.getAttribute("href"),
+  );
+  expect(links).toHaveLength(2);
+  for (const href of links) {
+    expect(href).toMatch(/^\/booking\?practitioner=\d+$/);
+  }
+});
