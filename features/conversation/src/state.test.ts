@@ -137,17 +137,34 @@ describe("state transitions and history bounds", () => {
     expect(emergency.phase).toBe("emergency-referred");
     expect(emergency.endedReason).toBe("emergency");
     expect(emergency.activeHandoff).toBeUndefined();
-    expect(isTerminalPhase(emergency.phase)).toBe(true);
+    expect(isTerminalPhase(emergency.phase)).toBe(false);
 
+    // Handoffs remain blocked after emergency referral.
     expect(recordHandoff(emergency, handoff)).toBe(emergency);
-    expect(recordAssistantReply(emergency, "t-3", "Suite", "listening")).toBe(emergency);
-    expect(
-      recordPatientTurn(emergency, {
-        sessionId: "sess-1",
-        turnId: "t-3",
-        channel: "voice",
-        text: "Bonjour",
-      }),
-    ).toBe(emergency);
+
+    // Later turns are still accepted for triage while staying in emergency-referred.
+    const followUpTurn: Turn = {
+      sessionId: "sess-1",
+      turnId: "t-3",
+      channel: "voice",
+      text: "Je veux en finir",
+    };
+    expect(validateTurn(followUpTurn, emergency)).toEqual({ ok: true, turn: followUpTurn });
+
+    const withFollowUp = recordPatientTurn(emergency, followUpTurn);
+    expect(withFollowUp.phase).toBe("emergency-referred");
+    expect(patientTexts(withFollowUp)).toEqual(["Je veux en finir"]);
+
+    const secondEmergency = markEmergencyReferred(withFollowUp, "t-3", "Deuxième urgence orientée.");
+    expect(secondEmergency.phase).toBe("emergency-referred");
+    expect(secondEmergency.messages.at(-1)).toEqual({
+      role: "assistant",
+      turnId: "t-3",
+      text: "Deuxième urgence orientée.",
+    });
+
+    // Assistant reply cannot leave emergency-referred back to listening.
+    const keptEmergency = recordAssistantReply(withFollowUp, "t-3", "Suite", "listening");
+    expect(keptEmergency.phase).toBe("emergency-referred");
   });
 });

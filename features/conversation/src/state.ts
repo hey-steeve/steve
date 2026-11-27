@@ -48,7 +48,7 @@ function isTurnChannel(value: unknown): value is TurnChannel {
 }
 
 export function isTerminalPhase(phase: ConversationPhase): boolean {
-  return phase === "emergency-referred" || phase === "ended";
+  return phase === "ended";
 }
 
 export function greetingForChannel(_channel: TurnChannel): string {
@@ -154,9 +154,13 @@ export function recordAssistantReply(
   if (isTerminalPhase(state.phase)) {
     return state;
   }
+  const resolvedPhase: ConversationPhase =
+    state.phase === "emergency-referred"
+      ? "emergency-referred"
+      : (nextPhase ?? state.phase);
   return {
     ...state,
-    phase: nextPhase ?? state.phase,
+    phase: resolvedPhase,
     messages: appendBoundedMessage(state.messages, {
       role: "assistant",
       turnId,
@@ -169,7 +173,11 @@ export function recordHandoff(
   state: ConversationState,
   handoff: Handoff,
 ): ConversationState {
-  if (isTerminalPhase(state.phase) || handoff.sessionId !== state.sessionId) {
+  if (
+    isTerminalPhase(state.phase) ||
+    state.phase === "emergency-referred" ||
+    handoff.sessionId !== state.sessionId
+  ) {
     return state;
   }
   return {
