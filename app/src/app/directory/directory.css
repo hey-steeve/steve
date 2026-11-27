@@ -1,0 +1,164 @@
+.directory-page {
+  max-width: 40rem;
+  padding: max(12px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(32px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  background: var(--color-page);
+  line-height: 1.4;
+}
+
+.directory-header h1 {
+  margin-top: 8px;
+  font-size: 1.75rem;
+  line-height: 1.15;
+}
+
+.directory-header p,
+.directory-fields span,
+.directory-results-header p {
+  color: var(--color-caption);
+  font-size: 0.875rem;
+}
+
+.directory-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo-100);
+  color: var(--color-heading);
+  text-decoration: none;
+}
+
+.directory-page :is(a, button, input, select) {
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.directory-page :is(a, input, select):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.directory-panel,
+.directory-card,
+.directory-empty {
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: max(20px, var(--radius-lg));
+  background: var(--color-canvas);
+  box-shadow: var(--shadow-faint);
+}
+
+.directory-panel,
+.directory-fields,
+.directory-list {
+  display: grid;
+  gap: 12px;
+}
+
+.directory-panel fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.directory-panel :is(legend, label) {
+  padding: 0;
+  color: var(--color-heading);
+}
+
+.directory-panel :is(input, select) {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-indigo-100);
+  border-radius: var(--radius-md);
+  background: var(--color-indigo-50);
+  color: var(--color-heading);
+  font: inherit;
+}
+
+.directory-pills,
+.directory-results-header,
+.directory-card-header,
+.directory-card-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+}
+
+.directory-pills {
+  margin-top: 8px;
+}
+
+.directory-pills button {
+  border-radius: 999px;
+  box-shadow: none;
+  font-size: 0.875rem;
+}
+
+.directory-panel [role="alert"] {
+  border-inline-start: 3px solid var(--color-danger);
+  padding-inline-start: 10px;
+}
+
+.directory-panel [aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.directory-panel,
+.directory-results {
+  margin-top: 24px;
+}
+
+.directory-page :is(h2, h3) {
+  margin: 0;
+  color: var(--color-heading);
+  font-weight: var(--font-weight-heading);
+}
+
+.directory-results h2 {
+  font-size: 1.25rem;
+}
+
+.directory-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.directory-card h3 {
+  font-size: 1.0625rem;
+}
+
+.directory-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-indigo-50);
+  color: var(--color-heading);
+  font-size: 0.8125rem;
+}
+
+.directory-results-header,
+.directory-card-header,
+.directory-card-details {
+  justify-content: space-between;
+}
+
+.directory-empty,
+.directory-empty button {
+  margin-top: 10px;
+}
+
+@media (min-width: 30rem) {
+  .directory-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
