@@ -715,8 +715,8 @@ export default function ChatPage(props: {
                   className="chat-hero-mascot"
                   src={heroSrc}
                   alt=""
-                  width={1137}
-                  height={840}
+                  width={512}
+                  height={512}
                 />
               </div>
               {empty ? (
@@ -826,7 +826,7 @@ export default function ChatPage(props: {
             </ol>
           )}
         </div>
-        {empty ? <AppTabBar current="/chat" onCall={startCall} /> : null}
+        {empty ? <AppTabBar current="/chat" floating onCall={startCall} /> : null}
         {unseenReply ? (
           <div className="chat-new-message-row">
             <button

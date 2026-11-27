@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { afterEach, expect, it } from "vitest";
-import { headerAvatarSrc, heroSrc, replyAvatarSrc, steveFace } from "./chat/faces.js";
+import { headerAvatarSrc, heroSrc, profileHeroSrc, replyAvatarSrc, steveFace } from "./chat/faces.js";
 import { mascotWebps, syncMascotWebps } from "./sync-mascot-webps.js";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -115,12 +115,12 @@ it("writes the webps the chat UI names, and only those", async () => {
   );
   await syncMascotWebps({ publicDir, sourceRoot });
 
-  const used = [heroSrc, headerAvatarSrc, replyAvatarSrc, ...Object.values(steveFace)].map(
+  const used = [heroSrc, profileHeroSrc, headerAvatarSrc, replyAvatarSrc, ...Object.values(steveFace)].map(
     fileName,
   );
   expect(mascotWebps.map((item) => item.file).sort()).toEqual([...new Set(used)].sort());
   expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
-  expect(existsSync(path.join(destDir, "hello.webp"))).toBe(false);
+  expect(existsSync(path.join(destDir, "celebrate.webp"))).toBe(false);
   expect(existsSync(path.join(destDir, "pfp-indigo.webp"))).toBe(false);
   expect(readdirSync(publicDir).some((name) => name.startsWith("mascot.tmp-"))).toBe(false);
   expect(publicDir.startsWith(path.join(appDir, "public"))).toBe(false);
@@ -169,7 +169,7 @@ it("keeps another run's fresh staging directory and the published folder", async
   expect(statSync(destDir).ino).toBe(folder);
   expect(readFileSync(path.join(fresh, "marker.txt"), "utf8")).toBe("keep");
   expect(existsSync(stale)).toBe(false);
-  expect(existsSync(path.join(destDir, "hello.webp"))).toBe(false);
+  expect(existsSync(path.join(destDir, "celebrate.webp"))).toBe(false);
   expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
 });
 

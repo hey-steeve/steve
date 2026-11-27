@@ -22,6 +22,12 @@ export const mascotWebps = [
   },
   { file: "bubbles.webp", source: "body/bubbles.png", lossless: true },
   {
+    file: "hello.webp",
+    source: "body/hello.png",
+    width: 512,
+    height: 512,
+  },
+  {
     file: "state-calling.webp",
     source: "states/calling.png",
     width: 256,
