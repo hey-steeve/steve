@@ -654,7 +654,7 @@ export default function ChatPage(props: {
           )}
           {empty ? null : (
             <div className="chat-title">
-              <img src={headerAvatarSrc} alt="" width={40} height={40} />
+              <img src={headerAvatarSrc} alt="" width={36} height={36} />
               <h1>Steve</h1>
             </div>
           )}
