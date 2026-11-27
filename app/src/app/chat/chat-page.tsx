@@ -1,12 +1,14 @@
 "use client";
 
 import type { EmergencyCalls } from "@steve/triage";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { composerControl, type ComposerControl } from "../../chat/composer-control";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar";
 import { parseDirectoryFilters, type DirectoryFilters } from "../../chat/directory-query";
 import type { ExchangeKind } from "../../chat/exchange";
-import { headerAvatarSrc, heroSrc, replyAvatarSrc } from "../../chat/faces";
+import { headerAvatarSrc, heroSrc, replyAvatarSrc, steveFace } from "../../chat/faces";
+import { featureNavItems } from "../feature-shell";
 import { homeGreeting } from "../../chat/home-greeting";
 import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
@@ -751,6 +753,15 @@ export default function ChatPage(props: {
                     </span>
                     <span className="chat-call-cta-arrow" aria-hidden="true">›</span>
                   </button>
+                  <nav className="chat-home-nav" aria-label="Espaces Steve">
+                    {featureNavItems
+                      .filter(({ href }) => href !== "/chat")
+                      .map(({ href, label }) => (
+                        <Link key={href} href={href} className="chat-home-nav-link">
+                          {label}
+                        </Link>
+                      ))}
+                  </nav>
                   <p className="chat-disclaimer chat-home-disclaimer">
                     Steve n’est pas médecin et ne pose pas de diagnostic.
                   </p>
@@ -769,7 +780,7 @@ export default function ChatPage(props: {
                 ) : message.role === "error" ? (
                   <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
-                    <div className="chat-error">
+                    <div className={message.calls !== undefined && message.calls.length > 0 ? "chat-error chat-urgent-card" : "chat-error"}>
                       <span role="alert">{message.content}</span>
                       <EmergencyCallActions calls={message.calls} />
                     </div>
@@ -796,7 +807,7 @@ export default function ChatPage(props: {
                 ) : (
                   <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
-                    <div className="chat-agent">
+                    <div className={message.calls !== undefined && message.calls.length > 0 ? "chat-agent chat-urgent-card" : "chat-agent"}>
                       {message.content === "" ? null : (
                         <div className="chat-agent-text">
                           {message.forcedSentences === undefined ? (
@@ -852,6 +863,13 @@ export default function ChatPage(props: {
           <div className="chat-dock chat-dock-enter">
             {ended ? (
               <section className="chat-ended" aria-labelledby="chat-ended-title">
+                <img
+                  className="chat-ended-mascot"
+                  src={steveFace.done}
+                  alt=""
+                  width={84}
+                  height={84}
+                />
                 <h2 id="chat-ended-title">Conversation terminée</h2>
                 <button ref={newConversationRef} type="button" onClick={leaveToHome}>
                   Nouvelle conversation
