@@ -5,6 +5,28 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import InboxPage from "./page.js";
 
+const sendControl = vi.hoisted(() => ({ failNext: false }));
+
+vi.mock("@steve/inbox", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@steve/inbox")>();
+  return {
+    ...actual,
+    createInbox: (...args: Parameters<typeof actual.createInbox>) => {
+      const inbox = actual.createInbox(...args);
+      return {
+        ingestMessage: (message: unknown) => inbox.ingestMessage(message),
+        sendDocument: (request: unknown) => {
+          if (sendControl.failNext) {
+            sendControl.failNext = false;
+            return Promise.reject(new Error("gateway down"));
+          }
+          return inbox.sendDocument(request);
+        },
+      };
+    },
+  };
+});
+
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
 const roots: Root[] = [];
@@ -155,4 +177,25 @@ it("clears the consent when the send form is closed or the recipient changes", a
     recipient.dispatchEvent(new Event("input", { bubbles: true }));
   });
   expect(consentBox().checked).toBe(false);
+});
+
+it("shows an error and re-enables the form when the send throws", async () => {
+  const container = await mount();
+  await act(async () => {
+    buttonWithText(container, "Envoyer un document").click();
+  });
+  const consent = container.querySelector('input[type="checkbox"]');
+  if (!(consent instanceof HTMLInputElement)) throw new Error("Missing consent checkbox");
+  await act(async () => {
+    consent.click();
+  });
+  sendControl.failNext = true;
+  await act(async () => {
+    buttonWithText(container, "Confirmer l’envoi").click();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    "Impossible d’envoyer ce document pour le moment",
+  );
+  expect(buttonWithText(container, "Confirmer l’envoi").disabled).toBe(false);
 });
