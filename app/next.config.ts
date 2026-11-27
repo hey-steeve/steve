@@ -14,7 +14,7 @@ export default async function nextConfig(): Promise<NextConfig> {
   await syncMascotWebps();
   return {
     reactStrictMode: true,
-    transpilePackages: ["@steve/profile", "@steve/shared", "@steve/triage", "@steve/voice"],
+    transpilePackages: ["@steve/directory", "@steve/profile", "@steve/shared", "@steve/triage", "@steve/voice"],
     outputFileTracingRoot: root,
     allowedDevOrigins: devOrigins,
     agentRules: false,
