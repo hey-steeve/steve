@@ -157,32 +157,6 @@
   margin-top: 10px;
 }
 
-.directory-card-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.directory-book {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: var(--color-canvas);
-  font-size: 0.875rem;
-  font-weight: var(--font-weight-heading);
-  text-decoration: none;
-}
-
-.directory-book:hover {
-  background: var(--color-indigo-700);
-}
-
 @media (min-width: 30rem) {
   .directory-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
