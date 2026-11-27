@@ -21,14 +21,6 @@ import "./booking.css";
 
 type BookingPhase = "confirmed" | "calling" | "not-confirmed";
 
-const attemptStatusLabel: Record<string, string> = {
-  confirmed: "Créneau confirmé",
-  refused: "Refusé",
-  unavailable: "Indisponible",
-  "invalid-response": "Réponse invalide",
-  "caller-error": "Erreur d’appel",
-};
-
 const requestedWindow = {
   startsAt: "2026-12-02T09:00:00+01:00",
   endsAt: "2026-12-02T17:00:00+01:00",
@@ -290,16 +282,6 @@ export default function BookingClient(props: {
           <p className="steve-detail-secondary">
             Steve a appelé au plus 2 cabinets sans obtenir de créneau disponible. Rien n’a été ajouté à ton agenda.
           </p>
-          <ul className="booking-attempt-list">
-            {result.attempts.map((attempt, index) => (
-              <li key={`${attempt.practitioner.practitionerId}-${index}`} className="booking-attempt-item">
-                <span>{attempt.practitioner.displayName}</span>
-                <span className="steve-detail-secondary">
-                  {attemptStatusLabel[attempt.kind] ?? attempt.kind}
-                </span>
-              </li>
-            ))}
-          </ul>
           <p className="steve-demo-note">Données de démonstration</p>
         </section>
       )}

@@ -57,25 +57,6 @@
   border-radius: 50%;
 }
 
-.booking-attempt-list {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.booking-attempt-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  background: var(--color-indigo-50);
-  font-size: 14px;
-}
-
 @keyframes booking-spin {
   to {
     transform: rotate(360deg);
