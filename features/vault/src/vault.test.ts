@@ -42,6 +42,8 @@ function storedDocument(
     mimeType: "text/markdown",
     sizeBytes: encoder.encode(text).byteLength,
     content: encoder.encode(text),
+    extractedText: text,
+    contentDigest: "4f25a2321409a076fa7de1a34bfb5bcbfdaec7e19266ca4778d326cd538461b0",
     metadata: {
       title: "Consultation note",
       source: "synthetic fixture",
@@ -96,6 +98,8 @@ describe("Vault document lifecycle", () => {
         mimeType: "text/markdown",
         sizeBytes: encoder.encode(text).byteLength,
         content: encoder.encode(text),
+        extractedText: text,
+        contentDigest: "4f25a2321409a076fa7de1a34bfb5bcbfdaec7e19266ca4778d326cd538461b0",
         metadata: {
           title: "Consultation note",
           source: "synthetic fixture",
@@ -223,6 +227,8 @@ describe("Vault document lifecycle", () => {
     const storage: DocumentStorage = {
       create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => null),
+      list: vi.fn(async () => []),
+      delete: vi.fn(async () => "not-found" as const),
     };
     const service = createVault(dependencies({ storage }));
 
@@ -352,6 +358,8 @@ describe("dependency failures", () => {
     const storage: DocumentStorage = {
       create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => hostileRecord),
+      list: vi.fn(async () => []),
+      delete: vi.fn(async () => "not-found" as const),
     };
     const service = createVault(dependencies({ storage }));
 
@@ -387,6 +395,8 @@ describe("dependency failures", () => {
     const storage: DocumentStorage = {
       create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => record),
+      list: vi.fn(async () => []),
+      delete: vi.fn(async () => "not-found" as const),
     };
     const service = createVault(dependencies({ storage }));
 
@@ -403,6 +413,8 @@ describe("dependency failures", () => {
     const storage: DocumentStorage = {
       create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => storedDocument({ id: "doc_other" })),
+      list: vi.fn(async () => []),
+      delete: vi.fn(async () => "not-found" as const),
     };
     const service = createVault(dependencies({ storage }));
 
@@ -424,6 +436,12 @@ describe("dependency failures", () => {
       }),
       get: vi.fn(async () => {
         throw new Error(`database returned ${text}`);
+      }),
+      list: vi.fn(async () => {
+        throw new Error(`database listed ${text}`);
+      }),
+      delete: vi.fn(async () => {
+        throw new Error(`database deleted ${text}`);
       }),
     };
     const service = createVault(dependencies({ storage }));
@@ -450,12 +468,16 @@ describe("dependency failures", () => {
       mimeType: "text/plain",
       sizeBytes: 999,
       content: encoder.encode("short"),
+      extractedText: "short",
+      contentDigest: "f9b0078b5df596d2ea19010c001bbd009e651de2c57e8fb7e355f31eb9d3f739",
       metadata: {},
       storedAt: "not-a-date",
     };
     const storage: DocumentStorage = {
       create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => malformed),
+      list: vi.fn(async () => []),
+      delete: vi.fn(async () => "not-found" as const),
     };
     const service = createVault(dependencies({ storage }));
 
@@ -474,6 +496,8 @@ describe("dependency failures", () => {
     const validStorage: DocumentStorage = {
       create: vi.fn(async () => "created" as const),
       get: vi.fn(async () => null),
+      list: vi.fn(async () => []),
+      delete: vi.fn(async () => "not-found" as const),
     };
     const storage = new Proxy(validStorage, {
       get(target, property, receiver) {
