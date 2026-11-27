@@ -1,4 +1,25 @@
+import {
+  copyPractitioner,
+  copyRequest,
+  copyValidCandidate,
+  copyValidRequest,
+  copyWindow,
+  isNonEmptyString,
+  isRecord,
+  isValidWindow,
+} from "./validation.ts";
+
 const MAX_ATTEMPTS = 2;
+
+export {
+  MAX_SCRIPTED_HISTORY_ENTRIES,
+  MAX_SCRIPTED_PRACTITIONERS,
+  MAX_SCRIPTED_STEPS_PER_PRACTITIONER,
+  ScriptedPracticeCaller,
+  type ScriptedPracticeCallerOptions,
+  type ScriptedPracticeScenario,
+  type ScriptedPracticeStep,
+} from "./scripted-practice-caller.ts";
 
 export interface AppointmentWindow {
   readonly startsAt: string;
@@ -123,33 +144,6 @@ export async function bookAppointment(
   };
 }
 
-function copyValidRequest(request: AppointmentRequest): AppointmentRequest {
-  if (!isRecord(request) || !isNonEmptyString(request.requestId)) {
-    throw new TypeError("Invalid appointment request");
-  }
-
-  if (!isValidWindow(request.requestedWindow)) {
-    throw new TypeError("Invalid requested appointment window");
-  }
-
-  return {
-    requestId: request.requestId,
-    requestedWindow: copyWindow(request.requestedWindow),
-  };
-}
-
-function copyValidCandidate(candidate: PractitionerCandidate): PractitionerCandidate {
-  if (
-    !isRecord(candidate) ||
-    !isNonEmptyString(candidate.practitionerId) ||
-    !isNonEmptyString(candidate.displayName)
-  ) {
-    throw new TypeError("Invalid practitioner candidate");
-  }
-
-  return copyPractitioner(candidate);
-}
-
 function toBookingAttempt(
   response: unknown,
   practitioner: PractitionerCandidate,
@@ -185,55 +179,6 @@ function invalidResponseAttempt(practitioner: PractitionerCandidate): BookingAtt
   return {
     kind: "invalid-response",
     practitioner: copyPractitioner(practitioner),
-  };
-}
-
-function isValidWindow(value: unknown): value is AppointmentWindow {
-  if (
-    !isRecord(value) ||
-    !isTimestampWithTimezone(value["startsAt"]) ||
-    !isTimestampWithTimezone(value["endsAt"])
-  ) {
-    return false;
-  }
-
-  return Date.parse(value["startsAt"]) < Date.parse(value["endsAt"]);
-}
-
-function isTimestampWithTimezone(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    /(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
-    Number.isFinite(Date.parse(value))
-  );
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function copyRequest(request: AppointmentRequest): AppointmentRequest {
-  return {
-    requestId: request.requestId,
-    requestedWindow: copyWindow(request.requestedWindow),
-  };
-}
-
-function copyPractitioner(practitioner: PractitionerCandidate): PractitionerCandidate {
-  return {
-    practitionerId: practitioner.practitionerId,
-    displayName: practitioner.displayName,
-  };
-}
-
-function copyWindow(window: AppointmentWindow): AppointmentWindow {
-  return {
-    startsAt: window.startsAt,
-    endsAt: window.endsAt,
   };
 }
 
