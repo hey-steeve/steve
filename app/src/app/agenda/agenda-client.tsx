@@ -237,7 +237,7 @@ export default function AgendaClient() {
               <h2 id="agenda-next-title" className="steve-card-title">
                 Prochain rendez-vous
               </h2>
-              <span className="steve-pill">
+              <span className="steve-pill steve-pill-success">
                 <CheckIcon />
                 Confirmé
               </span>

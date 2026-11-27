@@ -277,7 +277,7 @@ export default function BookingClient(props: {
           </section>
 
           <section className="steve-card" aria-labelledby="booking-confirmed-heading">
-            <span id="booking-confirmed-heading" className="steve-pill">
+            <span id="booking-confirmed-heading" className="steve-pill steve-pill-success">
               Rendez-vous confirmé
             </span>
             <ul className="steve-detail-list">

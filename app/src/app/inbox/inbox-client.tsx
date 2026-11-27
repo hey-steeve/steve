@@ -291,7 +291,7 @@ export default function InboxClient() {
                         ? "Confirmation de rendez-vous"
                         : "Document du cabinet"}
                     </span>
-                    <span className="steve-pill">
+                    <span className={isConfirmation ? "steve-pill steve-pill-warning" : "steve-pill"}>
                       {isConfirmation ? "À vérifier" : "Document reçu"}
                     </span>
                   </span>

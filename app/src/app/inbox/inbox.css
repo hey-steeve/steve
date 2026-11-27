@@ -5,7 +5,7 @@
   min-height: 54px;
   padding: 6px 8px 6px 14px;
   border-radius: var(--steve-radius-row);
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
   color: var(--color-heading);
 }
 
@@ -32,7 +32,7 @@
 }
 
 .inbox-copy-btn:hover {
-  background: var(--color-indigo-100);
+  background: var(--neutral-100);
 }
 
 .inbox-item-copy {
@@ -54,7 +54,7 @@
   gap: 8px;
   padding: 14px;
   border-radius: var(--radius-lg);
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
   font-size: 14px;
 }
 

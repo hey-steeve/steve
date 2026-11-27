@@ -200,7 +200,7 @@ export default function RemindersClient() {
     >
       <section className="steve-card" aria-labelledby="reminder-card-title">
         <div className="reminders-pill-row">
-          <span className="steve-pill">
+          <span className={activeReminder.status === "scheduled" ? "steve-pill steve-pill-success" : "steve-pill"}>
             {activeReminder.status === "scheduled"
               ? "Planifié"
               : activeReminder.status === "cancelled"

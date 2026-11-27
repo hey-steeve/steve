@@ -27,7 +27,7 @@
   gap: 8px;
   padding-inline: 12px;
   border-radius: var(--radius-md);
-  background: var(--color-indigo-100);
+  background: var(--neutral-100);
   color: var(--color-heading);
   text-decoration: none;
 }
@@ -77,9 +77,9 @@
   width: 100%;
   margin-top: 4px;
   padding: 8px 12px;
-  border: 1px solid var(--color-indigo-100);
+  border: 1px solid var(--neutral-100);
   border-radius: var(--radius-md);
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
   color: var(--color-heading);
   font: inherit;
 }
@@ -141,7 +141,7 @@
 .directory-badge {
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
   color: var(--color-heading);
   font-size: 0.8125rem;
 }
