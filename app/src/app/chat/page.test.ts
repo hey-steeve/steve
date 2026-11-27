@@ -84,7 +84,7 @@ it("renders the home greeting", async () => {
   expect(view.container.querySelector(".chat-home-mark")).toBeNull();
 });
 
-it("shows the cleaned bubbles pose resting on the home card", () => {
+it("shows the same bubbles pose as the profile, resting on the home card", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
   const host = document.createElement("div");
   host.innerHTML = html;
@@ -92,9 +92,9 @@ it("shows the cleaned bubbles pose resting on the home card", () => {
   if (!(img instanceof HTMLImageElement)) {
     throw new Error("missing home hero");
   }
-  expect(img.getAttribute("src")).toBe("/mascot/bubbles-home.webp");
-  expect(img.getAttribute("width")).toBe("682");
-  expect(img.getAttribute("height")).toBe("504");
+  expect(img.getAttribute("src")).toBe("/mascot/bubbles.webp");
+  expect(img.getAttribute("width")).toBe("1137");
+  expect(img.getAttribute("height")).toBe("840");
   const heroStart = chatCss.indexOf(".chat-hero-mascot {");
   const heroEnd = chatCss.indexOf("}", heroStart);
   if (heroStart < 0 || heroEnd < 0) {
@@ -143,8 +143,8 @@ it("anchors the mascot beside the greeting, behind the home cards", () => {
     right: hero.includes("right: -14px;"),
     below: hero.includes("z-index: 1;"),
   }).toEqual({
-    width: "682",
-    height: "504",
+    width: "1137",
+    height: "840",
     aspect: true,
     absolute: true,
     right: true,
