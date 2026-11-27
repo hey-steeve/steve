@@ -130,6 +130,25 @@
   cursor: pointer;
 }
 
+.chat-directory-book {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hit-min);
+  margin: 0 var(--space-3) var(--space-3);
+  padding: 0 var(--card-pad);
+  border-radius: var(--radius-pill);
+  background: var(--color-indigo-50);
+  color: var(--color-indigo-700);
+  font-size: 14px;
+  font-weight: var(--font-weight-heading);
+  text-decoration: none;
+}
+
+.chat-directory-book:hover {
+  background: var(--color-indigo-100);
+}
+
 .chat-directory-source {
   color: var(--color-caption);
   font-size: var(--caption);

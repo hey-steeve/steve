@@ -1,4 +1,5 @@
 import type { Practitioner } from "@steve/shared";
+import Link from "next/link";
 import { sectorLabels, type DirectoryFilters } from "../../chat/directory-query";
 
 type SearchActivity = "searching" | "done" | "failed";
@@ -60,6 +61,12 @@ export function DirectoryWidget({ filters, practitioners, demo, onRefine }: {
                   </summary>
                   <p>{[address.line, `${address.postalCode} ${address.city}`].filter(Boolean).join(", ")}</p>
                   {!demo && phone && <p>{phone}</p>}
+                  <Link
+                    className="chat-directory-book"
+                    href={`/booking?practitioner=${encodeURIComponent(rpps)}`}
+                  >
+                    Prendre rendez-vous
+                  </Link>
                 </details>
               </li>
             ))}
