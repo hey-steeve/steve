@@ -12,6 +12,7 @@ export const featureNavItems = [
   { href: "/agenda", label: "Agenda" },
   { href: "/profile", label: "Mon profil" },
   { href: "/vault", label: "Documents" },
+  { href: "/reminders", label: "Rappels" },
 ] as const;
 
 export type FeatureRoute = (typeof featureNavItems)[number]["href"];
