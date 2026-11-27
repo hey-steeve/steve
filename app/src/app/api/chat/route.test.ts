@@ -1416,6 +1416,76 @@ it("keeps emergency call actions when a message also matches a directory search"
   expect(await response.json()).toMatchObject({ calls: [{ type: "call", number: "15" }] });
 });
 
+const directoryAfterEmergency = {
+  messages: [
+    { role: "user", content: "J’ai une forte douleur dans la poitrine." },
+    { role: "assistant", content: call15Now },
+    { role: "user", content: "Trouve-moi un cardiologue près du 75011." },
+  ],
+};
+
+it.each([
+  { reason: "timeout", jev: () => { throw new DOMException("Timed out", "TimeoutError"); } },
+  { reason: "http", jev: () => new Response(null, { status: 503 }) },
+  { reason: "network", jev: () => { throw new TypeError("network down"); } },
+  { reason: "malformed", jev: () => Response.json({ answers: {} }) },
+  { reason: "missing-key", jev: undefined },
+])("keeps the emergency history on a directory turn after Jev $reason", async ({ reason, jev }) => {
+  const fetchMock = triageFetch(jev ?? (() => { throw new Error("unexpected Jev call"); }), call15Now);
+  if (jev === undefined) vi.stubEnv("JEV_API_KEY", "");
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await post(directoryAfterEmergency);
+
+  expect(await response.json()).toEqual({
+    reply: call15Now,
+    mocked: false,
+    model: "openai/gpt-6.1-terra",
+  });
+  expect(providerMessages(fetchMock)).toEqual([
+    { role: "system", content: systemPrompt },
+    ...directoryAfterEmergency.messages,
+  ]);
+  expect(readTriageLog()).toEqual([{ cause: "no-triage", reason }]);
+});
+
+it("keeps the existing chat fallback when live mode lacks an OpenRouter key", async () => {
+  armLive();
+  vi.stubEnv("OPENROUTER_API_KEY", "");
+  const response = await post(directoryAfterEmergency);
+  expect(await response.json()).toMatchObject({ model: "mock", mocked: true });
+});
+
+it.each(["consult", "self-care"] as const)("returns directory filters after live triage classifies %s", async (label) => {
+  const fetchMock = triageFetch(() => Response.json(jevBody(label, 0.95, "none")));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await post({
+    messages: [{ role: "user", content: "Trouve-moi un dermatologue près du 75011." }],
+  });
+
+  expect(await response.json()).toEqual({
+    directory: { specialty: "Dermatologie et vénéréologie", postalCode: "75011" },
+  });
+  expect(jevFetchCall(fetchMock)).toBeDefined();
+  expect(openRouterCall(fetchMock)).toBeUndefined();
+});
+
+it("lets the model ask for clarification when live triage needs more information", async () => {
+  const clarification = "Depuis quand ressens-tu cette douleur ?";
+  const fetchMock = triageFetch(() => Response.json(jevBody("need-info", 0.95, "none")), clarification);
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await post(directoryAfterEmergency);
+
+  expect(await response.json()).toEqual({
+    reply: clarification,
+    mocked: false,
+    model: "openai/gpt-6.1-terra",
+  });
+  expect(providerMessages(fetchMock).slice(-3)).toEqual(directoryAfterEmergency.messages);
+});
+
 function post(body: unknown): Promise<Response> {
   return POST(
     new Request("http://localhost/api/chat", {
