@@ -7,3 +7,13 @@ export type {
   Turn,
   TurnChannel,
 } from "./conversation.ts";
+export { conventionnements, directorySources } from "./directory.ts";
+export type {
+  Conventionnement,
+  DirectoryQuery,
+  DirectorySearchResult,
+  DirectorySource,
+  GeoPoint,
+  Practitioner,
+  PractitionerAddress,
+} from "./directory.ts";
