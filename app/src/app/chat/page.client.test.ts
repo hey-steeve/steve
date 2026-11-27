@@ -283,7 +283,13 @@ it("keeps the transcript after finishing and clears it for the next conversation
     200,
   );
 
-  await act(async () => buttonWithText(container, "Terminer la conversation").click());
+  const finish = container.querySelector('header button[aria-label="Terminer la conversation"]');
+  if (!(finish instanceof HTMLButtonElement)) {
+    throw new Error("Missing finish action in the chat header");
+  }
+  expect(container.querySelector('.chat-dock button[aria-label="Terminer la conversation"]')).toBeNull();
+
+  await act(async () => finish.click());
 
   expect(container.querySelector(".chat-thread")?.textContent).toContain("Voici ma réponse.");
   expect(container.querySelector("textarea")).toBeNull();

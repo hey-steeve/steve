@@ -661,15 +661,29 @@ export default function ChatPage(props: {
           {empty ? null : (
             <span className="chat-header-spacer">
               {callOpen || ended ? null : (
-                <button
-                  type="button"
-                  className="chat-thread-call"
-                  aria-label="Appeler Steve"
-                  title="Appeler Steve"
-                  onClick={startCall}
-                >
-                  <PhoneIcon />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="chat-thread-call"
+                    aria-label="Appeler Steve"
+                    title="Appeler Steve"
+                    onClick={startCall}
+                  >
+                    <PhoneIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="chat-finish"
+                    aria-label="Terminer la conversation"
+                    title="Terminer la conversation"
+                    disabled={exchange === "awaiting"}
+                    onClick={finishConversation}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M11 4H5v16h6m-1-8h10m-4-4 4 4-4 4" />
+                    </svg>
+                  </button>
+                </>
               )}
             </span>
           )}
@@ -843,21 +857,7 @@ export default function ChatPage(props: {
                   Nouvelle conversation
                 </button>
               </section>
-            ) : (
-              <>
-                {composer}
-                {callOpen ? null : (
-                  <button
-                    className="chat-finish"
-                    type="button"
-                    disabled={exchange === "awaiting"}
-                    onClick={finishConversation}
-                  >
-                    Terminer la conversation
-                  </button>
-                )}
-              </>
-            )}
+            ) : composer}
             {footnote}
           </div>
         )}
