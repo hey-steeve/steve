@@ -10,6 +10,7 @@ import {
   type MailGatewayResponse,
   type SendDocumentRequest,
 } from "./contracts.ts";
+import type { ScriptedInboundClassificationStep } from "./scripted-classifier.ts";
 
 const timestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|[+-](?:0\d|1\d|2[0-3]):[0-5]\d)$/;
 const emailPattern = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
@@ -43,6 +44,10 @@ function isIdentifier(value: unknown, maximum: number): value is string {
     !containsHeaderControl(value) &&
     identifierPattern.test(value)
   );
+}
+
+export function isProviderMessageId(value: unknown): value is string {
+  return isIdentifier(value, inboxLimits.providerMessageIdCharacters);
 }
 
 export function isEmailAddress(value: unknown): value is string {
@@ -191,7 +196,7 @@ export function parseNormalizedMessage(value: unknown): NormalizedInboundMessage
   const attachments = parseAttachments(value["attachments"]);
 
   if (
-    !isIdentifier(providerMessageId, inboxLimits.providerMessageIdCharacters) ||
+    !isProviderMessageId(providerMessageId) ||
     !isEmailAddress(from) ||
     !isEmailAddress(to) ||
     !isHeaderText(subject, inboxLimits.subjectCharacters) ||
@@ -347,6 +352,17 @@ function parseReportClassification(
   value: Record<string, unknown>,
   message: NormalizedInboundMessage,
 ): ReportClassification | undefined {
+  const report = parseReportStep(value);
+  if (report === undefined) {
+    return undefined;
+  }
+  const availableIds = new Set(message.attachments.map((attachment) => attachment.id));
+  return report.attachmentIds.every((id) => availableIds.has(id)) ? report : undefined;
+}
+
+function parseReportStep(
+  value: Record<string, unknown>,
+): ReportClassification | undefined {
   if (!hasOnlyKeys(value, ["type", "attachmentIds"])) {
     return undefined;
   }
@@ -354,13 +370,11 @@ function parseReportClassification(
   if (rawIds === undefined || rawIds.length === 0 || rawIds.length > inboxLimits.attachmentCount) {
     return undefined;
   }
-  const availableIds = new Set(message.attachments.map((attachment) => attachment.id));
   const attachmentIds: string[] = [];
   const seenIds = new Set<string>();
   for (const rawId of rawIds) {
     if (
       !isIdentifier(rawId, inboxLimits.attachmentIdCharacters) ||
-      !availableIds.has(rawId) ||
       seenIds.has(rawId)
     ) {
       return undefined;
@@ -369,6 +383,28 @@ function parseReportClassification(
     attachmentIds.push(rawId);
   }
   return { type: "report", attachmentIds };
+}
+
+export function parseScriptedClassificationStep(
+  value: unknown,
+): ScriptedInboundClassificationStep | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const type = value["type"];
+  if (type === "appointment-confirmation") {
+    return parseAppointmentClassification(value);
+  }
+  if (type === "report") {
+    return parseReportStep(value);
+  }
+  if (type === "unsupported" && hasOnlyKeys(value, ["type"])) {
+    return { type: "unsupported" };
+  }
+  if (type === "failure" && hasOnlyKeys(value, ["type"])) {
+    return { type: "failure" };
+  }
+  return undefined;
 }
 
 export function parseClassification(
