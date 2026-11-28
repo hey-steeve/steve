@@ -16,7 +16,7 @@ export const defaultTuning: VoiceTuning = {
   transport: "json",
 };
 
-export const defaultKeyterms: readonly string[] = ["Steve", "SAMU", "3114"];
+export const defaultKeyterms: readonly string[] = ["Stevie", "SAMU", "3114"];
 
 export const defaultInstructions = voiceInstructions;
 

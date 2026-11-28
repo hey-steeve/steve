@@ -114,5 +114,5 @@ export const homeAccountLinks = [
   { href: "/profile", label: "Mon profil", detail: "Identité, antécédents, préférences" },
   { href: "/vault", label: "Mes documents", detail: "Ordonnances, comptes rendus" },
   { href: "/reminders", label: "Mes rappels", detail: "SMS et appels" },
-  { href: "/inbox", label: "Messagerie", detail: "Ton adresse Steve" },
+  { href: "/inbox", label: "Messagerie", detail: "Ton adresse Stevie" },
 ] as const;

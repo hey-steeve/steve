@@ -144,7 +144,7 @@ async function completeWithOpenRouter(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "X-Title": "Steve",
+        "X-Title": "Stevie",
       },
       body: JSON.stringify({
         model,

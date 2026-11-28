@@ -15,7 +15,7 @@ export const MAX_CONVERSATION_TURNS = 64 as const;
 export const MAX_TURN_TEXT_CHARS = 4000 as const;
 
 export const DEFAULT_GREETING =
-  "Bonjour, je suis Steve. Comment puis-je t'aider aujourd'hui ?" as const;
+  "Bonjour, je suis Stevie. Comment puis-je t'aider aujourd'hui ?" as const;
 
 export type ConversationMessage = {
   readonly role: "patient" | "assistant";

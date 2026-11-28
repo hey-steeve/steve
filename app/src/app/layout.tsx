@@ -12,7 +12,7 @@ const alanSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Steve",
+  title: "Stevie",
   icons: {
     icon: [
       { url: "/app-icons/favicon-16.png", sizes: "16x16", type: "image/png" },

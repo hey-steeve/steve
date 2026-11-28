@@ -63,10 +63,10 @@ function buttonWithText(container: ParentNode, text: string): HTMLButtonElement 
   return found;
 }
 
-it("renders the Steve address and ingested inbox items with status badges", async () => {
+it("renders the Stevie address and ingested inbox items with status badges", async () => {
   const container = await mount();
   expect(container.querySelector("h1")?.textContent).toBe("Ma messagerie");
-  expect(container.textContent).toContain("Ton adresse Steve");
+  expect(container.textContent).toContain("Ton adresse Stevie");
   expect(container.textContent).toContain("peter@steve.example");
   expect(container.textContent).toContain("Confirmation de rendez-vous");
   expect(container.textContent).toContain("À vérifier");
@@ -74,11 +74,11 @@ it("renders the Steve address and ingested inbox items with status badges", asyn
   expect(container.textContent).toContain("Document reçu");
 });
 
-it("copies the Steve email address and inspects received item details", async () => {
+it("copies the Stevie email address and inspects received item details", async () => {
   const writeText = vi.fn(() => Promise.resolve());
   vi.stubGlobal("navigator", { clipboard: { writeText } });
   const container = await mount();
-  const copy = container.querySelector('button[aria-label="Copier l’adresse Steve"]');
+  const copy = container.querySelector('button[aria-label="Copier l’adresse Stevie"]');
   if (!(copy instanceof HTMLButtonElement)) throw new Error("Missing copy button");
   await act(async () => {
     copy.click();
@@ -133,7 +133,7 @@ it("sends an authorized document through @steve/inbox", async () => {
 it("does not claim the address was copied when the clipboard is unavailable", async () => {
   vi.stubGlobal("navigator", {});
   const container = await mount();
-  const copy = container.querySelector('button[aria-label="Copier l’adresse Steve"]');
+  const copy = container.querySelector('button[aria-label="Copier l’adresse Stevie"]');
   if (!(copy instanceof HTMLButtonElement)) throw new Error("Missing copy button");
   await act(async () => {
     copy.click();

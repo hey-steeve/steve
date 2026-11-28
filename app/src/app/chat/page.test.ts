@@ -14,6 +14,7 @@ import type { RealtimeSocketOptions } from "../../voice/realtime-socket.js";
 import { call15Now, call3114Now } from "../api/chat/emergency-templates.js";
 import RootLayout from "../layout.js";
 import ChatPage from "./chat-page.js";
+import { writingField } from "./test-writing.js";
 
 vi.mock("next/font/local", () => ({
   default: () => ({ variable: "alan-sans" }),
@@ -41,9 +42,11 @@ it("renders the home greeting without the removed profile action", () => {
   expect(html).not.toContain('aria-label="Profil"');
 });
 
-it("limits the composer to the user message cap", () => {
-  const html = renderToStaticMarkup(createElement(ChatPage));
-  expect(html).toContain(`maxLength="${chatRequestLimits.maxMessageChars}"`);
+it("limits the composer to the user message cap", async () => {
+  const view = await mount();
+  expect(writingField(view.container)?.getAttribute("maxlength")).toBe(
+    String(chatRequestLimits.maxMessageChars),
+  );
 });
 
 it("opens the written conversation and returns to the home screen", async () => {
@@ -60,7 +63,7 @@ it("opens the written conversation and returns to the home screen", async () => 
   const header = view.container.querySelector(".chat-header");
   expect(header?.querySelector('[aria-label="Profil"]')).toBeNull();
   expect(header?.querySelector('[aria-label="Retour"]')).not.toBeNull();
-  expect(header?.querySelector(".chat-title")?.textContent).toContain("Steve");
+  expect(header?.querySelector(".chat-title")?.textContent).toContain("Stevie");
   expect(header?.querySelector(".chat-title img")?.getAttribute("src")).toBe(
     "/mascot/pfp-lavender-profile.webp",
   );
@@ -170,23 +173,23 @@ it("paints the call button and composer on the home screen", async () => {
       createElement(RootLayout, null, createElement(ChatPage)),
     );
     const call = view.container.querySelector(".chat-call-cta");
-    const composer = view.container.querySelector(".chat-home-dock .chat-composer");
-    if (!(call instanceof HTMLElement) || !(composer instanceof HTMLElement)) {
-      throw new Error("missing home call card or composer");
+    if (!(call instanceof HTMLElement)) {
+      throw new Error("missing home call button");
     }
     expect(channels(getComputedStyle(call).backgroundColor)).toBe(
       channels(designTokens.color.indigo900),
     );
-    expect(call.getAttribute("aria-label")).toBe("Appeler Steve");
-    const homeField = composer.querySelector(".chat-field");
+    expect(call.getAttribute("aria-label")).toBe("Appeler Stevie");
+    expect(view.container.querySelector(".chat-field")).toBeNull();
+    expect(view.container.querySelector(".chat-home-logo-badge")).not.toBeNull();
+    const homeField = writingField(view.container);
+    const composer = homeField?.closest(".chat-composer");
+    if (!(composer instanceof HTMLElement)) {
+      throw new Error("missing composer");
+    }
     if (!(homeField instanceof HTMLTextAreaElement)) {
       throw new Error("missing composer field");
     }
-    expect(getComputedStyle(homeField).backgroundColor).toBe("transparent");
-    expect(channels(getComputedStyle(composer).backgroundColor)).toBe(
-      channels(designTokens.color.surface),
-    );
-    expect(composer.closest(".chat-home-ask")).not.toBeNull();
     expect(view.container.querySelectorAll(".chat-chip")).toHaveLength(0);
     expect(view.container.querySelector('.chat-header [aria-label="Profil"]')).toBeNull();
     await act(async () => setField(homeField, "Bonjour"));
@@ -227,7 +230,7 @@ it("starts one live call from the home CTA and shows its connection status", asy
   await call.emit({ type: "response.created", responseId: "reply" });
   expect(call.container.querySelector(".chat-call-wave")?.getAttribute("data-activity"))
     .toBe("speaking");
-  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Steve parle");
+  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Stevie parle");
 });
 
 it("says the call is a voiceless demo when the session is mocked", async () => {
@@ -463,7 +466,7 @@ it("fills each message avatar with its photo and drops the white frame", async (
     const view = await mount(
       createElement(RootLayout, null, createElement(ChatPage)),
     );
-    const field = view.container.querySelector(".chat-field");
+    const field = writingField(view.container);
     if (!(field instanceof HTMLTextAreaElement)) {
       throw new Error("missing composer");
     }
@@ -511,12 +514,13 @@ it("fills each message avatar with its photo and drops the white frame", async (
 
 it("shows the composer disclaimer as one line with no digits", async () => {
   const view = await mount();
+  writingField(view.container);
   const disclaimer = view.container.querySelector(".chat-disclaimer");
   if (!(disclaimer instanceof HTMLElement)) {
     throw new Error("missing disclaimer");
   }
   expect(disclaimer.textContent).toBe(
-    "Steve n’est pas médecin et ne pose pas de diagnostic.",
+    "Stevie n’est pas médecin et ne pose pas de diagnostic.",
   );
   expect(disclaimer.textContent).not.toMatch(/\d/);
 });
@@ -538,7 +542,7 @@ it("shows the suggestion and the reply after a chip tap", async () => {
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
     "Bonjour",
   );
-  expect(view.container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
+  expect(view.container.querySelector('[aria-label="Stevie écrit"]')).toBeNull();
   expect(view.container.textContent).toContain("Je peux vous aider à préparer ça.");
   expect(view.container.querySelector('[aria-label="Retour"]')).not.toBeNull();
 });
@@ -1114,6 +1118,7 @@ it("does not start dictation from the keyboard while the column exit plays", asy
     endColumnExit(columnOf(view.container));
   });
   expectEmptyHome(view.container);
+  writingField(view.container);
 
   await act(async () => {
     activateDictationFromKeyboard(dictateButton(view.container));
@@ -1284,7 +1289,7 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
   try {
     const view = await mount();
     await flushFrame();
-    const field = view.container.querySelector(".chat-field");
+    const field = writingField(view.container);
     if (!(field instanceof HTMLTextAreaElement)) {
       throw new Error("missing composer");
     }
@@ -1827,7 +1832,7 @@ it("scrolls smoothly to the bottom and hides the pill when the new-message pill 
     expect(document.activeElement).toBe(newest);
     expect(newest.getAttribute("tabindex")).toBe("-1");
     expect(document.activeElement).not.toBe(
-      session.container.querySelector("textarea"),
+      writingField(session.container),
     );
   } finally {
     session.restore();
@@ -2123,7 +2128,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
 
     const restoreMotion = stubReducedMotion(true);
     try {
-      const field = session.container.querySelector(".chat-field");
+      const field = writingField(session.container);
       if (!(field instanceof HTMLTextAreaElement)) {
         throw new Error("missing composer");
       }
@@ -2178,7 +2183,7 @@ function stubReducedMotion(matches = true): () => void {
 async function openConversation(view: {
   container: ParentNode;
 }): Promise<HTMLButtonElement> {
-  const field = view.container.querySelector(".chat-field");
+  const field = writingField(view.container);
   if (!(field instanceof HTMLTextAreaElement)) {
     throw new Error("missing composer");
   }
@@ -2214,7 +2219,7 @@ function expectEmptyHome(container: ParentNode): void {
     thread: container.querySelector(".chat-thread"),
     hero: hero instanceof HTMLElement && !hero.classList.contains("chat-hero-leave"),
     mascot: container.querySelector(".chat-hero-mascot") instanceof HTMLElement,
-    draft: field instanceof HTMLTextAreaElement ? field.value : null,
+    draft: field instanceof HTMLTextAreaElement ? field.value : "",
     callCta: container.querySelector(".chat-call-cta") instanceof HTMLElement,
     leaving: column?.classList.contains("chat-column-leave") ?? null,
     profile:
@@ -2236,7 +2241,7 @@ function expectEmptyHome(container: ParentNode): void {
 }
 
 function composerField(container: ParentNode): HTMLTextAreaElement {
-  const field = container.querySelector(".chat-field");
+  const field = writingField(container);
   if (!(field instanceof HTMLTextAreaElement)) {
     throw new Error("missing composer");
   }
@@ -2449,7 +2454,7 @@ async function scrolledThread(): Promise<{
 }> {
   const view = await mount();
   await flushFrame();
-  const field = view.container.querySelector(".chat-field");
+  const field = writingField(view.container);
   if (!(field instanceof HTMLTextAreaElement)) {
     throw new Error("missing composer");
   }
@@ -2517,7 +2522,7 @@ async function pendingThread(): Promise<{
   try {
     const view = await mount();
     await flushFrame();
-    const field = view.container.querySelector(".chat-field");
+    const field = writingField(view.container);
     if (!(field instanceof HTMLTextAreaElement)) {
       throw new Error("missing composer");
     }
@@ -2571,7 +2576,7 @@ function newestReply(container: ParentNode): HTMLElement {
 }
 
 async function sendComposer(container: ParentNode, text: string): Promise<void> {
-  const field = container.querySelector("textarea");
+  const field = writingField(container);
   if (!(field instanceof HTMLTextAreaElement)) {
     throw new Error("missing composer");
   }

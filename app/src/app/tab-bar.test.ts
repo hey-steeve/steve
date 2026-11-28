@@ -22,7 +22,8 @@ afterEach(() => {
 it("maps routes to tabs and leaves other pages without one", () => {
   expect(tabIndexFor("/chat")).toBe(0);
   expect(tabIndexFor("/challenges")).toBe(1);
-  expect(tabIndexFor("/vault")).toBe(3);
+  expect(tabIndexFor("/agenda")).toBe(2);
+  expect(tabIndexFor("/vault")).toBeNull();
   expect(tabIndexFor("/directory")).toBeNull();
 });
 
@@ -35,16 +36,16 @@ it("starts the indicator on the previous tab, then slides to the current one", a
   });
 
   const firstPaint = document.createElement("div");
-  firstPaint.innerHTML = renderToStaticMarkup(createElement(AppTabBar, { current: "/vault" }));
+  firstPaint.innerHTML = renderToStaticMarkup(createElement(AppTabBar, { current: "/agenda" }));
   expect(indicator(firstPaint)).toContain("0 * var(--app-tab-step)");
 
-  const second = await mount("/vault");
+  const second = await mount("/agenda");
   await nextFrame();
-  expect(indicator(second)).toContain("3 * var(--app-tab-step)");
-  expect(second.querySelector('.app-tab[aria-current="page"]')?.getAttribute("href")).toBe("/vault");
+  expect(indicator(second)).toContain("2 * var(--app-tab-step)");
+  expect(second.querySelector('.app-tab[aria-current="page"]')?.getAttribute("href")).toBe("/agenda");
 });
 
-it("hides the indicator on pages outside the tabs and links the button to Steve", async () => {
+it("hides the indicator on pages outside the tabs and links the button to Stevie", async () => {
   const view = await mount("/directory");
   await nextFrame();
   expect(view.querySelector(".app-tab-indicator")?.hasAttribute("data-hidden")).toBe(true);

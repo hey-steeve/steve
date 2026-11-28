@@ -8,7 +8,6 @@ export const appTabs = [
   { href: "/chat", label: "Accueil" },
   { href: "/challenges", label: "Défis" },
   { href: "/agenda", label: "Agenda" },
-  { href: "/vault", label: "Documents" },
   { href: "/profile", label: "Mon profil" },
 ] as const;
 
@@ -42,7 +41,7 @@ export function AppTabBar(props: {
   const indicator = shown ?? target ?? 0;
   return (
     <div className={props.floating === true ? "app-tabbar app-tabbar-floating" : "app-tabbar"}>
-      <nav className="app-tabs" aria-label="Espaces Steve">
+      <nav className="app-tabs" aria-label="Espaces Stevie">
         <span
           className="app-tab-indicator"
           data-hidden={shown === null ? "" : undefined}
@@ -63,15 +62,15 @@ export function AppTabBar(props: {
         ))}
       </nav>
       {props.onCall === undefined ? (
-        <Link className="app-tab-fab" href="/chat" aria-label="Parler à Steve" title="Parler à Steve">
+        <Link className="app-tab-fab" href="/chat" aria-label="Parler à Stevie" title="Parler à Stevie">
           <ChatIcon />
         </Link>
       ) : (
         <button
           type="button"
           className="app-tab-fab chat-call-cta"
-          aria-label="Appeler Steve"
-          title="Appeler Steve"
+          aria-label="Appeler Stevie"
+          title="Appeler Stevie"
           onClick={props.onCall}
         >
           <PhoneIcon />
@@ -110,10 +109,6 @@ const tabIcons = [
   <Svg key="agenda">
     <rect x="3" y="5" width="18" height="16" rx="3" />
     <path d="M3 10h18M8 3v4M16 3v4" />
-  </Svg>,
-  <Svg key="vault">
-    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-    <path d="M14 3v5h5M9 13h6M9 17h4" />
   </Svg>,
   <Svg key="profile">
     <circle cx="12" cy="8" r="4" />

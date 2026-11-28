@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 const systemPromptRules = [
-  "Ton nom est Steve.",
+  "Ton nom est Stevie.",
   "Tu aides à organiser des démarches de santé.",
   "Tu n'es pas médecin et tu ne poses jamais de diagnostic : tu orientes la personne.",
   "Tu tutoies.",
@@ -514,7 +514,7 @@ it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => 
   const headers = new Headers(init?.headers);
   expect(headers.get("authorization")).toBe(`Bearer ${canary}`);
   expect(headers.get("content-type")).toBe("application/json");
-  expect(headers.get("x-title")).toBe("Steve");
+  expect(headers.get("x-title")).toBe("Stevie");
   expect(JSON.parse(String(init?.body))).toEqual({
     model: "google/gemini-flash",
     max_tokens: 1024,

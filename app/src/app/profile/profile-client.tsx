@@ -7,10 +7,12 @@ import {
   type PatientMemory,
   type ProfileMutationError,
 } from "@steve/profile";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import {
   CalendarIcon,
   ChevronRightIcon,
+  DocumentIcon,
   FeatureShell,
   PhoneOutlineIcon,
   SettingsIcon,
@@ -107,6 +109,15 @@ export default function ProfileClient(props: {
 
       <section className="steve-card" aria-label="Rubriques du profil">
         <ul className="steve-row-list">
+          <li>
+            <Link className="steve-row-button" href="/vault">
+              <DocumentIcon />
+              <span>Mes documents</span>
+              <span className="steve-row-chevron" aria-hidden="true">
+                <ChevronRightIcon />
+              </span>
+            </Link>
+          </li>
           <li>
             <button
               type="button"

@@ -89,7 +89,7 @@ export default function ChallengesClient() {
           <TeamIcon />
           <h2 id="challenges-team-title" className="steve-card-title">Pas d’équipe ?</h2>
         </div>
-        <p className="challenges-team-copy">Steve trouve des gens près de chez toi qui font le même défi.</p>
+        <p className="challenges-team-copy">Stevie trouve des gens près de chez toi qui font le même défi.</p>
         {open[0] === undefined ? null : (
           <button type="button" className="challenges-team-btn" onClick={() => setJoining(open[0] ?? null)}>
             Trouve-moi une équipe
@@ -191,7 +191,7 @@ export function JoinSheet(props: { readonly challenge: Challenge; readonly onClo
         <header className="challenges-sheet-head">
           <img src={askAvatarSrc} alt="" width={38} height={38} />
           <span>
-            <strong id="challenges-sheet-title">Steve</strong>
+            <strong id="challenges-sheet-title">Stevie</strong>
             <span>{challenge.title}</span>
           </span>
           <button ref={closeRef} type="button" className="challenges-sheet-close" aria-label="Fermer" onClick={props.onClose}>

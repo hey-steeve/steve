@@ -29,7 +29,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("puts Steve and the quick links in the home header and the greeting in the hero", async () => {
+it("puts Stevie and the quick links in the home header and the greeting in the hero", async () => {
   const style = document.createElement("style");
   style.textContent = chatCss;
   document.head.append(style);
@@ -54,13 +54,14 @@ it("puts Steve and the quick links in the home header and the greeting in the he
     expect(page.classList.contains("chat-page-home")).toBe(true);
     expect(header.querySelector(".chat-greeting")).toBeNull();
     expect(header.querySelector(".chat-profile")).toBeNull();
-    expect(header.querySelector(".chat-home-logo img")?.getAttribute("alt")).toBe("Steve");
+    expect(header.querySelector(".chat-home-logo img")?.getAttribute("alt")).toBe("Stevie");
     expect(header.querySelectorAll("a")).toHaveLength(0);
     const buttons = [...header.querySelectorAll("button")].map((button) => [
       button.getAttribute("aria-label"),
       button.getAttribute("aria-expanded"),
     ]);
     expect(buttons).toEqual([
+      ["Parler à Stevie", "false"],
       ["Notifications, 3 nouvelles", "false"],
       ["Mon compte", "false"],
     ]);

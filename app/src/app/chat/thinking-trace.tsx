@@ -24,7 +24,7 @@ export function LiveTrace(props: {
       <div className="chat-trace-head">
         <img src={steveFace.thinking} alt="" width={34} height={34} />
         <span>
-          <span className="chat-trace-title">Steve réfléchit…</span>
+          <span className="chat-trace-title">Stevie réfléchit…</span>
           <span className="chat-trace-time">{elapsedLabel(now - props.startedAt)}</span>
         </span>
       </div>

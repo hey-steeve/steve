@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, expect, it, vi } from "vitest";
+import { writingField } from "./test-writing.js";
 import ChatPage from "./chat-page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
@@ -43,7 +44,7 @@ async function renderPage(): Promise<HTMLDivElement> {
 }
 
 function fieldIn(container: ParentNode): HTMLTextAreaElement {
-  const field = container.querySelector("textarea");
+  const field = writingField(container);
   if (!(field instanceof HTMLTextAreaElement)) {
     throw new Error("missing composer");
   }
@@ -149,7 +150,7 @@ it("shows a typing indicator for a plain reply and attaches no trace", async () 
     sendButton(container).click();
   });
 
-  const typing = container.querySelector('[aria-label="Steve écrit"]');
+  const typing = container.querySelector('[aria-label="Stevie écrit"]');
   expect(typing?.getAttribute("aria-live")).toBe("polite");
   expect(typing?.querySelectorAll(".chat-dot")).toHaveLength(3);
   expect(container.querySelector(".chat-trace")).toBeNull();
@@ -164,7 +165,7 @@ it("shows a typing indicator for a plain reply and attaches no trace", async () 
     finish(reply);
   });
 
-  expect(container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Stevie écrit"]')).toBeNull();
   expect(container.textContent).toContain("D'accord.");
   expect(container.querySelector(".chat-trace-summary")).toBeNull();
 });
@@ -189,7 +190,7 @@ it("traces a practitioner search live, then folds it above the result", async ()
   if (!(summary instanceof HTMLButtonElement)) {
     throw new Error("missing trace summary");
   }
-  expect(container.querySelector('[aria-label="Steve réfléchit"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Stevie réfléchit"]')).toBeNull();
   expect(summary.getAttribute("aria-expanded")).toBe("false");
   expect(summary.textContent).toMatch(/^Réfléchi \d+ s · 4 étapes$/);
   await act(async () => summary.click());
@@ -241,10 +242,13 @@ it("disables send while the chat request is in flight", async () => {
   });
 });
 
-it("does not autofocus the composer on the home screen", async () => {
+it("keeps the composer off the home screen and focuses it from Écrire à Stevie", async () => {
   const container = await renderPage();
-  expect(document.activeElement).not.toBe(fieldIn(container));
+  expect(container.querySelector(".chat-field")).toBeNull();
   expect(container.querySelector(".chat-thread")).toBeNull();
+  const field = fieldIn(container);
+  await act(async () => {});
+  expect(document.activeElement).toBe(field);
 });
 
 it("keeps the composer focused after the first send", async () => {
@@ -298,22 +302,6 @@ it("shows the error and accepts another send when the chat fetch times out", asy
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
-it("prefills an editable starter without sending it", async () => {
-  const fetchChat = vi.fn<typeof fetch>();
-  vi.stubGlobal("fetch", fetchChat);
-  const container = await renderPage();
-  const starter = buttonWithText(container, "Préparer une consultation");
-
-  await act(async () => starter.click());
-
-  const field = fieldIn(container);
-  expect(field.value).toBe("Peux-tu m’aider à préparer ma prochaine consultation ?");
-  expect(document.activeElement).toBe(field);
-  expect(fetchChat).not.toHaveBeenCalled();
-  await act(async () => setField(field, "Je prépare une consultation lundi."));
-  expect(field.value).toBe("Je prépare une consultation lundi.");
-});
-
 it("keeps the transcript after finishing and clears it for the next conversation", async () => {
   vi.stubGlobal("matchMedia", () => ({ matches: true }));
   const container = await sendForReply(
@@ -339,7 +327,6 @@ it("keeps the transcript after finishing and clears it for the next conversation
 
   expect(container.querySelector(".chat-thread")).toBeNull();
   expect(fieldIn(container).value).toBe("");
-  expect(buttonWithText(container, "Préparer une consultation")).toBeTruthy();
 });
 
 function buttonWithText(container: ParentNode, text: string): HTMLButtonElement {
