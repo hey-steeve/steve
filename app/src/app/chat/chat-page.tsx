@@ -698,12 +698,7 @@ export default function ChatPage(props: {
       >
         <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <HomeTopBar
-              firstName={props.patientFirstName}
-              disclaimer={disclaimer}
-              onWrite={startWriting}
-              onCall={startCall}
-            />
+            <HomeTopBar firstName={props.patientFirstName} />
           ) : (
             <button
               type="button"
@@ -881,7 +876,11 @@ export default function ChatPage(props: {
             </ol>
           )}
         </div>
-        {empty ? <AppTabBar current="/chat" floating onCall={startCall} /> : null}
+        {empty ? <AppTabBar
+            current="/chat"
+            floating
+            stevie={{ onWrite: startWriting, onCall: startCall, disclaimer }}
+          /> : null}
         {unseenReply ? (
           <div className="chat-new-message-row">
             <button

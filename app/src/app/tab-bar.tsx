@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { headerAvatarSrc } from "../chat/faces";
 import { appTabs, tabIndexFor } from "./tabs";
 import "./tab-bar.css";
 
@@ -11,10 +12,16 @@ export { appTabs, tabIndexFor };
 // start its indicator on the tab the user just left and slide to the new one.
 let lastTab: number | null = null;
 
+export type StevieActions = {
+  readonly onWrite: () => void;
+  readonly onCall: () => void;
+  readonly disclaimer: string;
+};
+
 export function AppTabBar(props: {
   readonly current: string;
   readonly floating?: boolean;
-  readonly onCall?: () => void;
+  readonly stevie?: StevieActions;
 }) {
   const target = tabIndexFor(props.current);
   const [shown, setShown] = useState<number | null>(() => lastTab ?? target);
@@ -52,20 +59,12 @@ export function AppTabBar(props: {
           </Link>
         ))}
       </nav>
-      {props.onCall === undefined ? (
+      {props.stevie === undefined ? (
         <Link className="app-tab-fab" href="/chat" aria-label="Parler à Stevie" title="Parler à Stevie">
-          <ChatIcon />
+          <StevieFace />
         </Link>
       ) : (
-        <button
-          type="button"
-          className="app-tab-fab chat-call-cta"
-          aria-label="Appeler Stevie"
-          title="Appeler Stevie"
-          onClick={props.onCall}
-        >
-          <PhoneIcon />
-        </button>
+        <StevieLauncher {...props.stevie} />
       )}
     </div>
   );
@@ -107,9 +106,92 @@ const tabIcons = [
   </Svg>,
 ];
 
-function PhoneIcon() {
+function StevieFace() {
+  return <img className="app-tab-fab-face" src={headerAvatarSrc} alt="" width={56} height={56} />;
+}
+
+// The round button at the end of the tab bar is Stevie. On the home it opens
+// a small menu to write or call; elsewhere it links back to the home.
+function StevieLauncher(props: StevieActions) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector<HTMLElement>("button")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  function run(action: () => void) {
+    setOpen(false);
+    action();
+  }
+
   return (
-    <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="app-tab-fab app-tab-stevie"
+        aria-label="Parler à Stevie"
+        title="Parler à Stevie"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls="app-stevie-menu"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <StevieFace />
+        <span className="app-tab-fab-badge" aria-hidden="true">
+          <ChatIcon size={13} />
+        </span>
+      </button>
+      {open ? (
+        <>
+          <button
+            type="button"
+            className="app-stevie-backdrop"
+            aria-label="Fermer"
+            tabIndex={-1}
+            onClick={() => setOpen(false)}
+          />
+          <div ref={menuRef} id="app-stevie-menu" className="app-stevie-menu" role="dialog" aria-label="Parler à Stevie">
+            <button type="button" className="chat-home-steve-item" onClick={() => run(props.onWrite)}>
+              <span className="chat-home-steve-icon chat-home-steve-write" aria-hidden="true">
+                <ChatIcon size={20} />
+              </span>
+              <span>
+                <strong>Écrire à Stevie</strong>
+                <span>Pose ta question par message</span>
+              </span>
+            </button>
+            <button type="button" className="chat-home-steve-item chat-call-cta" onClick={() => run(props.onCall)}>
+              <span className="chat-home-steve-icon chat-home-steve-call" aria-hidden="true">
+                <PhoneIcon size={20} />
+              </span>
+              <span>
+                <strong>Appeler Stevie</strong>
+                <span>Il répond tout de suite</span>
+              </span>
+            </button>
+            <p className="chat-home-steve-disclaimer">{props.disclaimer}</p>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function PhoneIcon({ size = 26 }: { readonly size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <path
         fill="currentColor"
         d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1.1-.24 11.4 11.4 0 0 0 3.5.56 1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 5a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .56 3.5 1 1 0 0 1-.25 1.1z"
@@ -118,9 +200,9 @@ function PhoneIcon() {
   );
 }
 
-function ChatIcon() {
+function ChatIcon({ size = 26 }: { readonly size?: number }) {
   return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
     </svg>
   );

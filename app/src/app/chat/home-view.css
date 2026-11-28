@@ -708,3 +708,15 @@ button.chat-home-logo:focus-visible { outline: 2px solid #fff; outline-offset: 4
   text-align: center;
 }
 
+
+.chat-home-me {
+  color: var(--color-canvas);
+  font-size: 20px;
+  font-weight: var(--font-weight-heading);
+}
+
+.chat-home-pop.chat-home-pop-left {
+  right: auto;
+  left: var(--page-pad);
+  transform-origin: 30px 0;
+}

@@ -23,7 +23,10 @@ it("does not render the user's photo in the home header", async () => {
   const view = await mount();
   expect(view.container.querySelector(".chat-header-home .chat-profile")).toBeNull();
   const photos = [...view.container.querySelectorAll(".chat-header-home img")];
-  expect(photos.map((img) => img.getAttribute("src"))).toEqual(["/mascot/pfp-lavender-profile.webp"]);
+  expect(photos).toEqual([]);
+  expect(view.container.querySelector(".app-tab-stevie img")?.getAttribute("src")).toBe(
+    "/mascot/pfp-lavender-profile.webp",
+  );
 });
 
 it("shows the demo photo on the user message avatar", async () => {

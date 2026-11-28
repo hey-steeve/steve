@@ -172,16 +172,16 @@ it("paints the call button and composer on the home screen", async () => {
     const view = await mount(
       createElement(RootLayout, null, createElement(ChatPage)),
     );
-    const call = view.container.querySelector(".chat-call-cta");
+    const call = view.container.querySelector(".app-tab-stevie");
     if (!(call instanceof HTMLElement)) {
-      throw new Error("missing home call button");
+      throw new Error("missing home Stevie button");
     }
     expect(channels(getComputedStyle(call).backgroundColor)).toBe(
       channels(designTokens.color.indigo900),
     );
-    expect(call.getAttribute("aria-label")).toBe("Appeler Stevie");
+    expect(call.getAttribute("aria-label")).toBe("Parler à Stevie");
     expect(view.container.querySelector(".chat-field")).toBeNull();
-    expect(view.container.querySelector(".chat-home-logo-badge")).not.toBeNull();
+    expect(view.container.querySelector(".app-tab-fab-badge")).not.toBeNull();
     const homeField = writingField(view.container);
     const composer = homeField?.closest(".chat-composer");
     if (!(composer instanceof HTMLElement)) {
@@ -285,7 +285,7 @@ it("mutes and unmutes the live call and removes the bar on hang-up", async () =>
   await clickCallControl(call.container, ".chat-call-end");
   expect(call.end).toHaveBeenCalledExactlyOnceWith("hang-up");
   expect(call.container.querySelector(".chat-call-bar")).toBeNull();
-  expect(call.container.querySelector(".chat-call-cta")).not.toBeNull();
+  expect(call.container.querySelector(".app-tab-stevie")).not.toBeNull();
 });
 
 it("replaces live transcripts in place and keeps emergency sentences and actions visible", async () => {
@@ -446,6 +446,11 @@ async function mountCall(triage?: liveCall.CallDeps["triage"], mockSocket = fals
 }
 
 async function clickCallControl(container: ParentNode, selector: string) {
+  if (selector === ".chat-call-cta" && container.querySelector(selector) === null) {
+    // On the home, the call sits in the Stevie menu of the tab bar.
+    const stevie = container.querySelector('.app-tab-stevie');
+    if (stevie instanceof HTMLButtonElement) await act(async () => stevie.click());
+  }
   const button = container.querySelector(selector);
   if (!(button instanceof HTMLButtonElement)) throw new Error(`missing call control ${selector}`);
   await act(async () => button.click());
@@ -2220,7 +2225,7 @@ function expectEmptyHome(container: ParentNode): void {
     hero: hero instanceof HTMLElement && !hero.classList.contains("chat-hero-leave"),
     mascot: container.querySelector(".chat-hero-mascot") instanceof HTMLElement,
     draft: field instanceof HTMLTextAreaElement ? field.value : "",
-    callCta: container.querySelector(".chat-call-cta") instanceof HTMLElement,
+    callCta: container.querySelector(".app-tab-stevie") instanceof HTMLElement,
     leaving: column?.classList.contains("chat-column-leave") ?? null,
     profile:
       container.querySelector('.chat-header [aria-label="Profil"]') instanceof
