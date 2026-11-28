@@ -34,6 +34,7 @@ export const pageMascots = {
   profile: "/mascot/profile-card.webp",
   documents: "/mascot/documents.webp",
   inbox: "/mascot/mailbox.webp",
+  challenges: "/mascot/running.webp",
 } as const;
 
 export const headerAvatarSrc = "/mascot/pfp-lavender-profile.webp";
