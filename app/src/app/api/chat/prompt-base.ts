@@ -32,7 +32,7 @@ export const warningSignDrowsy = `S'il ${silDrowsy}${warningSignTail}`;
 export const warningSignBecomesDrowsy = `S'il ${silBecomesDrowsy}${warningSignTail}`;
 
 export const systemPromptRules = [
-  "Ton nom est Steve.",
+  "Ton nom est Stevie.",
   "Tu aides à organiser des démarches de santé.",
   "Tu n'es pas médecin et tu ne poses jamais de diagnostic : tu orientes la personne.",
   "Tu tutoies.",

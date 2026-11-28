@@ -38,17 +38,17 @@ export function AgentCallBar({
   }
 
   const active = call.phase === "active";
-  // Mock session: no voice backend. Say so instead of pretending Steve listens.
+  // Mock session: no voice backend. Say so instead of pretending Stevie listens.
   const demo = active && call.mock;
   const live = active && !call.mock;
-  const title = demo ? "Mode démo" : active ? "Steve est en ligne" : "Connexion…";
+  const title = demo ? "Mode démo" : active ? "Stevie est en ligne" : "Connexion…";
   const activityLabel = demo
     ? "Voix désactivée"
     : call.activity === "speaking"
-      ? "Steve parle"
-      : call.muted ? "Micro coupé" : "Steve écoute";
+      ? "Stevie parle"
+      : call.muted ? "Micro coupé" : "Stevie écoute";
   return (
-    <div className="chat-call-bar" role="group" aria-label="Appel avec Steve">
+    <div className="chat-call-bar" role="group" aria-label="Appel avec Stevie">
       <img className="chat-call-bar-avatar" src="/demo/steve-call-avatar.webp" alt="" width={40} height={40} />
       <span className="chat-call-bar-copy" role="status">
         <span className="chat-call-bar-title">

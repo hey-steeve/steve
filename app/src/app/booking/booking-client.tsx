@@ -332,7 +332,7 @@ export default function BookingClient(props: {
         <section className="steve-card" aria-live="polite">
           <span className="steve-pill steve-pill-danger">Aucun créneau confirmé</span>
           <p className="steve-detail-secondary">
-            Steve a appelé au plus 2 cabinets sans obtenir de créneau disponible. Rien n’a été ajouté à ton agenda.
+            Stevie a appelé au plus 2 cabinets sans obtenir de créneau disponible. Rien n’a été ajouté à ton agenda.
           </p>
           <ul className="booking-attempt-list">
             {result.attempts.map((attempt, index) => (

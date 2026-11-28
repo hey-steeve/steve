@@ -40,7 +40,7 @@ import { runPractitionerSearch, type DirectoryResult } from "./search-practition
 import "./chat.css";
 import "./directory-widget.css";
 
-const disclaimer = "Steve n’est pas médecin et ne pose pas de diagnostic.";
+const disclaimer = "Stevie n’est pas médecin et ne pose pas de diagnostic.";
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
 const clientTimeoutMs = 35_000;
@@ -625,7 +625,7 @@ export default function ChatPage(props: {
         rows={1}
         maxLength={chatRequestLimits.maxMessageChars}
         placeholder={refining ? "Précise le secteur ou le code postal" : "Demande n'importe quoi"}
-        aria-label="Message pour Steve"
+        aria-label="Message pour Stevie"
         onChange={(event) => {
           setDraft(event.target.value);
         }}
@@ -719,7 +719,7 @@ export default function ChatPage(props: {
           {empty ? null : (
             <div className="chat-title">
               <img src={headerAvatarSrc} alt="" width={36} height={36} />
-              <h1>Steve</h1>
+              <h1>Stevie</h1>
             </div>
           )}
           {empty ? null : (
@@ -729,8 +729,8 @@ export default function ChatPage(props: {
                   <button
                     type="button"
                     className="chat-thread-call"
-                    aria-label="Appeler Steve"
-                    title="Appeler Steve"
+                    aria-label="Appeler Stevie"
+                    title="Appeler Stevie"
                     onClick={startCall}
                   >
                     <PhoneIcon />
@@ -858,7 +858,7 @@ export default function ChatPage(props: {
                   className="chat-row chat-row-agent"
                   role="status"
                   aria-live="polite"
-                  aria-label="Steve réfléchit"
+                  aria-label="Stevie réfléchit"
                 >
                   <SteveAvatar />
                   <LiveTrace steps={liveTrace.steps} startedAt={liveTrace.startedAt} />
@@ -868,7 +868,7 @@ export default function ChatPage(props: {
                   className="chat-row chat-row-agent"
                   role="status"
                   aria-live="polite"
-                  aria-label="Steve écrit"
+                  aria-label="Stevie écrit"
                 >
                   <SteveAvatar />
                   <div className="chat-typing">

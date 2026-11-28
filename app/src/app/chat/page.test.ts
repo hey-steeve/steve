@@ -63,7 +63,7 @@ it("opens the written conversation and returns to the home screen", async () => 
   const header = view.container.querySelector(".chat-header");
   expect(header?.querySelector('[aria-label="Profil"]')).toBeNull();
   expect(header?.querySelector('[aria-label="Retour"]')).not.toBeNull();
-  expect(header?.querySelector(".chat-title")?.textContent).toContain("Steve");
+  expect(header?.querySelector(".chat-title")?.textContent).toContain("Stevie");
   expect(header?.querySelector(".chat-title img")?.getAttribute("src")).toBe(
     "/mascot/pfp-lavender-profile.webp",
   );
@@ -179,7 +179,7 @@ it("paints the call button and composer on the home screen", async () => {
     expect(channels(getComputedStyle(call).backgroundColor)).toBe(
       channels(designTokens.color.indigo900),
     );
-    expect(call.getAttribute("aria-label")).toBe("Appeler Steve");
+    expect(call.getAttribute("aria-label")).toBe("Appeler Stevie");
     expect(view.container.querySelector(".chat-field")).toBeNull();
     expect(view.container.querySelector(".chat-home-logo-badge")).not.toBeNull();
     const homeField = writingField(view.container);
@@ -230,7 +230,7 @@ it("starts one live call from the home CTA and shows its connection status", asy
   await call.emit({ type: "response.created", responseId: "reply" });
   expect(call.container.querySelector(".chat-call-wave")?.getAttribute("data-activity"))
     .toBe("speaking");
-  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Steve parle");
+  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Stevie parle");
 });
 
 it("says the call is a voiceless demo when the session is mocked", async () => {
@@ -520,7 +520,7 @@ it("shows the composer disclaimer as one line with no digits", async () => {
     throw new Error("missing disclaimer");
   }
   expect(disclaimer.textContent).toBe(
-    "Steve n’est pas médecin et ne pose pas de diagnostic.",
+    "Stevie n’est pas médecin et ne pose pas de diagnostic.",
   );
   expect(disclaimer.textContent).not.toMatch(/\d/);
 });
@@ -542,7 +542,7 @@ it("shows the suggestion and the reply after a chip tap", async () => {
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
     "Bonjour",
   );
-  expect(view.container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
+  expect(view.container.querySelector('[aria-label="Stevie écrit"]')).toBeNull();
   expect(view.container.textContent).toContain("Je peux vous aider à préparer ça.");
   expect(view.container.querySelector('[aria-label="Retour"]')).not.toBeNull();
 });

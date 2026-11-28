@@ -66,13 +66,13 @@ export function HomeTopBar(props: {
       <button
         type="button"
         className="chat-home-logo"
-        aria-label="Parler à Steve"
+        aria-label="Parler à Stevie"
         aria-haspopup="dialog"
         aria-expanded={panel === "steve"}
         aria-controls="chat-home-steve"
         onClick={(event) => toggle("steve", event.currentTarget)}
       >
-        <img src={headerAvatarSrc} alt="Steve" width={44} height={44} />
+        <img src={headerAvatarSrc} alt="Stevie" width={44} height={44} />
         <span className="chat-home-logo-badge" aria-hidden="true">
           <ChatBubbleIcon />
         </span>
@@ -118,7 +118,7 @@ export function HomeTopBar(props: {
               id="chat-home-steve"
               className="chat-home-pop chat-home-steve"
               role="dialog"
-              aria-label="Parler à Steve"
+              aria-label="Parler à Stevie"
             >
               <button
                 type="button"
@@ -132,7 +132,7 @@ export function HomeTopBar(props: {
                   <ChatBubbleIcon size={20} />
                 </span>
                 <span>
-                  <strong>Écrire à Steve</strong>
+                  <strong>Écrire à Stevie</strong>
                   <span>Pose ta question par message</span>
                 </span>
               </button>
@@ -148,7 +148,7 @@ export function HomeTopBar(props: {
                   <PhoneIcon />
                 </span>
                 <span>
-                  <strong>Appeler Steve</strong>
+                  <strong>Appeler Stevie</strong>
                   <span>Il répond tout de suite</span>
                 </span>
               </button>
@@ -197,7 +197,7 @@ export function HomeTopBar(props: {
                 </span>
                 <span>
                   <strong>{name === "" ? "Mon compte" : name}</strong>
-                  <span>Ton espace Steve</span>
+                  <span>Ton espace Stevie</span>
                 </span>
               </div>
               <ul>
@@ -343,7 +343,7 @@ export function HomeTiles() {
           <CalendarIcon />
         </span>
         <strong>Rendez-vous</strong>
-        <span>Steve appelle le cabinet</span>
+        <span>Stevie appelle le cabinet</span>
       </Link>
     </nav>
   );

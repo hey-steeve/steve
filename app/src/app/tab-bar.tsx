@@ -41,7 +41,7 @@ export function AppTabBar(props: {
   const indicator = shown ?? target ?? 0;
   return (
     <div className={props.floating === true ? "app-tabbar app-tabbar-floating" : "app-tabbar"}>
-      <nav className="app-tabs" aria-label="Espaces Steve">
+      <nav className="app-tabs" aria-label="Espaces Stevie">
         <span
           className="app-tab-indicator"
           data-hidden={shown === null ? "" : undefined}
@@ -62,15 +62,15 @@ export function AppTabBar(props: {
         ))}
       </nav>
       {props.onCall === undefined ? (
-        <Link className="app-tab-fab" href="/chat" aria-label="Parler à Steve" title="Parler à Steve">
+        <Link className="app-tab-fab" href="/chat" aria-label="Parler à Stevie" title="Parler à Stevie">
           <ChatIcon />
         </Link>
       ) : (
         <button
           type="button"
           className="app-tab-fab chat-call-cta"
-          aria-label="Appeler Steve"
-          title="Appeler Steve"
+          aria-label="Appeler Stevie"
+          title="Appeler Stevie"
           onClick={props.onCall}
         >
           <PhoneIcon />
