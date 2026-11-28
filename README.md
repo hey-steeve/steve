@@ -39,6 +39,23 @@ The root `package.json` has no `dev` script. `app/package.json` sets `dev` to `n
 
 Run `pnpm verify` to lint, typecheck, test, and build.
 
+## Deploy on Qovery
+
+The repository root contains the production `Dockerfile`. The container runs
+the Next.js standalone server as a non-root user on port `3000`.
+
+Configure the Qovery application with:
+
+- repository root as the build context;
+- `Dockerfile` as the Dockerfile path;
+- public HTTP port `3000`;
+- readiness and liveness probes on `GET /api/healthz` at port `3000`;
+- `STEVE_CHAT_LIVE=1`;
+- `HACKATHON_AI_BASE_URL` as a variable;
+- `HACKATHON_AI_KEY` as a secret.
+
+No database is required for the current demo implementation.
+
 Agent rules live in [AGENTS.md](./AGENTS.md).
 
 ## License

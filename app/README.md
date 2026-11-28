@@ -32,6 +32,12 @@ A request whose `Content-Type` media type is not `application/json` returns HTTP
 
 The names are in the root `.env.example`. There is no `app/.env.example`.
 
+For the hackathon deployment, set `HACKATHON_AI_BASE_URL` and the secret
+`HACKATHON_AI_KEY`. When both values are present and `STEVE_CHAT_LIVE=1`, the
+route uses the Anthropic SDK with model `claude-sonnet` through the hackathon
+gateway. This takes priority over OpenRouter. If either hackathon value is
+missing, the route keeps the OpenRouter behavior documented below.
+
 Next.js reads env files from `app/`, the directory that contains `next.config.ts`. Put real values in `app/.env.local`. That file stays untracked.
 
 `OPENROUTER_API_KEY` is the OpenRouter API key. The route reads it on the server and trims it. Whitespace alone counts as empty.

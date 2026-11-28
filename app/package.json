@@ -11,6 +11,7 @@
     "eval:rescore": "node --import ./src/app/api/chat/eval/register.mjs ./src/app/api/chat/eval/rescore.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
     "@steve/agenda": "workspace:*",
     "@steve/booking": "workspace:*",
     "@steve/directory": "workspace:*",
