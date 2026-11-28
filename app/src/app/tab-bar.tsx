@@ -8,7 +8,6 @@ export const appTabs = [
   { href: "/chat", label: "Accueil" },
   { href: "/challenges", label: "Défis" },
   { href: "/agenda", label: "Agenda" },
-  { href: "/vault", label: "Documents" },
   { href: "/profile", label: "Mon profil" },
 ] as const;
 
@@ -110,10 +109,6 @@ const tabIcons = [
   <Svg key="agenda">
     <rect x="3" y="5" width="18" height="16" rx="3" />
     <path d="M3 10h18M8 3v4M16 3v4" />
-  </Svg>,
-  <Svg key="vault">
-    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-    <path d="M14 3v5h5M9 13h6M9 17h4" />
   </Svg>,
   <Svg key="profile">
     <circle cx="12" cy="8" r="4" />

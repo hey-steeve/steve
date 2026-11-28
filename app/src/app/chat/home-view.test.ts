@@ -61,7 +61,6 @@ it("reaches every Steve space from the home screen", async () => {
     "Accueil",
     "Défis",
     "Agenda",
-    "Documents",
     "Mon profil",
   ]);
   expect(tabs[0]?.getAttribute("aria-current")).toBe("page");
