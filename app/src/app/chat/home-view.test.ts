@@ -29,6 +29,7 @@ it("stacks the home cards in order under the greeting", async () => {
     "chat-home-card chat-home-space",
     "chat-home-card chat-home-upcoming",
     "chat-home-tiles",
+    "home-customize-open",
   ]);
   expect(view.querySelector(".chat-home-dock")).toBeNull();
   expect(view.querySelector(".chat-home-chip")?.textContent).toBe("Dans 5 jours");
@@ -139,3 +140,35 @@ async function mount(patientFirstName?: string): Promise<HTMLDivElement> {
   });
   return container;
 }
+
+it("lets the person reorder and hide home blocks and remembers it", async () => {
+  window.localStorage.removeItem("steve.home.layout.v1");
+  const view = await mount("Peter");
+  const firstCard = () => {
+    const first = view.querySelector(".chat-home-actions")?.firstElementChild;
+    return first?.getAttribute("aria-labelledby") ?? first?.getAttribute("aria-label");
+  };
+  expect(firstCard()).toBe("home-signal-title");
+  const open = [...view.querySelectorAll("button")].find((item) => item.textContent === "Personnaliser l’accueil");
+  if (!(open instanceof HTMLButtonElement)) throw new Error("missing customise button");
+  await act(async () => open.click());
+  const sheet = view.querySelector('[role="dialog"][aria-labelledby="home-custom-title"]');
+  if (!(sheet instanceof HTMLElement)) throw new Error("missing sheet");
+  const down = sheet.querySelector('[aria-label="Descendre Ton sommeil"]');
+  const hide = sheet.querySelector('[aria-label="Afficher Mon espace santé"]');
+  if (!(down instanceof HTMLButtonElement) || !(hide instanceof HTMLButtonElement)) throw new Error("missing controls");
+  expect(sheet.querySelector('[aria-label="Monter Ton sommeil"]')?.hasAttribute("disabled")).toBe(true);
+  await act(async () => down.click());
+  await act(async () => hide.click());
+  expect(hide.getAttribute("aria-checked")).toBe("false");
+  expect(firstCard()).toBe("Prochain rendez-vous");
+  expect(view.querySelector("#chat-home-space-title")).toBeNull();
+  expect(JSON.parse(window.localStorage.getItem("steve.home.layout.v1") ?? "{}")).toMatchObject({ hidden: ["space"] });
+
+  const reset = [...sheet.querySelectorAll("button")].find((item) => item.textContent === "Revenir à l’ordre par défaut");
+  if (!(reset instanceof HTMLButtonElement)) throw new Error("missing reset");
+  await act(async () => reset.click());
+  expect(firstCard()).toBe("home-signal-title");
+  expect(view.querySelector("#chat-home-space-title")).not.toBeNull();
+  window.localStorage.removeItem("steve.home.layout.v1");
+});

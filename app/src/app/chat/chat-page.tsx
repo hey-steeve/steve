@@ -28,14 +28,9 @@ import { AppTabBar } from "../tab-bar";
 import { AgentCallBar, PhoneIcon } from "./agent-call-bar";
 import { DirectoryWidget } from "./directory-widget";
 import { LiveTrace, TraceSummary } from "./thinking-trace";
-import {
-  HomeAppointmentCard,
-  HomeSpaceCard,
-  HomeTiles,
-  HomeTopBar,
-  HomeUpcomingCard,
-} from "./home-view";
-import { HomeChallengeCard, HomeSignalCard, sleepDiscussPrompt } from "./home-community";
+import { HomeTopBar } from "./home-view";
+import { sleepDiscussPrompt } from "./home-community";
+import { HomeBlocks } from "./home-customize";
 import { runPractitionerSearch, type DirectoryResult } from "./search-practitioners";
 import "./chat.css";
 import "./directory-widget.css";
@@ -785,12 +780,7 @@ export default function ChatPage(props: {
               </div>
               {empty ? (
                 <div className="chat-home-actions">
-                  <HomeSignalCard onDiscuss={() => send(sleepDiscussPrompt, false)} />
-                  <HomeAppointmentCard />
-                  <HomeChallengeCard />
-                  <HomeSpaceCard />
-                  <HomeUpcomingCard />
-                  <HomeTiles />
+                  <HomeBlocks onDiscuss={() => send(sleepDiscussPrompt, false)} />
                 </div>
               ) : null}
             </div>
