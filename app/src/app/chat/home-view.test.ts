@@ -152,7 +152,7 @@ it("lets the person reorder and hide home blocks and remembers it", async () => 
   const open = [...view.querySelectorAll("button")].find((item) => item.textContent === "Personnaliser l’accueil");
   if (!(open instanceof HTMLButtonElement)) throw new Error("missing customise button");
   await act(async () => open.click());
-  const sheet = view.querySelector('[role="dialog"][aria-labelledby="home-custom-title"]');
+  const sheet = document.querySelector('[role="dialog"][aria-labelledby="home-custom-title"]');
   if (!(sheet instanceof HTMLElement)) throw new Error("missing sheet");
   const down = sheet.querySelector('[aria-label="Descendre Ton sommeil"]');
   const hide = sheet.querySelector('[aria-label="Afficher Mon espace santé"]');

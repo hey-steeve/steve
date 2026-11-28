@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   defaultHomeLayout,
   homeBlocks,
@@ -48,14 +49,18 @@ export function HomeBlocks(props: { readonly onDiscuss: () => void }) {
       <button type="button" className="home-customize-open" onClick={() => setEditing(true)}>
         Personnaliser l’accueil
       </button>
-      {editing ? (
-        <HomeCustomizeSheet
-          layout={layout}
-          onChange={change}
-          onReset={() => change(defaultHomeLayout)}
-          onClose={() => setEditing(false)}
-        />
-      ) : null}
+      {editing
+        ? createPortal(
+            <HomeCustomizeSheet
+              layout={layout}
+              onChange={change}
+              onReset={() => change(defaultHomeLayout)}
+              onClose={() => setEditing(false)}
+            />,
+            // The home cards are a stacking context below the tab bar.
+            document.body,
+          )
+        : null}
     </>
   );
 }
