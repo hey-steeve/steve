@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppTabBar } from "./tab-bar";
+import { isTabRoute } from "./tabs";
 import "./feature-shell.css";
 
 export const featureNavItems = [
@@ -26,15 +27,21 @@ export function FeatureShell(props: {
   readonly heroMascot?: { readonly src: string; readonly width: number; readonly height: number };
   readonly children: ReactNode;
 }) {
+  // Tab pages are reached from the tab bar, so they carry no back link.
+  const back = !isTabRoute(props.current);
   return (
     <main className="steve-screen">
-      <div className="steve-topbar">
-        <Link className="steve-back" href="/chat">
-          <BackChevronIcon />
-          Retour
-        </Link>
-        {props.badge === undefined ? null : <span className="steve-pill">{props.badge}</span>}
-      </div>
+      {back || props.badge !== undefined ? (
+        <div className="steve-topbar">
+          {back ? (
+            <Link className="steve-back" href="/chat">
+              <BackChevronIcon />
+              Retour
+            </Link>
+          ) : null}
+          {props.badge === undefined ? null : <span className="steve-pill">{props.badge}</span>}
+        </div>
+      ) : null}
       <header className="steve-header-row">
         <div className="steve-header-copy">
           <h1 className="steve-title">{props.title}</h1>

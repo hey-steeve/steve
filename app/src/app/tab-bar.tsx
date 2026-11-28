@@ -2,23 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { appTabs, tabIndexFor } from "./tabs";
 import "./tab-bar.css";
 
-export const appTabs = [
-  { href: "/chat", label: "Accueil" },
-  { href: "/challenges", label: "Défis" },
-  { href: "/agenda", label: "Agenda" },
-  { href: "/profile", label: "Mon profil" },
-] as const;
+export { appTabs, tabIndexFor };
 
 // Module state survives client-side navigation, so a freshly mounted bar can
 // start its indicator on the tab the user just left and slide to the new one.
 let lastTab: number | null = null;
-
-export function tabIndexFor(current: string): number | null {
-  const index = appTabs.findIndex((tab) => tab.href === current);
-  return index < 0 ? null : index;
-}
 
 export function AppTabBar(props: {
   readonly current: string;

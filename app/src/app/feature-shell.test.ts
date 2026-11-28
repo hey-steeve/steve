@@ -29,7 +29,7 @@ function missingRouteFiles(
 it("renders the shared shell with back navigation and the app tab bar", () => {
   const html = renderToStaticMarkup(
     createElement(FeatureShell, {
-      current: "/agenda",
+      current: "/directory",
       title: "Annuaire",
       badge: "Nouveau",
       headerMascot: { src: "/mascot/state-done.webp", width: 256, height: 256 },
@@ -44,11 +44,22 @@ it("renders the shared shell with back navigation and the app tab bar", () => {
   expect(host.querySelector(".steve-header-mascot")?.getAttribute("src")).toBe(
     "/mascot/state-done.webp",
   );
-  const current = host.querySelector('.app-tab[aria-current="page"]');
-  expect(current?.getAttribute("href")).toBe("/agenda");
+  expect(host.querySelector('.app-tab[aria-current="page"]')).toBeNull();
   expect(host.querySelector(".app-tabbar-floating .app-tab-fab")?.getAttribute("href")).toBe("/chat");
   expect(host.querySelector(".steve-nav")).toBeNull();
   expect(host.textContent).not.toContain("pas médecin");
+});
+
+it("drops the back link on tab pages and keeps the tab highlighted", () => {
+  for (const current of ["/agenda", "/challenges", "/profile"] as const) {
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(
+      createElement(FeatureShell, { current, title: "Onglet", children: null }),
+    );
+    expect(host.querySelector(".steve-back")).toBeNull();
+    expect(host.querySelector(".steve-topbar")).toBeNull();
+    expect(host.querySelector('.app-tab[aria-current="page"]')?.getAttribute("href")).toBe(current);
+  }
 });
 
 it("links only to routes that have a page.tsx file on disk (BC-85)", () => {
