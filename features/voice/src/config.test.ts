@@ -12,7 +12,7 @@ it("pins model, voice, language and server VAD", () => {
   expect(VOICE_MODEL).toBe("grok-voice-3.0");
   expect(config.model).toBe("grok-voice-3.0");
   expect(config.voice).toBe("eve");
-  expect(config.audio.input.transcription.language_hint).toBe("fr");
+  expect(config.audio.input.transcription.language_hint).toBe("en");
   expect(config.turn_detection.type).toBe("server_vad");
 });
 
@@ -27,7 +27,7 @@ it("nests language and keyterms under audio.input.transcription with the model",
   expect(TRANSCRIPTION_MODEL).toBe("grok-transcribe");
   expect(config.audio.input.transcription).toEqual({
     model: "grok-transcribe",
-    language_hint: "fr",
+    language_hint: "en",
     keyterms: ["Alan", "mutuelle"],
   });
   expect(config).not.toHaveProperty("language_hint");
