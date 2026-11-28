@@ -20,6 +20,7 @@ export const mascotWebps = [
     width: 192,
     height: 192,
   },
+  { file: "pfp-phone.webp", source: "avatar/pfp-phone.png", width: 192, height: 192, sharp: true },
   { file: "bubbles-hd.webp", source: "body/bubbles-hd.png", lossless: true },
   { file: "profile-card.webp", source: "body/profile-card.png", width: 600, height: 600, sharp: true },
   { file: "documents.webp", source: "body/documents.png", width: 600, height: 600, sharp: true },

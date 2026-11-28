@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { afterEach, expect, it } from "vitest";
-import { headerAvatarSrc, heroSrc, pageMascots, replyAvatarSrc, steveFace } from "./chat/faces.js";
+import { askAvatarSrc, headerAvatarSrc, heroSrc, pageMascots, replyAvatarSrc, steveFace } from "./chat/faces.js";
 import { mascotWebps, syncMascotWebps } from "./sync-mascot-webps.js";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -115,7 +115,7 @@ it("writes the webps the chat UI names, and only those", async () => {
   );
   await syncMascotWebps({ publicDir, sourceRoot });
 
-  const used = [heroSrc, headerAvatarSrc, replyAvatarSrc, ...Object.values(steveFace), ...Object.values(pageMascots)].map(
+  const used = [heroSrc, askAvatarSrc, headerAvatarSrc, replyAvatarSrc, ...Object.values(steveFace), ...Object.values(pageMascots)].map(
     fileName,
   );
   expect(mascotWebps.map((item) => item.file).sort()).toEqual([...new Set(used)].sort());

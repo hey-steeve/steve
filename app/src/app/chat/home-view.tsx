@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { headerAvatarSrc } from "../../chat/faces";
+import { askAvatarSrc, headerAvatarSrc } from "../../chat/faces";
 import {
   appointmentDay,
   appointmentTime,
@@ -214,7 +214,9 @@ export function HomeAskCard(props: {
   return (
     <section className="chat-home-card chat-home-ask" aria-labelledby="chat-home-ask-title">
       <div className="chat-home-ask-head">
-        <img src={headerAvatarSrc} alt="" width={36} height={36} />
+        <span className="chat-home-ask-avatar" aria-hidden="true">
+          <img src={askAvatarSrc} alt="" width={44} height={44} />
+        </span>
         <span>
           <span id="chat-home-ask-title" className="chat-home-prompt-title">
             Comment puis-je t’aider ?

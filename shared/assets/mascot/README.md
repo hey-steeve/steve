@@ -54,6 +54,7 @@ Grok Imagine generated these scenes from Alan's public mascot visuals. Spidey de
 - `pfp-indigo.png` is a square opaque profile photo, on an indigo background.
 - `pfp-lavender.png` is a square opaque profile photo, on a lavender background.
 - `pfp-lavender-profile.png` is that same photo on the profile background `#daddfe`. The header avatar uses this file. `node tooling/rebackground.mjs` writes it from `pfp-lavender.png`.
+- `pfp-phone.png` is a bust of Steve holding a phone to his ear, with transparency. The file is 1254 by 1254 pixels. The home "Comment puis-je t’aider ?" card uses it as Steve's avatar.
 
 The app encodes `pfp-lavender-profile.png` as the header avatar. The other files in `avatar/` are unused. They are separate from the marmot definition in `shared/src/mascot`. The marmot definition will be replaced later.
 
@@ -74,4 +75,4 @@ These files are the source. Do not edit them in place. Derive the resized copies
 
 `SHA256SUMS` contains the checksums of the approved original.
 
-`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png`, `pfp-lavender.png`, and `pfp-lavender-profile.png`. `body/lounge-call.png`, `body/lounge-call-source-eff1fe.png`, and `body/lounge-call-page.png` are 1024 by 1024 pixels and are not transparent poses. The twelve poses in `body/` that are another size are transparent PNGs. `bubbles-hd.png` is the home pose. `pfp-lavender-profile.png` is the flat profile file. `lounge-call-source-eff1fe.png` is the flat page original. `lounge-call-page.png` is that file at the same size. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels. A `-page` file uses `#eff1fe`. A `-profile` file uses `#daddfe`. Do not edit the unsuffixed file.
+`avatar/`, `states/`, `body/hello.png`, `body/present.png`, and `body/celebrate.png` stay 1024 by 1024 pixel PNGs, with transparency, except `pfp-indigo.png`, `pfp-lavender.png`, `pfp-lavender-profile.png`, and `pfp-phone.png`, which is a 1254 by 1254 pixel transparent PNG. `body/lounge-call.png`, `body/lounge-call-source-eff1fe.png`, and `body/lounge-call-page.png` are 1024 by 1024 pixels and are not transparent poses. The twelve poses in `body/` that are another size are transparent PNGs. `bubbles-hd.png` is the home pose. `pfp-lavender-profile.png` is the flat profile file. `lounge-call-source-eff1fe.png` is the flat page original. `lounge-call-page.png` is that file at the same size. `duo/dad-son.jpg` and `duo/fistbump.jpg` are opaque JPEGs of 1152 by 864 pixels. A `-page` file uses `#eff1fe`. A `-profile` file uses `#daddfe`. Do not edit the unsuffixed file.

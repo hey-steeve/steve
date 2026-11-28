@@ -40,6 +40,8 @@ export const headerAvatarSrc = "/mascot/pfp-lavender-profile.webp";
 
 export const replyAvatarSrc = headerAvatarSrc;
 
+export const askAvatarSrc = "/mascot/pfp-phone.webp";
+
 export function faceFor(cue: MascotCue): SteveFace {
   if (cue.mood === "happy") {
     return steveFace.done;

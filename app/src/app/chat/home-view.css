@@ -181,11 +181,23 @@
   gap: 10px;
 }
 
-.chat-home-ask-head img {
+.chat-home-ask-avatar {
+  display: block;
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
   border-radius: 50%;
+  background: var(--color-profile);
+}
+
+.chat-home-ask-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  transform: scale(1.12) translateY(4%);
 }
 
 .chat-home-card-head {
