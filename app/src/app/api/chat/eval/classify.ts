@@ -31,7 +31,7 @@ export function classifyRouteResponse(status: number, body: unknown): RouteClass
     return { kind: "canned" };
   }
   const reply = body["reply"];
-  if (typeof reply === "string" && reply.startsWith("[Réponse simulée]")) {
+  if (typeof reply === "string" && reply.startsWith("[Simulated reply]")) {
     return { kind: "canned" };
   }
   if (status === 200 && typeof reply === "string" && reply.length > 0) {

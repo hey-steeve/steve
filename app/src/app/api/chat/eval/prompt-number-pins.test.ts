@@ -28,37 +28,39 @@ const splitFailure = (span: string, kind: string): string =>
   `split across sentences: "${span}" (${kind}) crosses a sentence boundary`;
 
 const pair3114Then15 =
-  `Pour le 3114 puis le 15, tu écris « ${call3114Now} » puis « ${call15Now} ».`;
+  `For 3114 then 15, you write “${call3114Now}” then “${call15Now}”.`;
 const pair15Then3114 =
-  `Pour le 15 puis le 3114, tu écris « ${call15Now} » puis « ${call3114} ».`;
+  `For 15 then 3114, you write “${call15Now}” then “${call3114}”.`;
 
-const refuse112Lead = "Tu ne donnes jamais le 112 ni SOS Médecins.";
+const refuse112Lead = "You never give 112 or SOS Médecins.";
 const refuse112Follow =
-  "Si tu les nommes, chaque phrase de ta réponse est une phrase d'appel autorisée ou exactement « Je ne te donne pas le 112. », « Je ne te donne pas SOS Médecins. », « Je ne peux pas te conseiller de médicament. » ou « Demande conseil à un pharmacien ou à un médecin. ».";
+  "If you name them, every sentence of your reply is an allowed call sentence or exactly “I don't give out 112.”, “I don't give out SOS Médecins.”, “I can't advise you on medication.” or “Ask a pharmacist or a doctor for advice.”.";
 const lastRule =
-  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation.";
+  "When in doubt, you ask one short question or you recommend a consultation.";
 
 const general15Head =
-  "Tu ne donnes le 15 que pour une vraie urgence ou quand une règle ci-dessous l'exige, c'est-à-dire des signes de gravité, une surdose, une automutilation, un danger immédiat,";
-const general15Tail = "des pensées suicidaires ou une crise de panique avec essoufflement.";
+  "You give 15 only for a real emergency or when a rule below requires it, meaning warning signs, an overdose, self-harm, immediate danger,";
+const general15Tail = "suicidal thoughts or a panic attack with shortness of breath.";
 const general15Old = `${general15Head} ${general15Tail}`;
-const general15New = `${general15Head} mais jamais pour des pensées suicidaires ni pour une crise de panique avec essoufflement.`;
+const general15New = `${general15Head} but never for suicidal thoughts or for a panic attack with shortness of breath.`;
 
-const samePhrase = "Tu ne mets jamais le 15 et le 3114 dans la même phrase.";
-const samePhraseLead = "Tu ne mets jamais le 15 et le 3114 dans la même phrase";
-const samePhraseWidened = `${samePhraseLead}, et tu ne donnes pas le 15 pour des pensées suicidaires sans danger aigu.`;
-const samePhraseEdited = "Tu ne mets jamais le 15 et le 3114 dans la même réponse.";
+const samePhrase = "You never put 15 and 3114 in the same sentence.";
+const samePhraseLead = "You never put 15 and 3114 in the same sentence";
+const samePhraseWidened = `${samePhraseLead}, and you don't give 15 for suicidal thoughts without acute danger.`;
+const samePhraseEdited = "You never put 15 and 3114 in the same reply.";
 
 const redFlagHead =
-  "Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la réponse s'ouvre exactement par ce bloc :";
-const redFlagTail = `« ${call15Now} », jamais seulement une phrase conditionnelle.`;
+  "If the message already describes warning signs, for example a baby who has a fever, who is drowsy or who has trouble breathing, the reply opens with exactly this block:";
+const redFlagTail = `“${call15Now}” and never with only a conditional sentence.`;
 const redFlagOld = `${redFlagHead} ${redFlagTail}`;
-const redFlagNew = `${redFlagHead} jamais ${redFlagTail}`;
+const redFlagNew = `${redFlagHead} never ${redFlagTail}`;
 
 const anxietyTail =
-  `peut citer le 3114, sans l'exiger en ouverture, et ce bloc est exactement « ${call3114} » ou « ${call3114Now} ».`;
-const anxietyOld = `Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, ${anxietyTail}`;
-const anxietyNew = `Une angoisse intense, des pensées suicidaires ou une crise de panique avec essoufflement, sans pensée suicidaire et sans danger, ${anxietyTail}`;
+  `may mention 3114 without requiring it as the opening, and that block is exactly “${call3114}” or “${call3114Now}”.`;
+const anxietyOld = `Intense anxiety or a panic attack, with no suicidal thought and no danger, ${anxietyTail}`;
+const anxietyNew = `Intense anxiety, suicidal thoughts or a panic attack with shortness of breath, with no suicidal thought and no danger, ${anxietyTail}`;
+
+const friendRule = "You speak to the person informally, as a friend would.";
 
 function replaceOnce(text: string, anchor: string, replacement: string): string {
   const first = text.indexOf(anchor);
@@ -109,8 +111,8 @@ const mutations: readonly Mutation[] = [
   },
   {
     name: "unpinned new number sentence",
-    prompt: (live) => replaceOnce(live, "Tu tutoies.", "Tu tutoies. Pour une brûlure grave, appelle le 15."),
-    failures: [unpinnedFailure(["15"], "Pour une brûlure grave, appelle le 15.")],
+    prompt: (live) => replaceOnce(live, friendRule, `${friendRule} For a severe burn, call 15.`),
+    failures: [unpinnedFailure(["15"], "For a severe burn, call 15.")],
   },
   {
     name: "one-word edit of a pinned sentence",
@@ -160,8 +162,8 @@ const mutations: readonly Mutation[] = [
     prompt: (live) =>
       replaceOnce(
         replaceOnce(live, `${samePhrase} `, ""),
-        "Tu tutoies.",
-        `Tu tutoies. ${samePhrase}`,
+        friendRule,
+        `${friendRule} ${samePhrase}`,
       ),
     failures: [outOfOrderFailure(samePhrase)],
   },
@@ -178,19 +180,19 @@ const mutations: readonly Mutation[] = [
   {
     name: "N5 split 112 as 1. 1. 2.",
     prompt: (live) =>
-      replaceOnce(live, "Tu tutoies.", "Tu tutoies. En dernier recours, appelle le 1. 1. 2."),
+      replaceOnce(live, friendRule, `${friendRule} As a last resort, call 1. 1. 2.`),
     failures: [splitFailure("1. 1. 2", "112")],
   },
   {
     name: "N5 split 15 as 1. 5.",
     prompt: (live) =>
-      replaceOnce(live, "Tu tutoies.", "Tu tutoies. En dernier recours, appelle le 1. 5."),
+      replaceOnce(live, friendRule, `${friendRule} As a last resort, call 1. 5.`),
     failures: [splitFailure("1. 5", "15")],
   },
   {
     name: "N5 split 3114 as 3. 1. 1. 4.",
     prompt: (live) =>
-      replaceOnce(live, "Tu tutoies.", "Tu tutoies. En dernier recours, appelle le 3. 1. 1. 4."),
+      replaceOnce(live, friendRule, `${friendRule} As a last resort, call 3. 1. 1. 4.`),
     failures: [splitFailure("3. 1. 1. 4", "3114")],
   },
 ];

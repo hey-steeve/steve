@@ -13,25 +13,25 @@ import {
 
 const rows = [
   {
-    reply: "Reste au chaud.",
+    reply: "Keep warm.",
     calls: ["15"],
-    result: `${call15Now} Reste au chaud.`,
+    result: `${call15Now} Keep warm.`,
   },
   {
-    reply: "Reste au chaud.",
+    reply: "Keep warm.",
     calls: ["3114", "15"],
     result:
-      `${call3114Now} ${call15Now} Reste au chaud.`,
+      `${call3114Now} ${call15Now} Keep warm.`,
   },
   {
-    reply: "Reste au chaud.",
+    reply: "Keep warm.",
     calls: ["15", "3114"],
-    result: `${call15Now} ${call3114} Reste au chaud.`,
+    result: `${call15Now} ${call3114} Keep warm.`,
   },
   {
-    reply: `${call15Now} Reste au chaud.`,
+    reply: `${call15Now} Keep warm.`,
     calls: ["15", "3114"],
-    result: `${call15Now} ${call3114} Reste au chaud.`,
+    result: `${call15Now} ${call3114} Keep warm.`,
   },
   {
     reply: `${call15Now}`,
@@ -39,9 +39,9 @@ const rows = [
     result: `${call3114Now} ${call15Now}`,
   },
   {
-    reply: `${call15Now}\nReste calme.`,
+    reply: `${call15Now}\nStay calm.`,
     calls: ["15", "3114"],
-    result: `${call15Now} ${call3114}\nReste calme.`,
+    result: `${call15Now} ${call3114}\nStay calm.`,
   },
   {
     reply: `${call15Now}\n${call3114}`,
@@ -54,45 +54,45 @@ const rows = [
     result: `${call3114Now}\n${call15Now}`,
   },
   {
-    reply: `${call15Now} ${call3114} Reste au chaud.`,
+    reply: `${call15Now} ${call3114} Keep warm.`,
     calls: ["15", "3114"],
-    result: `${call15Now} ${call3114} Reste au chaud.`,
+    result: `${call15Now} ${call3114} Keep warm.`,
   },
   {
-    reply: `${call15Now.toLowerCase()} Reste au chaud.`,
+    reply: `${call15Now.toLowerCase()} Keep warm.`,
     calls: ["15"],
-    result: `${call15Now.toLowerCase()} Reste au chaud.`,
+    result: `${call15Now.toLowerCase()} Keep warm.`,
   },
   {
-    reply: `Reste calme. ${call15Now}`,
+    reply: `Stay calm. ${call15Now}`,
     calls: ["15"],
-    result: `${call15Now} Reste calme.`,
+    result: `${call15Now} Stay calm.`,
   },
   {
-    reply: "Reste au chaud.",
+    reply: "Keep warm.",
     calls: [],
-    result: "Reste au chaud.",
+    result: "Keep warm.",
   },
   {
-    reply: "Reste au chaud.",
+    reply: "Keep warm.",
     calls: ["3114"],
-    result: `${call3114Now} Reste au chaud.`,
+    result: `${call3114Now} Keep warm.`,
   },
   {
-    reply: `${call3114Now} Reste au chaud.`,
+    reply: `${call3114Now} Keep warm.`,
     calls: ["3114"],
-    result: `${call3114Now} Reste au chaud.`,
+    result: `${call3114Now} Keep warm.`,
   },
   {
-    reply: `${call3114} Reste au chaud.`,
+    reply: `${call3114} Keep warm.`,
     calls: ["3114"],
-    result: `${call3114Now} Reste au chaud.`,
+    result: `${call3114Now} Keep warm.`,
   },
   {
-    reply: "Si l'essoufflement persiste, appelle le 15 maintenant.",
+    reply: "If the shortness of breath persists, call 15 now.",
     calls: ["15"],
     result:
-      `${call15Now} Si l'essoufflement persiste, appelle le 15 maintenant.`,
+      `${call15Now} If the shortness of breath persists, call 15 now.`,
   },
   {
     reply: `${call3114}`,
@@ -100,15 +100,15 @@ const rows = [
     result: `${call15Now} ${call3114}`,
   },
   {
-    reply: "Oui, appelle le 15 maintenant.",
+    reply: "Yes, call 15 now.",
     calls: ["15"],
-    result: `${call15Now} Oui, appelle le 15 maintenant.`,
+    result: `${call15Now} Yes, call 15 now.`,
   },
   {
     reply: `« ${call15Now} »`,
     calls: ["15"],
     // The quoted 15 and closing sentences are lone block sentences and go.
-    result: `${call15Now} « Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque. »`,
+    result: `${call15Now} « What you're describing could be serious, and I'd rather we take no risks. »`,
   },
   {
     reply: "",
@@ -116,9 +116,9 @@ const rows = [
     result: `${call15Now}`,
   },
   {
-    reply: `${call15Now}\nReste calme.`,
+    reply: `${call15Now}\nStay calm.`,
     calls: ["15"],
-    result: `${call15Now}\nReste calme.`,
+    result: `${call15Now}\nStay calm.`,
   },
   {
     reply: `${call3114Now} ${call15Now}`,
@@ -131,19 +131,19 @@ const rows = [
     result: `${call3114Now} ${call15Now}`,
   },
   {
-    reply: `${call3114Now} ${call15Now} Reste au chaud.`,
+    reply: `${call3114Now} ${call15Now} Keep warm.`,
     calls: ["15", "3114"],
-    result: `${call15Now} ${call3114} Reste au chaud.`,
+    result: `${call15Now} ${call3114} Keep warm.`,
   },
   {
-    reply: `${call3114Now} Reste au chaud.`,
+    reply: `${call3114Now} Keep warm.`,
     calls: ["15"],
-    result: `${call15Now} ${call3114Now} Reste au chaud.`,
+    result: `${call15Now} ${call3114Now} Keep warm.`,
   },
   {
-    reply: `${call15Now} Reste au chaud. ${call3114Now}`,
+    reply: `${call15Now} Keep warm. ${call3114Now}`,
     calls: ["15"],
-    result: `${call15Now} ${call3114Now} Reste au chaud.`,
+    result: `${call15Now} ${call3114Now} Keep warm.`,
   },
   {
     reply: `${call3114} ${call15Now}`,
@@ -151,17 +151,17 @@ const rows = [
     result: `${call15Now} ${call3114}`,
   },
   {
-    reply: `${call15Now} Ils t'écoutent. ${call3114}`,
+    reply: `${call15Now} They'll listen. ${call3114}`,
     calls: ["15", "3114"],
     result: `${call15Now} ${call3114}`,
   },
   {
-    reply: `${call3114Now} Ils t'écoutent. ${call15Now}`,
+    reply: `${call3114Now} They'll listen. ${call15Now}`,
     calls: ["15"],
-    result: `${call15Now} ${call3114Now} Ils t'écoutent.`,
+    result: `${call15Now} ${call3114Now} They'll listen.`,
   },
   {
-    reply: `${call3114Now} Ils t'écoutent`,
+    reply: `${call3114Now} They'll listen`,
     calls: ["15", "3114"],
     result: `${call15Now} ${call3114}`,
   },
@@ -175,64 +175,64 @@ it("adds every missing immediate call in calls order", () => {
 
 const listeningTailRows = [
   {
-    reply: `${call15Now} Ils t'écoutent. ${call3114}`,
+    reply: `${call15Now} They'll listen. ${call3114}`,
     calls: ["15", "3114"],
     result: `${call15Now} ${call3114}`,
   },
   {
-    reply: `${call3114Now} Ils t'écoutent. ${call15Now}`,
+    reply: `${call3114Now} They'll listen. ${call15Now}`,
     calls: ["15"],
-    result: `${call15Now} ${call3114Now} Ils t'écoutent.`,
+    result: `${call15Now} ${call3114Now} They'll listen.`,
   },
   {
-    reply: `${call15Now} Reste au chaud.`,
+    reply: `${call15Now} Keep warm.`,
     calls: ["15", "3114"],
-    result: `${call15Now} ${call3114} Reste au chaud.`,
+    result: `${call15Now} ${call3114} Keep warm.`,
   },
   {
-    reply: `Reste calme. ${call3114Now} Ils t'écoutent jour et nuit.`,
+    reply: `Stay calm. ${call3114Now} They'll listen day and night.`,
     calls: ["15", "3114"],
-    result: `${call15Now} ${call3114} Reste calme.`,
+    result: `${call15Now} ${call3114} Stay calm.`,
   },
   {
-    reply: `Reste calme. ${call3114Now} Ils t'écoutent jour et nuit.`,
+    reply: `Stay calm. ${call3114Now} They'll listen day and night.`,
     calls: ["3114", "15"],
-    result: `${call3114Now} ${call15Now} Reste calme.`,
+    result: `${call3114Now} ${call15Now} Stay calm.`,
   },
   {
-    reply: `${call3114Now} Ils t'écoutent jour et nuit. ${call15Now}`,
+    reply: `${call3114Now} They'll listen day and night. ${call15Now}`,
     calls: ["15"],
-    result: `${call15Now} ${call3114Now} Ils t'écoutent jour et nuit.`,
+    result: `${call15Now} ${call3114Now} They'll listen day and night.`,
   },
   {
-    reply: `Reste calme. ${call3114Now} Ils t'écoutent jour et nuit.`,
-    calls: ["15"],
-    result:
-      `${call15Now} ${call3114Now} Ils t'écoutent jour et nuit. Reste calme.`,
-  },
-  {
-    reply: `Reste au chaud. ${call3114Now} Ils t'écoutent`,
+    reply: `Stay calm. ${call3114Now} They'll listen day and night.`,
     calls: ["15"],
     result:
-      `${call15Now} ${call3114Now} Ils t'écoutent. Reste au chaud.`,
+      `${call15Now} ${call3114Now} They'll listen day and night. Stay calm.`,
+  },
+  {
+    reply: `Keep warm. ${call3114Now} They'll listen`,
+    calls: ["15"],
+    result:
+      `${call15Now} ${call3114Now} They'll listen. Keep warm.`,
   },
 ] as const;
 
 function exactOnlyListeningTail(sentence: string): boolean {
   const normalized = normalizeEmergencyText(sentence);
   return (
-    normalized === normalizeEmergencyText("Ils t'écoutent") ||
-    normalized === normalizeEmergencyText("Ils t'écoutent.")
+    normalized === normalizeEmergencyText("They'll listen") ||
+    normalized === normalizeEmergencyText("They'll listen.")
   );
 }
 
-const punctuationTail = `${call3114Now} ... Ils t'écoutent.`;
+const punctuationTail = `${call3114Now} ... They'll listen.`;
 
 const punctuationTailRows = [
   {
     reply: punctuationTail,
     calls: ["15"],
-    result: `${call15Now} ${call3114Now} Ils t'écoutent.`,
+    result: `${call15Now} ${call3114Now} They'll listen.`,
   },
   {
     reply: punctuationTail,
@@ -250,7 +250,7 @@ it("moves a listening tail past a punctuation-only piece and drops that piece wi
   for (const row of punctuationTailRows) {
     const output = ensureEmergencyCalls(row.reply, [...row.calls]);
     expect(output, JSON.stringify(row.calls)).toBe(row.result);
-    expect(output, JSON.stringify(row.calls)).not.toContain("... Ils t'écoutent.");
+    expect(output, JSON.stringify(row.calls)).not.toContain("... They'll listen.");
   }
 });
 
@@ -258,20 +258,20 @@ it("drops a listening tail with a removed call and keeps one on a kept 3114", ()
   for (const row of listeningTailRows) {
     expect(ensureEmergencyCalls(row.reply, [...row.calls]), row.reply).toBe(row.result);
   }
-  const jourEtNuit = "Ils t'écoutent jour et nuit.";
+  const jourEtNuit = "They'll listen day and night.";
   expect(exactOnlyListeningTail(jourEtNuit)).toBe(false);
-  expect(exactOnlyListeningTail("Ils t'écoutent.")).toBe(true);
-  expect(exactOnlyListeningTail("Ils t'écoutent")).toBe(true);
-  expect(exactOnlyListeningTail("Reste calme.")).toBe(false);
-  expect(exactOnlyListeningTail("Reste au chaud.")).toBe(false);
+  expect(exactOnlyListeningTail("They'll listen.")).toBe(true);
+  expect(exactOnlyListeningTail("They'll listen")).toBe(true);
+  expect(exactOnlyListeningTail("Stay calm.")).toBe(false);
+  expect(exactOnlyListeningTail("Keep warm.")).toBe(false);
 });
 
 const breathingWarning =
-  "Ils t'écoutent, et si tu as du mal à respirer, appelle le 15 maintenant.";
+  "They'll listen, and if you have trouble breathing, call 15 now.";
 const painWarning =
-  "Ils t'écoutent ; si la douleur augmente, rappelle le 15 maintenant.";
-const worsenWarning = "Ils t'écoutent : n'hésite pas à rappeler si ça empire.";
-const tonightWarning = "Ils t'écoutent 24h/24, mais ne reste pas seul ce soir.";
+  "They'll listen; if the pain gets worse, call 15 again now.";
+const worsenWarning = "They'll listen: don't hesitate to call back if it gets worse.";
+const tonightWarning = "They'll listen 24/7, but don't stay alone tonight.";
 
 const mustKeepRows = [
   {
@@ -346,9 +346,9 @@ it("keeps model advice that is not a whole-sentence listening tail", () => {
 });
 
 const closedListeningTails = new Set([
-  normalizeEmergencyText("Ils t'écoutent"),
-  normalizeEmergencyText("Ils t'écoutent."),
-  normalizeEmergencyText("Ils t'écoutent jour et nuit."),
+  normalizeEmergencyText("They'll listen"),
+  normalizeEmergencyText("They'll listen."),
+  normalizeEmergencyText("They'll listen day and night."),
 ]);
 
 const exactCallTemplateNorms = new Set(
@@ -395,33 +395,33 @@ function helperSentences(reply: string): string[] {
 
 const modelPunctuationRows = [
   {
-    reply: "Si ça empire... Respire lentement… Tu es en sécurité ?!",
+    reply: "If it gets worse... Breathe slowly… Are you safe?!",
     calls: ["3114"],
   },
   {
     reply:
-      `${call15Now} Si ça empire... Respire lentement… Tu es en sécurité ?!`,
+      `${call15Now} If it gets worse... Breathe slowly… Are you safe?!`,
     calls: ["15"],
   },
   {
     reply:
-      `${call15Now} ${call3114} Si ça empire... Respire lentement… Tu es en sécurité ?!`,
+      `${call15Now} ${call3114} If it gets worse... Breathe slowly… Are you safe?!`,
     calls: ["15", "3114"],
   },
   {
-    reply: "Si ça empire... Respire lentement… Tu es en sécurité ?!",
+    reply: "If it gets worse... Breathe slowly… Are you safe?!",
     calls: ["3114", "15"],
   },
   {
-    reply: "Si ça empire... Respire lentement… Tu es en sécurité ?!",
+    reply: "If it gets worse... Breathe slowly… Are you safe?!",
     calls: ["15"],
   },
   {
-    reply: "Reste au chaud. ... Si ça empire.",
+    reply: "Keep warm. ... If it gets worse.",
     calls: ["15"],
   },
   {
-    reply: "Reste au chaud. ?! Si ça empire.",
+    reply: "Keep warm. ?! If it gets worse.",
     calls: ["15"],
   },
 ] as const;
@@ -465,7 +465,7 @@ const doubledPunctuation = /[.!?]{2}/;
 
 it("never emits doubled punctuation", () => {
   const ellipsisTail = {
-    reply: `${call3114Now} Ils t'écoutent...`,
+    reply: `${call3114Now} They'll listen...`,
     calls: ["15"],
   } as const;
   const guarded = [...rows, ...listeningTailRows, ...mustKeepRows, ellipsisTail];
@@ -474,7 +474,7 @@ it("never emits doubled punctuation", () => {
     expect(output, output).not.toMatch(doubledPunctuation);
   }
   expect(ensureEmergencyCalls(ellipsisTail.reply, [...ellipsisTail.calls])).toBe(
-    `${call15Now} ${call3114Now} Ils t'écoutent.`,
+    `${call15Now} ${call3114Now} They'll listen.`,
   );
 });
 
@@ -489,7 +489,7 @@ it("passes the emergency checker after it puts calls in order", () => {
   const cases = [
     [`${call15Now} ${call3114Now}`, ["3114", "15"]],
     [`${call3114Now} ${call15Now}`, ["15", "3114"]],
-    [`Reste calme. ${call15Now}`, ["15"]],
+    [`Stay calm. ${call15Now}`, ["15"]],
   ] as const;
   for (const [reply, calls] of cases) {
     const result = ensureEmergencyCalls(reply, calls);
@@ -516,7 +516,7 @@ it("normalizes every shared line break to a newline and CRLF to one", () => {
 });
 
 it("opens with a full multi-sentence block and keeps a correct opening in place", () => {
-  const reply = `${call15Now} ${call3114} Reste au chaud.`;
+  const reply = `${call15Now} ${call3114} Keep warm.`;
   expect(ensureEmergencyCalls(reply, ["15", "3114"])).toBe(reply);
   expect(ensureEmergencyCalls(`${call3114Now} ${call15Now}`, ["3114", "15"])).toBe(
     `${call3114Now} ${call15Now}`,
@@ -524,13 +524,13 @@ it("opens with a full multi-sentence block and keeps a correct opening in place"
 });
 
 it("does not treat a sentence taken from inside a block as a whole block", () => {
-  const partial = "Je reste avec toi.";
-  expect(ensureEmergencyCalls(`${partial} Reste calme.`, ["15"])).toBe(
-    `${call15Now} Reste calme.`,
+  const partial = "I'm staying with you.";
+  expect(ensureEmergencyCalls(`${partial} Stay calm.`, ["15"])).toBe(
+    `${call15Now} Stay calm.`,
   );
-  const cut = "Ce que tu décris peut être grave, et je préfère qu'on ne prenne aucun risque.";
-  expect(ensureEmergencyCalls(`${cut} Reste calme.`, ["15"])).toBe(
-    `${call15Now} Reste calme.`,
+  const cut = "What you're describing could be serious, and I'd rather we take no risks.";
+  expect(ensureEmergencyCalls(`${cut} Stay calm.`, ["15"])).toBe(
+    `${call15Now} Stay calm.`,
   );
 });
 
@@ -538,8 +538,8 @@ it("rebuilds a lone 15 that sits after a model 3114 block", () => {
   expect(ensureEmergencyCalls(`${call3114Now} ${call15Now}`, ["15"])).toBe(
     `${call15Now} ${call3114Now}`,
   );
-  expect(ensureEmergencyCalls(`${call15Now} Reste calme. ${call3114}`, ["15"])).toBe(
-    `${call15Now} ${call3114} Reste calme.`,
+  expect(ensureEmergencyCalls(`${call15Now} Stay calm. ${call3114}`, ["15"])).toBe(
+    `${call15Now} ${call3114} Stay calm.`,
   );
 });
 
@@ -551,8 +551,8 @@ it("does not read a stretched final period as the end of a block", () => {
   const fixed = ensureEmergencyCalls(stretched15, ["15"]);
   expect(fixed).toBe(call15Now);
   expect(checkEmergencyReply(fixed, ["15"]).pass).toBe(true);
-  const withBody = ensureEmergencyCalls(`${stretched15} Reste calme.`, ["15"]);
-  expect(withBody).toBe(`${call15Now} Reste calme.`);
+  const withBody = ensureEmergencyCalls(`${stretched15} Stay calm.`, ["15"]);
+  expect(withBody).toBe(`${call15Now} Stay calm.`);
   expect(checkEmergencyReply(withBody, ["15"]).pass).toBe(true);
 });
 
@@ -572,43 +572,43 @@ it("splits on a fullwidth period like the checker, so a reversed 15 stays single
 });
 
 it("never rewrites a non-exact 3114 block into an exact one", () => {
-  const loose3114 = call3114Now.replace("compte.", "compte...");
-  const reply = `${call15Now} ${loose3114} Je ne te donne pas le 112.`;
+  const loose3114 = call3114Now.replace("matters.", "matters...");
+  const reply = `${call15Now} ${loose3114} I don't give out 112.`;
   const options = { optional3114Allowed: true };
   expect(checkEmergencyReply(reply, ["15"], options).pass).toBe(false);
   const fixed = ensureEmergencyCalls(reply, ["15"]);
-  expect(fixed).toContain("compte... Tu n'as pas");
+  expect(fixed).toContain("matters... You don't have");
   expect(normalizeEmergencyText(fixed)).not.toContain(normalizeEmergencyText(call3114Now));
   expect(checkEmergencyReply(fixed, ["15"], options).pass).toBe(false);
 });
 
 it("does not join a 1 and a 12 around a removed block into a 112", () => {
-  const reply = `Appelle le 1\n${call15Now}\n12.`;
+  const reply = `Call 1\n${call15Now}\n12.`;
   expect(detectEmergencyNumbers(reply).spans.map((span) => span.kind)).toEqual(["15"]);
   const fixed = ensureEmergencyCalls(reply, ["15"]);
   expect(fixed.startsWith(call15Now)).toBe(true);
   expect(detectEmergencyNumbers(fixed).spans.some((span) => span.kind === "112")).toBe(false);
   expect(checkEmergencyReply(fixed, ["15"]).reason).not.toContain("112");
-  expect(checkEmergencyReply("Appelle le 1\n\n12.", ["15"]).reason).toContain("112");
+  expect(checkEmergencyReply("Call 1\n\n12.", ["15"]).reason).toContain("112");
 });
 
 it("replaces a cut opening block with the full block, once", () => {
-  const cut = call15Now.slice(0, call15Now.indexOf("Je reste avec toi.") + 8);
-  expect(cut.endsWith("Je reste")).toBe(true);
+  const cut = call15Now.slice(0, call15Now.indexOf("I'm staying with you.") + 11);
+  expect(cut.endsWith("I'm staying")).toBe(true);
   const alone = ensureEmergencyCalls(cut, ["15"]);
   expect(alone).toBe(call15Now);
   const later = ensureEmergencyCalls(`${cut}\n${call15Now}`, ["15"]);
   expect(later).toBe(call15Now);
   expect(checkEmergencyReply(later, ["15"]).found).toEqual(["15"]);
-  const inexact = ensureEmergencyCalls(`${cut}\nAppelle le 15 vite.`, ["15"]);
+  const inexact = ensureEmergencyCalls(`${cut}\nCall 15 quickly.`, ["15"]);
   expect(inexact.startsWith(call15Now)).toBe(true);
-  expect(inexact.split("Ce que tu décris").length).toBe(2);
+  expect(inexact.split("What you're describing").length).toBe(2);
   expect(checkEmergencyReply(inexact, ["15"]).pass).toBe(false);
   const both = ensureEmergencyCalls(cut, ["15", "3114"]);
   expect(both).toBe(`${call15Now} ${call3114}`);
 });
 
-const cut15 = `${call15Now.slice(0, call15Now.indexOf("maintenant") + 4)}`;
+const cut15 = `${call15Now.slice(0, call15Now.indexOf("now") + 2)}`;
 
 it("replaces a cut 15 fragment instead of keeping it beside the full block", () => {
   const lead = ensureEmergencyCalls(cut15, ["3114", "15"]);
@@ -616,19 +616,19 @@ it("replaces a cut 15 fragment instead of keeping it beside the full block", () 
   const after3114 = ensureEmergencyCalls(`${call3114Now} ${cut15}`, ["3114", "15"]);
   expect(after3114).toBe(`${call3114Now} ${call15Now}`);
   const physical = ensureEmergencyCalls(`${call3114Now} ${cut15}`, ["15"]);
-  expect(physical.split("Appelle le 15").length).toBe(2);
+  expect(physical.split("Call 15").length).toBe(2);
   expect(physical.startsWith(call15Now)).toBe(true);
   expect(checkEmergencyReply(physical, ["15"], { optional3114Allowed: true }).pass).toBe(true);
 });
 
 it("still refuses to build a 112 when a block is dropped between digits", () => {
-  const fixed = ensureEmergencyCalls(`Appelle le 1\n${call15Now}\n12.`, ["3114", "15"]);
+  const fixed = ensureEmergencyCalls(`Call 1\n${call15Now}\n12.`, ["3114", "15"]);
   expect(detectEmergencyNumbers(fixed).spans.some((span) => span.kind === "112")).toBe(false);
 });
 
 it("does not add a second period after a moved block ending in a fullwidth period", () => {
   const wide = call3114Now.replace(/\.$/u, "．");
-  const moved = ensureEmergencyCalls(`${wide} ${call15Now} Reste au chaud.`, ["15"]);
+  const moved = ensureEmergencyCalls(`${wide} ${call15Now} Keep warm.`, ["15"]);
   expect(moved).not.toContain("．.");
   expect(moved.startsWith(call15Now)).toBe(true);
   expect(checkEmergencyReply(moved, ["15"], { optional3114Allowed: true }).pass).toBe(true);
@@ -642,7 +642,7 @@ it("does not treat a U+FEFF-split ellipsis as a complete 3114 opening", () => {
   expect(checkEmergencyReply(fixed, ["3114", "15"]).found).toEqual(["3114", "15"]);
 });
 
-const keep = "Garde ton téléphone.";
+const keep = "Keep your phone close.";
 const [call15First = "", call15Number = "", call15Last = ""] = splitSentences(call15Now);
 const call3114NowSentences = splitSentences(call3114Now);
 
@@ -652,27 +652,27 @@ function splitSentences(text: string): string[] {
 
 const loneRows = [
   { name: "number sentence leading", calls: ["15"], reply: `${call15Number} ${keep}`, result: `${call15Now} ${keep}` },
-  { name: "short number sentence", calls: ["15"], reply: `Appelle le 15 maintenant. ${keep}`, result: `${call15Now} ${keep}` },
-  { name: "short number sentence only", calls: ["15"], reply: "Appelle le 15 maintenant.", result: call15Now },
+  { name: "short number sentence", calls: ["15"], reply: `Call 15 now. ${keep}`, result: `${call15Now} ${keep}` },
+  { name: "short number sentence only", calls: ["15"], reply: "Call 15 now.", result: call15Now },
   { name: "first sentence at start", calls: ["15"], reply: `${call15First} ${keep}`, result: `${call15Now} ${keep}` },
-  { name: "first sentence in middle", calls: ["15"], reply: `${keep} ${call15First} Reste calme.`, result: `${call15Now} ${keep} Reste calme.` },
+  { name: "first sentence in middle", calls: ["15"], reply: `${keep} ${call15First} Stay calm.`, result: `${call15Now} ${keep} Stay calm.` },
   { name: "first sentence at end", calls: ["15"], reply: `${keep} ${call15First}`, result: `${call15Now} ${keep}` },
   { name: "last sentence at start", calls: ["15"], reply: `${call15Last} ${keep}`, result: `${call15Now} ${keep}` },
-  { name: "last sentence in middle", calls: ["15"], reply: `${keep} ${call15Last} Reste calme.`, result: `${call15Now} ${keep} Reste calme.` },
+  { name: "last sentence in middle", calls: ["15"], reply: `${keep} ${call15Last} Stay calm.`, result: `${call15Now} ${keep} Stay calm.` },
   { name: "last sentence at end", calls: ["15"], reply: `${keep} ${call15Last}`, result: `${call15Now} ${keep}` },
-  { name: "mid-reply number repeat", calls: ["15"], reply: `${keep} ${call15Number} Reste calme.`, result: `${call15Now} ${keep} Reste calme.` },
+  { name: "mid-reply number repeat", calls: ["15"], reply: `${keep} ${call15Number} Stay calm.`, result: `${call15Now} ${keep} Stay calm.` },
   { name: "3114 sentence at start", calls: ["15", "3114"], reply: `${call3114NowSentences[0]} ${keep}`, result: `${call15Now} ${call3114} ${keep}` },
-  { name: "3114 number sentence in middle", calls: ["15", "3114"], reply: `${keep} ${call3114NowSentences[2]} Reste calme.`, result: `${call15Now} ${call3114} ${keep} Reste calme.` },
+  { name: "3114 number sentence in middle", calls: ["15", "3114"], reply: `${keep} ${call3114NowSentences[2]} Stay calm.`, result: `${call15Now} ${call3114} ${keep} Stay calm.` },
   { name: "3114 last sentence at end", calls: ["15", "3114"], reply: `${keep} ${call3114NowSentences[3]}`, result: `${call15Now} ${call3114} ${keep}` },
   { name: "3114 alone, short sentence", calls: ["3114"], reply: `${call3114} ${keep}`, result: `${call3114Now} ${keep}` },
-  { name: "3114 alone, block sentence in middle", calls: ["3114"], reply: `${keep} ${call3114NowSentences[2]} Reste calme.`, result: `${call3114Now} ${keep} Reste calme.` },
+  { name: "3114 alone, block sentence in middle", calls: ["3114"], reply: `${keep} ${call3114NowSentences[2]} Stay calm.`, result: `${call3114Now} ${keep} Stay calm.` },
   { name: "3114 alone, last sentence at end", calls: ["3114"], reply: `${keep} ${call3114NowSentences[3]}`, result: `${call3114Now} ${keep}` },
   { name: "3114 alone, correct block kept", calls: ["3114"], reply: `${call3114Now} ${keep}`, result: `${call3114Now} ${keep}` },
-  { name: "cut 3114 sentence", calls: ["15", "3114"], reply: `Tu peux appeler le 3114. ${keep}`, result: `${call15Now} ${call3114} ${keep}` },
+  { name: "cut 3114 sentence", calls: ["15", "3114"], reply: `You can call 3114. ${keep}`, result: `${call15Now} ${call3114} ${keep}` },
   { name: "15 sentence with 3114 listed", calls: ["15", "3114"], reply: `${keep} ${call15Number}`, result: `${call15Now} ${call3114} ${keep}` },
   { name: "ASCII-quoted number sentence", calls: ["15"], reply: `"${call15Number}" ${keep}`, result: `${call15Now} ${keep}` },
   { name: "guillemet-quoted number sentence", calls: ["15"], reply: `« ${call15Number} » ${keep}`, result: `${call15Now} ${keep}` },
-  { name: "drop between digits", calls: ["15"], reply: `Appelle le 1\n${call15Number}\n12.`, result: null },
+  { name: "drop between digits", calls: ["15"], reply: `Call 1\n${call15Number}\n12.`, result: null },
 ] as const;
 
 it("drops a lone block sentence when the opening is prefixed", () => {
@@ -694,7 +694,7 @@ it("does not join a hyphenated 1 and a 12 around a dropped block into a 112", ()
     { calls: ["3114"], sentence: call3114NowSentences[2] ?? "" },
   ] as const;
   for (const row of cases) {
-    const reply = `Appelle le 1-\n${row.sentence}\n12.`;
+    const reply = `Call 1-\n${row.sentence}\n12.`;
     const fixed = ensureEmergencyCalls(reply, row.calls);
     const label = row.calls.join();
     expect(row.sentence.length, label).toBeGreaterThan(0);
@@ -728,7 +728,7 @@ it("never repeats a lone sentence of any block after the required opening", () =
 });
 
 it("keeps the 112 when a fragment ends in a digit that would continue into a longer number", () => {
-  const reply = "Garde ton téléphone. Appelle le 1\n12.";
+  const reply = "Keep your phone close. Call 1\n12.";
   const fixed = ensureEmergencyCalls(reply, ["15"]);
   expect(detectEmergencyNumbers(fixed).spans.some((hit) => hit.kind === "112")).toBe(true);
   expect(checkEmergencyReply(fixed, ["15"]).pass).toBe(false);

@@ -166,7 +166,7 @@ export function useDictation(input: {
       setAvailability({ kind: "unavailable", notice: unsupportedNotice });
       return;
     }
-    session.lang = "fr-FR";
+    session.lang = "en-US";
     session.interimResults = true;
     session.continuous = true;
     prefixRef.current = inputRef.current.getDraft();
