@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { SearchBar } from "./search-bar";
 import { AppTabBar } from "./tab-bar";
 import { isTabRoute } from "./tabs";
 import "./feature-shell.css";
@@ -41,7 +42,11 @@ export function FeatureShell(props: {
           ) : null}
           {props.badge === undefined ? null : <span className="steve-pill">{props.badge}</span>}
         </div>
-      ) : null}
+      ) : (
+        <div className="steve-topbar">
+          <SearchBar />
+        </div>
+      )}
       <header className="steve-header-row">
         <div className="steve-header-copy">
           <h1 className="steve-title">{props.title}</h1>

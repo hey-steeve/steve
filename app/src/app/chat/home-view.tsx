@@ -14,6 +14,7 @@ import {
 } from "../../chat/home-summary";
 import { useCommunity } from "../../community/store";
 import { BerriesPill } from "../challenges/community-ui";
+import { SearchBar } from "../search-bar";
 import "./home-view.css";
 
 type TopPanel = "notifications" | "account";
@@ -70,6 +71,7 @@ export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
       >
         {name === "" ? <UserIcon /> : <span aria-hidden="true">{name.charAt(0).toUpperCase()}</span>}
       </button>
+      <SearchBar tone="glass" />
       <span className="chat-home-glass-row">
         <BerriesPill count={community.berries} tone="glass" />
         <button

@@ -39,6 +39,7 @@ it("renders the shared shell with back navigation and the app tab bar", () => {
   const host = document.createElement("div");
   host.innerHTML = html;
   expect(host.querySelector(".steve-back")?.getAttribute("href")).toBe("/chat");
+  expect(host.querySelector(".app-search-pill")).toBeNull();
   expect(host.querySelector("h1")?.textContent).toBe("Annuaire");
   expect(host.querySelector(".steve-pill")?.textContent).toBe("Nouveau");
   expect(host.querySelector(".steve-header-mascot")?.getAttribute("src")).toBe(
@@ -57,7 +58,7 @@ it("drops the back link on tab pages and keeps the tab highlighted", () => {
       createElement(FeatureShell, { current, title: "Onglet", children: null }),
     );
     expect(host.querySelector(".steve-back")).toBeNull();
-    expect(host.querySelector(".steve-topbar")).toBeNull();
+    expect(host.querySelector(".steve-topbar .app-search-pill")?.textContent).toBe("Rechercher");
     expect(host.querySelector('.app-tab[aria-current="page"]')?.getAttribute("href")).toBe(current);
   }
 });

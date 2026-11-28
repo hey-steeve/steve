@@ -57,6 +57,7 @@ it("puts the profile, Berries and notifications in the home header and Stevie in
     expect(header.querySelector("img")).toBeNull();
     expect(view.container.querySelector(".app-tab-stevie")?.getAttribute("aria-label")).toBe("Parler à Stevie");
     expect(header.firstElementChild?.getAttribute("aria-label")).toBe("Mon compte");
+    expect(header.querySelector(".app-search-pill")?.textContent).toBe("Rechercher");
     expect(header.querySelectorAll("a")).toHaveLength(0);
     const buttons = [...header.querySelectorAll("button")].map((button) => [
       button.getAttribute("aria-label"),
@@ -64,6 +65,7 @@ it("puts the profile, Berries and notifications in the home header and Stevie in
     ]);
     expect(buttons).toEqual([
       ["Mon compte", "false"],
+      [null, "false"],
       ["Notifications, 3 nouvelles", "false"],
     ]);
     expect(greeting.textContent).toBe("Bonjour Peter,");
