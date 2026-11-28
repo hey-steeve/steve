@@ -31,8 +31,8 @@ it("accepts the live guidance texts against the pinned rows", () => {
 it("pins the guidance word for word, as route.ts sends it", () => {
   expect(guidancePinRows.map((row) => row.text).sort()).toEqual(
     [
-      "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde",
-      "pose une seule question courte",
+      "at night or on the weekend, point the person to their GP or an on-duty pharmacy",
+      "ask one short question",
     ].sort(),
   );
   expect(guidancePinRows.every((row) => row.numbers.length === 0)).toBe(true);

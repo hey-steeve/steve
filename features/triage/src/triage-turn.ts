@@ -49,12 +49,12 @@ function buildState(turns: readonly Turn[]): string {
 
 export const needInfoGuidance = {
   placement: "after-system-prompt",
-  text: "pose une seule question courte",
+  text: "ask one short question",
 } as const;
 
 export const consultGuidance = {
   placement: "after-system-prompt",
-  text: "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde",
+  text: "at night or on the weekend, point the person to their GP or an on-duty pharmacy",
 } as const;
 
 export const triageGuidances = [needInfoGuidance, consultGuidance] as const;
