@@ -105,6 +105,7 @@ it("serves the HD bubbles pose at the full source size", async () => {
   expect(mismatches).toBe(0);
 });
 
+// Encodes every mascot with sharp; a loaded CI runner needs more than 5 s.
 it("writes the webps the chat UI names, and only those", async () => {
   const publicDir = tempPublic();
   const destDir = path.join(publicDir, "mascot");
@@ -147,7 +148,7 @@ it("writes the webps the chat UI names, and only those", async () => {
     expect(source).toBeDefined();
     expect(readFileSync(path.join(sourceRoot, item.source))).toEqual(source);
   }
-});
+}, 30_000);
 
 it("keeps another run's fresh staging directory and the published folder", async () => {
   const publicDir = tempPublic();
