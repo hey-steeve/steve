@@ -16,6 +16,11 @@
   cursor: pointer;
 }
 
+.home-custom-layer,
+.home-custom-layer * {
+  box-sizing: border-box;
+}
+
 .home-custom-layer {
   position: fixed;
   z-index: 45;
