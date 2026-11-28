@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { askAvatarSrc } from "../../chat/faces";
+import { askAvatarSrc, pageMascots } from "../../chat/faces";
 import { demoChallenges, demoFriend, demoHistory, type Challenge } from "../../community/demo";
 import {
   challengeById,
@@ -79,7 +79,12 @@ export default function ChallengesClient() {
   }
 
   return (
-    <FeatureShell current="/challenges" title="Défis" subtitle="Prends soin de toi, mais pas tout seul.">
+    <FeatureShell
+      current="/challenges"
+      title="Défis"
+      subtitle="Prends soin de toi, mais pas tout seul."
+      heroMascot={{ src: pageMascots.challenges, width: 600, height: 600 }}
+    >
       <div className="challenges-bar">
         <div className="challenges-segments" role="tablist" aria-label="Défis">
           {sections.map((item) => (
