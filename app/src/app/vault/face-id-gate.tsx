@@ -65,39 +65,36 @@ export function FaceIdGate(props: {
     return <div className="faceid-content">{props.children(lock)}</div>;
   }
 
+  // The HUD takes the place of the lock copy while the scan runs, so it is
+  // never drawn over text.
   return (
     <section className="faceid-locked" aria-labelledby="faceid-title">
-      <span className="faceid-lock-badge" aria-hidden="true">
-        <LockGlyph />
-      </span>
-      <h2 id="faceid-title" className="faceid-title">
-        Vault verrouillé
-      </h2>
-      <p className="faceid-copy">
-        Tes documents sont protégés. Déverrouille avec Face ID pour y accéder.
-      </p>
-      <button
-        type="button"
-        className="steve-btn-primary"
-        disabled={phase !== "locked"}
-        onClick={unlock}
-      >
-        Déverrouiller avec Face ID
-      </button>
-      <p className="faceid-note">Face ID simulé pour la démo.</p>
-      {phase === "locked" ? null : (
-        <div className="faceid-layer">
-          <div
-            className="faceid-hud"
-            data-phase={phase}
-            role="status"
-            aria-live="polite"
-          >
+      {phase === "locked" ? (
+        <>
+          <span className="faceid-lock-badge" aria-hidden="true">
+            <LockGlyph />
+          </span>
+          <h2 id="faceid-title" className="faceid-title">
+            Vault verrouillé
+          </h2>
+          <p className="faceid-copy">Tes documents sont protégés. Déverrouille avec Face ID pour y accéder.</p>
+          <button type="button" className="steve-btn-primary" onClick={unlock}>
+            Déverrouiller avec Face ID
+          </button>
+        </>
+      ) : (
+        <>
+          <h2 id="faceid-title" className="faceid-sr">
+            Vault verrouillé
+          </h2>
+          <div className="faceid-hud" data-phase={phase} role="status" aria-live="polite">
             <FaceIdGlyph />
             <span>{phase === "success" ? "Déverrouillé" : "Face ID"}</span>
           </div>
-        </div>
+          <p className="faceid-copy">{phase === "success" ? "C’est bien toi." : "Regarde ton téléphone…"}</p>
+        </>
       )}
+      <p className="faceid-note">Face ID simulé pour la démo.</p>
     </section>
   );
 }
