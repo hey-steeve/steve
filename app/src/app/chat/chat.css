@@ -159,6 +159,7 @@
   color: rgba(255, 255, 255, 0.8);
   font-size: 16px;
   line-height: 1.35;
+  max-width: 10.5em;
 }
 
 .chat-greeting {
@@ -498,7 +499,7 @@
 .chat-hero-mascot {
   position: absolute;
   z-index: 1;
-  right: -38px;
+  right: -48px;
   bottom: -10px;
   width: 252px;
   max-width: 70%;
