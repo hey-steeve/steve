@@ -8,7 +8,7 @@ Planned: the app will own the routes, the hook, and the UI.
 
 ## Does
 
-- Builds the pinned `grok-voice-3.0` session config, with voice `eve` and a French language hint.
+- Builds the pinned `grok-voice-3.0` session config, with voice `eve` and an English language hint.
 - Parses Realtime events.
 - Reduces call state, including barge-in.
 - Encodes and decodes PCM16.

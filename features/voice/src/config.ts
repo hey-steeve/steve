@@ -1,6 +1,6 @@
 export const VOICE_MODEL = "grok-voice-3.0" as const;
 export const VOICE_NAME = "eve" as const;
-export const VOICE_LANGUAGE_HINT = "fr" as const;
+export const VOICE_LANGUAGE_HINT = "en" as const;
 export const TRANSCRIPTION_MODEL = "grok-transcribe" as const;
 
 export type VoiceTuning = {
