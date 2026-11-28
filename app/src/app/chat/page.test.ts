@@ -140,7 +140,7 @@ it("anchors the mascot beside the greeting, behind the home cards", () => {
     height: img.getAttribute("height"),
     aspect: hero.includes("aspect-ratio: 1459 / 1078"),
     absolute: hero.includes("position: absolute;"),
-    right: hero.includes("right: -14px;"),
+    right: hero.includes("right: -38px;"),
     below: hero.includes("z-index: 1;"),
   }).toEqual({
     width: "1459",
