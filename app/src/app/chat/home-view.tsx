@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { headerAvatarSrc } from "../../chat/faces";
 import {
   appointmentDay,
   appointmentTime,
@@ -15,16 +14,14 @@ import {
 } from "../../chat/home-summary";
 import { useCommunity } from "../../community/store";
 import { BerriesPill } from "../challenges/community-ui";
+import { SearchBar } from "../search-bar";
 import "./home-view.css";
 
-type TopPanel = "steve" | "notifications" | "account";
+type TopPanel = "notifications" | "account";
 
-export function HomeTopBar(props: {
-  readonly firstName?: string | undefined;
-  readonly disclaimer: string;
-  readonly onWrite: () => void;
-  readonly onCall: () => void;
-}) {
+// Profile on the left, Berries and notifications on the right. Stevie lives
+// in the round button of the tab bar.
+export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
   const [panel, setPanel] = useState<TopPanel | null>(null);
   const [unread, setUnread] = useState(true);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -65,18 +62,16 @@ export function HomeTopBar(props: {
     <>
       <button
         type="button"
-        className="chat-home-logo"
-        aria-label="Parler à Stevie"
+        className="chat-home-glass chat-home-me"
+        aria-label="Mon compte"
         aria-haspopup="dialog"
-        aria-expanded={panel === "steve"}
-        aria-controls="chat-home-steve"
-        onClick={(event) => toggle("steve", event.currentTarget)}
+        aria-expanded={panel === "account"}
+        aria-controls="chat-home-account"
+        onClick={(event) => toggle("account", event.currentTarget)}
       >
-        <img src={headerAvatarSrc} alt="Stevie" width={44} height={44} />
-        <span className="chat-home-logo-badge" aria-hidden="true">
-          <ChatBubbleIcon />
-        </span>
+        {name === "" ? <UserIcon /> : <span aria-hidden="true">{name.charAt(0).toUpperCase()}</span>}
       </button>
+      <SearchBar tone="glass" />
       <span className="chat-home-glass-row">
         <BerriesPill count={community.berries} tone="glass" />
         <button
@@ -91,17 +86,6 @@ export function HomeTopBar(props: {
           <BellIcon />
           {unread ? <span className="chat-home-glass-dot" aria-hidden="true" /> : null}
         </button>
-        <button
-          type="button"
-          className="chat-home-glass"
-          aria-label="Mon compte"
-          aria-haspopup="dialog"
-          aria-expanded={panel === "account"}
-          aria-controls="chat-home-account"
-          onClick={(event) => toggle("account", event.currentTarget)}
-        >
-          <UserIcon />
-        </button>
       </span>
       {panel === null ? null : (
         <>
@@ -112,49 +96,7 @@ export function HomeTopBar(props: {
             tabIndex={-1}
             onClick={close}
           />
-          {panel === "steve" ? (
-            <div
-              ref={panelRef}
-              id="chat-home-steve"
-              className="chat-home-pop chat-home-steve"
-              role="dialog"
-              aria-label="Parler à Stevie"
-            >
-              <button
-                type="button"
-                className="chat-home-steve-item"
-                onClick={() => {
-                  setPanel(null);
-                  props.onWrite();
-                }}
-              >
-                <span className="chat-home-steve-icon chat-home-steve-write" aria-hidden="true">
-                  <ChatBubbleIcon size={20} />
-                </span>
-                <span>
-                  <strong>Écrire à Stevie</strong>
-                  <span>Pose ta question par message</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                className="chat-home-steve-item"
-                onClick={() => {
-                  setPanel(null);
-                  props.onCall();
-                }}
-              >
-                <span className="chat-home-steve-icon chat-home-steve-call" aria-hidden="true">
-                  <PhoneIcon />
-                </span>
-                <span>
-                  <strong>Appeler Stevie</strong>
-                  <span>Il répond tout de suite</span>
-                </span>
-              </button>
-              <p className="chat-home-steve-disclaimer">{props.disclaimer}</p>
-            </div>
-          ) : panel === "notifications" ? (
+          {panel === "notifications" ? (
             <div
               ref={panelRef}
               id="chat-home-notifications"
@@ -187,7 +129,7 @@ export function HomeTopBar(props: {
             <div
               ref={panelRef}
               id="chat-home-account"
-              className="chat-home-pop chat-home-account"
+              className="chat-home-pop chat-home-account chat-home-pop-left"
               role="dialog"
               aria-label="Mon compte"
             >
@@ -374,25 +316,6 @@ function BellIcon({ size }: { readonly size?: number }) {
       <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
     </Svg>
-  );
-}
-
-function ChatBubbleIcon({ size }: { readonly size?: number }) {
-  return (
-    <Svg size={size ?? 13}>
-      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
-    </Svg>
-  );
-}
-
-function PhoneIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1.1-.24 11.4 11.4 0 0 0 3.5.56 1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 5a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .56 3.5 1 1 0 0 1-.25 1.1z"
-      />
-    </svg>
   );
 }
 

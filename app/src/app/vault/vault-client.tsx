@@ -2,16 +2,13 @@
 
 import { pageMascots } from "../../chat/faces";
 import { useState } from "react";
-import {
-  ChevronRightIcon,
-  DocumentIcon,
-  FeatureShell,
-} from "../feature-shell";
+import { ChevronRightIcon, DocumentIcon, FeatureShell } from "../feature-shell";
 import {
   summarizeTextDocumentAction,
   type AddDocumentActionResult,
   type VaultDocumentView,
 } from "./vault-server";
+import { FaceIdGate, type FaceIdTimings } from "./face-id-gate";
 import "./vault.css";
 
 export default function VaultClient(props: {
@@ -20,6 +17,7 @@ export default function VaultClient(props: {
     readonly title: string;
     readonly text: string;
   }) => Promise<AddDocumentActionResult>;
+  readonly faceIdTimings?: FaceIdTimings;
 }) {
   const [documents, setDocuments] = useState<readonly VaultDocumentView[]>(
     props.initialDocuments,
@@ -63,114 +61,149 @@ export default function VaultClient(props: {
   return (
     <FeatureShell
       current="/vault"
-      title="Mes documents"
+      title="Vault"
+      subtitle="Tes documents santé, rien qu’à toi."
       heroMascot={{ src: pageMascots.documents, width: 600, height: 600 }}
     >
-      {documents.map((doc) => (
-        <button
-          key={doc.id}
-          type="button"
-          className="vault-doc-card"
-          aria-pressed={selected?.id === doc.id}
-          onClick={() => {
-            setSelectedId(doc.id);
-            setViewerOpen(false);
-          }}
-        >
-          <span className="vault-doc-icon" aria-hidden="true">
-            <DocumentIcon />
-            <span>{doc.formatLabel}</span>
-          </span>
-          <span className="vault-doc-meta">
-            <span className="vault-doc-title">{doc.title}</span>
-            <span className="steve-detail-secondary">{doc.dateLabel}</span>
-            <span className="steve-pill steve-pill-soft">{doc.formatLabel}</span>
-          </span>
-          <span className="steve-row-chevron" aria-hidden="true">
-            <ChevronRightIcon />
-          </span>
-        </button>
-      ))}
-
-      {selected === null ? null : (
-        <section className="steve-card" aria-labelledby="vault-summary-title">
-          <h2 id="vault-summary-title" className="steve-card-title">
-            Résumé du document
-          </h2>
-          {selected.summaryLines.map((line, index) => (
-            <p key={`${index}-${line}`} className="vault-summary-text">
-              {line}
-            </p>
-          ))}
-          <button
-            type="button"
-            className="steve-btn-primary"
-            aria-expanded={viewerOpen}
-            onClick={() => setViewerOpen((open) => !open)}
-          >
-            <DocumentIcon />
-            <span>{viewerOpen ? "Fermer le document" : "Ouvrir le document"}</span>
-          </button>
-          {viewerOpen ? (
-            <pre className="vault-content-box">{selected.contentText}</pre>
-          ) : null}
-        </section>
-      )}
-
-      <section className="steve-card">
-        <button
-          type="button"
-          className="steve-btn-secondary"
-          aria-expanded={composerOpen}
-          onClick={() => {
-            setComposerOpen((open) => !open);
-            setError(null);
-          }}
-        >
-          {composerOpen ? "Annuler l’ajout" : "Ajouter un document texte"}
-        </button>
-        {composerOpen ? (
-          <form
-            className="vault-add-form"
-            onSubmit={(event) => {
-              void handleAdd(event);
-            }}
-          >
-            <div className="steve-field-group">
-              <label className="steve-field-label" htmlFor="vault-doc-title">
-                Titre du document
-              </label>
-              <input
-                id="vault-doc-title"
-                className="steve-input"
-                value={title}
-                placeholder="Ex. Compte rendu administratif"
-                onChange={(event) => setTitle(event.target.value)}
-              />
-            </div>
-            <div className="steve-field-group">
-              <label className="steve-field-label" htmlFor="vault-doc-text">
-                Texte du document (données synthétiques)
-              </label>
-              <textarea
-                id="vault-doc-text"
-                className="steve-textarea"
-                value={text}
-                placeholder="Ex. Rendez-vous administratif confirmé le 4 décembre à 14 h."
-                onChange={(event) => setText(event.target.value)}
-              />
-            </div>
-            {error === null ? null : (
-              <p className="steve-alert" role="alert">
-                {error}
-              </p>
-            )}
-            <button type="submit" className="steve-btn-primary" disabled={submitting}>
-              {submitting ? "Enregistrement…" : "Enregistrer et résumer"}
+      <FaceIdGate
+        {...(props.faceIdTimings === undefined
+          ? {}
+          : { timings: props.faceIdTimings })}
+      >
+        {(lock) => (
+          <>
+            <button type="button" className="vault-lock-btn" onClick={lock}>
+              Verrouiller le Vault
             </button>
-          </form>
-        ) : null}
-      </section>
+            {documents.map((doc) => (
+              <button
+                key={doc.id}
+                type="button"
+                className="vault-doc-card"
+                aria-pressed={selected?.id === doc.id}
+                onClick={() => {
+                  setSelectedId(doc.id);
+                  setViewerOpen(false);
+                }}
+              >
+                <span className="vault-doc-icon" aria-hidden="true">
+                  <DocumentIcon />
+                  <span>{doc.formatLabel}</span>
+                </span>
+                <span className="vault-doc-meta">
+                  <span className="vault-doc-title">{doc.title}</span>
+                  <span className="steve-detail-secondary">
+                    {doc.dateLabel}
+                  </span>
+                  <span className="steve-pill steve-pill-soft">
+                    {doc.formatLabel}
+                  </span>
+                </span>
+                <span className="steve-row-chevron" aria-hidden="true">
+                  <ChevronRightIcon />
+                </span>
+              </button>
+            ))}
+
+            {selected === null ? null : (
+              <section
+                className="steve-card"
+                aria-labelledby="vault-summary-title"
+              >
+                <h2 id="vault-summary-title" className="steve-card-title">
+                  Résumé du document
+                </h2>
+                {selected.summaryLines.map((line, index) => (
+                  <p key={`${index}-${line}`} className="vault-summary-text">
+                    {line}
+                  </p>
+                ))}
+                <button
+                  type="button"
+                  className="steve-btn-primary"
+                  aria-expanded={viewerOpen}
+                  onClick={() => setViewerOpen((open) => !open)}
+                >
+                  <DocumentIcon />
+                  <span>
+                    {viewerOpen ? "Fermer le document" : "Ouvrir le document"}
+                  </span>
+                </button>
+                {viewerOpen ? (
+                  <pre className="vault-content-box">
+                    {selected.contentText}
+                  </pre>
+                ) : null}
+              </section>
+            )}
+
+            <section className="steve-card">
+              <button
+                type="button"
+                className="steve-btn-secondary"
+                aria-expanded={composerOpen}
+                onClick={() => {
+                  setComposerOpen((open) => !open);
+                  setError(null);
+                }}
+              >
+                {composerOpen ? "Annuler l’ajout" : "Ajouter un document texte"}
+              </button>
+              {composerOpen ? (
+                <form
+                  className="vault-add-form"
+                  onSubmit={(event) => {
+                    void handleAdd(event);
+                  }}
+                >
+                  <div className="steve-field-group">
+                    <label
+                      className="steve-field-label"
+                      htmlFor="vault-doc-title"
+                    >
+                      Titre du document
+                    </label>
+                    <input
+                      id="vault-doc-title"
+                      className="steve-input"
+                      value={title}
+                      placeholder="Ex. Compte rendu administratif"
+                      onChange={(event) => setTitle(event.target.value)}
+                    />
+                  </div>
+                  <div className="steve-field-group">
+                    <label
+                      className="steve-field-label"
+                      htmlFor="vault-doc-text"
+                    >
+                      Texte du document (données synthétiques)
+                    </label>
+                    <textarea
+                      id="vault-doc-text"
+                      className="steve-textarea"
+                      value={text}
+                      placeholder="Ex. Rendez-vous administratif confirmé le 4 décembre à 14 h."
+                      onChange={(event) => setText(event.target.value)}
+                    />
+                  </div>
+                  {error === null ? null : (
+                    <p className="steve-alert" role="alert">
+                      {error}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    className="steve-btn-primary"
+                    disabled={submitting}
+                  >
+                    {submitting ? "Enregistrement…" : "Enregistrer et résumer"}
+                  </button>
+                </form>
+              ) : null}
+            </section>
+          </>
+        )}
+      </FaceIdGate>
     </FeatureShell>
   );
 }

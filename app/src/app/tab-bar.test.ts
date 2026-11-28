@@ -53,6 +53,32 @@ it("hides the indicator on pages outside the tabs and links the button to Stevie
   expect(view.querySelector(".app-tab-fab")?.getAttribute("href")).toBe("/chat");
 });
 
+it("opens the Stevie menu from the round button on the home", async () => {
+  const calls: string[] = [];
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  roots.push(root);
+  await act(async () => {
+    root.render(
+      createElement(AppTabBar, {
+        current: "/chat",
+        stevie: { onWrite: () => calls.push("write"), onCall: () => calls.push("call"), disclaimer: "Démo" },
+      }),
+    );
+  });
+  const stevie = container.querySelector(".app-tab-stevie");
+  if (!(stevie instanceof HTMLButtonElement)) throw new Error("missing Stevie button");
+  expect(stevie.querySelector("img")?.getAttribute("src")).toBe("/mascot/pfp-lavender-profile.webp");
+  await act(async () => stevie.click());
+  expect(stevie.getAttribute("aria-expanded")).toBe("true");
+  const call = container.querySelector(".chat-call-cta");
+  if (!(call instanceof HTMLButtonElement)) throw new Error("missing call item");
+  await act(async () => call.click());
+  expect(calls).toEqual(["call"]);
+  expect(container.querySelector("#app-stevie-menu")).toBeNull();
+});
+
 function indicator(container: HTMLElement): string {
   const node = container.querySelector(".app-tab-indicator");
   return node instanceof HTMLElement ? node.style.transform : "";

@@ -50,7 +50,8 @@ it("renders the patient identity, mascot, and profile menu sections", async () =
   expect(container.textContent).not.toContain("Données de démonstration");
   expect(container.textContent).toContain("Préférences");
   expect(container.textContent).toContain("Historique déclaré");
-  expect(container.textContent).toContain("Historique des appels");
+  expect(container.textContent).not.toContain("Historique des appels");
+  expect(container.querySelector('a[href="/vault"]')?.textContent).toBe("Vault");
 });
 
 it("displays preferences and declared history from @steve/profile", async () => {

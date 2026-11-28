@@ -28,14 +28,9 @@ import { AppTabBar } from "../tab-bar";
 import { AgentCallBar, PhoneIcon } from "./agent-call-bar";
 import { DirectoryWidget } from "./directory-widget";
 import { LiveTrace, TraceSummary } from "./thinking-trace";
-import {
-  HomeAppointmentCard,
-  HomeSpaceCard,
-  HomeTiles,
-  HomeTopBar,
-  HomeUpcomingCard,
-} from "./home-view";
-import { HomeChallengeCard, HomeSignalCard, sleepDiscussPrompt } from "./home-community";
+import { HomeTopBar } from "./home-view";
+import { sleepDiscussPrompt } from "./home-community";
+import { HomeBlocks } from "./home-customize";
 import { runPractitionerSearch, type DirectoryResult } from "./search-practitioners";
 import "./chat.css";
 import "./directory-widget.css";
@@ -698,12 +693,7 @@ export default function ChatPage(props: {
       >
         <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <HomeTopBar
-              firstName={props.patientFirstName}
-              disclaimer={disclaimer}
-              onWrite={startWriting}
-              onCall={startCall}
-            />
+            <HomeTopBar firstName={props.patientFirstName} />
           ) : (
             <button
               type="button"
@@ -790,12 +780,7 @@ export default function ChatPage(props: {
               </div>
               {empty ? (
                 <div className="chat-home-actions">
-                  <HomeSignalCard onDiscuss={() => send(sleepDiscussPrompt, false)} />
-                  <HomeAppointmentCard />
-                  <HomeChallengeCard />
-                  <HomeSpaceCard />
-                  <HomeUpcomingCard />
-                  <HomeTiles />
+                  <HomeBlocks onDiscuss={() => send(sleepDiscussPrompt, false)} />
                 </div>
               ) : null}
             </div>
@@ -881,7 +866,11 @@ export default function ChatPage(props: {
             </ol>
           )}
         </div>
-        {empty ? <AppTabBar current="/chat" floating onCall={startCall} /> : null}
+        {empty ? <AppTabBar
+            current="/chat"
+            floating
+            stevie={{ onWrite: startWriting, onCall: startCall, disclaimer }}
+          /> : null}
         {unseenReply ? (
           <div className="chat-new-message-row">
             <button

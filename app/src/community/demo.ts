@@ -13,8 +13,14 @@ export type Challenge = {
   readonly days: number;
   readonly berries: number;
   readonly teams: number;
+  readonly startsOn: string;
   readonly friend?: string;
+  // Set on challenges the person created: private, no Berries, invite only.
+  readonly custom?: true;
 };
+
+// The demo calendar is frozen on this day, like the home summary.
+export const communityToday = "2026-11-27";
 
 export type Friend = { readonly name: string; readonly initial: string; readonly tone: "indigo" | "teal" | "orange" };
 
@@ -33,6 +39,7 @@ export const demoChallenges: readonly Challenge[] = [
     days: 7,
     berries: 100,
     teams: 23,
+    startsOn: "2026-11-30",
     friend: demoFriend.name,
   },
   {
@@ -43,6 +50,7 @@ export const demoChallenges: readonly Challenge[] = [
     days: 14,
     berries: 100,
     teams: 12,
+    startsOn: "2026-11-20",
   },
   {
     id: "five-a-day",
@@ -52,6 +60,7 @@ export const demoChallenges: readonly Challenge[] = [
     days: 7,
     berries: 60,
     teams: 8,
+    startsOn: "2026-12-07",
   },
   {
     id: "screens-off",
@@ -61,13 +70,46 @@ export const demoChallenges: readonly Challenge[] = [
     days: 5,
     berries: 50,
     teams: 15,
+    startsOn: "2026-11-25",
   },
 ];
 
-export const demoHistory = [
-  { title: "10 000 pas", team: "équipe de 4", berries: 150 },
-  { title: "Écrans off à 22 h", team: "solo", berries: 50 },
-] as const;
+export type PastChallenge = {
+  readonly title: string;
+  readonly team: string;
+  readonly berries: number;
+  readonly endedOn: string;
+  readonly days: number;
+};
+
+export const demoHistory: readonly PastChallenge[] = [
+  { title: "10 000 pas", team: "équipe de 4", berries: 150, endedOn: "2026-11-09", days: 14 },
+  { title: "Écrans off à 22 h", team: "solo", berries: 50, endedOn: "2026-10-26", days: 5 },
+  { title: "Hydratation 1,5 L", team: "avec Léa", berries: 90, endedOn: "2026-10-12", days: 7 },
+];
+
+export type FriendChallenge = { readonly challengeId: string; readonly teammates: readonly string[] };
+
+export type Person = {
+  readonly id: string;
+  readonly name: string;
+  readonly city: string;
+  readonly challenges: readonly FriendChallenge[];
+  readonly done: number;
+};
+
+// Synthetic people. The first three start as friends; the rest are people
+// you can add.
+export const demoPeople: readonly Person[] = [
+  { id: "lea", name: "Léa", city: "Paris 11e", done: 6, challenges: [{ challengeId: "sleep-7x7", teammates: [] }, { challengeId: "five-a-day", teammates: ["Inès"] }] },
+  { id: "ines", name: "Inès", city: "Paris 12e", done: 3, challenges: [{ challengeId: "steps-10k", teammates: ["Marc"] }] },
+  { id: "marc", name: "Marc", city: "Montreuil", done: 9, challenges: [{ challengeId: "steps-10k", teammates: ["Inès"] }, { challengeId: "screens-off", teammates: [] }] },
+  { id: "sami", name: "Sami", city: "Paris 20e", done: 2, challenges: [{ challengeId: "screens-off", teammates: [] }] },
+  { id: "chloe", name: "Chloé", city: "Vincennes", done: 4, challenges: [{ challengeId: "five-a-day", teammates: [] }] },
+  { id: "yanis", name: "Yanis", city: "Paris 10e", done: 1, challenges: [] },
+];
+
+export const demoInitialFriends: readonly string[] = ["lea", "ines", "marc"];
 
 export const demoStartingBerries = 200;
 export const demoStreakDays = 12;
