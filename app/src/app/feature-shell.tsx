@@ -6,15 +6,15 @@ import { isTabRoute } from "./tabs";
 import "./feature-shell.css";
 
 export const featureNavItems = [
-  { href: "/chat", label: "Accueil" },
-  { href: "/challenges", label: "Défis" },
-  { href: "/directory", label: "Annuaire" },
-  { href: "/booking", label: "Rendez-vous" },
-  { href: "/agenda", label: "Agenda" },
-  { href: "/profile", label: "Mon profil" },
+  { href: "/chat", label: "Home" },
+  { href: "/challenges", label: "Challenges" },
+  { href: "/directory", label: "Directory" },
+  { href: "/booking", label: "Appointments" },
+  { href: "/agenda", label: "Calendar" },
+  { href: "/profile", label: "My profile" },
   { href: "/vault", label: "Vault" },
-  { href: "/reminders", label: "Rappels" },
-  { href: "/inbox", label: "Messagerie" },
+  { href: "/reminders", label: "Reminders" },
+  { href: "/inbox", label: "Inbox" },
 ] as const;
 
 export type FeatureRoute = (typeof featureNavItems)[number]["href"];
@@ -37,7 +37,7 @@ export function FeatureShell(props: {
           {back ? (
             <Link className="steve-back" href="/chat">
               <BackChevronIcon />
-              Retour
+              Back
             </Link>
           ) : null}
           {props.badge === undefined ? null : <span className="steve-pill">{props.badge}</span>}

@@ -25,16 +25,18 @@ it("stacks the home cards in order under the greeting", async () => {
   expect(order).toEqual([
     "chat-home-card home-signal",
     "chat-home-appt",
+    "chat-home-card home-memory",
     "chat-home-card home-challenge",
     "chat-home-card chat-home-space",
     "chat-home-card chat-home-upcoming",
     "chat-home-tiles",
+    "community-alan-bar",
     "home-customize-open",
   ]);
   expect(view.querySelector(".chat-home-dock")).toBeNull();
-  expect(view.querySelector(".chat-home-chip")?.textContent).toBe("Dans 5 jours");
+  expect(view.querySelector(".chat-home-chip")?.textContent).toBe("In 5 days");
   expect(view.querySelector(".chat-home-appt-name")?.textContent).toBe("Dr Camille Lunéval");
-  expect(view.querySelector(".chat-home-appt-foot")?.textContent).toBe("Mer. 2 déc.10:00");
+  expect(view.querySelector(".chat-home-appt-foot")?.textContent).toBe("Wed 2 Dec10:00");
   expect(view.querySelector(".chat-home-stats")?.textContent).toBe(
     "1document1rappel2messages",
   );
@@ -57,19 +59,19 @@ it("reaches every Stevie space from the home screen", async () => {
   ]) {
     expect(hrefs.has(href)).toBe(true);
   }
-  const tabs = [...view.querySelectorAll('nav[aria-label="Espaces Stevie"] a')];
+  const tabs = [...view.querySelectorAll('nav[aria-label="Stevie spaces"] a')];
   expect(tabs.map((tab) => tab.getAttribute("aria-label"))).toEqual([
-    "Accueil",
-    "Défis",
-    "Agenda",
-    "Mon profil",
+    "Home",
+    "Challenges",
+    "Calendar",
+    "My profile",
   ]);
   expect(tabs[0]?.getAttribute("aria-current")).toBe("page");
 });
 
 it("hides the appointment card when dismissed", async () => {
   const view = await mount();
-  const close = view.querySelector('button[aria-label="Masquer le rendez-vous"]');
+  const close = view.querySelector('button[aria-label="Hide the appointment"]');
   if (!(close instanceof HTMLButtonElement)) {
     throw new Error("missing dismiss button");
   }
@@ -81,7 +83,7 @@ it("hides the appointment card when dismissed", async () => {
 
 it("opens the notification list from the bell without leaving the home", async () => {
   const view = await mount();
-  const bell = view.querySelector('button[aria-label="Notifications, 3 nouvelles"]');
+  const bell = view.querySelector('button[aria-label="Notifications, 3 new"]');
   if (!(bell instanceof HTMLButtonElement)) {
     throw new Error("missing bell");
   }
@@ -91,9 +93,9 @@ it("opens the notification list from the bell without leaving the home", async (
   expect(bell.getAttribute("aria-label")).toBe("Notifications");
   expect(view.querySelector(".chat-home-glass-dot")).toBeNull();
   expect([...(panel?.querySelectorAll(".chat-home-notif strong") ?? [])].map((n) => n.textContent)).toEqual([
-    "Rendez-vous confirmé",
-    "Document du cabinet",
-    "Rappel programmé",
+    "Appointment confirmed",
+    "Document from the practice",
+    "Reminder scheduled",
   ]);
   expect([...(panel?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"))).toEqual([
     "/agenda",
@@ -109,12 +111,12 @@ it("opens the notification list from the bell without leaving the home", async (
 
 it("opens the account menu and closes it from the backdrop", async () => {
   const view = await mount("Peter");
-  const account = view.querySelector('button[aria-label="Mon compte"]');
+  const account = view.querySelector('button[aria-label="My account"]');
   if (!(account instanceof HTMLButtonElement)) {
     throw new Error("missing account button");
   }
   await act(async () => account.click());
-  const panel = view.querySelector('[role="dialog"][aria-label="Mon compte"]');
+  const panel = view.querySelector('[role="dialog"][aria-label="My account"]');
   expect(panel?.querySelector(".chat-home-account-head strong")?.textContent).toBe("Peter");
   expect([...(panel?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"))).toEqual([
     "/profile",
@@ -149,23 +151,23 @@ it("lets the person reorder and hide home blocks and remembers it", async () => 
     return first?.getAttribute("aria-labelledby") ?? first?.getAttribute("aria-label");
   };
   expect(firstCard()).toBe("home-signal-title");
-  const open = [...view.querySelectorAll("button")].find((item) => item.textContent === "Personnaliser l’accueil");
+  const open = [...view.querySelectorAll("button")].find((item) => item.textContent === "Customize home");
   if (!(open instanceof HTMLButtonElement)) throw new Error("missing customise button");
   await act(async () => open.click());
   const sheet = document.querySelector('[role="dialog"][aria-labelledby="home-custom-title"]');
   if (!(sheet instanceof HTMLElement)) throw new Error("missing sheet");
-  const down = sheet.querySelector('[aria-label="Descendre Ton sommeil"]');
-  const hide = sheet.querySelector('[aria-label="Afficher Mon espace santé"]');
+  const down = sheet.querySelector('[aria-label="Move down Your sleep"]');
+  const hide = sheet.querySelector('[aria-label="Show My health space"]');
   if (!(down instanceof HTMLButtonElement) || !(hide instanceof HTMLButtonElement)) throw new Error("missing controls");
-  expect(sheet.querySelector('[aria-label="Monter Ton sommeil"]')?.hasAttribute("disabled")).toBe(true);
+  expect(sheet.querySelector('[aria-label="Move up Your sleep"]')?.hasAttribute("disabled")).toBe(true);
   await act(async () => down.click());
   await act(async () => hide.click());
   expect(hide.getAttribute("aria-checked")).toBe("false");
-  expect(firstCard()).toBe("Prochain rendez-vous");
+  expect(firstCard()).toBe("Next appointment");
   expect(view.querySelector("#chat-home-space-title")).toBeNull();
   expect(JSON.parse(window.localStorage.getItem("steve.home.layout.v1") ?? "{}")).toMatchObject({ hidden: ["space"] });
 
-  const reset = [...sheet.querySelectorAll("button")].find((item) => item.textContent === "Revenir à l’ordre par défaut");
+  const reset = [...sheet.querySelectorAll("button")].find((item) => item.textContent === "Back to the default order");
   if (!(reset instanceof HTMLButtonElement)) throw new Error("missing reset");
   await act(async () => reset.click());
   expect(firstCard()).toBe("home-signal-title");

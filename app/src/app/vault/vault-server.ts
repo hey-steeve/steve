@@ -18,11 +18,11 @@ export interface VaultDocumentView {
 }
 
 const appointmentLetterText = [
-  "Lettre de rendez-vous — Cabinet médical des Nuages Mauves",
-  "La lettre indique un rendez-vous le 2 décembre à 10 h.",
-  "Praticien : Camille Lunéval (Médecine générale).",
-  "Adresse : 1 rue des Nuages Mauves, 75011 Paris.",
-  "Merci d’apporter votre carte Vitale et vos documents administratifs.",
+  "Appointment letter — Nuages Mauves medical practice",
+  "The letter states an appointment on 2 December at 10:00.",
+  "Practitioner: Camille Lunéval (General practice).",
+  "Address: 1 rue des Nuages Mauves, 75011 Paris.",
+  "Please bring your carte Vitale and your administrative documents.",
 ].join("\n");
 
 function factualExtractiveSummarizer(request: FactualSummaryRequest) {
@@ -30,7 +30,7 @@ function factualExtractiveSummarizer(request: FactualSummaryRequest) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length >= 8);
-  const chosen = lines.find((line) => line.startsWith("La lettre indique")) ?? lines[0];
+  const chosen = lines.find((line) => line.startsWith("The letter states")) ?? lines[0];
   const fallback = chosen ?? request.document.text.trim().slice(0, 180);
   return Promise.resolve({
     assertions: [
@@ -65,7 +65,7 @@ function slugify(title: string): string {
 function formatFrenchDate(isoDate: string): string {
   const parsed = new Date(`${isoDate}T12:00:00Z`);
   if (Number.isNaN(parsed.valueOf())) return isoDate;
-  return new Intl.DateTimeFormat("fr-FR", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -77,12 +77,12 @@ export async function loadDemoVaultSnapshot(): Promise<readonly VaultDocumentVie
   const vault = createServerVault();
   const stored = await vault.store({
     id: "doc-demo-rdv",
-    fileName: "lettre-de-rendez-vous.txt",
+    fileName: "appointment-letter.txt",
     mimeType: "text/plain",
     content: new TextEncoder().encode(appointmentLetterText),
     metadata: {
-      title: "Lettre de rendez-vous",
-      source: "Cabinet médical",
+      title: "Appointment letter",
+      source: "Medical practice",
       documentDate: "2026-11-27",
     },
   });
@@ -101,7 +101,7 @@ export async function loadDemoVaultSnapshot(): Promise<readonly VaultDocumentVie
       fileName: stored.value.fileName,
       formatLabel: "TXT",
       dateLabel: formatFrenchDate(stored.value.metadata.documentDate ?? "2026-11-27"),
-      source: stored.value.metadata.source ?? "Cabinet",
+      source: stored.value.metadata.source ?? "Practice",
       summaryLines,
       contentText: stored.value.extractedText,
     },
@@ -119,7 +119,7 @@ export async function summarizeTextDocumentAction(input: {
   if (typeof input?.title !== "string" || typeof input.text !== "string") {
     return {
       ok: false,
-      error: "Renseigne un titre et un texte d’au moins 8 caractères.",
+      error: "Enter a title and a text of at least 8 characters.",
     };
   }
   const title = input.title.trim();
@@ -127,7 +127,7 @@ export async function summarizeTextDocumentAction(input: {
   if (title.length === 0 || text.length < 8) {
     return {
       ok: false,
-      error: "Renseigne un titre et un texte d’au moins 8 caractères.",
+      error: "Enter a title and a text of at least 8 characters.",
     };
   }
   const vault = createServerVault();
@@ -137,16 +137,16 @@ export async function summarizeTextDocumentAction(input: {
     content: new TextEncoder().encode(text),
     metadata: {
       title,
-      source: "Ajout patient",
+      source: "Added by patient",
       documentDate: "2026-11-27",
     },
   });
   if (!stored.ok) {
-    return { ok: false, error: "Impossible d’enregistrer ce document." };
+    return { ok: false, error: "Can’t save this document." };
   }
   const summary = await vault.summarize(stored.value.id);
   if (!summary.ok) {
-    return { ok: false, error: "Impossible de résumer ce document." };
+    return { ok: false, error: "Can’t summarize this document." };
   }
   return {
     ok: true,
@@ -156,7 +156,7 @@ export async function summarizeTextDocumentAction(input: {
       fileName: stored.value.fileName,
       formatLabel: "TXT",
       dateLabel: formatFrenchDate("2026-11-27"),
-      source: stored.value.metadata.source ?? "Ajout patient",
+      source: stored.value.metadata.source ?? "Added by patient",
       summaryLines: summary.value.assertions.map((assertion) => assertion.text),
       contentText: stored.value.extractedText,
     },

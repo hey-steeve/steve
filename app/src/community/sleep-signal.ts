@@ -48,5 +48,5 @@ export function detectSleepDrop(nights: readonly SleepNight[]): SleepSignal | nu
 export function hoursLabel(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = Math.round(minutes % 60);
-  return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, "0")}`;
+  return rest === 0 ? `${hours}h` : `${hours}h ${String(rest).padStart(2, "0")}m`;
 }

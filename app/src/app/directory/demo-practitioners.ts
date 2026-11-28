@@ -26,11 +26,11 @@ function practitioner(
 }
 
 export const demoPractitioners: readonly Practitioner[] = [
-  practitioner(1, "Camille", "Lunéval", "SM54", "Médecine générale", "secteur-1", "75011", 48.8578, 2.369),
-  practitioner(2, "Noé", "Brumelac", "SM54", "Médecine générale", "secteur-2-optam", "75011", 48.8645, 2.38),
-  practitioner(3, "Lina", "Ormelune", "SM54", "Médecine générale", "secteur-1", "75012", 48.8404, 2.389),
-  practitioner(4, "Sacha", "Clairsonge", "SM15", "Dermatologie et vénéréologie", "secteur-2", "75011", 48.859, 2.375),
-  practitioner(5, "Inès", "Valbrume", "SM38", "Ophtalmologie", "secteur-2-optam", "75018", 48.893, 2.35),
-  practitioner(6, "Robin", "Aubenuage", "40", "Chirurgien-dentiste", "non-conventionne", "75011", 48.863, 2.377),
-  practitioner(7, "Maëlle", "Dorétoile", "SM40", "Pédiatrie", "secteur-1", "75012", 48.846, 2.373),
+  practitioner(1, "Camille", "Lunéval", "SM54", "General practice", "secteur-1", "75011", 48.8578, 2.369),
+  practitioner(2, "Noé", "Brumelac", "SM54", "General practice", "secteur-2-optam", "75011", 48.8645, 2.38),
+  practitioner(3, "Lina", "Ormelune", "SM54", "General practice", "secteur-1", "75012", 48.8404, 2.389),
+  practitioner(4, "Sacha", "Clairsonge", "SM15", "Dermatology", "secteur-2", "75011", 48.859, 2.375),
+  practitioner(5, "Inès", "Valbrume", "SM38", "Ophthalmology", "secteur-2-optam", "75018", 48.893, 2.35),
+  practitioner(6, "Robin", "Aubenuage", "40", "Dentist", "non-conventionne", "75011", 48.863, 2.377),
+  practitioner(7, "Maëlle", "Dorétoile", "SM40", "Paediatrics", "secteur-1", "75012", 48.846, 2.373),
 ];

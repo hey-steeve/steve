@@ -24,7 +24,7 @@ export function LiveTrace(props: {
       <div className="chat-trace-head">
         <img src={steveFace.thinking} alt="" width={34} height={34} />
         <span>
-          <span className="chat-trace-title">Stevie réfléchit…</span>
+          <span className="chat-trace-title">Stevie is thinking…</span>
           <span className="chat-trace-time">{elapsedLabel(now - props.startedAt)}</span>
         </span>
       </div>
@@ -71,7 +71,7 @@ function TraceSteps({ steps }: { readonly steps: readonly TraceStep[] }) {
           <span className="chat-trace-copy">
             <span className="chat-trace-step-title">
               {step.title}
-              {step.status === "doing" ? <span className="chat-trace-sr"> (en cours)</span> : null}
+              {step.status === "doing" ? <span className="chat-trace-sr"> (in progress)</span> : null}
             </span>
             {step.detail === undefined ? null : (
               <span className="chat-trace-detail">{step.detail}</span>

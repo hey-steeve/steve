@@ -2,7 +2,7 @@ import type { Practitioner } from "@steve/shared";
 import Link from "next/link";
 import { sectorLabels, type DirectoryFilters } from "../../chat/directory-query";
 
-const distanceFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+const distanceFormat = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 });
 
 export function DirectoryWidget({ filters, practitioners, demo, onRefine }: {
   readonly filters: DirectoryFilters;
@@ -12,7 +12,7 @@ export function DirectoryWidget({ filters, practitioners, demo, onRefine }: {
 }) {
   return (
     <>
-      <section className="chat-directory-widget" aria-label="Résultats de recherche">
+      <section className="chat-directory-widget" aria-label="Search results">
         <h2>{filters.specialty}</h2>
         <p>{placeAndSector(filters)}</p>
         {practitioners.length > 0 && (
@@ -34,16 +34,16 @@ export function DirectoryWidget({ filters, practitioners, demo, onRefine }: {
                     className="chat-directory-book"
                     href={`/booking?practitioner=${encodeURIComponent(rpps)}`}
                   >
-                    Prendre rendez-vous
+                    Book an appointment
                   </Link>
                 </details>
               </li>
             ))}
           </ul>
         )}
-        {onRefine && <button type="button" onClick={onRefine}>Affiner la recherche</button>}
+        {onRefine && <button type="button" onClick={onRefine}>Refine the search</button>}
       </section>
-      {demo ? null : <p className="chat-directory-source">Source : Annuaire Santé</p>}
+      {demo ? null : <p className="chat-directory-source">Source: Annuaire Santé</p>}
     </>
   );
 }

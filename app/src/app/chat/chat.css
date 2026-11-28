@@ -281,7 +281,6 @@
   cursor: pointer;
 }
 
-.chat-thread-call,
 .chat-finish:hover,
 .chat-call-control[aria-pressed="true"] {
   background: var(--color-indigo-50);
@@ -1216,3 +1215,16 @@
     max-width: 430px;
   }
 }
+
+/* Calling Stevie is green, with a white phone, wherever it shows. */
+.chat-thread-call {
+  background: var(--color-call);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(22, 163, 74, 0.3);
+}
+
+@media (hover: hover) {
+  .chat-thread-call:hover { background: var(--color-call-strong); }
+}
+
+

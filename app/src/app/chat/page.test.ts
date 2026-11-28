@@ -38,7 +38,7 @@ beforeEach(() => {
 
 it("renders the home greeting without the removed profile action", () => {
   const html = renderToStaticMarkup(createElement(ChatPage));
-  expect(html).toContain('class="chat-greeting">Bonjour</h1>');
+  expect(html).toContain('class="chat-greeting">Hello</h1>');
   expect(html).not.toContain('aria-label="Profil"');
 });
 
@@ -62,7 +62,7 @@ it("opens the written conversation and returns to the home screen", async () => 
 
   const header = view.container.querySelector(".chat-header");
   expect(header?.querySelector('[aria-label="Profil"]')).toBeNull();
-  expect(header?.querySelector('[aria-label="Retour"]')).not.toBeNull();
+  expect(header?.querySelector('[aria-label="Back"]')).not.toBeNull();
   expect(header?.querySelector(".chat-title")?.textContent).toContain("Stevie");
   expect(header?.querySelector(".chat-title img")?.getAttribute("src")).toBe(
     "/mascot/pfp-lavender-profile.webp",
@@ -82,8 +82,8 @@ it("opens the written conversation and returns to the home screen", async () => 
 
 it("renders the home greeting", async () => {
   const view = await mount();
-  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe("Bonjour");
-  expect(view.container.querySelector('[aria-label="Retour"]')).toBeNull();
+  expect(view.container.querySelector(".chat-greeting")?.textContent).toBe("Hello");
+  expect(view.container.querySelector('[aria-label="Back"]')).toBeNull();
   expect(view.container.querySelector(".chat-home-mark")).toBeNull();
 });
 
@@ -179,7 +179,7 @@ it("paints the call button and composer on the home screen", async () => {
     expect(channels(getComputedStyle(call).backgroundColor)).toBe(
       channels(designTokens.color.indigo900),
     );
-    expect(call.getAttribute("aria-label")).toBe("Parler à Stevie");
+    expect(call.getAttribute("aria-label")).toBe("Talk to Stevie");
     expect(view.container.querySelector(".chat-field")).toBeNull();
     expect(view.container.querySelector(".app-tab-fab-badge")).not.toBeNull();
     const homeField = writingField(view.container);
@@ -192,8 +192,8 @@ it("paints the call button and composer on the home screen", async () => {
     }
     expect(view.container.querySelectorAll(".chat-chip")).toHaveLength(0);
     expect(view.container.querySelector('.chat-header [aria-label="Profil"]')).toBeNull();
-    await act(async () => setField(homeField, "Bonjour"));
-    const send = view.container.querySelector('button[aria-label="Envoyer"]');
+    await act(async () => setField(homeField, "Hello"));
+    const send = view.container.querySelector('button[aria-label="Send"]');
     if (!(send instanceof HTMLButtonElement)) throw new Error("missing send button");
     await act(async () => send.click());
     const dock = view.container.querySelector(
@@ -218,7 +218,7 @@ it("starts one live call from the home CTA and shows its connection status", asy
   await clickCallControl(call.container, ".chat-call-cta");
   expect(call.start).toHaveBeenCalledExactlyOnceWith([]);
   expect(call.container.querySelector(".chat-call-bar [role='status']")?.textContent)
-    .toBe("Connexion…");
+    .toBe("Connecting…");
   expect(call.container.querySelectorAll(".chat-thread li")).toHaveLength(0);
   expect(call.container.querySelector(".chat-call-bar img")?.getAttribute("src"))
     .toBe("/demo/steve-call-avatar.webp");
@@ -230,17 +230,17 @@ it("starts one live call from the home CTA and shows its connection status", asy
   await call.emit({ type: "response.created", responseId: "reply" });
   expect(call.container.querySelector(".chat-call-wave")?.getAttribute("data-activity"))
     .toBe("speaking");
-  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Stevie parle");
+  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Stevie is speaking");
 });
 
 it("says the call is a voiceless demo when the session is mocked", async () => {
   const call = await mountCall(undefined, true);
   await clickCallControl(call.container, ".chat-call-cta");
-  expect(call.container.querySelector(".chat-call-bar-title")?.textContent).toBe("Mode démo");
+  expect(call.container.querySelector(".chat-call-bar-title")?.textContent).toBe("Demo mode");
   expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent)
-    .toBe("Voix désactivée");
+    .toBe("Voice off");
   expect(call.container.querySelector(".chat-call-wave")).toBeNull();
-  expect(call.container.querySelector<HTMLButtonElement>('[aria-label="Couper le micro"]')?.disabled)
+  expect(call.container.querySelector<HTMLButtonElement>('[aria-label="Mute mic"]')?.disabled)
     .toBe(true);
   await clickCallControl(call.container, ".chat-call-end");
   expect(call.end).toHaveBeenCalledExactlyOnceWith("hang-up");
@@ -254,7 +254,7 @@ it("starts one live call from the thread header with the current text history", 
   await openConversation(call);
   await clickCallControl(call.container, ".chat-thread-call");
   expect(call.start).toHaveBeenCalledExactlyOnceWith([
-    { role: "user", content: "Bonjour" },
+    { role: "user", content: "Hello" },
     { role: "assistant", content: "D'accord." },
   ]);
   expect(call.container.querySelector(".chat-thread-call")).toBeNull();
@@ -276,16 +276,17 @@ it("mutes and unmutes the live call and removes the bar on hang-up", async () =>
   const call = await mountCall();
   await clickCallControl(call.container, ".chat-call-cta");
   await call.connect();
-  const mute = await clickCallControl(call.container, '[aria-label="Couper le micro"]');
+  const mute = await clickCallControl(call.container, '[aria-label="Mute mic"]');
   expect(mute.getAttribute("aria-pressed")).toBe("true");
-  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Micro coupé");
-  await clickCallControl(call.container, '[aria-label="Couper le micro"]');
+  expect(call.container.querySelector(".chat-call-bar-subtitle")?.textContent).toBe("Mic muted");
+  await clickCallControl(call.container, '[aria-label="Mute mic"]');
   expect(call.setMuted.mock.calls).toEqual([[true], [false]]);
   expect(mute.getAttribute("aria-pressed")).toBe("false");
   await clickCallControl(call.container, ".chat-call-end");
   expect(call.end).toHaveBeenCalledExactlyOnceWith("hang-up");
   expect(call.container.querySelector(".chat-call-bar")).toBeNull();
-  expect(call.container.querySelector(".app-tab-stevie")).not.toBeNull();
+  // The call started from the chat bar, so hanging up lands back on it.
+  expect(call.container.querySelector(".chat-field")).not.toBeNull();
 });
 
 it("replaces live transcripts in place and keeps emergency sentences and actions visible", async () => {
@@ -297,7 +298,7 @@ it("replaces live transcripts in place and keeps emergency sentences and actions
   await call.connect();
   await call.emit({ type: "input.transcription_updated", itemId: "turn", text: "Brouillon" });
   expect(call.container.querySelector(".chat-user")?.textContent).toBe("Brouillon");
-  const toggle = await clickCallControl(call.container, '[aria-label="Afficher la transcription"]');
+  const toggle = await clickCallControl(call.container, '[aria-label="Show transcript"]');
   expect(toggle.getAttribute("aria-pressed")).toBe("false");
   expect(call.container.querySelector(".chat-user")).toBeNull();
 
@@ -307,19 +308,19 @@ it("replaces live transcripts in place and keeps emergency sentences and actions
     .toEqual([call3114Now, call15Now]);
   expect([...call.container.querySelectorAll(".chat-emergency-calls a")].map((link) =>
     [link.textContent, link.getAttribute("href")],
-  )).toEqual([["Appeler le 3114", "tel:3114"], ["Appeler le 15", "tel:15"]]);
+  )).toEqual([["Call 3114", "tel:3114"], ["Call 15", "tel:15"]]);
 
-  await clickCallControl(call.container, '[aria-label="Afficher la transcription"]');
+  await clickCallControl(call.container, '[aria-label="Show transcript"]');
   expect(toggle.getAttribute("aria-pressed")).toBe("true");
   expect([...call.container.querySelectorAll(".chat-user")].map((p) => p.textContent))
     .toEqual(["Phrase finale"]);
   expect(call.container.querySelector(".chat-row-user + .chat-row-agent")).not.toBeNull();
-  await call.emit({ type: "input.transcription_updated", itemId: "silence", text: "Début" });
+  await call.emit({ type: "input.transcription_updated", itemId: "silence", text: "Start" });
   await call.emit({ type: "input.transcription_completed", itemId: "silence", text: "" });
   expect(call.container.querySelectorAll(".chat-user")).toHaveLength(1);
   await call.emit({ type: "input.transcription_updated", itemId: "draft", text: "Inachevé" });
   expect(call.container.querySelectorAll(".chat-user")).toHaveLength(2);
-  await clickCallControl(call.container, '[aria-label="Afficher la transcription"]');
+  await clickCallControl(call.container, '[aria-label="Show transcript"]');
   await clickCallControl(call.container, ".chat-call-end");
   expect([...call.container.querySelectorAll(".chat-user")].map((p) => p.textContent))
     .toEqual(["Phrase finale"]);
@@ -329,7 +330,7 @@ it("replaces live transcripts in place and keeps emergency sentences and actions
     { role: "user", content: "Phrase finale" },
     { role: "assistant", content: `${call3114Now} ${call15Now}` },
   ]);
-  await clickCallControl(call.container, '[aria-label="Afficher la transcription"]');
+  await clickCallControl(call.container, '[aria-label="Show transcript"]');
   expect([...call.container.querySelectorAll(".chat-user")].map((p) => p.textContent))
     .toEqual(["Phrase finale"]);
 });
@@ -347,7 +348,7 @@ it("shows offered phone actions without forcing speech", async () => {
   await call.connect();
   await call.emit({ type: "input.transcription_completed", itemId: "turn", text: "Je cherche à qui parler" });
   expect(call.container.querySelector('.chat-emergency-calls a[href="tel:3114"]')?.textContent)
-    .toBe("Appeler le 3114");
+    .toBe("Call 3114");
   expect(call.container.querySelector(".chat-agent-text")).toBeNull();
   expect(call.forceMessage).not.toHaveBeenCalled();
   await clickCallControl(call.container, ".chat-call-end");
@@ -356,7 +357,7 @@ it("shows offered phone actions without forcing speech", async () => {
   expect(requestBody).toEqual({
     messages: [
       { role: "user", content: "Je cherche à qui parler", voice: true },
-      { role: "user", content: "Bonjour" },
+      { role: "user", content: "Hello" },
     ],
   });
 });
@@ -383,7 +384,7 @@ it("posts consecutive finalized call turns in order when the thread continues in
       { role: "user", content: "Vous m'entendez ?", voice: true },
       { role: "user", content: "J'ai besoin d'aide.", voice: true },
       { role: "assistant", content: call15Now, voice: true },
-      { role: "user", content: "Bonjour" },
+      { role: "user", content: "Hello" },
     ],
   });
 });
@@ -446,10 +447,12 @@ async function mountCall(triage?: liveCall.CallDeps["triage"], mockSocket = fals
 }
 
 async function clickCallControl(container: ParentNode, selector: string) {
-  if (selector === ".chat-call-cta" && container.querySelector(selector) === null) {
-    // On the home, the call sits in the Stevie menu of the tab bar.
-    const stevie = container.querySelector('.app-tab-stevie');
+  if (selector === ".chat-call-cta") {
+    // On the home, Stevie in the tab bar opens the chat bar; the call button
+    // sits in its header.
+    const stevie = container.querySelector(".app-tab-stevie");
     if (stevie instanceof HTMLButtonElement) await act(async () => stevie.click());
+    selector = ".chat-thread-call";
   }
   const button = container.querySelector(selector);
   if (!(button instanceof HTMLButtonElement)) throw new Error(`missing call control ${selector}`);
@@ -476,9 +479,9 @@ it("fills each message avatar with its photo and drops the white frame", async (
       throw new Error("missing composer");
     }
     await act(async () => {
-      setField(field, "Bonjour");
+      setField(field, "Hello");
     });
-    const send = view.container.querySelector('button[aria-label="Envoyer"]');
+    const send = view.container.querySelector('button[aria-label="Send"]');
     if (!(send instanceof HTMLButtonElement)) {
       throw new Error("missing send button");
     }
@@ -525,7 +528,7 @@ it("shows the composer disclaimer as one line with no digits", async () => {
     throw new Error("missing disclaimer");
   }
   expect(disclaimer.textContent).toBe(
-    "Stevie n’est pas médecin et ne pose pas de diagnostic.",
+    "Stevie is not a doctor and does not diagnose.",
   );
   expect(disclaimer.textContent).not.toMatch(/\d/);
 });
@@ -545,11 +548,11 @@ it("shows the suggestion and the reply after a chip tap", async () => {
   await openConversation(view);
 
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
-  expect(view.container.querySelector('[aria-label="Stevie écrit"]')).toBeNull();
+  expect(view.container.querySelector('[aria-label="Stevie is typing"]')).toBeNull();
   expect(view.container.textContent).toContain("Je peux vous aider à préparer ça.");
-  expect(view.container.querySelector('[aria-label="Retour"]')).not.toBeNull();
+  expect(view.container.querySelector('[aria-label="Back"]')).not.toBeNull();
 });
 
 it("renders an assistant bubble without a model label, a speak button, or a footer", async () => {
@@ -615,8 +618,8 @@ it("shows the thread when the home leave animation never ends", async () => {
   });
 
   expect(view.container.querySelector(".chat-hero")).toBeNull();
-  expect(view.container.querySelector(".chat-user")?.textContent).toContain("Bonjour");
-  expect(view.container.querySelector('[aria-label="Retour"]')).not.toBeNull();
+  expect(view.container.querySelector(".chat-user")?.textContent).toContain("Hello");
+  expect(view.container.querySelector('[aria-label="Back"]')).not.toBeNull();
 });
 
 it("drops the covering home sheet when its leave animation is cancelled", async () => {
@@ -642,7 +645,7 @@ it("drops the covering home sheet when its leave animation is cancelled", async 
 
   expect(view.container.querySelector(".chat-hero")).toBeNull();
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
 });
 
@@ -669,7 +672,7 @@ it("drops the covering home sheet when its leave animation ends", async () => {
 
   expect(view.container.querySelector(".chat-hero")).toBeNull();
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
 });
 
@@ -709,7 +712,7 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
   try {
     const view = await mount();
     await openConversation(view);
-    const back = view.container.querySelector('[aria-label="Retour"]');
+    const back = view.container.querySelector('[aria-label="Back"]');
     if (!(back instanceof HTMLButtonElement)) {
       throw new Error("missing back");
     }
@@ -735,7 +738,7 @@ it("ignores a home leave animationend that arrives after Retour", async () => {
     expect(view.container.querySelector(".chat-greeting")).toBeNull();
     expect(view.container.querySelector(".chat-hero")).not.toBeNull();
     expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-      "Bonjour",
+      "Hello",
     );
     expect(view.container.querySelector(".chat-column-leave")).not.toBeNull();
   } finally {
@@ -766,7 +769,7 @@ it("sends the home draft when Enter is pressed", async () => {
   const field = composerField(view.container);
 
   await act(async () => {
-    setField(field, "Bonjour");
+    setField(field, "Hello");
   });
   await act(async () => {
     pressEnter(field);
@@ -774,7 +777,7 @@ it("sends the home draft when Enter is pressed", async () => {
 
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
 });
 
@@ -796,7 +799,7 @@ it("adds the exit state on Retour and resets to the empty home when that animati
   expect(column.classList.contains("chat-column-leave")).toBe(true);
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
   expect(field.value).toBe("brouillon");
   expectNoHistoryChange();
@@ -829,7 +832,7 @@ it("resets to the empty home when the exit animation never ends", async () => {
   });
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
   expectNoHistoryChange();
   await act(async () => {
@@ -922,7 +925,7 @@ it("ignores a child animationend while the column exit plays", async () => {
 
   expect(column.classList.contains("chat-column-leave")).toBe(true);
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
-  expect(thread.textContent).toContain("Bonjour");
+  expect(thread.textContent).toContain("Hello");
   expectNoHistoryChange();
 
   await act(async () => {
@@ -1003,7 +1006,7 @@ it("remounts the home hero when Retour finishes after the hero has left", async 
   });
 
   expect(view.container.querySelector(".chat-hero")).toBeNull();
-  const back = view.container.querySelector('[aria-label="Retour"]');
+  const back = view.container.querySelector('[aria-label="Back"]');
   if (!(back instanceof HTMLButtonElement)) {
     throw new Error("missing back");
   }
@@ -1042,7 +1045,7 @@ it("does not finish a later Retour with the previous exit timeout", async () => 
   });
 
   await openConversation(view);
-  const second = view.container.querySelector('[aria-label="Retour"]');
+  const second = view.container.querySelector('[aria-label="Back"]');
   if (!(second instanceof HTMLButtonElement)) {
     throw new Error("missing back");
   }
@@ -1058,7 +1061,7 @@ it("does not finish a later Retour with the previous exit timeout", async () => 
   );
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
   expectNoHistoryChange();
 });
@@ -1069,17 +1072,17 @@ it("stops dictation when Retour starts", async () => {
   const view = await mount();
   await openConversation(view);
   expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
-    "Dicter un message",
+    "Dictate a message",
   );
 
   await act(async () => {
     activateDictationFromKeyboard(dictateButton(view.container));
   });
   expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
-    "Arrêter la dictée",
+    "Stop dictation",
   );
 
-  const back = view.container.querySelector('[aria-label="Retour"]');
+  const back = view.container.querySelector('[aria-label="Back"]');
   if (!(back instanceof HTMLButtonElement)) {
     throw new Error("missing back");
   }
@@ -1088,7 +1091,7 @@ it("stops dictation when Retour starts", async () => {
   });
 
   expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
-    "Dicter un message",
+    "Dictate a message",
   );
   expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
     true,
@@ -1102,7 +1105,7 @@ it("does not start dictation from the keyboard while the column exit plays", asy
   const view = await mount();
   const back = await openConversation(view);
   expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
-    "Dicter un message",
+    "Dictate a message",
   );
 
   await act(async () => {
@@ -1113,7 +1116,7 @@ it("does not start dictation from the keyboard while the column exit plays", asy
   });
 
   expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
-    "Dicter un message",
+    "Dictate a message",
   );
   expect(columnOf(view.container).classList.contains("chat-column-leave")).toBe(
     true,
@@ -1129,7 +1132,7 @@ it("does not start dictation from the keyboard while the column exit plays", asy
     activateDictationFromKeyboard(dictateButton(view.container));
   });
   expect(dictateButton(view.container).getAttribute("aria-label")).toBe(
-    "Arrêter la dictée",
+    "Stop dictation",
   );
 });
 
@@ -1161,9 +1164,9 @@ it("returns home from Retour, starts another conversation, and returns home agai
 
   expect(view.container.querySelector(".chat-badge")).toBeNull();
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
-  const second = view.container.querySelector('[aria-label="Retour"]');
+  const second = view.container.querySelector('[aria-label="Back"]');
   if (!(second instanceof HTMLButtonElement)) {
     throw new Error("missing back");
   }
@@ -1176,7 +1179,7 @@ it("returns home from Retour, starts another conversation, and returns home agai
   );
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
 
   await act(async () => {
@@ -1241,7 +1244,7 @@ it("keeps the keyboard pin while the column exit plays", async () => {
     });
     expect(view.container.querySelector(".chat-greeting")).toBeNull();
     expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-      "Bonjour",
+      "Hello",
     );
     expectNoHistoryChange();
   } finally {
@@ -1299,9 +1302,9 @@ it("pins the chat page to the visual viewport when the keyboard resizes it", asy
       throw new Error("missing composer");
     }
     await act(async () => {
-      setField(field, "Bonjour");
+      setField(field, "Hello");
     });
-    const send = view.container.querySelector('button[aria-label="Envoyer"]');
+    const send = view.container.querySelector('button[aria-label="Send"]');
     if (!(send instanceof HTMLButtonElement)) {
       throw new Error("missing send button");
     }
@@ -1705,9 +1708,9 @@ it("drops a late reply after Retour and returns to the empty home", async () => 
   await openConversation(view);
 
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
-  const back = header()?.querySelector('[aria-label="Retour"]');
+  const back = header()?.querySelector('[aria-label="Back"]');
   expect(back).not.toBeNull();
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
 
@@ -1718,7 +1721,7 @@ it("drops a late reply after Retour and returns to the empty home", async () => 
   expect(view.container.querySelector(".chat-greeting")).toBeNull();
   expect(view.container.querySelector(".chat-column-leave")).not.toBeNull();
   expect(view.container.querySelector(".chat-thread")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
   expectNoHistoryChange();
 
@@ -1749,7 +1752,7 @@ it("drops a late reply after Retour and returns to the empty home", async () => 
   await openConversation(view);
 
   expect(view.container.querySelector(".chat-user")?.textContent).toContain(
-    "Bonjour",
+    "Hello",
   );
   expect(view.container.textContent).toContain("Deuxième.");
   expect(view.container.textContent).not.toContain("Réponse tardive.");
@@ -1790,8 +1793,8 @@ it("keeps the scroll position and shows a new-message pill when a reply arrives 
               Node.DOCUMENT_POSITION_FOLLOWING) ===
             Node.DOCUMENT_POSITION_FOLLOWING,
     }).toEqual({
-      text: "Nouveau message↓",
-      label: "Nouveau message",
+      text: "New message↓",
+      label: "New message",
       type: "button",
       live: null,
       arrow: "↓",
@@ -2093,7 +2096,7 @@ it("shows the pill when an error reply arrives above the bottom", async () => {
       "Le service est indisponible.",
     );
     expect(newMessagePill(session.container)?.textContent).toBe(
-      "Nouveau message↓",
+      "New message↓",
     );
   } finally {
     session.restore();
@@ -2107,7 +2110,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
     session.thread.dispatchEvent(new Event("scroll"));
     await session.release("Voici la suite.");
     expect(newMessagePill(session.container)).not.toBeNull();
-    const back = session.container.querySelector('[aria-label="Retour"]');
+    const back = session.container.querySelector('[aria-label="Back"]');
     if (!(back instanceof HTMLButtonElement)) {
       throw new Error("missing back");
     }
@@ -2127,7 +2130,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
     expect(newMessagePill(session.container)).toBeNull();
     expect(session.scrolled.top).toBe(0);
     expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
-      "Bonjour",
+      "Hello",
     );
     expectNoHistoryChange();
 
@@ -2138,14 +2141,14 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
         throw new Error("missing composer");
       }
       await act(async () => setField(field, "Bonjour encore"));
-      const send = session.container.querySelector('button[aria-label="Envoyer"]');
+      const send = session.container.querySelector('button[aria-label="Send"]');
       if (!(send instanceof HTMLButtonElement)) throw new Error("missing send button");
       await act(async () => send.click());
       session.scrolled.top = 400;
       session.thread.dispatchEvent(new Event("scroll"));
       await session.release("Encore.");
       expect(newMessagePill(session.container)).not.toBeNull();
-      const again = session.container.querySelector('[aria-label="Retour"]');
+      const again = session.container.querySelector('[aria-label="Back"]');
       if (!(again instanceof HTMLButtonElement)) {
         throw new Error("missing back");
       }
@@ -2155,7 +2158,7 @@ it("returns to the top of home with no pill after Retour from an unread reply", 
       expect(newMessagePill(session.container)).toBeNull();
       expect(session.scrolled.top).toBe(0);
       expect(session.container.querySelector(".chat-greeting")?.textContent).toBe(
-        "Bonjour",
+        "Hello",
       );
       expectNoHistoryChange();
     } finally {
@@ -2193,16 +2196,16 @@ async function openConversation(view: {
     throw new Error("missing composer");
   }
   await act(async () => {
-    setField(field, "Bonjour");
+    setField(field, "Hello");
   });
-  const send = view.container.querySelector('button[aria-label="Envoyer"]');
+  const send = view.container.querySelector('button[aria-label="Send"]');
   if (!(send instanceof HTMLButtonElement)) {
     throw new Error("missing send button");
   }
   await act(async () => {
     send.click();
   });
-  const back = view.container.querySelector('[aria-label="Retour"]');
+  const back = view.container.querySelector('[aria-label="Back"]');
   if (!(back instanceof HTMLButtonElement)) {
     throw new Error("missing back");
   }
@@ -2220,7 +2223,7 @@ function expectEmptyHome(container: ParentNode): void {
   const column = container.querySelector(".chat-column");
   expect({
     greeting: container.querySelector(".chat-greeting")?.textContent ?? null,
-    back: container.querySelector('[aria-label="Retour"]'),
+    back: container.querySelector('[aria-label="Back"]'),
     thread: container.querySelector(".chat-thread"),
     hero: hero instanceof HTMLElement && !hero.classList.contains("chat-hero-leave"),
     mascot: container.querySelector(".chat-hero-mascot") instanceof HTMLElement,
@@ -2232,7 +2235,7 @@ function expectEmptyHome(container: ParentNode): void {
       HTMLElement,
     badge: container.querySelector(".chat-badge"),
   }).toEqual({
-    greeting: "Bonjour",
+    greeting: "Hello",
     back: null,
     thread: null,
     hero: true,
@@ -2289,7 +2292,7 @@ function installDictation(): void {
 
 function dictateButton(container: ParentNode): HTMLButtonElement {
   const button = container.querySelector(
-    '[aria-label="Dicter un message"], [aria-label="Arrêter la dictée"]',
+    '[aria-label="Dictate a message"], [aria-label="Stop dictation"]',
   );
   if (!(button instanceof HTMLButtonElement)) {
     throw new Error("missing dictation");
@@ -2464,9 +2467,9 @@ async function scrolledThread(): Promise<{
     throw new Error("missing composer");
   }
   await act(async () => {
-    setField(field, "Bonjour");
+    setField(field, "Hello");
   });
-  const send = view.container.querySelector('button[aria-label="Envoyer"]');
+  const send = view.container.querySelector('button[aria-label="Send"]');
   if (!(send instanceof HTMLButtonElement)) {
     throw new Error("missing send button");
   }
@@ -2490,7 +2493,7 @@ async function unmount(view: { root: Root }): Promise<void> {
 }
 
 function newMessagePill(container: ParentNode): HTMLButtonElement | null {
-  const pill = container.querySelector('button[aria-label="Nouveau message"]');
+  const pill = container.querySelector('button[aria-label="New message"]');
   return pill instanceof HTMLButtonElement ? pill : null;
 }
 
@@ -2532,9 +2535,9 @@ async function pendingThread(): Promise<{
       throw new Error("missing composer");
     }
     await act(async () => {
-      setField(field, "Bonjour");
+      setField(field, "Hello");
     });
-    const send = view.container.querySelector('button[aria-label="Envoyer"]');
+    const send = view.container.querySelector('button[aria-label="Send"]');
     if (!(send instanceof HTMLButtonElement)) {
       throw new Error("missing send button");
     }
@@ -2593,7 +2596,7 @@ async function sendComposer(container: ParentNode, text: string): Promise<void> 
     setter?.call(field, text);
     field.dispatchEvent(new InputEvent("input", { bubbles: true }));
   });
-  const send = container.querySelector('button[aria-label="Envoyer"]');
+  const send = container.querySelector('button[aria-label="Send"]');
   if (!(send instanceof HTMLButtonElement)) {
     throw new Error("missing send");
   }

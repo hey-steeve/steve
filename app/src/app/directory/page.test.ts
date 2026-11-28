@@ -46,29 +46,29 @@ function names() {
 }
 
 it("renders the default practitioners in distance order with their contact details", () => {
-  expect(container.querySelector('a[href="/chat"]')?.textContent).toContain("Retour");
-  expect(input('[aria-label="Spécialité"]').value).toBe("Médecin généraliste");
+  expect(container.querySelector('a[href="/chat"]')?.textContent).toContain("Back");
+  expect(input('[aria-label="Specialty"]').value).toBe("General practitioner");
   expect(input('[autocomplete="postal-code"]').value).toBe("75011");
   expect(names()).toEqual(["Camille Lunéval", "Noé Brumelac"]);
   const card = container.querySelector(".directory-card")?.textContent;
-  for (const detail of ["Médecine générale", "Secteur 1", "1 rue des Nuages Mauves, 75011 Paris", "1,2 km", "00 00 00 00 01"]) {
+  for (const detail of ["General practice", "Sector 1", "1 rue des Nuages Mauves, 75011 Paris", "1.2 km", "00 00 00 00 01"]) {
     expect(card).toContain(detail);
   }
 });
 
 it("shows an empty state and restores the defaults when resetting", async () => {
-  await clickButton("Pédiatre");
-  expect(container.textContent).toContain("Aucun praticien trouvé pour ces critères.");
+  await clickButton("Paediatrician");
+  expect(container.textContent).toContain("No practitioner found for these criteria.");
   expect(names()).toEqual([]);
-  await clickButton("Réinitialiser les filtres");
-  expect(container.textContent).not.toContain("Aucun praticien trouvé");
+  await clickButton("Reset filters");
+  expect(container.textContent).not.toContain("No practitioner found");
   expect(names()).toEqual(["Camille Lunéval", "Noé Brumelac"]);
 });
 
 it("combines optional postal, sector, and distance filters", async () => {
   await changeInput(input('[autocomplete="postal-code"]'), "");
   expect(names()).toContain("Lina Ormelune");
-  await clickButton("Secteur 1");
+  await clickButton("Sector 1");
   expect(names()).toEqual(["Camille Lunéval", "Lina Ormelune"]);
   const select = container.querySelector("select");
   if (!select) throw new Error("Missing distance selector");
@@ -80,8 +80,8 @@ it("combines optional postal, sector, and distance filters", async () => {
 });
 
 it.each([
-  ['[aria-label="Spécialité"]', "Astronaute", "Spécialité non reconnue. Essayez par exemple généraliste, dermatologue ou dentiste."],
-  ['[autocomplete="postal-code"]', "7501", "Code postal invalide (5 chiffres attendus)."],
+  ['[aria-label="Specialty"]', "Astronaute", "Specialty not recognised. Try for example GP, dermatologist or dentist."],
+  ['[autocomplete="postal-code"]', "7501", "Invalid postcode (5 digits expected)."],
 ])("shows an inline validation error for %s", async (selector, value, message) => {
   const field = input(selector);
   await changeInput(field, value);
@@ -90,7 +90,7 @@ it.each([
   expect(alert?.textContent).toBe(message);
   expect(field.getAttribute("aria-describedby")).toBe(alert?.id);
   expect(names()).toEqual([]);
-  expect(container.textContent).not.toContain("Aucun praticien trouvé");
+  expect(container.textContent).not.toContain("No practitioner found");
 });
 
 it("links each practitioner card to the booking page with their RPPS", () => {

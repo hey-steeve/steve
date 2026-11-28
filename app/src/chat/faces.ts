@@ -35,6 +35,9 @@ export const pageMascots = {
   documents: "/mascot/documents.webp",
   inbox: "/mascot/mailbox.webp",
   challenges: "/mascot/running.webp",
+  rewards: "/mascot/celebrate.webp",
+  agenda: "/mascot/clipboard.webp",
+  memory: "/mascot/thinking.webp",
 } as const;
 
 export const headerAvatarSrc = "/mascot/pfp-lavender-profile.webp";

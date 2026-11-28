@@ -2,12 +2,13 @@
 // choice lives in this browser only.
 
 export const homeBlocks = [
-  { id: "signal", label: "Ton sommeil" },
-  { id: "appointment", label: "Prochain rendez-vous" },
-  { id: "challenge", label: "Défi" },
-  { id: "space", label: "Mon espace santé" },
-  { id: "upcoming", label: "À venir" },
-  { id: "tiles", label: "Raccourcis" },
+  { id: "signal", label: "Your sleep" },
+  { id: "appointment", label: "Next appointment" },
+  { id: "memory", label: "Stevie’s memory" },
+  { id: "challenge", label: "Challenge" },
+  { id: "space", label: "My health space" },
+  { id: "upcoming", label: "Coming up" },
+  { id: "tiles", label: "Shortcuts" },
 ] as const;
 
 export type HomeBlockId = (typeof homeBlocks)[number]["id"];

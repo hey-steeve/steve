@@ -30,7 +30,7 @@ export function FriendsSection(props: { readonly onJoin: (challenge: Challenge) 
       <section className="steve-card" aria-labelledby="friends-add-title">
         <div className="challenges-between">
           <h2 id="friends-add-title" className="steve-card-title">
-            Mes amis · {friends.length}
+            My friends · {friends.length}
           </h2>
           <button
             type="button"
@@ -41,7 +41,7 @@ export function FriendsSection(props: { readonly onJoin: (challenge: Challenge) 
               setQuery("");
             }}
           >
-            {adding ? "Fermer" : "+ Ajouter"}
+            {adding ? "Close" : "+ Add"}
           </button>
         </div>
         {adding ? (
@@ -49,12 +49,12 @@ export function FriendsSection(props: { readonly onJoin: (challenge: Challenge) 
             <input
               className="steve-input"
               value={query}
-              placeholder="Nom ou ville"
-              aria-label="Chercher une personne"
+              placeholder="Name or city"
+              aria-label="Search for a person"
               onChange={(event) => setQuery(event.target.value)}
             />
             {people.length === 0 ? (
-              <p className="steve-detail-secondary">Personne ne correspond. Invite-le avec ton code depuis ton profil.</p>
+              <p className="steve-detail-secondary">No match. Invite them with your code from your profile.</p>
             ) : (
               <ul className="friends-list">
                 {people.map((person) => (
@@ -69,7 +69,7 @@ export function FriendsSection(props: { readonly onJoin: (challenge: Challenge) 
                       className="challenges-join"
                       onClick={() => updateCommunity((current) => addFriend(current, person.id))}
                     >
-                      Ajouter
+                      Add
                     </button>
                   </li>
                 ))}
@@ -80,7 +80,7 @@ export function FriendsSection(props: { readonly onJoin: (challenge: Challenge) 
       </section>
 
       {friends.length === 0 ? (
-        <p className="steve-detail-secondary challenges-all-joined">Ajoute des amis pour voir leurs défis.</p>
+        <p className="steve-detail-secondary challenges-all-joined">Add friends to see their challenges.</p>
       ) : (
         <ul className="friends-cards">
           {friends.map((friend) => (
@@ -120,9 +120,9 @@ function FriendCard(props: {
           <span className="steve-detail-primary">{friend.name}</span>
           <span className="steve-detail-secondary">
             {challenges.length === 0
-              ? "Aucun défi en ce moment"
-              : `${challenges.length} défi${challenges.length > 1 ? "s" : ""}${active > 0 ? ` · ${active} en cours` : ""}`}{" "}
-            · {friend.done} terminés
+              ? "No challenge right now"
+              : `${challenges.length} challenge${challenges.length > 1 ? "s" : ""}${active > 0 ? ` · ${active} ongoing` : ""}`}{" "}
+            · {friend.done} completed
           </span>
         </span>
         <span className="friends-chevron" aria-hidden="true">
@@ -138,23 +138,23 @@ function FriendCard(props: {
               <div key={challenge.id} className="friends-challenge">
                 <span className="challenges-item-copy">
                   <Eyebrow tone={status === "ongoing" ? "orange" : "indigo"}>
-                    {status === "ongoing" ? "En cours" : startLabel(challenge)}
+                    {status === "ongoing" ? "Ongoing" : startLabel(challenge)}
                   </Eyebrow>
                   <span className="steve-detail-primary">{challenge.title}</span>
                   <span className="steve-detail-secondary">
                     {challenge.goal}
-                    {teammates.length > 0 ? ` · avec ${teammates.join(" et ")}` : ""}
+                    {teammates.length > 0 ? ` · with ${teammates.join(" and ")}` : ""}
                   </span>
                 </span>
                 {joined ? (
-                  <span className="friends-joined">Tu y es</span>
+                  <span className="friends-joined">Joined</span>
                 ) : (
                   <button
                     type="button"
                     className="challenges-join"
                     onClick={() => props.onJoin({ ...challenge, friend: friend.name })}
                   >
-                    Le rejoindre
+                    Join them
                   </button>
                 )}
               </div>
@@ -165,7 +165,7 @@ function FriendCard(props: {
             className="challenges-link"
             onClick={() => updateCommunity((current) => removeFriend(current, friend.id))}
           >
-            Retirer {friend.name} de mes amis
+            Remove {friend.name} from my friends
           </button>
         </div>
       ) : null}

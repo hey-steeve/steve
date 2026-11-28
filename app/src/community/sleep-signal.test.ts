@@ -20,6 +20,6 @@ it("stays quiet on steady sleep, short series, or a single bad night", () => {
 });
 
 it("formats durations in hours", () => {
-  expect(hoursLabel(420)).toBe("7 h");
-  expect(hoursLabel(330)).toBe("5 h 30");
+  expect(hoursLabel(420)).toBe("7h");
+  expect(hoursLabel(330)).toBe("5h 30m");
 });

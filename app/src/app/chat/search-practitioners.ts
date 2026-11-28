@@ -13,22 +13,22 @@ const demoOrigin = { lat: 48.858, lon: 2.371 };
 const demoPractitioners: readonly Practitioner[] = [
   {
     rpps: "10000000104", firstName: "Camille", lastName: "Lunéval",
-    specialtyCode: "SM54", specialtyLabel: "Médecine générale", conventionnement: "secteur-1",
+    specialtyCode: "SM54", specialtyLabel: "General practice", conventionnement: "secteur-1",
     address: { line: "1 rue des Lanternes Mauves", postalCode: "75011", city: "Paris", location: { lat: 48.859, lon: 2.377 } },
   },
   {
     rpps: "10000000101", firstName: "Sacha", lastName: "Clairsonge",
-    specialtyCode: "SM15", specialtyLabel: "Dermatologie", conventionnement: "secteur-1",
+    specialtyCode: "SM15", specialtyLabel: "Dermatology", conventionnement: "secteur-1",
     address: { line: "4 rue des Nuages Mauves", postalCode: "75011", city: "Paris", location: { lat: 48.865, lon: 2.373 } },
   },
   {
     rpps: "10000000102", firstName: "Inès", lastName: "Valbrume",
-    specialtyCode: "SM15", specialtyLabel: "Dermatologie", conventionnement: "secteur-1",
+    specialtyCode: "SM15", specialtyLabel: "Dermatology", conventionnement: "secteur-1",
     address: { line: "9 passage des Lucioles", postalCode: "75011", city: "Paris", location: { lat: 48.850, lon: 2.381 } },
   },
   {
     rpps: "10000000103", firstName: "Lina", lastName: "Ormelune",
-    specialtyCode: "SM15", specialtyLabel: "Dermatologie", conventionnement: "secteur-2",
+    specialtyCode: "SM15", specialtyLabel: "Dermatology", conventionnement: "secteur-2",
     address: { line: "11 allée des Brumes", postalCode: "75011", city: "Paris", location: { lat: 48.851, lon: 2.368 } },
   },
 ];

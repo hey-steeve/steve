@@ -35,9 +35,9 @@ import { runPractitionerSearch, type DirectoryResult } from "./search-practition
 import "./chat.css";
 import "./directory-widget.css";
 
-const disclaimer = "Stevie n’est pas médecin et ne pose pas de diagnostic.";
+const disclaimer = "Stevie is not a doctor and does not diagnose.";
 
-const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
+const fallbackReply = "I couldn’t answer. Please try again.";
 const clientTimeoutMs = 35_000;
 const homeLeaveMs = 240;
 const keyboardOpenGap = 120;
@@ -120,6 +120,14 @@ export default function ChatPage(props: {
       newConversationRef.current?.focus();
     }
   }, [ended]);
+
+  // The Stevie button on the other tabs lands here with the chat bar open.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("ecrire") !== "1") return;
+    window.history.replaceState(null, "", "/chat");
+    setComposing(true);
+  }, []);
 
   useEffect(() => {
     if (composing && messages.length === 0) {
@@ -573,10 +581,10 @@ export default function ChatPage(props: {
     ]);
     const count = result.kind === "found" ? result.practitioners.length : 0;
     const content = result.kind === "failed"
-      ? "La recherche est indisponible. Réessaie dans un instant."
+      ? "Search is unavailable. Try again in a moment."
       : count === 0
-        ? "Je n’ai trouvé aucun praticien pour ces critères."
-        : `J’ai trouvé ${count} praticien${count === 1 ? "" : "s"} pour ces critères.`;
+        ? "I found no practitioner for these criteria."
+        : `I found ${count} practitioner${count === 1 ? "" : "s"} for these criteria.`;
     if (!pinned.current) setUnseenReply(true);
     setMessages((current) => [...current, {
       id: newMessageId(), role: "agent", content, directory: { filters, result }, trace,
@@ -607,7 +615,7 @@ export default function ChatPage(props: {
         <button
           type="button"
           className="chat-plus"
-          aria-label="Ajouter une pièce jointe"
+          aria-label="Add an attachment"
           disabled
         >
           +
@@ -619,8 +627,8 @@ export default function ChatPage(props: {
         value={draft}
         rows={1}
         maxLength={chatRequestLimits.maxMessageChars}
-        placeholder={refining ? "Précise le secteur ou le code postal" : "Demande n'importe quoi"}
-        aria-label="Message pour Stevie"
+        placeholder={refining ? "Add the area or postcode" : "Ask anything"}
+        aria-label="Message for Stevie"
         onChange={(event) => {
           setDraft(event.target.value);
         }}
@@ -698,7 +706,7 @@ export default function ChatPage(props: {
             <button
               type="button"
               className="chat-back"
-              aria-label="Retour"
+              aria-label="Back"
               onClick={leaveToHome}
             >
               <span className="chat-back-face">
@@ -719,8 +727,8 @@ export default function ChatPage(props: {
                   <button
                     type="button"
                     className="chat-thread-call"
-                    aria-label="Appeler Stevie"
-                    title="Appeler Stevie"
+                    aria-label="Call Stevie"
+                    title="Call Stevie"
                     onClick={startCall}
                   >
                     <PhoneIcon />
@@ -728,8 +736,8 @@ export default function ChatPage(props: {
                   <button
                     type="button"
                     className="chat-finish"
-                    aria-label="Terminer la conversation"
-                    title="Terminer la conversation"
+                    aria-label="End the conversation"
+                    title="End the conversation"
                     disabled={exchange === "awaiting"}
                     onClick={finishConversation}
                   >
@@ -742,7 +750,7 @@ export default function ChatPage(props: {
             </span>
           )}
           {empty || !demo ? null : (
-            <p className="chat-badge">Mode démo : réponses simulées</p>
+            <p className="chat-badge">Demo mode: simulated replies</p>
           )}
         </header>
         <AgentCallBar
@@ -766,7 +774,7 @@ export default function ChatPage(props: {
                       {homeGreeting(props.patientFirstName)}
                     </h1>
                     <p className="chat-home-subtitle">
-                      Je vais t’aider à organiser tes soins.
+                      I’ll help you organise your care.
                     </p>
                   </div>
                 ) : null}
@@ -843,7 +851,7 @@ export default function ChatPage(props: {
                   className="chat-row chat-row-agent"
                   role="status"
                   aria-live="polite"
-                  aria-label="Stevie réfléchit"
+                  aria-label="Stevie is thinking"
                 >
                   <SteveAvatar />
                   <LiveTrace steps={liveTrace.steps} startedAt={liveTrace.startedAt} />
@@ -853,7 +861,7 @@ export default function ChatPage(props: {
                   className="chat-row chat-row-agent"
                   role="status"
                   aria-live="polite"
-                  aria-label="Stevie écrit"
+                  aria-label="Stevie is typing"
                 >
                   <SteveAvatar />
                   <div className="chat-typing">
@@ -869,17 +877,17 @@ export default function ChatPage(props: {
         {empty ? <AppTabBar
             current="/chat"
             floating
-            stevie={{ onWrite: startWriting, onCall: startCall, disclaimer }}
+            stevie={{ onWrite: startWriting }}
           /> : null}
         {unseenReply ? (
           <div className="chat-new-message-row">
             <button
               type="button"
               className="chat-new-message"
-              aria-label="Nouveau message"
+              aria-label="New message"
               onClick={showLatest}
             >
-              Nouveau message<span aria-hidden="true">↓</span>
+              New message<span aria-hidden="true">↓</span>
             </button>
           </div>
         ) : null}
@@ -894,9 +902,9 @@ export default function ChatPage(props: {
                   width={84}
                   height={84}
                 />
-                <h2 id="chat-ended-title">Conversation terminée</h2>
+                <h2 id="chat-ended-title">Conversation ended</h2>
                 <button ref={newConversationRef} type="button" onClick={leaveToHome}>
-                  Nouvelle conversation
+                  New conversation
                 </button>
               </section>
             ) : (
@@ -922,7 +930,7 @@ function EmergencyCallActions({ calls }: { readonly calls: EmergencyCalls | unde
       {calls.map(({ number }) => (
         <a key={number} href={`tel:${number}`}>
           <PhoneIcon />
-          Appeler le {number}
+          Call {number}
         </a>
       ))}
     </div>
@@ -948,12 +956,12 @@ function ComposerAction(props: {
       className={send ? "chat-action chat-action-send" : "chat-action"}
       aria-label={
         send
-          ? "Envoyer"
+          ? "Send"
           : listening
-            ? "Arrêter la dictée"
+            ? "Stop dictation"
             : supported
-              ? "Dicter un message"
-              : "Saisir un message"
+              ? "Dictate a message"
+              : "Type a message"
       }
       aria-pressed={send ? undefined : listening}
       disabled={send && props.pending}

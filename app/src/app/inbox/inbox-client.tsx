@@ -30,8 +30,8 @@ const demoInboundMessages: readonly NormalizedInboundMessage[] = [
     providerMessageId: "msg-demo-confirmation-1",
     from: "cabinet.luneval@example.test",
     to: steveAddress,
-    subject: "Confirmation de rendez-vous",
-    textBody: "Votre rendez-vous avec Camille Lunéval est prévu le 2 décembre à 10 h.",
+    subject: "Appointment confirmation",
+    textBody: "Your appointment with Camille Lunéval is on 2 December at 10:00.",
     attachments: [],
     receivedAt: "2026-11-27T09:15:00Z",
   },
@@ -39,14 +39,14 @@ const demoInboundMessages: readonly NormalizedInboundMessage[] = [
     providerMessageId: "msg-demo-report-1",
     from: "secretariat.luneval@example.test",
     to: steveAddress,
-    subject: "Document du cabinet",
-    textBody: "Veuillez trouver ci-joint votre lettre de rendez-vous.",
+    subject: "Document from the practice",
+    textBody: "Please find your appointment letter attached.",
     attachments: [
       {
         id: "att-demo-1",
-        fileName: "lettre-de-rendez-vous.pdf",
+        fileName: "appointment-letter.pdf",
         mimeType: "application/pdf",
-        bytes: new TextEncoder().encode("Lettre de rendez-vous — 2 décembre à 10 h."),
+        bytes: new TextEncoder().encode("Appointment letter — 2 December at 10:00."),
       },
     ],
     receivedAt: "2026-11-27T09:30:00Z",
@@ -60,7 +60,7 @@ const initialEvents: readonly InboxEvent[] = [
       providerMessageId: "msg-demo-confirmation-1",
       from: "cabinet.luneval@example.test",
       to: steveAddress,
-      subject: "Confirmation de rendez-vous",
+      subject: "Appointment confirmation",
       receivedAt: "2026-11-27T09:15:00Z",
     },
     confirmation: {
@@ -77,14 +77,14 @@ const initialEvents: readonly InboxEvent[] = [
       providerMessageId: "msg-demo-report-1",
       from: "secretariat.luneval@example.test",
       to: steveAddress,
-      subject: "Document du cabinet",
+      subject: "Document from the practice",
       receivedAt: "2026-11-27T09:30:00Z",
     },
     document: {
       id: "att-demo-1",
-      fileName: "lettre-de-rendez-vous.pdf",
+      fileName: "appointment-letter.pdf",
       mimeType: "application/pdf",
-      bytes: new TextEncoder().encode("Lettre de rendez-vous — 2 décembre à 10 h."),
+      bytes: new TextEncoder().encode("Appointment letter — 2 December at 10:00."),
     },
     verification: "unverified",
   },
@@ -143,7 +143,7 @@ export default function InboxClient() {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [sendOpen, setSendOpen] = useState(false);
   const [recipient, setRecipient] = useState("cabinet.luneval@example.test");
-  const [subject, setSubject] = useState("Transmission de ma lettre de rendez-vous");
+  const [subject, setSubject] = useState("Sending my appointment letter");
   const [authorized, setAuthorized] = useState(false);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
@@ -186,7 +186,7 @@ export default function InboxClient() {
     if (!authorized) {
       setSendStatus({
         kind: "error",
-        text: "Confirme ton autorisation avant d’envoyer un document à un praticien.",
+        text: "Confirm your consent before sending a document to a practitioner.",
       });
       return;
     }
@@ -202,13 +202,13 @@ export default function InboxClient() {
         requestId: `send-demo-${requestCounter.current}`,
         practitionerEmail,
         subject: subject.trim(),
-        textBody: "Document transmis depuis la messagerie Stevie (données de démonstration).",
+        textBody: "Document sent from the Stevie inbox (demo data).",
         attachments: [
           {
             id: "att-out-1",
-            fileName: "lettre-de-rendez-vous.pdf",
+            fileName: "appointment-letter.pdf",
             mimeType: "application/pdf",
-            bytes: new TextEncoder().encode("Lettre de rendez-vous — données de démonstration."),
+            bytes: new TextEncoder().encode("Appointment letter — demo data."),
           },
         ],
         authorization: { authorized: true },
@@ -216,7 +216,7 @@ export default function InboxClient() {
     } catch {
       setSendStatus({
         kind: "error",
-        text: "Impossible d’envoyer ce document pour le moment. Réessaie dans un instant.",
+        text: "Can’t send this document right now. Try again in a moment.",
       });
       return;
     } finally {
@@ -226,13 +226,13 @@ export default function InboxClient() {
     if (outcome.status !== "sent") {
       setSendStatus({
         kind: "error",
-        text: "Impossible d’envoyer ce document. Vérifie l’adresse du destinataire.",
+        text: "Can’t send this document. Check the recipient’s address.",
       });
       return;
     }
     setSendStatus({
       kind: "ok",
-      text: `Envoi simulé à ${practitionerEmail} (réf. ${outcome.providerMessageId}). Rien n’a quitté la démonstration.`,
+      text: `Simulated send to ${practitionerEmail} (ref. ${outcome.providerMessageId}). Nothing left the demo.`,
     });
     setSendOpen(false);
     setAuthorized(false);
@@ -241,12 +241,12 @@ export default function InboxClient() {
   return (
     <FeatureShell
       current="/inbox"
-      title="Ma messagerie"
+      title="My inbox"
       heroMascot={{ src: pageMascots.inbox, width: 600, height: 600 }}
     >
       <section className="steve-card" aria-labelledby="inbox-address-title">
         <h2 id="inbox-address-title" className="steve-card-title">
-          Ton adresse Stevie
+          Your Stevie address
         </h2>
         <div className="inbox-address-row">
           <MailIcon />
@@ -254,7 +254,7 @@ export default function InboxClient() {
           <button
             type="button"
             className="inbox-copy-btn"
-            aria-label="Copier l’adresse Stevie"
+            aria-label="Copy the Stevie address"
             onClick={() => {
               void handleCopyAddress();
             }}
@@ -264,19 +264,19 @@ export default function InboxClient() {
         </div>
         {copyState === "copied" ? (
           <p className="steve-status" role="status">
-            Adresse copiée : {steveAddress}
+            Address copied: {steveAddress}
           </p>
         ) : null}
         {copyState === "failed" ? (
           <p className="steve-alert" role="alert">
-            Copie impossible. Sélectionne l’adresse pour la copier à la main.
+            Copy failed. Select the address to copy it by hand.
           </p>
         ) : null}
       </section>
 
       <section className="steve-card" aria-labelledby="inbox-received-title">
         <h2 id="inbox-received-title" className="steve-card-title">
-          Reçus
+          Received
         </h2>
         <ul className="steve-row-list">
           {events.map((item) => {
@@ -295,11 +295,11 @@ export default function InboxClient() {
                   <span className="inbox-item-copy">
                     <span className="inbox-item-title">
                       {isConfirmation
-                        ? "Confirmation de rendez-vous"
-                        : "Document du cabinet"}
+                        ? "Appointment confirmation"
+                        : "Document from the practice"}
                     </span>
                     <span className={isConfirmation ? "steve-pill steve-pill-warning" : "steve-pill"}>
-                      {isConfirmation ? "À vérifier" : "Document reçu"}
+                      {isConfirmation ? "To check" : "Document received"}
                     </span>
                   </span>
                   <span className="steve-row-chevron" aria-hidden="true">
@@ -314,14 +314,14 @@ export default function InboxClient() {
                     {isConfirmation ? (
                       <>
                         <span className="steve-detail-primary">
-                          {item.confirmation.practitionerName ?? "Praticien"} · Réf.{" "}
+                          {item.confirmation.practitionerName ?? "Practitioner"} · Ref.{" "}
                           {item.confirmation.reference}
                         </span>
                         <span className="steve-detail-secondary">
-                          Validation requise avant ajout définitif à l’agenda.
+                          Needs your check before it goes into the calendar for good.
                         </span>
                         <Link className="steve-btn-secondary" href="/agenda">
-                          Vérifier dans l’agenda
+                          Check in calendar
                         </Link>
                       </>
                     ) : (
@@ -330,10 +330,10 @@ export default function InboxClient() {
                           {item.document.fileName}
                         </span>
                         <span className="steve-detail-secondary">
-                          Pièce jointe reçue (non vérifiée), prête pour le coffre.
+                          Attachment received (not checked), ready for the vault.
                         </span>
                         <Link className="steve-btn-secondary" href="/vault">
-                          Voir dans le Vault
+                          See in the Vault
                         </Link>
                       </>
                     )}
@@ -357,7 +357,7 @@ export default function InboxClient() {
           <span className="steve-icon-circle" aria-hidden="true">
             <UploadIcon />
           </span>
-          <span>Envoyer un document</span>
+          <span>Send a document</span>
         </button>
 
         {sendOpen ? (
@@ -369,7 +369,7 @@ export default function InboxClient() {
           >
             <div className="steve-field-group">
               <label className="steve-field-label" htmlFor="inbox-recipient">
-                Adresse du cabinet
+                Practice address
               </label>
               <input
                 id="inbox-recipient"
@@ -384,7 +384,7 @@ export default function InboxClient() {
             </div>
             <div className="steve-field-group">
               <label className="steve-field-label" htmlFor="inbox-subject">
-                Objet
+                Subject
               </label>
               <input
                 id="inbox-subject"
@@ -399,10 +399,10 @@ export default function InboxClient() {
                 checked={authorized}
                 onChange={(event) => setAuthorized(event.target.checked)}
               />
-              <span>J’autorise Stevie à envoyer ce document au cabinet indiqué.</span>
+              <span>I allow Stevie to send this document to this practice.</span>
             </label>
             <button type="submit" className="steve-btn-primary" disabled={sending}>
-              {sending ? "Envoi…" : "Confirmer l’envoi"}
+              {sending ? "Sending…" : "Confirm sending"}
             </button>
           </form>
         ) : null}

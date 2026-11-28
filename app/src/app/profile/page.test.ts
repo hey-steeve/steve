@@ -41,15 +41,15 @@ function buttonWithText(container: ParentNode, text: string): HTMLButtonElement 
 
 it("renders the patient identity, mascot, and profile menu sections", async () => {
   const container = await mount();
-  expect(container.querySelector("h1")?.textContent).toBe("Mon profil");
+  expect(container.querySelector("h1")?.textContent).toBe("My profile");
   expect(container.querySelector(".steve-hero-mascot")?.getAttribute("src")).toBe(
     "/mascot/profile-card.webp",
   );
   expect(container.querySelector(".profile-avatar")?.textContent).toBe("PP");
   expect(container.querySelector(".profile-name")?.textContent).toBe("Peter Parker");
   expect(container.textContent).not.toContain("Données de démonstration");
-  expect(container.textContent).toContain("Préférences");
-  expect(container.textContent).toContain("Historique déclaré");
+  expect(container.textContent).toContain("Preferences");
+  expect(container.textContent).toContain("Declared history");
   expect(container.textContent).not.toContain("Historique des appels");
   expect(container.querySelector('a[href="/vault"]')?.textContent).toBe("Vault");
 });
@@ -57,21 +57,21 @@ it("renders the patient identity, mascot, and profile menu sections", async () =
 it("displays preferences and declared history from @steve/profile", async () => {
   const container = await mount();
   await act(async () => {
-    buttonWithText(container, "Préférences").click();
+    buttonWithText(container, "Preferences").click();
   });
   expect(container.textContent).toContain("Créneaux après 18 h en semaine");
 
   await act(async () => {
-    buttonWithText(container, "Historique déclaré").click();
+    buttonWithText(container, "Declared history").click();
   });
   expect(container.textContent).toContain("Céleste Vandroux");
-  expect(container.textContent).toContain("sans interprétation médicale");
+  expect(container.textContent).toContain("without medical interpretation");
 });
 
 it("adds a preference via the in-memory profile store and rejects duplicates", async () => {
   const container = await mount();
   await act(async () => {
-    buttonWithText(container, "Modifier mon profil").click();
+    buttonWithText(container, "Edit my profile").click();
   });
   const input = container.querySelector("#profile-new-preference");
   if (!(input instanceof HTMLInputElement)) {
@@ -85,9 +85,9 @@ it("adds a preference via the in-memory profile store and rejects duplicates", a
     input.dispatchEvent(new InputEvent("input", { bubbles: true }));
   });
   await act(async () => {
-    buttonWithText(container, "Enregistrer la préférence").click();
+    buttonWithText(container, "Save preference").click();
   });
-  expect(container.querySelector('[role="status"]')?.textContent).toBe("Préférence ajoutée.");
+  expect(container.querySelector('[role="status"]')?.textContent).toBe("Preference added.");
 
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
@@ -97,9 +97,9 @@ it("adds a preference via the in-memory profile store and rejects duplicates", a
     input.dispatchEvent(new InputEvent("input", { bubbles: true }));
   });
   await act(async () => {
-    buttonWithText(container, "Enregistrer la préférence").click();
+    buttonWithText(container, "Save preference").click();
   });
   expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-    "Cette préférence est déjà enregistrée.",
+    "This preference is already saved.",
   );
 });

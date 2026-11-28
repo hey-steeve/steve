@@ -50,10 +50,10 @@ it("hides the indicator on pages outside the tabs and links the button to Stevie
   await nextFrame();
   expect(view.querySelector(".app-tab-indicator")?.hasAttribute("data-hidden")).toBe(true);
   expect(view.querySelector('.app-tab[aria-current="page"]')).toBeNull();
-  expect(view.querySelector(".app-tab-fab")?.getAttribute("href")).toBe("/chat");
+  expect(view.querySelector(".app-tab-fab")?.getAttribute("href")).toBe("/chat?ecrire=1");
 });
 
-it("opens the Stevie menu from the round button on the home", async () => {
+it("opens the chat bar straight from the round button on the home", async () => {
   const calls: string[] = [];
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -63,7 +63,7 @@ it("opens the Stevie menu from the round button on the home", async () => {
     root.render(
       createElement(AppTabBar, {
         current: "/chat",
-        stevie: { onWrite: () => calls.push("write"), onCall: () => calls.push("call"), disclaimer: "Démo" },
+        stevie: { onWrite: () => calls.push("write") },
       }),
     );
   });
@@ -71,12 +71,8 @@ it("opens the Stevie menu from the round button on the home", async () => {
   if (!(stevie instanceof HTMLButtonElement)) throw new Error("missing Stevie button");
   expect(stevie.querySelector("img")?.getAttribute("src")).toBe("/mascot/pfp-lavender-profile.webp");
   await act(async () => stevie.click());
-  expect(stevie.getAttribute("aria-expanded")).toBe("true");
-  const call = container.querySelector(".chat-call-cta");
-  if (!(call instanceof HTMLButtonElement)) throw new Error("missing call item");
-  await act(async () => call.click());
-  expect(calls).toEqual(["call"]);
-  expect(container.querySelector("#app-stevie-menu")).toBeNull();
+  expect(calls).toEqual(["write"]);
+  expect(container.querySelector("[role='dialog']")).toBeNull();
 });
 
 function indicator(container: HTMLElement): string {

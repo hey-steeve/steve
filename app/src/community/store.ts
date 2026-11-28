@@ -40,7 +40,7 @@ export function rewardFor(challenge: Challenge, teammates: readonly string[]): n
 }
 
 export function multiplierLabel(): string {
-  return `×${String(teamMultiplier).replace(".", ",")}`;
+  return `×${teamMultiplier}`;
 }
 
 export function joinChallenge(
@@ -113,16 +113,16 @@ export function challengeStatus(challenge: Challenge, today: string = communityT
 
 export function startLabel(challenge: Challenge, today: string = communityToday): string {
   const until = 1 - challengeDay(challenge, today);
-  if (until <= 0) return "Commencé";
-  if (until === 1) return "Commence demain";
-  const date = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" }).format(
+  if (until <= 0) return "Started";
+  if (until === 1) return "Starts tomorrow";
+  const date = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" }).format(
     new Date(`${challenge.startsOn}T12:00:00Z`),
   );
-  return `Commence ${date}`;
+  return `Starts ${date}`;
 }
 
 export function shortDate(isoDate: string): string {
-  return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" }).format(
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" }).format(
     new Date(`${isoDate}T12:00:00Z`),
   );
 }

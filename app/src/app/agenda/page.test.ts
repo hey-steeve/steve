@@ -31,14 +31,14 @@ async function mount(): Promise<HTMLDivElement> {
 
 it("renders the confirmed appointment for December 2 and week calendar", async () => {
   const container = await mount();
-  expect(container.querySelector("h1")?.textContent).toBe("Mon agenda");
+  expect(container.querySelector("h1")?.textContent).toBe("My calendar");
   expect(container.querySelector(".agenda-month-label")?.textContent?.toLowerCase()).toBe(
-    "décembre 2026",
+    "december 2026",
   );
-  expect(container.textContent).toContain("Prochain rendez-vous");
-  expect(container.textContent).toContain("Confirmé");
+  expect(container.textContent).toContain("Next appointment");
+  expect(container.textContent).toContain("Confirmed");
   expect(container.textContent).toContain("Camille Lunéval");
-  expect(container.textContent).toContain("Mercredi 2 décembre · 10 h");
+  expect(container.textContent).toContain("Wednesday 2 December · 10:00");
   expect(container.textContent).toContain("1 rue des Nuages Mauves");
   expect(container.textContent).toContain("75011 Paris");
 });
@@ -46,7 +46,7 @@ it("renders the confirmed appointment for December 2 and week calendar", async (
 it("exports a valid VCALENDAR .ics payload via @steve/agenda", async () => {
   const container = await mount();
   const exportButton = [...container.querySelectorAll("button")].find((button) =>
-    button.textContent?.includes("Ajouter au calendrier"),
+    button.textContent?.includes("Add to calendar"),
   );
   if (!(exportButton instanceof HTMLButtonElement)) {
     throw new Error("Missing export button");
@@ -72,9 +72,9 @@ it("shows the empty day state when another day is selected and jumps back to Dec
   await act(async () => {
     dayThree.click();
   });
-  expect(container.textContent).toContain("Aucun rendez-vous confirmé ce jour");
+  expect(container.textContent).toContain("No confirmed appointment that day");
   const backToDec2 = [...container.querySelectorAll("button")].find(
-    (button) => button.textContent === "Voir le 2 décembre",
+    (button) => button.textContent === "See 2 December",
   );
   if (!(backToDec2 instanceof HTMLButtonElement)) {
     throw new Error("Missing return to Dec 2 button");

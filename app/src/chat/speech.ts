@@ -24,11 +24,11 @@ type DictationAvailability =
   | { readonly kind: "unavailable"; readonly notice: string };
 
 const insecureNotice =
-  "La dictée vocale a besoin d'une page en HTTPS ou en localhost.";
+  "Voice dictation needs an HTTPS or localhost page.";
 const unsupportedNotice =
-  "La dictée vocale n'est pas disponible dans ce navigateur.";
+  "Voice dictation isn’t available in this browser.";
 const blockedNotice =
-  "Le micro est indisponible. Autorisez-le, puis réessayez.";
+  "The mic is unavailable. Allow it, then try again.";
 
 const dictationNames = ["SpeechRecognition", "webkitSpeechRecognition"] as const;
 

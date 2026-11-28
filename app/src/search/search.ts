@@ -15,28 +15,28 @@ export type SearchEntry = {
 };
 
 export const searchKindLabels: Record<SearchKind, string> = {
-  page: "Rubriques",
-  challenge: "Défis",
-  friend: "Amis",
-  practitioner: "Praticiens",
+  page: "Sections",
+  challenge: "Challenges",
+  friend: "Friends",
+  practitioner: "Practitioners",
   document: "Vault",
 };
 
 const pages: readonly SearchEntry[] = [
-  { kind: "page", title: "Accueil", detail: "Ton résumé du jour", href: "/chat", keywords: "home" },
-  { kind: "page", title: "Défis", detail: "Mes défis, découvrir, amis", href: "/challenges", keywords: "challenge berries amis" },
-  { kind: "page", title: "Agenda", detail: "Tes rendez-vous confirmés", href: "/agenda", keywords: "calendrier rdv" },
-  { kind: "page", title: "Mon profil", detail: "Identité, préférences", href: "/profile", keywords: "compte" },
-  { kind: "page", title: "Vault", detail: "Tes documents, protégés par Face ID", href: "/vault", keywords: "documents ordonnance compte rendu" },
-  { kind: "page", title: "Annuaire", detail: "Trouver un praticien", href: "/directory", keywords: "médecin docteur" },
-  { kind: "page", title: "Rendez-vous", detail: "Stevie appelle le cabinet", href: "/booking", keywords: "rdv prendre" },
-  { kind: "page", title: "Rappels", detail: "SMS et appels", href: "/reminders", keywords: "médicament" },
-  { kind: "page", title: "Messagerie", detail: "Ton adresse Stevie", href: "/inbox", keywords: "email mail" },
+  { kind: "page", title: "Home", detail: "Your day at a glance", href: "/chat", keywords: "home" },
+  { kind: "page", title: "Challenges", detail: "My challenges, discover, friends", href: "/challenges", keywords: "défis berries friends" },
+  { kind: "page", title: "Calendar", detail: "Your confirmed appointments", href: "/agenda", keywords: "calendar appointment" },
+  { kind: "page", title: "My profile", detail: "Identity, preferences", href: "/profile", keywords: "account" },
+  { kind: "page", title: "Vault", detail: "Your documents, protected by Face ID", href: "/vault", keywords: "documents prescription report" },
+  { kind: "page", title: "Directory", detail: "Find a practitioner", href: "/directory", keywords: "doctor gp" },
+  { kind: "page", title: "Appointments", detail: "Stevie calls the practice", href: "/booking", keywords: "book appointment" },
+  { kind: "page", title: "Reminders", detail: "Texts and calls", href: "/reminders", keywords: "medication" },
+  { kind: "page", title: "Inbox", detail: "Your Stevie address", href: "/inbox", keywords: "email mail" },
 ];
 
 // Titles only: document content stays behind the Vault lock.
 const documents: readonly SearchEntry[] = [
-  { kind: "document", title: "Lettre de rendez-vous", detail: "Cabinet médical · 27 novembre 2026", href: "/vault" },
+  { kind: "document", title: "Appointment letter", detail: "Medical practice · 27 November 2026", href: "/vault" },
 ];
 
 export function baseSearchEntries(): readonly SearchEntry[] {
@@ -45,7 +45,7 @@ export function baseSearchEntries(): readonly SearchEntry[] {
     ...demoChallenges.map((challenge) => ({
       kind: "challenge" as const,
       title: challenge.title,
-      detail: `${challenge.goal} · ${challenge.days} jours`,
+      detail: `${challenge.goal} · ${challenge.days} days`,
       href: `/challenges?join=${challenge.id}`,
       keywords: challenge.partner.name,
     })),
@@ -54,7 +54,7 @@ export function baseSearchEntries(): readonly SearchEntry[] {
       .map((person) => ({
         kind: "friend" as const,
         title: person.name,
-        detail: `Ami·e · ${person.city}`,
+        detail: `Friend · ${person.city}`,
         href: "/challenges?section=amis",
       })),
     ...demoPractitioners.map((item) => ({

@@ -13,7 +13,8 @@ import {
   homeUpcoming,
 } from "../../chat/home-summary";
 import { useCommunity } from "../../community/store";
-import { BerriesPill } from "../challenges/community-ui";
+import { isMember, usePlan } from "../../community/plan";
+import { BerriesPill, PremiumTag } from "../challenges/community-ui";
 import { SearchBar } from "../search-bar";
 import "./home-view.css";
 
@@ -58,12 +59,13 @@ export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
 
   const name = props.firstName?.trim() ?? "";
   const community = useCommunity();
+  const member = isMember(usePlan());
   return (
     <>
       <button
         type="button"
         className="chat-home-glass chat-home-me"
-        aria-label="Mon compte"
+        aria-label="My account"
         aria-haspopup="dialog"
         aria-expanded={panel === "account"}
         aria-controls="chat-home-account"
@@ -73,11 +75,13 @@ export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
       </button>
       <SearchBar tone="glass" />
       <span className="chat-home-glass-row">
-        <BerriesPill count={community.berries} tone="glass" />
+        <Link href="/challenges?section=recompenses" className="chat-home-berries" aria-label={member ? `${community.berries} Berries, see rewards` : "Berries, for Alan members only"}>
+          <BerriesPill count={community.berries} tone="glass" locked={!member} />
+        </Link>
         <button
           type="button"
           className="chat-home-glass"
-          aria-label={unread ? "Notifications, 3 nouvelles" : "Notifications"}
+          aria-label={unread ? "Notifications, 3 new" : "Notifications"}
           aria-haspopup="dialog"
           aria-expanded={panel === "notifications"}
           aria-controls="chat-home-notifications"
@@ -92,7 +96,7 @@ export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
           <button
             type="button"
             className="chat-home-pop-backdrop"
-            aria-label="Fermer"
+            aria-label="Close"
             tabIndex={-1}
             onClick={close}
           />
@@ -131,15 +135,15 @@ export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
               id="chat-home-account"
               className="chat-home-pop chat-home-account chat-home-pop-left"
               role="dialog"
-              aria-label="Mon compte"
+              aria-label="My account"
             >
               <div className="chat-home-account-head">
                 <span className="chat-home-account-avatar" aria-hidden="true">
                   {name === "" ? "?" : name.charAt(0).toUpperCase()}
                 </span>
                 <span>
-                  <strong>{name === "" ? "Mon compte" : name}</strong>
-                  <span>Ton espace Stevie</span>
+                  <strong>{name === "" ? "My account" : name}</strong>
+                  <span>Your Stevie space</span>
                 </span>
               </div>
               <ul>
@@ -170,7 +174,7 @@ export function HomeAppointmentCard() {
   }
   const { practitioner, specialty, startsAt } = homeNextAppointment;
   return (
-    <section className="chat-home-appt" aria-label="Prochain rendez-vous">
+    <section className="chat-home-appt" aria-label="Next appointment">
       <div className="chat-home-appt-main">
         <span className="chat-home-chip">
           <ClockIcon size={15} />
@@ -179,7 +183,7 @@ export function HomeAppointmentCard() {
         <button
           type="button"
           className="chat-home-appt-close"
-          aria-label="Masquer le rendez-vous"
+          aria-label="Hide the appointment"
           onClick={() => setHidden(true)}
         >
           <CloseIcon />
@@ -215,9 +219,9 @@ export function HomeSpaceCard() {
   return (
     <section className="chat-home-card chat-home-space" aria-labelledby="chat-home-space-title">
       <div className="chat-home-card-head">
-        <h2 id="chat-home-space-title">Mon espace santé</h2>
+        <h2 id="chat-home-space-title">My health space</h2>
         <Link href="/vault">
-          Tout voir
+          See all
           <ChevronIcon />
         </Link>
       </div>
@@ -248,7 +252,7 @@ export function HomeUpcomingCard() {
   return (
     <section className="chat-home-card chat-home-upcoming" aria-labelledby="chat-home-upcoming-title">
       <h2 id="chat-home-upcoming-title" className="chat-home-section-title">
-        À venir
+        Coming up
       </h2>
       <ul>
         {homeUpcoming.map((item) => (
@@ -271,21 +275,23 @@ export function HomeUpcomingCard() {
 }
 
 export function HomeTiles() {
+  const member = isMember(usePlan());
   return (
-    <nav className="chat-home-tiles" aria-label="Raccourcis">
+    <nav className="chat-home-tiles" aria-label="Shortcuts">
       <Link href="/directory" className="chat-home-tile">
         <span className="chat-home-tile-icon chat-home-tile-indigo" aria-hidden="true">
           <SearchIcon />
         </span>
-        <strong>Annuaire</strong>
-        <span>Trouver un praticien</span>
+        <strong>Directory</strong>
+        <span>Find a practitioner</span>
       </Link>
-      <Link href="/booking" className="chat-home-tile">
+      <Link href="/booking" className="chat-home-tile" data-locked={member ? undefined : ""}>
         <span className="chat-home-tile-icon chat-home-tile-teal" aria-hidden="true">
           <CalendarIcon />
         </span>
-        <strong>Rendez-vous</strong>
-        <span>Stevie appelle le cabinet</span>
+        <strong>Appointments</strong>
+        <span>Stevie calls the practice</span>
+        {member ? null : <PremiumTag />}
       </Link>
     </nav>
   );

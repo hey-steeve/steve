@@ -30,17 +30,17 @@ const scenarioOrder: readonly ScenarioId[] = [
 ];
 
 const scenarioLabels: Record<ScenarioId, string> = {
-  "confirm-first": "Confirmation directe",
-  "fallback-second": "2e praticien si refus",
-  "all-refused": "Aucun créneau libre",
+  "confirm-first": "Confirmed right away",
+  "fallback-second": "2nd practitioner if refused",
+  "all-refused": "No free slot",
 };
 
 const attemptStatusLabel: Record<string, string> = {
-  confirmed: "Créneau confirmé",
-  refused: "Refusé",
-  unavailable: "Indisponible",
-  "invalid-response": "Réponse invalide",
-  "caller-error": "Erreur d’appel",
+  confirmed: "Slot confirmed",
+  refused: "Refused",
+  unavailable: "Unavailable",
+  "invalid-response": "Invalid response",
+  "caller-error": "Call error",
 };
 
 const requestedWindow = {
@@ -126,16 +126,16 @@ function buildScenarios(
 function formatFrenchSlot(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.valueOf())) return iso;
-  const weekday = new Intl.DateTimeFormat("fr-FR", {
+  const weekday = new Intl.DateTimeFormat("en-GB", {
     weekday: "long",
     timeZone: "Europe/Paris",
   }).format(date);
-  const dayMonth = new Intl.DateTimeFormat("fr-FR", {
+  const dayMonth = new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "long",
     timeZone: "Europe/Paris",
   }).format(date);
-  const parts = new Intl.DateTimeFormat("fr-FR", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     hour: "numeric",
     minute: "2-digit",
     hour12: false,
@@ -143,7 +143,7 @@ function formatFrenchSlot(iso: string): string {
   }).formatToParts(date);
   const hour = parts.find((part) => part.type === "hour")?.value ?? "";
   const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
-  const timeText = minute === "00" ? `${Number(hour)} h` : `${Number(hour)} h ${minute}`;
+  const timeText = `${Number(hour)}:${minute}`;
   const capitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1);
   return `${capitalized} ${dayMonth} · ${timeText}`;
 }
@@ -222,7 +222,7 @@ export default function BookingClient(props: {
     return (
       <FeatureShell
         current="/booking"
-        title="Appel au cabinet"
+        title="Calling the practice"
         heroMascot={{ src: "/mascot/state-calling.webp", width: 256, height: 256 }}
       >
         <section className="steve-card" aria-live="polite" aria-busy="true">
@@ -235,11 +235,11 @@ export default function BookingClient(props: {
           <ol className="booking-steps">
             <li className="booking-step-row">
               <span className="booking-spinner" aria-hidden="true" />
-              <span>Appel en cours</span>
+              <span>Call in progress</span>
             </li>
             <li className="booking-step-row">
               <span className="booking-pending-ring" aria-hidden="true" />
-              <span>En attente de confirmation</span>
+              <span>Waiting for confirmation</span>
             </li>
           </ol>
         </section>
@@ -250,7 +250,7 @@ export default function BookingClient(props: {
   return (
     <FeatureShell
       current="/booking"
-      title="Prise de rendez-vous"
+      title="Book an appointment"
       headerMascot={{
         src: phase === "confirmed" ? "/mascot/state-done.webp" : "/mascot/state-listening.webp",
         width: 256,
@@ -259,26 +259,26 @@ export default function BookingClient(props: {
     >
       {phase === "confirmed" && result.kind === "confirmed" ? (
         <>
-          <section className="steve-card" aria-label="Étapes de prise de rendez-vous">
+          <section className="steve-card" aria-label="Booking steps">
             <ol className="booking-steps">
               <li className="booking-step">
                 <span className="booking-check" aria-hidden="true">
                   <CheckIcon />
                 </span>
-                <span>Appel au cabinet</span>
+                <span>Calling the practice</span>
               </li>
               <li className="booking-step">
                 <span className="booking-check" aria-hidden="true">
                   <CheckIcon />
                 </span>
-                <span>Créneau confirmé</span>
+                <span>Slot confirmed</span>
               </li>
             </ol>
           </section>
 
           <section className="steve-card" aria-labelledby="booking-confirmed-heading">
             <span id="booking-confirmed-heading" className="steve-pill steve-pill-success">
-              Rendez-vous confirmé
+              Appointment confirmed
             </span>
             <ul className="steve-detail-list">
               <li className="steve-detail-item">
@@ -319,20 +319,20 @@ export default function BookingClient(props: {
               </li>
             </ul>
             <hr className="steve-divider" />
-            <p className="steve-demo-note">Réf. {result.confirmationId}</p>
+            <p className="steve-demo-note">Ref. {result.confirmationId}</p>
             <Link className="steve-btn-action" href="/agenda">
               <span className="steve-icon-circle" aria-hidden="true">
                 <CalendarIcon />
               </span>
-              <span>Voir dans l’agenda</span>
+              <span>See in calendar</span>
             </Link>
           </section>
         </>
       ) : (
         <section className="steve-card" aria-live="polite">
-          <span className="steve-pill steve-pill-danger">Aucun créneau confirmé</span>
+          <span className="steve-pill steve-pill-danger">No slot confirmed</span>
           <p className="steve-detail-secondary">
-            Stevie a appelé au plus 2 cabinets sans obtenir de créneau disponible. Rien n’a été ajouté à ton agenda.
+            Stevie called up to 2 practices without getting a free slot. Nothing was added to your calendar.
           </p>
           <ul className="booking-attempt-list">
             {result.attempts.map((attempt, index) => (
@@ -349,11 +349,11 @@ export default function BookingClient(props: {
 
       <section className="steve-card" aria-labelledby="booking-simulator-title">
         <h2 id="booking-simulator-title" className="steve-card-title">
-          Appeler un cabinet
+          Call a practice
         </h2>
         <div className="steve-field-group">
           <label className="steve-field-label" htmlFor="booking-practitioner">
-            Praticien choisi
+            Chosen practitioner
           </label>
           <select
             id="booking-practitioner"
@@ -369,8 +369,8 @@ export default function BookingClient(props: {
           </select>
         </div>
         <div className="steve-field-group">
-          <span className="steve-field-label">Scénario d’appel</span>
-          <div className="booking-scenarios" role="group" aria-label="Scénario d’appel">
+          <span className="steve-field-label">Call scenario</span>
+          <div className="booking-scenarios" role="group" aria-label="Call scenario">
             {scenarioOrder.map((id) => (
               <button
                 key={id}
@@ -390,7 +390,7 @@ export default function BookingClient(props: {
             void runBookingCall();
           }}
         >
-          Lancer l’appel au cabinet
+          Start the call to the practice
         </button>
       </section>
     </FeatureShell>

@@ -17,6 +17,6 @@ it("hides and shows blocks", () => {
 it("repairs a saved layout: drops unknown ids, dedupes, appends new blocks", () => {
   expect(normalizeLayout(null)).toEqual(defaultHomeLayout);
   const repaired = normalizeLayout({ order: ["tiles", "tiles", "nope", "signal"], hidden: ["space", 3] });
-  expect(repaired.order).toEqual(["tiles", "signal", "appointment", "challenge", "space", "upcoming"]);
+  expect(repaired.order).toEqual(["tiles", "signal", "appointment", "memory", "challenge", "space", "upcoming"]);
   expect(repaired.hidden).toEqual(["space"]);
 });

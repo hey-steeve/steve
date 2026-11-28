@@ -38,12 +38,12 @@ it("opens a full-screen search, shows grouped results and closes on Annuler", as
   expect(document.activeElement).toBe(input);
   expect(document.body.textContent).toContain("Suggestions");
 
-  await act(async () => setInput(input, "sommeil"));
-  expect([...document.querySelectorAll(".app-search-group")].map((node) => node.textContent)).toEqual(["Défis"]);
+  await act(async () => setInput(input, "sleep"));
+  expect([...document.querySelectorAll(".app-search-group")].map((node) => node.textContent)).toEqual(["Challenges"]);
   expect(document.querySelector(".app-search-item")?.getAttribute("href")).toBe("/challenges?join=sleep-7x7");
 
   await act(async () => setInput(input, "zzz"));
-  expect(document.querySelector(".app-search-empty")?.textContent).toBe("Aucun résultat pour « zzz ».");
+  expect(document.querySelector(".app-search-empty")?.textContent).toBe("No results for “zzz”.");
 
   const cancel = document.querySelector(".app-search-cancel");
   if (!(cancel instanceof HTMLButtonElement)) throw new Error("missing cancel");

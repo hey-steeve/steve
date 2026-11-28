@@ -73,7 +73,7 @@ function themeCss(): string {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr" className={alanSans.variable}>
+    <html lang="en" className={alanSans.variable}>
       <body>
         <style>{`:root{${themeCss()}}`}</style>
         {children}

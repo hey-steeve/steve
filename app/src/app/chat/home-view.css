@@ -661,54 +661,6 @@ button.chat-home-logo:focus-visible { outline: 2px solid #fff; outline-offset: 4
   box-shadow: var(--shadow-faint);
 }
 
-.chat-home-pop.chat-home-steve {
-  right: auto;
-  left: var(--page-pad);
-  width: min(290px, calc(100vw - 2 * var(--page-pad)));
-  padding: 10px;
-}
-
-.chat-home-steve-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 12px;
-  border: 0;
-  border-radius: 16px;
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.chat-home-steve-item:hover, .chat-home-steve-item:focus-visible { background: var(--color-indigo-50); }
-.chat-home-steve-item > span:last-child { display: grid; gap: 2px; }
-.chat-home-steve-item strong { color: var(--color-heading); font-size: 16px; font-weight: 600; }
-.chat-home-steve-item > span:last-child > span { color: var(--color-caption); font-size: 13px; }
-
-.chat-home-steve-icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  color: #fff;
-}
-
-.chat-home-steve-write { background: var(--color-primary); }
-.chat-home-steve-call { background: var(--color-indigo-900); }
-
-.chat-home-steve-disclaimer {
-  margin: 4px 0 2px;
-  padding: 0 6px;
-  color: var(--color-grey-500);
-  font-size: 11px;
-  text-align: center;
-}
-
-
 .chat-home-me {
   color: var(--color-canvas);
   font-size: 20px;
@@ -720,3 +672,11 @@ button.chat-home-logo:focus-visible { outline: 2px solid #fff; outline-offset: 4
   left: var(--page-pad);
   transform-origin: 30px 0;
 }
+
+.chat-home-berries { display: inline-flex; border-radius: 999px; text-decoration: none; }
+.chat-home-berries:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.chat-home-tile[data-locked] { background: var(--neutral-50); }
+.chat-home-tile[data-locked] .chat-home-tile-icon { background: var(--neutral-200); color: var(--color-grey-500); }
+.chat-home-tile[data-locked] strong { color: var(--color-grey-500); }
+.chat-home-tile .community-premium-tag { margin-top: 4px; }

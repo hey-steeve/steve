@@ -65,20 +65,20 @@ function buttonWithText(container: ParentNode, text: string): HTMLButtonElement 
 
 it("renders the Stevie address and ingested inbox items with status badges", async () => {
   const container = await mount();
-  expect(container.querySelector("h1")?.textContent).toBe("Ma messagerie");
-  expect(container.textContent).toContain("Ton adresse Stevie");
+  expect(container.querySelector("h1")?.textContent).toBe("My inbox");
+  expect(container.textContent).toContain("Your Stevie address");
   expect(container.textContent).toContain("peter@steve.example");
-  expect(container.textContent).toContain("Confirmation de rendez-vous");
-  expect(container.textContent).toContain("À vérifier");
-  expect(container.textContent).toContain("Document du cabinet");
-  expect(container.textContent).toContain("Document reçu");
+  expect(container.textContent).toContain("Appointment confirmation");
+  expect(container.textContent).toContain("To check");
+  expect(container.textContent).toContain("Document from the practice");
+  expect(container.textContent).toContain("Document received");
 });
 
 it("copies the Stevie email address and inspects received item details", async () => {
   const writeText = vi.fn(() => Promise.resolve());
   vi.stubGlobal("navigator", { clipboard: { writeText } });
   const container = await mount();
-  const copy = container.querySelector('button[aria-label="Copier l’adresse Stevie"]');
+  const copy = container.querySelector('button[aria-label="Copy the Stevie address"]');
   if (!(copy instanceof HTMLButtonElement)) throw new Error("Missing copy button");
   await act(async () => {
     copy.click();
@@ -89,24 +89,24 @@ it("copies the Stevie email address and inspects received item details", async (
   );
 
   await act(async () => {
-    buttonWithText(container, "Confirmation de rendez-vous").click();
+    buttonWithText(container, "Appointment confirmation").click();
   });
   expect(container.textContent).toContain("CONF-0001");
   expect(container.querySelector('a[href="/agenda"]')?.textContent).toContain(
-    "Vérifier dans l’agenda",
+    "Check in calendar",
   );
 });
 
 it("sends an authorized document through @steve/inbox", async () => {
   const container = await mount();
   await act(async () => {
-    buttonWithText(container, "Envoyer un document").click();
+    buttonWithText(container, "Send a document").click();
   });
   await act(async () => {
-    buttonWithText(container, "Confirmer l’envoi").click();
+    buttonWithText(container, "Confirm sending").click();
   });
   expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-    "Confirme ton autorisation",
+    "Confirm your consent",
   );
   const consent = container.querySelector('input[type="checkbox"]');
   if (!(consent instanceof HTMLInputElement)) throw new Error("Missing consent checkbox");
@@ -115,15 +115,15 @@ it("sends an authorized document through @steve/inbox", async () => {
     consent.click();
   });
   await act(async () => {
-    buttonWithText(container, "Confirmer l’envoi").click();
+    buttonWithText(container, "Confirm sending").click();
     await new Promise((resolve) => setTimeout(resolve, 20));
   });
   expect(container.querySelector('[role="status"]')?.textContent).toContain(
-    "Envoi simulé à cabinet.luneval@example.test",
+    "Simulated send to cabinet.luneval@example.test",
   );
 
   await act(async () => {
-    buttonWithText(container, "Envoyer un document").click();
+    buttonWithText(container, "Send a document").click();
   });
   const secondConsent = container.querySelector('input[type="checkbox"]');
   if (!(secondConsent instanceof HTMLInputElement)) throw new Error("Missing consent checkbox");
@@ -133,18 +133,18 @@ it("sends an authorized document through @steve/inbox", async () => {
 it("does not claim the address was copied when the clipboard is unavailable", async () => {
   vi.stubGlobal("navigator", {});
   const container = await mount();
-  const copy = container.querySelector('button[aria-label="Copier l’adresse Stevie"]');
+  const copy = container.querySelector('button[aria-label="Copy the Stevie address"]');
   if (!(copy instanceof HTMLButtonElement)) throw new Error("Missing copy button");
   await act(async () => {
     copy.click();
   });
   expect(container.querySelector('[role="status"]')).toBeNull();
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain("Copie impossible");
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain("Copy failed");
 });
 
 it("clears the consent when the send form is closed or the recipient changes", async () => {
   const container = await mount();
-  const openForm = () => buttonWithText(container, "Envoyer un document");
+  const openForm = () => buttonWithText(container, "Send a document");
   const consentBox = () => {
     const box = container.querySelector('input[type="checkbox"]');
     if (!(box instanceof HTMLInputElement)) throw new Error("Missing consent checkbox");
@@ -182,7 +182,7 @@ it("clears the consent when the send form is closed or the recipient changes", a
 it("shows an error and re-enables the form when the send throws", async () => {
   const container = await mount();
   await act(async () => {
-    buttonWithText(container, "Envoyer un document").click();
+    buttonWithText(container, "Send a document").click();
   });
   const consent = container.querySelector('input[type="checkbox"]');
   if (!(consent instanceof HTMLInputElement)) throw new Error("Missing consent checkbox");
@@ -191,11 +191,11 @@ it("shows an error and re-enables the form when the send throws", async () => {
   });
   sendControl.failNext = true;
   await act(async () => {
-    buttonWithText(container, "Confirmer l’envoi").click();
+    buttonWithText(container, "Confirm sending").click();
     await new Promise((resolve) => setTimeout(resolve, 20));
   });
   expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-    "Impossible d’envoyer ce document pour le moment",
+    "Can’t send this document right now",
   );
-  expect(buttonWithText(container, "Confirmer l’envoi").disabled).toBe(false);
+  expect(buttonWithText(container, "Confirm sending").disabled).toBe(false);
 });

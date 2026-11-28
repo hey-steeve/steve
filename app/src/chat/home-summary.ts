@@ -5,7 +5,7 @@ export const homeDemoNow = new Date("2026-11-27T10:00:00Z");
 
 export const homeNextAppointment = {
   practitioner: "Dr Camille Lunéval",
-  specialty: "Médecine générale",
+  specialty: "General practice",
   startsAt: "2026-12-02T10:00:00+01:00",
 } as const;
 
@@ -13,16 +13,16 @@ export const homeUpcoming = [
   {
     kind: "reminder",
     href: "/reminders",
-    title: "Rappel de rendez-vous",
-    detail: "Par SMS",
-    when: "1er déc.",
+    title: "Appointment reminder",
+    detail: "By text",
+    when: "1 Dec",
   },
   {
     kind: "message",
     href: "/inbox",
-    title: "Document du cabinet",
-    detail: "Cabinet Lunéval",
-    when: "Lire",
+    title: "Document from the practice",
+    detail: "Lunéval practice",
+    when: "Read",
   },
 ] as const;
 
@@ -51,16 +51,16 @@ export function daysUntil(now: Date, startsAt: string): number {
 
 export function countdownLabel(days: number): string {
   if (days <= 0) {
-    return "Aujourd’hui";
+    return "Today";
   }
   if (days === 1) {
-    return "Demain";
+    return "Tomorrow";
   }
-  return `Dans ${days} jours`;
+  return `In ${days} days`;
 }
 
 export function appointmentDay(startsAt: string): string {
-  const parts = new Intl.DateTimeFormat("fr-FR", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone,
     weekday: "short",
     day: "numeric",
@@ -73,7 +73,7 @@ export function appointmentDay(startsAt: string): string {
 }
 
 export function appointmentTime(startsAt: string): string {
-  return new Intl.DateTimeFormat("fr-FR", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone,
     hour: "2-digit",
     minute: "2-digit",
@@ -83,36 +83,36 @@ export function appointmentTime(startsAt: string): string {
 export const homeNotifications = [
   {
     id: "agenda-confirmed",
-    app: "Agenda",
+    app: "Calendar",
     tone: "indigo",
     href: "/agenda",
-    when: "Il y a 2 h",
-    title: "Rendez-vous confirmé",
-    body: "Dr Camille Lunéval a confirmé mercredi 2 déc. à 10:00.",
+    when: "2 h ago",
+    title: "Appointment confirmed",
+    body: "Dr Camille Lunéval confirmed Wednesday 2 Dec at 10:00.",
   },
   {
     id: "inbox-document",
-    app: "Messagerie",
+    app: "Inbox",
     tone: "teal",
     href: "/inbox",
-    when: "Hier",
-    title: "Document du cabinet",
-    body: "Le cabinet Lunéval t’a envoyé une lettre de rendez-vous.",
+    when: "Yesterday",
+    title: "Document from the practice",
+    body: "The Lunéval practice sent you an appointment letter.",
   },
   {
     id: "reminder-scheduled",
-    app: "Rappels",
+    app: "Reminders",
     tone: "orange",
     href: "/reminders",
-    when: "Hier",
-    title: "Rappel programmé",
-    body: "Tu recevras un SMS le 1er déc. à 18 h.",
+    when: "Yesterday",
+    title: "Reminder scheduled",
+    body: "You’ll get a text on 1 Dec at 6 pm.",
   },
 ] as const;
 
 export const homeAccountLinks = [
-  { href: "/profile", label: "Mon profil", detail: "Identité, antécédents, préférences" },
-  { href: "/vault", label: "Vault", detail: "Tes documents, protégés par Face ID" },
-  { href: "/reminders", label: "Mes rappels", detail: "SMS et appels" },
-  { href: "/inbox", label: "Messagerie", detail: "Ton adresse Stevie" },
+  { href: "/profile", label: "My profile", detail: "Identity, history, preferences" },
+  { href: "/vault", label: "Vault", detail: "Your documents, protected by Face ID" },
+  { href: "/reminders", label: "My reminders", detail: "Texts and calls" },
+  { href: "/inbox", label: "Inbox", detail: "Your Stevie address" },
 ] as const;
