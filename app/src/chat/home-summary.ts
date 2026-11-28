@@ -112,7 +112,7 @@ export const homeNotifications = [
 
 export const homeAccountLinks = [
   { href: "/profile", label: "Mon profil", detail: "Identité, antécédents, préférences" },
-  { href: "/vault", label: "Mes documents", detail: "Ordonnances, comptes rendus" },
+  { href: "/vault", label: "Vault", detail: "Tes documents, protégés par Face ID" },
   { href: "/reminders", label: "Mes rappels", detail: "SMS et appels" },
   { href: "/inbox", label: "Messagerie", detail: "Ton adresse Stevie" },
 ] as const;

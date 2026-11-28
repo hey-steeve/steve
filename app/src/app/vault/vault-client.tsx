@@ -63,7 +63,8 @@ export default function VaultClient(props: {
   return (
     <FeatureShell
       current="/vault"
-      title="Mes documents"
+      title="Vault"
+      subtitle="Tes documents santé, rien qu’à toi."
       heroMascot={{ src: pageMascots.documents, width: 600, height: 600 }}
     >
       {documents.map((doc) => (

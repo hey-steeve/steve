@@ -333,7 +333,7 @@ export default function InboxClient() {
                           Pièce jointe reçue (non vérifiée), prête pour le coffre.
                         </span>
                         <Link className="steve-btn-secondary" href="/vault">
-                          Voir dans Mes documents
+                          Voir dans le Vault
                         </Link>
                       </>
                     )}

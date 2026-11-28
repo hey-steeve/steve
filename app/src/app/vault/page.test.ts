@@ -49,7 +49,7 @@ it("loads the factual demo appointment letter summary from @steve/vault", async 
   ]);
 
   const container = await mount(createElement(VaultClient, { initialDocuments }));
-  expect(container.querySelector("h1")?.textContent).toBe("Mes documents");
+  expect(container.querySelector("h1")?.textContent).toBe("Vault");
   expect(container.textContent).toContain("Lettre de rendez-vous");
   expect(container.textContent).toContain("27 novembre 2026");
   expect(container.textContent).toContain("Résumé du document");

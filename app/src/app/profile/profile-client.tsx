@@ -12,16 +12,15 @@ import { useRef, useState } from "react";
 import {
   CalendarIcon,
   ChevronRightIcon,
-  DocumentIcon,
   FeatureShell,
-  PhoneOutlineIcon,
+  LockIcon,
   SettingsIcon,
   UserIcon,
 } from "../feature-shell";
 import { ProfileChallenges, ProfileInvite } from "./profile-community";
 import "./profile.css";
 
-type ProfileSection = "preferences" | "history" | "calls" | "edit" | null;
+type ProfileSection = "preferences" | "history" | "edit" | null;
 
 const mutationMessages: Record<ProfileMutationError, string> = {
   "invalid-input": "Saisis un texte valide avant d’enregistrer.",
@@ -111,8 +110,8 @@ export default function ProfileClient(props: {
         <ul className="steve-row-list">
           <li>
             <Link className="steve-row-button" href="/vault">
-              <DocumentIcon />
-              <span>Mes documents</span>
+              <LockIcon />
+              <span>Vault</span>
               <span className="steve-row-chevron" aria-hidden="true">
                 <ChevronRightIcon />
               </span>
@@ -141,20 +140,6 @@ export default function ProfileClient(props: {
             >
               <CalendarIcon />
               <span>Historique déclaré</span>
-              <span className="steve-row-chevron" aria-hidden="true">
-                <ChevronRightIcon />
-              </span>
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              className="steve-row-button"
-              aria-expanded={section === "calls"}
-              onClick={() => toggleSection("calls")}
-            >
-              <PhoneOutlineIcon />
-              <span>Historique des appels</span>
               <span className="steve-row-chevron" aria-hidden="true">
                 <ChevronRightIcon />
               </span>
@@ -234,30 +219,6 @@ export default function ProfileClient(props: {
               </li>
             ))}
           </ul>
-        </section>
-      ) : null}
-
-      {section === "calls" ? (
-        <section className="steve-card" aria-labelledby="profile-calls-title">
-          <h2 id="profile-calls-title" className="steve-card-title">
-            Historique des appels
-          </h2>
-          {memory.callHistory.length === 0 ? (
-            <p className="steve-detail-secondary">
-              Aucun appel enregistré pour le moment.
-            </p>
-          ) : (
-            <ul className="profile-entry-list">
-              {memory.callHistory.map((call, index) => (
-                <li key={`${call.at}-${index}`} className="profile-entry">
-                  <span className="steve-detail-primary">
-                    {call.at} · {call.direction === "in" ? "Appel entrant" : "Appel sortant"}
-                  </span>
-                  <span>{call.summary}</span>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
       ) : null}
 

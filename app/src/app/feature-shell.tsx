@@ -12,7 +12,7 @@ export const featureNavItems = [
   { href: "/booking", label: "Rendez-vous" },
   { href: "/agenda", label: "Agenda" },
   { href: "/profile", label: "Mon profil" },
-  { href: "/vault", label: "Documents" },
+  { href: "/vault", label: "Vault" },
   { href: "/reminders", label: "Rappels" },
   { href: "/inbox", label: "Messagerie" },
 ] as const;
@@ -88,4 +88,5 @@ export const PhoneOutlineIcon = () => <Icon><path d="M22 16.92v3a2 2 0 0 1-2.18 
 export const UploadIcon = () => <Icon strokeWidth={2}><path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></Icon>;
 export const CopyIcon = () => <Icon size={18}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></Icon>;
 export const EditIcon = () => <Icon size={18}><path d="m16.5 3.5 4 4L7 21H3v-4L16.5 3.5Z" /></Icon>;
+export const LockIcon = () => <Icon><rect x="4" y="10" width="16" height="11" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14.5v2.5" /></Icon>;
 export const InfoIcon = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 16v-4m0-4h.01" /></Icon>;
