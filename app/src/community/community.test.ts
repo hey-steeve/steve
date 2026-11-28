@@ -2,6 +2,10 @@ import { expect, it } from "vitest";
 import { demoChallenges, demoSleepNights } from "./demo";
 import { detectSleepDrop, hoursLabel } from "./sleep-signal";
 import {
+  addFriend,
+  findPeople,
+  friendsOf,
+  removeFriend,
   challengeDay,
   challengeStatus,
   initialCommunityState,
@@ -66,4 +70,16 @@ it("sorts challenges into upcoming, ongoing and done from the demo calendar", ()
   expect(challengeStatus(byId("screens-off"), "2026-12-01")).toBe("done");
   expect(startLabel(byId("sleep-7x7"), "2026-11-29")).toBe("Commence demain");
   expect(shortDate("2026-11-09")).toBe("9 novembre");
+});
+
+it("adds and removes friends and only suggests people you can add", () => {
+  expect(friendsOf(initialCommunityState).map((person) => person.name)).toEqual(["Léa", "Inès", "Marc"]);
+  expect(findPeople(initialCommunityState, "").map((person) => person.name)).toEqual(["Sami", "Chloé", "Yanis"]);
+  expect(findPeople(initialCommunityState, "chloe").map((person) => person.name)).toEqual(["Chloé"]);
+  expect(findPeople(initialCommunityState, "vincennes").map((person) => person.name)).toEqual(["Chloé"]);
+  const added = addFriend(initialCommunityState, "sami");
+  expect(added.friends).toEqual(["lea", "ines", "marc", "sami"]);
+  expect(addFriend(added, "sami")).toBe(added);
+  expect(addFriend(added, "nobody")).toBe(added);
+  expect(removeFriend(added, "lea").friends).toEqual(["ines", "marc", "sami"]);
 });

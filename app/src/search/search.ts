@@ -1,10 +1,10 @@
 // One search over the whole app, like the bar at the top of the Alan app.
 // Plain data in, ranked results out, so the overlay stays a thin view.
 
-import { demoChallenges } from "../community/demo";
+import { demoChallenges, demoInitialFriends, demoPeople } from "../community/demo";
 import { demoPractitioners } from "../app/directory/demo-practitioners";
 
-export type SearchKind = "page" | "challenge" | "practitioner" | "document";
+export type SearchKind = "page" | "challenge" | "friend" | "practitioner" | "document";
 
 export type SearchEntry = {
   readonly kind: SearchKind;
@@ -17,6 +17,7 @@ export type SearchEntry = {
 export const searchKindLabels: Record<SearchKind, string> = {
   page: "Rubriques",
   challenge: "Défis",
+  friend: "Amis",
   practitioner: "Praticiens",
   document: "Vault",
 };
@@ -48,6 +49,14 @@ export function baseSearchEntries(): readonly SearchEntry[] {
       href: `/challenges?join=${challenge.id}`,
       keywords: challenge.partner.name,
     })),
+    ...demoPeople
+      .filter((person) => demoInitialFriends.includes(person.id))
+      .map((person) => ({
+        kind: "friend" as const,
+        title: person.name,
+        detail: `Ami·e · ${person.city}`,
+        href: "/challenges?section=amis",
+      })),
     ...demoPractitioners.map((item) => ({
       kind: "practitioner" as const,
       title: `${item.firstName} ${item.lastName}`,
@@ -86,7 +95,7 @@ export function searchApp(query: string, entries: readonly SearchEntry[]): reado
 export function groupResults(
   results: readonly SearchEntry[],
 ): readonly { readonly kind: SearchKind; readonly items: readonly SearchEntry[] }[] {
-  const order: readonly SearchKind[] = ["page", "challenge", "practitioner", "document"];
+  const order: readonly SearchKind[] = ["page", "challenge", "friend", "practitioner", "document"];
   return order
     .map((kind) => ({ kind, items: results.filter((item) => item.kind === kind) }))
     .filter((group) => group.items.length > 0);

@@ -121,3 +121,28 @@ it("splits my challenges into ongoing, upcoming and history", async () => {
   expect(view.querySelector(".challenges-active")?.textContent).toContain("Jour 8 sur 14");
   expect(view.querySelectorAll('.challenges-days li[data-state="done"]')).toHaveLength(7);
 });
+
+it("shows friends' challenges, joins one with them and adds a new friend", async () => {
+  const view = await mount();
+  await openSection(view, "Amis");
+  expect(view.textContent).toContain("Mes amis · 3");
+  const lea = [...view.querySelectorAll(".friends-head")].find((item) => item.textContent?.includes("Léa"));
+  if (!(lea instanceof HTMLButtonElement)) throw new Error("missing Léa");
+  await act(async () => lea.click());
+  expect(view.querySelector(".friends-detail")?.textContent).toContain("Sommeil 7 × 7");
+  await act(async () => button(view, "Le rejoindre").click());
+  const sheet = view.querySelector('[role="dialog"]');
+  if (!(sheet instanceof HTMLElement)) throw new Error("missing join sheet");
+  await act(async () => button(sheet, "Oui, avec Léa").click());
+  await act(async () => button(sheet, "Voir mes défis").click());
+  expect(view.querySelector(".challenges-active")?.textContent).toContain("Sommeil 7 × 7");
+
+  await openSection(view, "Amis");
+  await act(async () => button(view, "+ Ajouter").click());
+  const sami = [...view.querySelectorAll(".friends-row")].find((row) => row.textContent?.includes("Sami"));
+  const add = sami?.querySelector("button");
+  if (!(add instanceof HTMLButtonElement)) throw new Error("missing add button");
+  await act(async () => add.click());
+  expect(view.textContent).toContain("Mes amis · 4");
+  expect(view.querySelector(".friends-add")?.textContent).not.toContain("Sami");
+});

@@ -1,7 +1,15 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { communityToday, demoChallenges, demoStartingBerries, type Challenge } from "./demo";
+import {
+  communityToday,
+  demoChallenges,
+  demoInitialFriends,
+  demoPeople,
+  demoStartingBerries,
+  type Challenge,
+  type Person,
+} from "./demo";
 
 export const teamMultiplier = 1.5;
 
@@ -14,12 +22,14 @@ export type CommunityState = {
   readonly berries: number;
   readonly joined: readonly Membership[];
   readonly invited: number;
+  readonly friends: readonly string[];
 };
 
 export const initialCommunityState: CommunityState = {
   berries: demoStartingBerries,
   joined: [],
   invited: 0,
+  friends: demoInitialFriends,
 };
 
 export function rewardFor(challenge: Challenge, teammates: readonly string[]): number {
@@ -48,6 +58,30 @@ export function leaveChallenge(state: CommunityState, challengeId: string): Comm
 
 export function recordInvite(state: CommunityState): CommunityState {
   return { ...state, invited: state.invited + 1 };
+}
+
+export function addFriend(state: CommunityState, personId: string): CommunityState {
+  if (state.friends.includes(personId) || !demoPeople.some((person) => person.id === personId)) return state;
+  return { ...state, friends: [...state.friends, personId] };
+}
+
+export function removeFriend(state: CommunityState, personId: string): CommunityState {
+  return { ...state, friends: state.friends.filter((id) => id !== personId) };
+}
+
+export function friendsOf(state: CommunityState): readonly Person[] {
+  return state.friends.flatMap((id) => demoPeople.filter((person) => person.id === id));
+}
+
+// People you can add, matched on name or city, accents ignored.
+export function findPeople(state: CommunityState, query: string): readonly Person[] {
+  const fold = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const needle = fold(query.trim());
+  return demoPeople.filter(
+    (person) =>
+      !state.friends.includes(person.id) &&
+      (needle === "" || fold(person.name).includes(needle) || fold(person.city).includes(needle)),
+  );
 }
 
 export function membershipFor(state: CommunityState, challengeId: string): Membership | undefined {
@@ -113,7 +147,8 @@ function read(): CommunityState {
   try {
     const raw = window.localStorage.getItem(storageKey);
     const parsed: unknown = raw === null ? null : JSON.parse(raw);
-    if (isState(parsed)) current = parsed;
+    // Older saves predate friends: keep their progress, add the defaults.
+    if (isState(parsed)) current = { ...initialCommunityState, ...parsed };
   } catch {
     current = initialCommunityState;
   }

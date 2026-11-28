@@ -264,3 +264,49 @@
 }
 
 .challenges-earned { color: #9a4a17; font-size: 14px; font-weight: 600; white-space: nowrap; }
+
+.friends-add-toggle {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-indigo-50);
+  color: var(--color-indigo-900);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.friends-add { display: grid; gap: 10px; }
+.friends-list, .friends-cards { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.friends-row { display: flex; align-items: center; gap: 12px; }
+.friends-card { padding: 0; }
+
+.friends-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.friends-chevron { color: var(--color-caption); font-size: 22px; transition: transform 200ms ease-out; }
+.friends-head[aria-expanded="true"] .friends-chevron { transform: rotate(90deg); }
+
+.friends-detail { display: grid; gap: 10px; padding: 0 16px 14px; }
+
+.friends-challenge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--color-page);
+}
+
+.friends-joined { color: #157a5c; font-size: 13px; font-weight: 600; white-space: nowrap; }

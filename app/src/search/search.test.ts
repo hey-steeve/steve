@@ -7,6 +7,7 @@ it("finds pages, challenges, practitioners and documents without accents", () =>
   expect(searchApp("luneval", entries)[0]?.title).toBe("Camille Lunéval");
   expect(searchApp("lettre", entries)[0]).toMatchObject({ kind: "document", href: "/vault" });
   expect(searchApp("documents", entries)[0]?.title).toBe("Vault");
+  expect(searchApp("lea", entries)[0]).toMatchObject({ kind: "friend", href: "/challenges?section=amis" });
 });
 
 it("needs every word and ranks title hits first", () => {
@@ -21,5 +22,5 @@ it("needs every word and ranks title hits first", () => {
 
 it("groups results by kind in a fixed order", () => {
   const groups = groupResults(searchApp("a", baseSearchEntries()));
-  expect(groups.map((group) => group.kind)).toEqual(["page", "challenge", "practitioner", "document"]);
+  expect(groups.map((group) => group.kind)).toEqual(["page", "challenge", "friend", "practitioner", "document"]);
 });

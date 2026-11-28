@@ -18,6 +18,7 @@ import {
   useCommunity,
 } from "../../community/store";
 import { FeatureShell } from "../feature-shell";
+import { FriendsSection } from "./friends-section";
 import { Avatars, BerriesPill, Eyebrow, PartnerLogo, TeamIcon } from "./community-ui";
 import "./challenges.css";
 
@@ -31,11 +32,11 @@ export function teammatesFor(choice: Choice, challenge: Challenge): readonly str
   return [];
 }
 
-type Section = "mine" | "discover";
+type Section = "mine" | "discover" | "friends";
 type MineView = "ongoing" | "upcoming" | "history";
 
-const sections: readonly Section[] = ["mine", "discover"];
-const sectionLabels: Record<Section, string> = { mine: "Mes défis", discover: "Découvrir" };
+const sections: readonly Section[] = ["mine", "discover", "friends"];
+const sectionLabels: Record<Section, string> = { mine: "Mes défis", discover: "Découvrir", friends: "Amis" };
 
 export default function ChallengesClient() {
   const state = useCommunity();
@@ -44,7 +45,9 @@ export default function ChallengesClient() {
   const [view, setView] = useState<MineView>("ongoing");
 
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("join");
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("section") === "amis") setSection("friends");
+    const id = params.get("join");
     const challenge = id === null ? undefined : challengeById(id);
     if (challenge !== undefined) {
       setSection("discover");
@@ -150,6 +153,8 @@ export default function ChallengesClient() {
             ))
           )}
         </>
+      ) : section === "friends" ? (
+        <FriendsSection onJoin={setJoining} />
       ) : (
         <>
           <section className="steve-card challenges-team" aria-labelledby="challenges-team-title">
