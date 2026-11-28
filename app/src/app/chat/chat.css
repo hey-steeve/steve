@@ -498,9 +498,9 @@
 .chat-hero-mascot {
   position: absolute;
   z-index: 1;
-  right: -14px;
+  right: -38px;
   bottom: -10px;
-  width: 262px;
+  width: 252px;
   max-width: 70%;
   height: auto;
   aspect-ratio: 1459 / 1078;
