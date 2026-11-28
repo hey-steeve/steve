@@ -1,5 +1,6 @@
 "use client";
 
+import { pageMascots } from "../../chat/faces";
 import {
   createInMemoryProfileStore,
   loadDemoPatientMemory,
@@ -87,8 +88,7 @@ export default function ProfileClient(props: {
     <FeatureShell
       current="/profile"
       title="Mon profil"
-      badge="Démonstration"
-      heroMascot={{ src: "/mascot/bubbles.webp", width: 1137, height: 840 }}
+      heroMascot={{ src: pageMascots.profile, width: 600, height: 600 }}
     >
       <section className="profile-identity-card" aria-label="Identité du patient">
         <span className="profile-avatar" aria-hidden="true">
@@ -98,7 +98,6 @@ export default function ProfileClient(props: {
           <h2 className="profile-name">
             {memory.identity.givenName} {memory.identity.familyName}
           </h2>
-          <p className="steve-demo-note">Données de démonstration</p>
         </div>
       </section>
 

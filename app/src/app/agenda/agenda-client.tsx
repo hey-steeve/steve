@@ -13,7 +13,6 @@ import {
   CheckIcon,
   ChevronRightIcon,
   FeatureShell,
-  InfoIcon,
   PinIcon,
   UserIcon,
 } from "../feature-shell";
@@ -181,7 +180,7 @@ export default function AgendaClient() {
   }
 
   return (
-    <FeatureShell current="/agenda" title="Mon agenda" badge="Démonstration">
+    <FeatureShell current="/agenda" title="Mon agenda">
       <section className="steve-card" aria-label="Calendrier de la semaine">
         <div className="agenda-calendar-head">
           <button
@@ -238,7 +237,7 @@ export default function AgendaClient() {
               <h2 id="agenda-next-title" className="steve-card-title">
                 Prochain rendez-vous
               </h2>
-              <span className="steve-pill">
+              <span className="steve-pill steve-pill-success">
                 <CheckIcon />
                 Confirmé
               </span>
@@ -282,14 +281,6 @@ export default function AgendaClient() {
                   )}
                 </div>
               </li>
-              <li className="steve-detail-item">
-                <span className="steve-icon-badge" aria-hidden="true">
-                  <InfoIcon />
-                </span>
-                <div className="steve-detail-copy">
-                  <span className="steve-detail-secondary">Données de démonstration</span>
-                </div>
-              </li>
             </ul>
           </section>
 
@@ -301,7 +292,7 @@ export default function AgendaClient() {
             <span className="steve-icon-circle" aria-hidden="true">
               <CalendarIcon />
             </span>
-            <span>Exporter en .ics</span>
+            <span>Ajouter au calendrier</span>
           </button>
 
           {exportError === null ? null : (
@@ -310,9 +301,12 @@ export default function AgendaClient() {
           {exportedIcs === null ? null : (
             <section className="steve-card" aria-live="polite">
               <p className="steve-status">
-                Fichier .ics prêt pour {selectedAppointment.practitioner.name}.
+                Rendez-vous prêt à ajouter : ouvre le fichier téléchargé.
               </p>
-              <pre className="agenda-ics-preview">{exportedIcs}</pre>
+              <details className="agenda-ics-details">
+                <summary>Détails du fichier</summary>
+                <pre className="agenda-ics-preview">{exportedIcs}</pre>
+              </details>
             </section>
           )}
         </>

@@ -43,11 +43,11 @@ it("renders the patient identity, mascot, and profile menu sections", async () =
   const container = await mount();
   expect(container.querySelector("h1")?.textContent).toBe("Mon profil");
   expect(container.querySelector(".steve-hero-mascot")?.getAttribute("src")).toBe(
-    "/mascot/bubbles.webp",
+    "/mascot/profile-card.webp",
   );
   expect(container.querySelector(".profile-avatar")?.textContent).toBe("PP");
   expect(container.querySelector(".profile-name")?.textContent).toBe("Peter Parker");
-  expect(container.textContent).toContain("Données de démonstration");
+  expect(container.textContent).not.toContain("Données de démonstration");
   expect(container.textContent).toContain("Préférences");
   expect(container.textContent).toContain("Historique déclaré");
   expect(container.textContent).toContain("Historique des appels");

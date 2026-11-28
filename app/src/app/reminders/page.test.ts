@@ -44,7 +44,7 @@ it("renders the scheduled appointment reminder with mascot and SMS channel", asy
   const container = await mount();
   expect(container.querySelector("h1")?.textContent).toBe("Mes rappels");
   expect(container.querySelector(".steve-hero-mascot")?.getAttribute("src")).toBe(
-    "/mascot/bubbles.webp",
+    "/mascot/bubbles-hd.webp",
   );
   expect(container.textContent).toContain("Planifié");
   expect(container.textContent).toContain("Rendez-vous avec Camille Lunéval");

@@ -22,7 +22,7 @@
   min-height: 54px;
   padding: 10px 14px;
   border-radius: var(--steve-radius-row);
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
   color: var(--color-heading);
   font-size: 15px;
   font-weight: var(--font-weight-heading);
@@ -35,15 +35,15 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--color-indigo-100);
-  color: var(--color-primary);
+  background: var(--neutral-100);
+  color: var(--neutral-icon);
 }
 
 .booking-spinner {
   flex: none;
   width: 28px;
   height: 28px;
-  border: 3px solid var(--color-indigo-100);
+  border: 3px solid var(--neutral-100);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: booking-spin 0.9s linear infinite;
@@ -66,11 +66,11 @@
 .booking-scenarios button {
   min-height: 44px;
   padding: 8px 14px;
-  border: 1px solid var(--color-indigo-100);
+  border: 1px solid var(--neutral-100);
   border-radius: 999px;
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
   box-shadow: none;
-  color: var(--color-indigo-700);
+  color: var(--color-heading);
   font-size: 13px;
   font-weight: var(--font-weight-heading);
 }
@@ -96,7 +96,7 @@
   gap: 8px;
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
   font-size: 14px;
 }
 

@@ -1,30 +1,46 @@
 "use client";
 
 import type { EmergencyCalls } from "@steve/triage";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { composerControl, type ComposerControl } from "../../chat/composer-control";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar";
 import { parseDirectoryFilters, type DirectoryFilters } from "../../chat/directory-query";
 import type { ExchangeKind } from "../../chat/exchange";
 import { headerAvatarSrc, heroSrc, replyAvatarSrc, steveFace } from "../../chat/faces";
-import { featureNavItems } from "../feature-shell";
 import { homeGreeting } from "../../chat/home-greeting";
 import { ChatMarkdown } from "../../chat/markdown";
 import { newMessageId } from "../../chat/message-id";
+import {
+  answerStep,
+  baseSteps,
+  parseTriageOutcome,
+  searchStep,
+  triageTraceHeader,
+  type FinishedTrace,
+  type TraceStep,
+} from "../../chat/thinking-trace";
 import { chatRequestLimits, parseChatCalls, parseChatReply, toProviderMessages } from "../../chat/request";
 import { useDictation } from "../../chat/speech";
 import type { CallDeps, ThreadMessage } from "../../voice/live-call";
 import { createBrowserCallDeps } from "../../voice/mock-call";
 import { useLiveCall, type ThreadEvent } from "../../voice/use-live-call";
+import { AppTabBar } from "../tab-bar";
 import { AgentCallBar, PhoneIcon } from "./agent-call-bar";
-import { DirectoryActivity, DirectoryWidget } from "./directory-widget";
+import { DirectoryWidget } from "./directory-widget";
+import { LiveTrace, TraceSummary } from "./thinking-trace";
+import {
+  HomeAppointmentCard,
+  HomeAskCard,
+  HomeSpaceCard,
+  HomeTiles,
+  HomeTopBar,
+  HomeUpcomingCard,
+} from "./home-view";
 import { runPractitionerSearch, type DirectoryResult } from "./search-practitioners";
 import "./chat.css";
 import "./directory-widget.css";
 
-const disclaimer =
-  "Steve n'est pas un médecin ni un dispositif médical.";
+const disclaimer = "Steve n’est pas médecin et ne pose pas de diagnostic.";
 
 const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
 const clientTimeoutMs = 35_000;
@@ -50,6 +66,7 @@ type UiMessage = { readonly voice?: true } & (
       readonly calls?: EmergencyCalls | undefined;
       readonly forcedSentences?: readonly string[];
       readonly directory?: { readonly filters: DirectoryFilters; readonly result: DirectoryResult };
+      readonly trace?: FinishedTrace;
     }
 );
 
@@ -64,6 +81,11 @@ export default function ChatPage(props: {
   const [exchange, setExchange] = useState<ExchangeKind>("idle");
   const [demo, setDemo] = useState(false);
   const [pendingDirectory, setPendingDirectory] = useState<DirectoryFilters>();
+  const [liveTrace, setLiveTrace] = useState<{
+    readonly startedAt: number;
+    readonly steps: readonly TraceStep[];
+  }>();
+  const traceStart = useRef(0);
   const [refining, setRefining] = useState(false);
   const [ended, setEnded] = useState(false);
   const newConversationRef = useRef<HTMLButtonElement>(null);
@@ -232,6 +254,7 @@ export default function ChatPage(props: {
     setDemo(false);
     setEnded(false);
     setPendingDirectory(undefined);
+    setLiveTrace(undefined);
     setRefining(false);
     setShowTranscript(true);
     setExchange("idle");
@@ -373,6 +396,7 @@ export default function ChatPage(props: {
     setMessages((current) => [...current, message]);
     setDraft((current) => (current.trim() === content ? "" : current));
     setExchange("awaiting");
+    traceStart.current = Date.now();
     void post(history, ticket);
   }
 
@@ -471,7 +495,9 @@ export default function ChatPage(props: {
       if (conversation.current !== ticket) {
         return;
       }
+      const base = baseSteps(parseTriageOutcome(triageLabel(response)));
       if (!response.ok) {
+        setLiveTrace(undefined);
         const calls = response.status === 502 ? parseChatCalls(payload) : undefined;
         pushReply("error", errorText(payload), calls);
         setExchange("failed");
@@ -481,10 +507,11 @@ export default function ChatPage(props: {
         ? parseDirectoryFilters(payload.directory)
         : undefined;
       if (directory !== undefined) {
-        await postDirectorySearch(directory, ticket);
+        await postDirectorySearch(directory, ticket, base);
         return;
       }
       const reply = parseChatReply(payload);
+      setLiveTrace(undefined);
       if (reply.kind === "invalid") {
         pushReply("error", fallbackReply);
         setExchange("failed");
@@ -497,6 +524,7 @@ export default function ChatPage(props: {
       if (conversation.current !== ticket) {
         return;
       }
+      setLiveTrace(undefined);
       pushReply("error", fallbackReply);
       setExchange("failed");
     } finally {
@@ -506,8 +534,20 @@ export default function ChatPage(props: {
     }
   }
 
-  async function postDirectorySearch(filters: DirectoryFilters, ticket: number) {
+  function finishTrace(steps: readonly TraceStep[]): FinishedTrace {
+    return { steps, ms: Date.now() - traceStart.current };
+  }
+
+  async function postDirectorySearch(
+    filters: DirectoryFilters,
+    ticket: number,
+    base: readonly TraceStep[],
+  ) {
     setPendingDirectory(filters);
+    setLiveTrace({
+      startedAt: traceStart.current,
+      steps: [...base, searchStep(filters, { kind: "searching" })],
+    });
     let result: DirectoryResult;
     try {
       result = await runPractitionerSearch(filters);
@@ -516,6 +556,17 @@ export default function ChatPage(props: {
     }
     if (conversation.current !== ticket) return;
     setPendingDirectory(undefined);
+    setLiveTrace(undefined);
+    const trace = finishTrace([
+      ...base,
+      searchStep(
+        filters,
+        result.kind === "found"
+          ? { kind: "found", count: result.practitioners.length, demo: result.demo }
+          : { kind: "failed" },
+      ),
+      answerStep,
+    ]);
     const count = result.kind === "found" ? result.practitioners.length : 0;
     const content = result.kind === "failed"
       ? "La recherche est indisponible. Réessaie dans un instant."
@@ -524,16 +575,26 @@ export default function ChatPage(props: {
         : `J’ai trouvé ${count} praticien${count === 1 ? "" : "s"} pour ces critères.`;
     if (!pinned.current) setUnseenReply(true);
     setMessages((current) => [...current, {
-      id: newMessageId(), role: "agent", content, directory: { filters, result },
+      id: newMessageId(), role: "agent", content, directory: { filters, result }, trace,
     }]);
     setExchange(result.kind === "failed" ? "failed" : "settled");
   }
 
-  function pushReply(role: "agent" | "error", content: string, calls?: EmergencyCalls) {
+  function pushReply(
+    role: "agent" | "error",
+    content: string,
+    calls?: EmergencyCalls,
+    trace?: FinishedTrace,
+  ) {
     if (!pinned.current) {
       setUnseenReply(true);
     }
-    setMessages((current) => [...current, { id: newMessageId(), role, content, calls }]);
+    setMessages((current) => [
+      ...current,
+      trace === undefined
+        ? { id: newMessageId(), role, content, calls }
+        : { id: newMessageId(), role, content, calls, trace },
+    ]);
   }
 
   const composer = (
@@ -590,14 +651,12 @@ export default function ChatPage(props: {
     </div>
   );
 
-  const footnote = (
-    <>
-      <p className="chat-disclaimer">{disclaimer}</p>
-      {dictation.notice === null || dictation.notice.includes("HTTPS") ? null : (
-        <p className="chat-notice">{dictation.notice}</p>
-      )}
-    </>
-  );
+  const disclaimerLine = <p className="chat-disclaimer">{disclaimer}</p>;
+
+  const footnote =
+    dictation.notice === null || dictation.notice.includes("HTTPS") ? null : (
+      <p className="chat-notice">{dictation.notice}</p>
+    );
 
   function showLatest() {
     const thread = threadRef.current;
@@ -622,7 +681,7 @@ export default function ChatPage(props: {
   return (
     <main
       ref={pageRef}
-      className="chat-page"
+      className={empty ? "chat-page chat-page-home" : "chat-page"}
     >
       <div
         ref={columnRef}
@@ -630,18 +689,7 @@ export default function ChatPage(props: {
       >
         <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <>
-              <div className="chat-home-brand">
-                <div className="chat-home-brand-copy">
-                  <h1 className="chat-greeting">
-                    {homeGreeting(props.patientFirstName)}
-                  </h1>
-                  <p className="chat-home-subtitle">
-                    Je vais t'aider à organiser tes soins.
-                  </p>
-                </div>
-              </div>
-            </>
+            <HomeTopBar firstName={props.patientFirstName} />
           ) : (
             <button
               type="button"
@@ -707,65 +755,53 @@ export default function ChatPage(props: {
               aria-hidden={empty ? undefined : true}
               inert={empty ? undefined : true}
             >
-              <img
-                className="chat-hero-mascot"
-                src={heroSrc}
-                alt=""
-                width={1137}
-                height={840}
-              />
-              {empty ? (
-                <div className="chat-home-actions">
-                  <div className="chat-home-prompt">
-                    <p className="chat-home-prompt-title">Comment puis-je t’aider ?</p>
-                    <p className="chat-home-prompt-copy">
-                      Écris-moi ici ou appelle-moi, comme tu préfères.
+              <div className="chat-home-hero">
+                {empty ? (
+                  <div className="chat-home-brand">
+                    <h1 className="chat-greeting">
+                      {homeGreeting(props.patientFirstName)}
+                    </h1>
+                    <p className="chat-home-subtitle">
+                      Je vais t’aider à organiser tes soins.
                     </p>
                   </div>
-                  <ul className="chat-starters" aria-label="Suggestions pour commencer">
-                    {conversationStarters.map(({ label, draft: suggestion }) => (
-                      <li key={label}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            dictation.stop();
-                            setDraft(suggestion);
-                            fieldRef.current?.focus();
-                          }}
-                        >
-                          {label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    className="chat-call-cta"
-                    type="button"
-                    onClick={startCall}
-                  >
-                    <span className="chat-call-cta-icon" aria-hidden="true">
-                      <span className="chat-call-cta-glyph">
-                        <PhoneIcon />
-                      </span>
-                    </span>
-                    <span className="chat-call-cta-copy">
-                      <span className="chat-call-cta-title">On s’appelle ?</span>
-                      <span className="chat-call-cta-label">Appeler Steve</span>
-                    </span>
-                    <span className="chat-call-cta-arrow" aria-hidden="true">›</span>
-                  </button>
-                  <nav className="chat-home-nav" aria-label="Espaces Steve">
-                    {featureNavItems
-                      .filter(({ href }) => href !== "/chat")
-                      .map(({ href, label }) => (
-                        <Link key={href} href={href} className="chat-home-nav-link">
-                          {label}
-                        </Link>
-                      ))}
-                  </nav>
-                  <p className="chat-disclaimer chat-home-disclaimer">
-                    Steve n’est pas médecin et ne pose pas de diagnostic.
-                  </p>
+                ) : null}
+                <img
+                  className="chat-hero-mascot"
+                  src={heroSrc}
+                  alt=""
+                  width={1459}
+                  height={1078}
+                />
+              </div>
+              {empty ? (
+                <div className="chat-home-actions">
+                  <HomeAppointmentCard />
+                  <HomeAskCard
+                    disclaimer={disclaimerLine}
+                    composer={composer}
+                    starters={
+                      <ul className="chat-starters" aria-label="Suggestions pour commencer">
+                        {conversationStarters.map(({ label, draft: suggestion }) => (
+                          <li key={label}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dictation.stop();
+                                setDraft(suggestion);
+                                fieldRef.current?.focus();
+                              }}
+                            >
+                              {label}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    }
+                  />
+                  <HomeSpaceCard />
+                  <HomeUpcomingCard />
+                  <HomeTiles />
                 </div>
               ) : null}
             </div>
@@ -788,7 +824,11 @@ export default function ChatPage(props: {
                   </li>
                 ) : message.directory !== undefined ? (
                   <li key={message.id} className="chat-directory-turn" tabIndex={-1}>
-                    <DirectoryActivity filters={message.directory.filters} status={message.directory.result.kind === "found" ? "done" : "failed"} />
+                    {message.trace === undefined ? null : (
+                      <div className="chat-trace-row">
+                        <TraceSummary trace={message.trace} />
+                      </div>
+                    )}
                     <div className="chat-row chat-row-agent">
                       <SteveAvatar />
                       <div className="chat-agent chat-agent-text"><p>{message.content}</p></div>
@@ -808,24 +848,26 @@ export default function ChatPage(props: {
                 ) : (
                   <li key={message.id} className="chat-row chat-row-agent" tabIndex={-1}>
                     <SteveAvatar />
-                    <div className={message.calls !== undefined && message.calls.length > 0 ? "chat-agent chat-urgent-card" : "chat-agent"}>
-                      {message.content === "" ? null : (
-                        <div className="chat-agent-text">
-                          {message.forcedSentences === undefined ? (
-                            <ChatMarkdown text={message.content} />
-                          ) : (
-                            message.forcedSentences.map((sentence) => <p key={sentence}>{sentence}</p>)
-                          )}
-                        </div>
-                      )}
-                      <EmergencyCallActions calls={message.calls} />
-                    </div>
+                    {message.trace === undefined ? (
+                      <AgentBubble message={message} />
+                    ) : (
+                      <div className="chat-agent-stack">
+                        <TraceSummary trace={message.trace} />
+                        <AgentBubble message={message} />
+                      </div>
+                    )}
                   </li>
                 ),
               )}
-              {pendingDirectory !== undefined ? (
-                <li className="chat-directory-turn">
-                  <DirectoryActivity filters={pendingDirectory} status="searching" />
+              {liveTrace !== undefined && pendingDirectory !== undefined ? (
+                <li
+                  className="chat-row chat-row-agent"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Steve réfléchit"
+                >
+                  <SteveAvatar />
+                  <LiveTrace steps={liveTrace.steps} startedAt={liveTrace.startedAt} />
                 </li>
               ) : exchange === "awaiting" ? (
                 <li
@@ -845,9 +887,7 @@ export default function ChatPage(props: {
             </ol>
           )}
         </div>
-        {empty ? (
-          <div className="chat-dock chat-home-dock">{composer}</div>
-        ) : null}
+        {empty ? <AppTabBar current="/chat" floating onCall={startCall} /> : null}
         {unseenReply ? (
           <div className="chat-new-message-row">
             <button
@@ -876,7 +916,12 @@ export default function ChatPage(props: {
                   Nouvelle conversation
                 </button>
               </section>
-            ) : composer}
+            ) : (
+              <>
+                {disclaimerLine}
+                {composer}
+              </>
+            )}
             {footnote}
           </div>
         )}
@@ -1056,4 +1101,31 @@ function errorText(body: unknown): string {
     return fallbackReply;
   }
   return error;
+}
+
+function AgentBubble({ message }: {
+  readonly message: {
+    readonly content: string;
+    readonly calls?: EmergencyCalls | undefined;
+    readonly forcedSentences?: readonly string[];
+  };
+}) {
+  return (
+    <div className={message.calls !== undefined && message.calls.length > 0 ? "chat-agent chat-urgent-card" : "chat-agent"}>
+      {message.content === "" ? null : (
+        <div className="chat-agent-text">
+          {message.forcedSentences === undefined ? (
+            <ChatMarkdown text={message.content} />
+          ) : (
+            message.forcedSentences.map((sentence) => <p key={sentence}>{sentence}</p>)
+          )}
+        </div>
+      )}
+      <EmergencyCallActions calls={message.calls} />
+    </div>
+  );
+}
+
+function triageLabel(response: Response): string | null {
+  return response.headers instanceof Headers ? response.headers.get(triageTraceHeader) : null;
 }
