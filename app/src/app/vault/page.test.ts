@@ -2,7 +2,7 @@
 
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import VaultClient from "./vault-client.js";
 import { loadDemoVaultSnapshot, summarizeTextDocumentAction } from "./vault-server.js";
 
@@ -27,8 +27,13 @@ async function mount(node: ReturnType<typeof createElement>): Promise<HTMLDivEle
   await act(async () => {
     root.render(node);
   });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  });
   return container;
 }
+
+const instant = { faceIdTimings: { scanMs: 0, successMs: 0 } } as const;
 
 function buttonWithText(container: ParentNode, text: string): HTMLButtonElement {
   const found = [...container.querySelectorAll("button")].find((button) =>
@@ -48,7 +53,7 @@ it("loads the factual demo appointment letter summary from @steve/vault", async 
     "La lettre indique un rendez-vous le 2 décembre à 10 h.",
   ]);
 
-  const container = await mount(createElement(VaultClient, { initialDocuments }));
+  const container = await mount(createElement(VaultClient, { initialDocuments, ...instant }));
   expect(container.querySelector("h1")?.textContent).toBe("Vault");
   expect(container.textContent).toContain("Lettre de rendez-vous");
   expect(container.textContent).toContain("27 novembre 2026");
@@ -69,6 +74,7 @@ it("ingests and summarizes a new synthetic text document through @steve/vault", 
   const initialDocuments = await loadDemoVaultSnapshot();
   const container = await mount(
     createElement(VaultClient, {
+      ...instant,
       initialDocuments,
       onAddDocument: summarizeTextDocumentAction,
     }),
@@ -128,4 +134,37 @@ it("builds an ASCII file name from an accented title", async () => {
     text: "Rendez-vous administratif confirmé le 4 décembre.",
   });
   expect(symbolsOnly).toMatchObject({ ok: true, document: { fileName: "document.txt" } });
+});
+
+it("locks the Vault on every visit and opens it after the mocked Face ID scan", async () => {
+  vi.useFakeTimers();
+  try {
+    const initialDocuments = await loadDemoVaultSnapshot();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () => {
+      root.render(createElement(VaultClient, { initialDocuments }));
+    });
+    expect(container.querySelector(".faceid-title")?.textContent).toBe("Vault verrouillé");
+    expect(container.querySelector(".faceid-hud")?.getAttribute("data-phase")).toBe("scanning");
+    expect(container.textContent).not.toContain("Lettre de rendez-vous");
+
+    await act(async () => vi.advanceTimersByTime(1400));
+    expect(container.querySelector(".faceid-hud")?.getAttribute("data-phase")).toBe("success");
+    expect(container.querySelector(".faceid-hud")?.textContent).toBe("Déverrouillé");
+
+    await act(async () => vi.advanceTimersByTime(750));
+    expect(container.querySelector(".faceid-hud")).toBeNull();
+    expect(container.textContent).toContain("Lettre de rendez-vous");
+
+    await act(async () => buttonWithText(container, "Verrouiller le Vault").click());
+    expect(container.querySelector(".faceid-title")).not.toBeNull();
+    expect(container.textContent).not.toContain("Lettre de rendez-vous");
+    await act(async () => buttonWithText(container, "Déverrouiller avec Face ID").click());
+    expect(container.querySelector(".faceid-hud")?.getAttribute("data-phase")).toBe("scanning");
+  } finally {
+    vi.useRealTimers();
+  }
 });
