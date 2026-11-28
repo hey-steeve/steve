@@ -13,12 +13,12 @@ const currentText = "Je tousse un peu depuis hier, sans fièvre.";
 
 const needInfoGuidance = {
   placement: "after-system-prompt",
-  text: "pose une seule question courte",
+  text: "ask one short question",
 } as const satisfies TriageGuidance;
 
 const consultGuidance = {
   placement: "after-system-prompt",
-  text: "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde",
+  text: "at night or on the weekend, point the person to their GP or an on-duty pharmacy",
 } as const satisfies TriageGuidance;
 
 const needInfoCases = [
@@ -205,12 +205,12 @@ it("maps consult to one guidance line after the system prompt", async () => {
     return;
   }
   const guidanceText = decision.guidance.text;
-  const nightOrWeekendAt = guidanceText.indexOf("la nuit ou le week-end");
-  const pharmacyAt = guidanceText.indexOf("pharmacie de garde");
+  const nightOrWeekendAt = guidanceText.indexOf("at night or on the weekend");
+  const pharmacyAt = guidanceText.indexOf("on-duty pharmacy");
   expect(nightOrWeekendAt).toBeGreaterThanOrEqual(0);
   expect(pharmacyAt).toBeGreaterThan(nightOrWeekendAt);
-  expect(guidanceText).toContain("le médecin traitant ou une pharmacie de garde");
-  expect(guidanceText).not.toContain("téléconsultation");
+  expect(guidanceText).toContain("their GP or an on-duty pharmacy");
+  expect(guidanceText).not.toContain("teleconsultation");
   expect(decision.guidance.text).not.toContain("15");
   expect(decision.guidance.text).not.toContain("3114");
   expect(decision.guidance.placement).toBe("after-system-prompt");

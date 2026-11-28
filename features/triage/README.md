@@ -67,7 +67,7 @@ The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Lang
 
 Emergency copies `calls` in the order `ClassifyResult` gives. Consult, self-care, and genuine need-info copy `calls` when that result has them. Those decisions omit `calls` when the result has none.
 
-Consult guidance is `la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde`. Genuine need-info guidance is `pose une seule question courte`. Both use `placement: "after-system-prompt"`. Self-care has no guidance. Guidance does not restrict 15 or 3114.
+Consult guidance is `at night or on the weekend, point the person to their GP or an on-duty pharmacy`. Genuine need-info guidance is `ask one short question`. Both use `placement: "after-system-prompt"`. Self-care has no guidance. Guidance does not restrict 15 or 3114.
 
 `triageTurn` returns need-info with no guidance and no calls, and does not call `classify`, when `data` is empty or the last turn's `sessionId` or `turnId` does not match the handoff. A thrown `classify`, and reasons `timeout`, `network`, `http`, and `malformed`, take that same path. Reasons `model`, `below-threshold`, and `no-channel` keep guidance. `no-channel` has no calls. This path is never emergency.
 

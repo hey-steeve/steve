@@ -10,11 +10,11 @@ export type GuidancePinRow = {
 // what the number detector reads in it, in order. Today neither text names a number.
 export const guidancePinRows: readonly GuidancePinRow[] = [
   {
-    text: "la nuit ou le week-end, oriente vers le médecin traitant ou une pharmacie de garde",
+    text: "at night or on the weekend, point the person to their GP or an on-duty pharmacy",
     numbers: [],
   },
   {
-    text: "pose une seule question courte",
+    text: "ask one short question",
     numbers: [],
   },
 ];
