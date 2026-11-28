@@ -1,0 +1,14 @@
+.community-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.community-eyebrow-indigo { background: var(--color-indigo-50); color: var(--color-indigo-700); }
+.community-eyebrow-orange { background: #fff3e5; color: #9a4a17; }
+.community-eyebrow-teal { background: #e2f5f2; color: #0e6b62; }

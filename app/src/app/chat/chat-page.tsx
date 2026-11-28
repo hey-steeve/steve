@@ -36,6 +36,7 @@ import {
   HomeTopBar,
   HomeUpcomingCard,
 } from "./home-view";
+import { HomeSignalCard, sleepDiscussPrompt } from "./home-community";
 import { runPractitionerSearch, type DirectoryResult } from "./search-practitioners";
 import "./chat.css";
 import "./directory-widget.css";
@@ -776,6 +777,7 @@ export default function ChatPage(props: {
               </div>
               {empty ? (
                 <div className="chat-home-actions">
+                  <HomeSignalCard onDiscuss={() => send(sleepDiscussPrompt, false)} />
                   <HomeAppointmentCard />
                   <HomeAskCard
                     disclaimer={disclaimerLine}

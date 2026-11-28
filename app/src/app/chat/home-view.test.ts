@@ -23,6 +23,7 @@ it("stacks the home cards in order under the greeting", async () => {
   const actions = view.querySelector(".chat-home-actions");
   const order = [...(actions?.children ?? [])].map((child) => child.className);
   expect(order).toEqual([
+    "chat-home-card home-signal",
     "chat-home-appt",
     "chat-home-card chat-home-ask",
     "chat-home-card chat-home-space",
