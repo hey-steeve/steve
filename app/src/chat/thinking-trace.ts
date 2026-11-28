@@ -26,19 +26,19 @@ export function parseTriageOutcome(value: string | null): TriageOutcome | undefi
   return triageOutcomes.find((outcome) => outcome === value);
 }
 
-export const readStep: TraceStep = { id: "read", title: "Je lis ta demande", status: "done" };
+export const readStep: TraceStep = { id: "read", title: "Reading your request", status: "done" };
 
-export const answerStep: TraceStep = { id: "answer", title: "Je prépare ma réponse", status: "done" };
+export const answerStep: TraceStep = { id: "answer", title: "Preparing my answer", status: "done" };
 
 export function triageStep(outcome: TriageOutcome): TraceStep {
-  const title = "Je vérifie s’il y a une urgence";
+  const title = "Checking for an emergency";
   if (outcome === "emergency") {
-    return { id: "triage", title, status: "done", detail: "Signe d’urgence repéré" };
+    return { id: "triage", title, status: "done", detail: "Emergency sign spotted" };
   }
   if (outcome === "need-info") {
     return { id: "triage", title, status: "done" };
   }
-  return { id: "triage", title, status: "done", detail: "Pas de signe d’urgence repéré" };
+  return { id: "triage", title, status: "done", detail: "No emergency sign spotted" };
 }
 
 export function searchStep(
@@ -48,17 +48,17 @@ export function searchStep(
     | { readonly kind: "failed" }
     | { readonly kind: "found"; readonly count: number; readonly demo: boolean },
 ): TraceStep {
-  const title = `Je cherche : ${filters.specialty.toLowerCase()} près de ${filters.postalCode}`;
+  const title = `Searching: ${filters.specialty.toLowerCase()} near ${filters.postalCode}`;
   if (result.kind === "searching") {
     return { id: "search", title, status: "doing", tag: "Annuaire Santé" };
   }
   if (result.kind === "failed") {
-    return { id: "search", title, status: "failed", detail: "Annuaire indisponible" };
+    return { id: "search", title, status: "failed", detail: "Directory unavailable" };
   }
   const detail =
     result.count === 0
-      ? "Aucun praticien trouvé"
-      : `${result.count} praticien${result.count === 1 ? "" : "s"} trouvé${result.count === 1 ? "" : "s"}`;
+      ? "No practitioner found"
+      : `${result.count} practitioner${result.count === 1 ? "" : "s"} found`;
   return result.demo
     ? { id: "search", title, status: "done", detail }
     : { id: "search", title, status: "done", detail, tag: "Annuaire Santé" };
@@ -74,5 +74,5 @@ export function elapsedLabel(ms: number): string {
 
 export function traceSummary(trace: FinishedTrace): string {
   const count = trace.steps.length;
-  return `Réfléchi ${elapsedLabel(trace.ms)} · ${count} étape${count === 1 ? "" : "s"}`;
+  return `Thought for ${elapsedLabel(trace.ms)} · ${count} step${count === 1 ? "" : "s"}`;
 }

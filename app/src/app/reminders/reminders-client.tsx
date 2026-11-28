@@ -32,27 +32,27 @@ const appointmentId = "appt-demo-1";
 const slotOptions: readonly ReminderSlotOption[] = [
   {
     id: "eve-18",
-    label: "Veille · 18 h",
+    label: "Day before · 6 pm",
     remindAt: "2026-12-01T18:00:00+01:00",
-    displayText: "Rappel le 1er décembre à 18 h",
+    displayText: "Reminder on 1 December at 6 pm",
   },
   {
     id: "morning-8",
-    label: "Matin · 8 h",
+    label: "Morning · 8 am",
     remindAt: "2026-12-02T08:00:00+01:00",
-    displayText: "Rappel le 2 décembre à 8 h",
+    displayText: "Reminder on 2 December at 8 am",
   },
   {
     id: "eve-20",
-    label: "Veille · 20 h",
+    label: "Day before · 8 pm",
     remindAt: "2026-12-01T20:00:00+01:00",
-    displayText: "Rappel le 1er décembre à 20 h",
+    displayText: "Reminder on 1 December at 8 pm",
   },
 ];
 
 const channelLabels: Record<ReminderChannel, string> = {
-  sms: "Par SMS",
-  call: "Par appel",
+  sms: "By text",
+  call: "By call",
 };
 
 const channelOrder: readonly ReminderChannel[] = ["sms", "call"];
@@ -79,11 +79,11 @@ function createDemoReminderRuntime() {
         return {
           id: found.value.id,
           startAt: found.value.startsAt,
-          title: `Rendez-vous avec ${found.value.practitioner.name}`,
+          title: `Appointment with ${found.value.practitioner.name}`,
           location:
             found.value.location.kind === "physical"
               ? found.value.location.address
-              : found.value.location.label ?? "Téléconsultation",
+              : found.value.location.label ?? "Video consultation",
         };
       },
     },
@@ -108,8 +108,8 @@ function formatReminderLine(remindAt: string): string {
   const matched = slotOptions.find((option) => sameInstant(option.remindAt, remindAt));
   if (matched !== undefined) return matched.displayText;
   const date = new Date(remindAt);
-  if (Number.isNaN(date.valueOf())) return `Rappel prévu (${remindAt})`;
-  const parts = new Intl.DateTimeFormat("fr-FR", {
+  if (Number.isNaN(date.valueOf())) return `Reminder scheduled (${remindAt})`;
+  const parts = new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "long",
     hour: "numeric",
@@ -121,9 +121,8 @@ function formatReminderLine(remindAt: string): string {
   const month = parts.find((part) => part.type === "month")?.value ?? "";
   const hour = parts.find((part) => part.type === "hour")?.value ?? "";
   const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
-  const dayText = day === "1" ? "1er" : day;
-  const timeText = minute === "00" ? `${Number(hour)} h` : `${Number(hour)} h ${minute}`;
-  return `Rappel le ${dayText} ${month} à ${timeText}`;
+  const timeText = `${Number(hour)}:${minute}`;
+  return `Reminder on ${day} ${month} at ${timeText}`;
 }
 
 const initialReminder: Reminder = {
@@ -171,7 +170,7 @@ export default function RemindersClient() {
     if (activeReminder.status === "scheduled") {
       const cancelled = await service.cancel(activeReminder.id);
       if (!cancelled.ok) {
-        setErrorMessage("Impossible de modifier ce rappel pour le moment.");
+        setErrorMessage("Can’t change this reminder right now.");
         return;
       }
       cancelledReminder = cancelled.value.reminder;
@@ -185,28 +184,28 @@ export default function RemindersClient() {
     });
     if (!scheduled.ok) {
       if (cancelledReminder !== null) setActiveReminder(cancelledReminder);
-      setErrorMessage("Impossible de planifier ce rappel. Vérifie l’horaire choisi.");
+      setErrorMessage("Can’t schedule this reminder. Check the time you picked.");
       return;
     }
     setActiveReminder(scheduled.value);
     setEditing(false);
-    setStatusMessage("Rappel mis à jour.");
+    setStatusMessage("Reminder updated.");
   }
 
   return (
     <FeatureShell
       current="/reminders"
-      title="Mes rappels"
+      title="My reminders"
       heroMascot={{ src: heroSrc, width: 1459, height: 1078 }}
     >
       <section className="steve-card" aria-labelledby="reminder-card-title">
         <div className="reminders-pill-row">
           <span className={activeReminder.status === "scheduled" ? "steve-pill steve-pill-success" : "steve-pill"}>
             {activeReminder.status === "scheduled"
-              ? "Planifié"
+              ? "Scheduled"
               : activeReminder.status === "cancelled"
-                ? "Annulé"
-                : "Mis à jour"}
+                ? "Cancelled"
+                : "Updated"}
           </span>
         </div>
 
@@ -217,10 +216,10 @@ export default function RemindersClient() {
             </span>
             <div className="steve-detail-copy">
               <h2 id="reminder-card-title" className="reminders-title">
-                Rendez-vous avec Camille Lunéval
+                Appointment with Camille Lunéval
               </h2>
               <span className="steve-detail-secondary">
-                Mercredi 2 décembre · 10 h
+                Wednesday 2 December · 10:00
               </span>
             </div>
           </li>
@@ -252,8 +251,8 @@ export default function RemindersClient() {
         {editing ? (
           <div className="reminders-editor">
             <div className="steve-field-group">
-              <span className="steve-field-label">Canal du rappel</span>
-              <div className="reminders-options" role="group" aria-label="Canal du rappel">
+              <span className="steve-field-label">Reminder channel</span>
+              <div className="reminders-options" role="group" aria-label="Reminder channel">
                 {channelOrder.map((channel) => (
                   <button
                     key={channel}
@@ -268,8 +267,8 @@ export default function RemindersClient() {
             </div>
 
             <div className="steve-field-group">
-              <span className="steve-field-label">Moment du rappel</span>
-              <div className="reminders-options" role="group" aria-label="Moment du rappel">
+              <span className="steve-field-label">Reminder time</span>
+              <div className="reminders-options" role="group" aria-label="Reminder time">
                 {slotOptions.map((option) => (
                   <button
                     key={option.id}
@@ -298,7 +297,7 @@ export default function RemindersClient() {
                   setErrorMessage(null);
                 }}
               >
-                Annuler
+                Cancel
               </button>
               <button
                 type="button"
@@ -307,7 +306,7 @@ export default function RemindersClient() {
                   void handleSave();
                 }}
               >
-                Enregistrer
+                Save
               </button>
             </div>
           </div>
@@ -323,7 +322,7 @@ export default function RemindersClient() {
             }}
           >
             <EditIcon />
-            <span>Modifier le rappel</span>
+            <span>Edit the reminder</span>
           </button>
         )}
 

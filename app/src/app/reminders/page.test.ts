@@ -42,31 +42,31 @@ function buttonWithText(container: ParentNode, text: string): HTMLButtonElement 
 
 it("renders the scheduled appointment reminder with mascot and SMS channel", async () => {
   const container = await mount();
-  expect(container.querySelector("h1")?.textContent).toBe("Mes rappels");
+  expect(container.querySelector("h1")?.textContent).toBe("My reminders");
   expect(container.querySelector(".steve-hero-mascot")?.getAttribute("src")).toBe(
     "/mascot/bubbles-hd.webp",
   );
-  expect(container.textContent).toContain("Planifié");
-  expect(container.textContent).toContain("Rendez-vous avec Camille Lunéval");
-  expect(container.textContent).toContain("Mercredi 2 décembre · 10 h");
-  expect(container.textContent).toContain("Rappel le 1er décembre à 18 h");
-  expect(container.textContent).toContain("Par SMS");
+  expect(container.textContent).toContain("Scheduled");
+  expect(container.textContent).toContain("Appointment with Camille Lunéval");
+  expect(container.textContent).toContain("Wednesday 2 December · 10:00");
+  expect(container.textContent).toContain("Reminder on 1 December at 6 pm");
+  expect(container.textContent).toContain("By text");
 });
 
 it("updates the reminder channel and time via @steve/reminders", async () => {
   const container = await mount();
   await act(async () => {
-    buttonWithText(container, "Modifier le rappel").click();
+    buttonWithText(container, "Edit the reminder").click();
   });
   await act(async () => {
-    buttonWithText(container, "Par appel").click();
-    buttonWithText(container, "Matin · 8 h").click();
+    buttonWithText(container, "By call").click();
+    buttonWithText(container, "Morning · 8 am").click();
   });
   await act(async () => {
-    buttonWithText(container, "Enregistrer").click();
+    buttonWithText(container, "Save").click();
     await new Promise((resolve) => setTimeout(resolve, 20));
   });
-  expect(container.querySelector('[role="status"]')?.textContent).toBe("Rappel mis à jour.");
-  expect(container.textContent).toContain("Par appel");
-  expect(container.textContent).toContain("Rappel le 2 décembre à 8 h");
+  expect(container.querySelector('[role="status"]')?.textContent).toBe("Reminder updated.");
+  expect(container.textContent).toContain("By call");
+  expect(container.textContent).toContain("Reminder on 2 December at 8 am");
 });

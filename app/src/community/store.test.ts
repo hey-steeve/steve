@@ -25,7 +25,7 @@ it("multiplies the reward when you team up", () => {
   if (challenge === undefined) throw new Error("missing demo challenge");
   expect(rewardFor(challenge, [])).toBe(challenge.berries);
   expect(rewardFor(challenge, ["Léa"])).toBe(150);
-  expect(multiplierLabel()).toBe("×1,5");
+  expect(multiplierLabel()).toBe("×1.5");
 });
 
 it("joins and leaves a challenge without duplicates", () => {
@@ -44,12 +44,12 @@ it("sorts challenges into upcoming, ongoing and done from the demo calendar", ()
     return found;
   };
   expect(challengeStatus(byId("sleep-7x7"))).toBe("upcoming");
-  expect(startLabel(byId("sleep-7x7"))).toBe("Commence lundi 30 nov.");
+  expect(startLabel(byId("sleep-7x7"))).toBe("Starts Monday 30 Nov");
   expect(challengeStatus(byId("steps-10k"))).toBe("ongoing");
   expect(challengeDay(byId("steps-10k"))).toBe(8);
   expect(challengeStatus(byId("screens-off"), "2026-12-01")).toBe("done");
-  expect(startLabel(byId("sleep-7x7"), "2026-11-29")).toBe("Commence demain");
-  expect(shortDate("2026-11-09")).toBe("9 novembre");
+  expect(startLabel(byId("sleep-7x7"), "2026-11-29")).toBe("Starts tomorrow");
+  expect(shortDate("2026-11-09")).toBe("9 November");
 });
 
 it("adds and removes friends and only suggests people you can add", () => {

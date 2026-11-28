@@ -25,10 +25,10 @@ export function AgentCallBar({
             width={64}
             height={64}
           />
-          <p className="chat-notice" role="status">L’appel a été interrompu. Réessaie.</p>
+          <p className="chat-notice" role="status">The call was cut off. Try again.</p>
           {onRetry === undefined ? null : (
             <button type="button" className="chat-call-retry" onClick={onRetry}>
-              Réessayer
+              Try again
             </button>
           )}
         </div>
@@ -41,14 +41,14 @@ export function AgentCallBar({
   // Mock session: no voice backend. Say so instead of pretending Stevie listens.
   const demo = active && call.mock;
   const live = active && !call.mock;
-  const title = demo ? "Mode démo" : active ? "Stevie est en ligne" : "Connexion…";
+  const title = demo ? "Demo mode" : active ? "Stevie is on the line" : "Connecting…";
   const activityLabel = demo
-    ? "Voix désactivée"
+    ? "Voice off"
     : call.activity === "speaking"
-      ? "Stevie parle"
-      : call.muted ? "Micro coupé" : "Stevie écoute";
+      ? "Stevie is speaking"
+      : call.muted ? "Mic muted" : "Stevie is listening";
   return (
-    <div className="chat-call-bar" role="group" aria-label="Appel avec Stevie">
+    <div className="chat-call-bar" role="group" aria-label="Call with Stevie">
       <img className="chat-call-bar-avatar" src="/demo/steve-call-avatar.webp" alt="" width={40} height={40} />
       <span className="chat-call-bar-copy" role="status">
         <span className="chat-call-bar-title">
@@ -65,8 +65,8 @@ export function AgentCallBar({
         <button
           type="button"
           className="chat-call-control"
-          aria-label="Couper le micro"
-          title={call.muted ? "Réactiver le micro" : "Couper le micro"}
+          aria-label="Mute mic"
+          title={call.muted ? "Unmute mic" : "Mute mic"}
           aria-pressed={call.muted}
           disabled={!live}
           onClick={() => call.setMuted(!call.muted)}
@@ -80,8 +80,8 @@ export function AgentCallBar({
         <button
           type="button"
           className="chat-call-control"
-          aria-label="Afficher la transcription"
-          title={showTranscript ? "Masquer la transcription" : "Afficher la transcription"}
+          aria-label="Show transcript"
+          title={showTranscript ? "Hide transcript" : "Show transcript"}
           aria-pressed={showTranscript}
           onClick={onToggleTranscript}
         >
@@ -92,8 +92,8 @@ export function AgentCallBar({
         <button
           type="button"
           className="chat-call-end"
-          aria-label="Terminer l’appel"
-          title="Terminer l’appel"
+          aria-label="End call"
+          title="End call"
           onClick={() => call.end("hang-up")}
         >
           <PhoneIcon />

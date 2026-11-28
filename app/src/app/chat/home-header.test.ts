@@ -55,20 +55,22 @@ it("puts the profile, Berries and notifications in the home header and Stevie in
     expect(header.querySelector(".chat-greeting")).toBeNull();
     expect(header.querySelector(".chat-profile")).toBeNull();
     expect(header.querySelector("img")).toBeNull();
-    expect(view.container.querySelector(".app-tab-stevie")?.getAttribute("aria-label")).toBe("Parler à Stevie");
-    expect(header.firstElementChild?.getAttribute("aria-label")).toBe("Mon compte");
-    expect(header.querySelector(".app-search-pill")?.textContent).toBe("Rechercher");
-    expect(header.querySelectorAll("a")).toHaveLength(0);
+    expect(view.container.querySelector(".app-tab-stevie")?.getAttribute("aria-label")).toBe("Talk to Stevie");
+    expect(header.firstElementChild?.getAttribute("aria-label")).toBe("My account");
+    expect(header.querySelector(".app-search-pill")?.textContent).toBe("Search");
+    expect([...header.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([
+      "/challenges?section=recompenses",
+    ]);
     const buttons = [...header.querySelectorAll("button")].map((button) => [
       button.getAttribute("aria-label"),
       button.getAttribute("aria-expanded"),
     ]);
     expect(buttons).toEqual([
-      ["Mon compte", "false"],
+      ["My account", "false"],
       [null, "false"],
-      ["Notifications, 3 nouvelles", "false"],
+      ["Notifications, 3 new", "false"],
     ]);
-    expect(greeting.textContent).toBe("Bonjour Peter,");
+    expect(greeting.textContent).toBe("Hello Peter,");
     const row = getComputedStyle(header);
     expect(row.display).toBe("flex");
     expect(row.alignItems).toBe("center");
@@ -91,19 +93,19 @@ it("puts the profile, Berries and notifications in the home header and Stevie in
   }
 });
 
-it("reads the first name from the page seam and falls back to Bonjour", async () => {
+it("reads the first name from the page seam and falls back to Hello", async () => {
   const empty = await mount();
-  expect(empty.container.querySelector(".chat-greeting")?.textContent).toBe("Bonjour");
+  expect(empty.container.querySelector(".chat-greeting")?.textContent).toBe("Hello");
   expect(empty.container.querySelector(".chat-header-home .chat-profile")).toBeNull();
 
   const named = await mount(createElement(ChatPage, { patientFirstName: "Maximilien" }));
   expect(named.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Bonjour Maximilien,",
+    "Hello Maximilien,",
   );
-  expect(named.container.querySelector('[aria-label="Retour"]')).toBeNull();
+  expect(named.container.querySelector('[aria-label="Back"]')).toBeNull();
   const peter = await mount(createElement(ChatPage, { patientFirstName: "Peter" }));
   expect(peter.container.querySelector(".chat-greeting")?.textContent).toBe(
-    "Bonjour Peter,",
+    "Hello Peter,",
   );
 });
 

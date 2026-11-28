@@ -25,16 +25,16 @@ export const communityToday = "2026-11-27";
 export type Friend = { readonly name: string; readonly initial: string; readonly tone: "indigo" | "teal" | "orange" };
 
 const alan: Partner = { name: "Alan", initials: "AL", tone: "indigo" };
-const move: Partner = { name: "Salle Move", initials: "MV", tone: "teal" };
-const fresh: Partner = { name: "Fraîcheur & Co", initials: "FR", tone: "orange" };
+const move: Partner = { name: "Move Gym", initials: "MV", tone: "teal" };
+const fresh: Partner = { name: "Fresh & Co", initials: "FR", tone: "orange" };
 
 export const demoFriend: Friend = { name: "Léa", initial: "L", tone: "teal" };
 
 export const demoChallenges: readonly Challenge[] = [
   {
     id: "sleep-7x7",
-    title: "Sommeil 7 × 7",
-    goal: "7 nuits de plus de 7 h",
+    title: "Sleep 7 × 7",
+    goal: "7 nights over 7 h",
     partner: alan,
     days: 7,
     berries: 100,
@@ -44,8 +44,8 @@ export const demoChallenges: readonly Challenge[] = [
   },
   {
     id: "steps-10k",
-    title: "10 000 pas par jour",
-    goal: "10 000 pas chaque jour",
+    title: "10,000 steps a day",
+    goal: "10,000 steps every day",
     partner: move,
     days: 14,
     berries: 100,
@@ -54,8 +54,8 @@ export const demoChallenges: readonly Challenge[] = [
   },
   {
     id: "five-a-day",
-    title: "5 fruits et légumes",
-    goal: "5 portions par jour",
+    title: "5 fruit and veg",
+    goal: "5 portions a day",
     partner: fresh,
     days: 7,
     berries: 60,
@@ -64,8 +64,8 @@ export const demoChallenges: readonly Challenge[] = [
   },
   {
     id: "screens-off",
-    title: "Écrans off à 22 h",
-    goal: "Pas d’écran après 22 h",
+    title: "Screens off at 10 pm",
+    goal: "No screens after 10 pm",
     partner: alan,
     days: 5,
     berries: 50,
@@ -83,9 +83,9 @@ export type PastChallenge = {
 };
 
 export const demoHistory: readonly PastChallenge[] = [
-  { title: "10 000 pas", team: "équipe de 4", berries: 150, endedOn: "2026-11-09", days: 14 },
-  { title: "Écrans off à 22 h", team: "solo", berries: 50, endedOn: "2026-10-26", days: 5 },
-  { title: "Hydratation 1,5 L", team: "avec Léa", berries: 90, endedOn: "2026-10-12", days: 7 },
+  { title: "10,000 steps", team: "team of 4", berries: 150, endedOn: "2026-11-09", days: 14 },
+  { title: "Screens off at 10 pm", team: "solo", berries: 50, endedOn: "2026-10-26", days: 5 },
+  { title: "Hydration 1.5 L", team: "with Léa", berries: 90, endedOn: "2026-10-12", days: 7 },
 ];
 
 export type FriendChallenge = { readonly challengeId: string; readonly teammates: readonly string[] };
@@ -120,6 +120,23 @@ export const demoSleepNights: readonly SleepNight[] = sleepMinutes.map((minutes,
   date: new Date(Date.UTC(2026, 10, 14 + index)).toISOString().slice(0, 10),
   minutes,
 }));
+
+// Synthetic reward catalogue. Berries are spent in the Alan app, so each
+// reward names its partner and its price in Berries.
+export type Reward = {
+  readonly id: string;
+  readonly title: string;
+  readonly partner: string;
+  readonly cost: number;
+  readonly tone: "indigo" | "teal" | "orange";
+};
+
+export const demoRewards: readonly Reward[] = [
+  { id: "move-session", title: "1 free session", partner: "Move Gym", cost: 150, tone: "teal" },
+  { id: "fresh-basket", title: "Seasonal basket −20%", partner: "Fresh & Co", cost: 200, tone: "orange" },
+  { id: "osteo", title: "Osteopath session covered", partner: "Alan", cost: 400, tone: "indigo" },
+  { id: "donation", title: "Donation to a health charity", partner: "Alan", cost: 100, tone: "indigo" },
+];
 
 export const referral = {
   code: "STEVIE-7X7",

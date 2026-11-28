@@ -47,3 +47,8 @@
   letter-spacing: 0;
   cursor: pointer;
 }
+
+.profile-stats li[data-locked] { background: var(--neutral-50); }
+.profile-stats li[data-locked] strong { color: var(--color-grey-500); }
+.profile-earned[data-locked] { background: var(--neutral-100); color: var(--color-grey-500); }
+.profile-code button { box-shadow: none; }

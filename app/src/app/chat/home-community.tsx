@@ -5,12 +5,13 @@ import { useState } from "react";
 import { askAvatarSrc } from "../../chat/faces";
 import { demoSleepNights, demoFriend } from "../../community/demo";
 import { detectSleepDrop, hoursLabel } from "../../community/sleep-signal";
+import { isMember, usePlan } from "../../community/plan";
 import { challengeById, multiplierLabel, useCommunity } from "../../community/store";
 import { Avatars, Eyebrow, TrophyIcon, WatchIcon } from "../challenges/community-ui";
 import "./home-community.css";
 
 export const sleepDiscussPrompt =
-  "Stevie m’a fait remarquer que je dors moins bien depuis une dizaine de jours. On peut en parler ?";
+  "Stevie noticed I’ve been sleeping worse for about ten days. Can we talk about it?";
 
 export function HomeSignalCard(props: { readonly onDiscuss: () => void }) {
   const [state, setState] = useState<"open" | "fine" | "hidden">("open");
@@ -24,7 +25,7 @@ export function HomeSignalCard(props: { readonly onDiscuss: () => void }) {
     <section className="chat-home-card home-signal" aria-labelledby="home-signal-title">
       <Eyebrow>
         <WatchIcon />
-        Ton sommeil · {nights.length} nuits
+        Your sleep · {nights.length} nights
       </Eyebrow>
       <div className="home-signal-bars" aria-hidden="true">
         {nights.map((night) => (
@@ -36,30 +37,30 @@ export function HomeSignalCard(props: { readonly onDiscuss: () => void }) {
         ))}
       </div>
       <p className="home-signal-legend">
-        <span>{hoursLabel(signal.baselineMinutes)} d’habitude</span>
+        <span>{hoursLabel(signal.baselineMinutes)} usually</span>
         <span>
-          {hoursLabel(signal.recentMinutes)} depuis {signal.days} jours
+          {hoursLabel(signal.recentMinutes)} for {signal.days} days
         </span>
       </p>
       <div className="home-signal-who">
         <img src={askAvatarSrc} alt="" width={36} height={36} />
         <p id="home-signal-title" className="home-signal-bubble">
           {state === "fine"
-            ? "Tant mieux. Je garde un œil dessus, sans te déranger."
-            : `Tu dors moins bien depuis ${signal.days} jours. Ça va ?`}
+            ? "Good to hear. I’ll keep an eye on it without bothering you."
+            : `You’ve been sleeping worse for ${signal.days} days. Are you OK?`}
         </p>
       </div>
       {state === "fine" ? (
         <button type="button" className="home-signal-btn home-signal-ghost" onClick={() => setState("hidden")}>
-          Fermer
+          Close
         </button>
       ) : (
         <div className="home-signal-actions">
           <button type="button" className="home-signal-btn home-signal-ghost" onClick={() => setState("fine")}>
-            Ça va, merci
+            I’m fine, thanks
           </button>
           <button type="button" className="home-signal-btn home-signal-primary" onClick={props.onDiscuss}>
-            On en parle
+            Let’s talk
           </button>
         </div>
       )}
@@ -69,6 +70,7 @@ export function HomeSignalCard(props: { readonly onDiscuss: () => void }) {
 
 export function HomeChallengeCard() {
   const state = useCommunity();
+  const member = isMember(usePlan());
   const membership = state.joined[0];
   const challenge = challengeById(membership?.challengeId ?? "sleep-7x7", state);
   if (challenge === undefined) return null;
@@ -79,15 +81,15 @@ export function HomeChallengeCard() {
         <span className="home-challenge-top">
           <Eyebrow tone="orange">
             <TrophyIcon size={14} />
-            Défi à deux
+            Challenge for two
           </Eyebrow>
-          <span className="home-challenge-mult">{multiplierLabel()} en équipe</span>
+          {member ? <span className="home-challenge-mult">{multiplierLabel()} as a team</span> : null}
         </span>
         <span className="home-challenge-row">
           <span className="home-challenge-copy">
             <strong>{challenge.title}</strong>
             <span>
-              {demoFriend.name} le fait aussi. Vous le faites ensemble ?
+              {demoFriend.name} is doing it too. Do it together?
             </span>
           </span>
           <Avatars names={[demoFriend.name]} />
@@ -101,21 +103,21 @@ export function HomeChallengeCard() {
       <span className="home-challenge-top">
         <Eyebrow tone="orange">
           <TrophyIcon size={14} />
-          Défi en cours
+          Ongoing challenge
         </Eyebrow>
-        {membership.teammates.length > 0 ? (
-          <span className="home-challenge-mult">{multiplierLabel()} en équipe</span>
+        {member && membership.teammates.length > 0 ? (
+          <span className="home-challenge-mult">{multiplierLabel()} as a team</span>
         ) : null}
       </span>
       <span className="home-challenge-row">
         <span className="home-challenge-copy">
           <strong>{challenge.title}</strong>
           <span>
-            Commence lundi
-            {membership.teammates.length > 0 ? ` · avec ${membership.teammates.join(" et ")}` : ""}
+            Starts Monday
+            {membership.teammates.length > 0 ? ` · with ${membership.teammates.join(" and ")}` : ""}
           </span>
         </span>
-        <Avatars names={["Moi", ...membership.teammates]} />
+        <Avatars names={["Me", ...membership.teammates]} />
       </span>
     </Link>
   );

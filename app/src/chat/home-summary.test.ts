@@ -15,13 +15,13 @@ it("counts calendar days in Paris time", () => {
 });
 
 it("words the countdown in French", () => {
-  expect(countdownLabel(0)).toBe("Aujourd’hui");
-  expect(countdownLabel(-2)).toBe("Aujourd’hui");
-  expect(countdownLabel(1)).toBe("Demain");
-  expect(countdownLabel(5)).toBe("Dans 5 jours");
+  expect(countdownLabel(0)).toBe("Today");
+  expect(countdownLabel(-2)).toBe("Today");
+  expect(countdownLabel(1)).toBe("Tomorrow");
+  expect(countdownLabel(5)).toBe("In 5 days");
 });
 
 it("formats the appointment day and time in Paris time", () => {
-  expect(appointmentDay(homeNextAppointment.startsAt)).toBe("Mer. 2 déc.");
+  expect(appointmentDay(homeNextAppointment.startsAt)).toBe("Wed 2 Dec");
   expect(appointmentTime(homeNextAppointment.startsAt)).toBe("10:00");
 });

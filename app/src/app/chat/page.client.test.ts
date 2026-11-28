@@ -9,7 +9,7 @@ import ChatPage from "./chat-page.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
-const fallbackReply = "Je n'ai pas pu répondre. Réessayez.";
+const fallbackReply = "I couldn’t answer. Please try again.";
 const roots: Root[] = [];
 
 afterEach(() => {
@@ -52,7 +52,7 @@ function fieldIn(container: ParentNode): HTMLTextAreaElement {
 }
 
 function sendButton(container: ParentNode): HTMLButtonElement {
-  const button = container.querySelector('button[aria-label="Envoyer"]');
+  const button = container.querySelector('button[aria-label="Send"]');
   if (!(button instanceof HTMLButtonElement)) {
     throw new Error("missing send button");
   }
@@ -63,7 +63,7 @@ async function sendForReply(body: unknown, status: number): Promise<HTMLDivEleme
   vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => Response.json(body, { status })));
   const container = await renderPage();
   await act(async () => {
-    setField(fieldIn(container), "Bonjour");
+    setField(fieldIn(container), "Hello");
   });
   await act(async () => {
     sendButton(container).click();
@@ -79,7 +79,7 @@ function expectCallActions(container: ParentNode, bubble: string, numbers: reado
     inBubble: link.closest(bubble) !== null,
   }))).toEqual(numbers.map((number) => ({
     href: `tel:${number}`,
-    label: `Appeler le ${number}`,
+    label: `Call ${number}`,
     inBubble: true,
   })));
 }
@@ -144,13 +144,13 @@ it("shows a typing indicator for a plain reply and attaches no trace", async () 
   const container = await renderPage();
 
   await act(async () => {
-    setField(fieldIn(container), "Bonjour");
+    setField(fieldIn(container), "Hello");
   });
   act(() => {
     sendButton(container).click();
   });
 
-  const typing = container.querySelector('[aria-label="Stevie écrit"]');
+  const typing = container.querySelector('[aria-label="Stevie is typing"]');
   expect(typing?.getAttribute("aria-live")).toBe("polite");
   expect(typing?.querySelectorAll(".chat-dot")).toHaveLength(3);
   expect(container.querySelector(".chat-trace")).toBeNull();
@@ -165,7 +165,7 @@ it("shows a typing indicator for a plain reply and attaches no trace", async () 
     finish(reply);
   });
 
-  expect(container.querySelector('[aria-label="Stevie écrit"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Stevie is typing"]')).toBeNull();
   expect(container.textContent).toContain("D'accord.");
   expect(container.querySelector(".chat-trace-summary")).toBeNull();
 });
@@ -190,19 +190,19 @@ it("traces a practitioner search live, then folds it above the result", async ()
   if (!(summary instanceof HTMLButtonElement)) {
     throw new Error("missing trace summary");
   }
-  expect(container.querySelector('[aria-label="Stevie réfléchit"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Stevie is thinking"]')).toBeNull();
   expect(summary.getAttribute("aria-expanded")).toBe("false");
-  expect(summary.textContent).toMatch(/^Réfléchi \d+ s · 4 étapes$/);
+  expect(summary.textContent).toMatch(/^Thought for \d+ s · 4 steps$/);
   await act(async () => summary.click());
   expect(
     [...container.querySelectorAll(".chat-trace-step-title")].map((step) => step.textContent),
   ).toEqual([
-    "Je lis ta demande",
-    "Je vérifie s’il y a une urgence",
-    "Je cherche : médecin généraliste près de 75011",
-    "Je prépare ma réponse",
+    "Reading your request",
+    "Checking for an emergency",
+    "Searching: médecin généraliste near 75011",
+    "Preparing my answer",
   ]);
-  expect(container.textContent).toContain("Pas de signe d’urgence repéré");
+  expect(container.textContent).toContain("No emergency sign spotted");
 });
 
 it("disables send while the chat request is in flight", async () => {
@@ -217,7 +217,7 @@ it("disables send while the chat request is in flight", async () => {
   const container = await renderPage();
 
   await act(async () => {
-    setField(fieldIn(container), "Bonjour");
+    setField(fieldIn(container), "Hello");
   });
   act(() => {
     sendButton(container).click();
@@ -242,7 +242,7 @@ it("disables send while the chat request is in flight", async () => {
   });
 });
 
-it("keeps the composer off the home screen and focuses it from Écrire à Stevie", async () => {
+it("keeps the composer off the home screen and focuses it from the Stevie button", async () => {
   const container = await renderPage();
   expect(container.querySelector(".chat-field")).toBeNull();
   expect(container.querySelector(".chat-thread")).toBeNull();
@@ -264,7 +264,7 @@ it("keeps the composer focused after the first send", async () => {
   expect(document.activeElement).toBe(field);
 
   await act(async () => {
-    setField(field, "Bonjour");
+    setField(field, "Hello");
   });
   await act(async () => {
     sendButton(container).click();
@@ -283,7 +283,7 @@ it("shows the error and accepts another send when the chat fetch times out", asy
   const field = fieldIn(container);
 
   await act(async () => {
-    setField(field, "Bonjour");
+    setField(field, "Hello");
   });
   await act(async () => {
     sendButton(container).click();
@@ -309,18 +309,18 @@ it("keeps the transcript after finishing and clears it for the next conversation
     200,
   );
 
-  const finish = container.querySelector('header button[aria-label="Terminer la conversation"]');
+  const finish = container.querySelector('header button[aria-label="End the conversation"]');
   if (!(finish instanceof HTMLButtonElement)) {
     throw new Error("Missing finish action in the chat header");
   }
-  expect(container.querySelector('.chat-dock button[aria-label="Terminer la conversation"]')).toBeNull();
+  expect(container.querySelector('.chat-dock button[aria-label="End the conversation"]')).toBeNull();
 
   await act(async () => finish.click());
 
   expect(container.querySelector(".chat-thread")?.textContent).toContain("Voici ma réponse.");
   expect(container.querySelector("textarea")).toBeNull();
-  expect(container.querySelector("h2")?.textContent).toBe("Conversation terminée");
-  const restart = buttonWithText(container, "Nouvelle conversation");
+  expect(container.querySelector("h2")?.textContent).toBe("Conversation ended");
+  const restart = buttonWithText(container, "New conversation");
   expect(document.activeElement).toBe(restart);
 
   await act(async () => restart.click());

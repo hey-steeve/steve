@@ -12,10 +12,10 @@ import {
 import "./search-bar.css";
 
 const suggestions = [
-  "Sommeil",
+  "Sleep",
   "Vault",
-  "Médecine générale",
-  "Rappels",
+  "General practice",
+  "Reminders",
 ] as const;
 
 // A search pill that opens a full-screen search over the whole app.
@@ -54,7 +54,7 @@ export function SearchBar(props: { readonly tone?: "glass" | "light" }) {
         onClick={() => setOpen(true)}
       >
         <SearchIcon />
-        <span>Rechercher</span>
+        <span>Search</span>
       </button>
       {open
         ? createPortal(
@@ -62,7 +62,7 @@ export function SearchBar(props: { readonly tone?: "glass" | "light" }) {
               className="app-search"
               role="dialog"
               aria-modal="true"
-              aria-label="Rechercher dans Stevie"
+              aria-label="Search Stevie"
             >
               <div className="app-search-head">
                 <label className="app-search-field">
@@ -71,8 +71,8 @@ export function SearchBar(props: { readonly tone?: "glass" | "light" }) {
                     ref={inputRef}
                     type="search"
                     value={query}
-                    placeholder="Défis, praticiens, documents…"
-                    aria-label="Rechercher dans Stevie"
+                    placeholder="Challenges, practitioners, documents…"
+                    aria-label="Search Stevie"
                     onChange={(event) => setQuery(event.target.value)}
                   />
                 </label>
@@ -81,7 +81,7 @@ export function SearchBar(props: { readonly tone?: "glass" | "light" }) {
                   className="app-search-cancel"
                   onClick={close}
                 >
-                  Annuler
+                  Cancel
                 </button>
               </div>
               <div className="app-search-body" aria-live="polite">
@@ -102,7 +102,7 @@ export function SearchBar(props: { readonly tone?: "glass" | "light" }) {
                   </section>
                 ) : groups.length === 0 ? (
                   <p className="app-search-empty">
-                    Aucun résultat pour « {query.trim()} ».
+                    No results for “{query.trim()}”.
                   </p>
                 ) : (
                   groups.map((group) => (

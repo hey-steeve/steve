@@ -13,7 +13,11 @@ import {
   type HomeBlockId,
   type HomeLayout,
 } from "../../chat/home-layout";
+import { useCommunity } from "../../community/store";
+import { usePlan } from "../../community/plan";
+import { AlanAppBar } from "../challenges/community-ui";
 import { HomeChallengeCard, HomeSignalCard } from "./home-community";
+import { MemoryCard } from "./home-memory";
 import { HomeAppointmentCard, HomeSpaceCard, HomeTiles, HomeUpcomingCard } from "./home-view";
 import "./home-customize.css";
 
@@ -21,6 +25,8 @@ import "./home-customize.css";
 // opens the customise sheet.
 export function HomeBlocks(props: { readonly onDiscuss: () => void }) {
   const [layout, setLayout] = useState<HomeLayout>(defaultHomeLayout);
+  const plan = usePlan();
+  const community = useCommunity();
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
@@ -34,6 +40,7 @@ export function HomeBlocks(props: { readonly onDiscuss: () => void }) {
 
   const render: Record<HomeBlockId, () => ReactNode> = {
     signal: () => <HomeSignalCard onDiscuss={props.onDiscuss} />,
+    memory: () => <MemoryCard />,
     appointment: () => <HomeAppointmentCard />,
     challenge: () => <HomeChallengeCard />,
     space: () => <HomeSpaceCard />,
@@ -46,8 +53,9 @@ export function HomeBlocks(props: { readonly onDiscuss: () => void }) {
       {visibleBlocks(layout).map((id) => (
         <Fragment key={id}>{render[id]()}</Fragment>
       ))}
+      <AlanAppBar plan={plan} berries={community.berries} />
       <button type="button" className="home-customize-open" onClick={() => setEditing(true)}>
-        Personnaliser l’accueil
+        Customize home
       </button>
       {editing
         ? createPortal(
@@ -86,15 +94,15 @@ export function HomeCustomizeSheet(props: {
 
   return (
     <div className="home-custom-layer">
-      <button type="button" className="home-custom-backdrop" aria-label="Fermer" tabIndex={-1} onClick={onClose} />
+      <button type="button" className="home-custom-backdrop" aria-label="Close" tabIndex={-1} onClick={onClose} />
       <section className="home-custom" role="dialog" aria-modal="true" aria-labelledby="home-custom-title">
         <header className="home-custom-head">
-          <h2 id="home-custom-title">Personnaliser l’accueil</h2>
+          <h2 id="home-custom-title">Customize home</h2>
           <button ref={doneRef} type="button" className="home-custom-done" onClick={onClose}>
             OK
           </button>
         </header>
-        <p className="home-custom-hint">Change l’ordre des blocs ou masque ceux dont tu n’as pas besoin.</p>
+        <p className="home-custom-hint">Reorder the blocks or hide the ones you don’t need.</p>
         <ol className="home-custom-list">
           {layout.order.map((id, index) => {
             const label = homeBlocks.find((block) => block.id === id)?.label ?? id;
@@ -105,7 +113,7 @@ export function HomeCustomizeSheet(props: {
                 <button
                   type="button"
                   className="home-custom-move"
-                  aria-label={`Monter ${label}`}
+                  aria-label={`Move up ${label}`}
                   disabled={index === 0}
                   onClick={() => onChange(moveBlock(layout, id, -1))}
                 >
@@ -114,7 +122,7 @@ export function HomeCustomizeSheet(props: {
                 <button
                   type="button"
                   className="home-custom-move"
-                  aria-label={`Descendre ${label}`}
+                  aria-label={`Move down ${label}`}
                   disabled={index === layout.order.length - 1}
                   onClick={() => onChange(moveBlock(layout, id, 1))}
                 >
@@ -125,7 +133,7 @@ export function HomeCustomizeSheet(props: {
                   role="switch"
                   className="home-custom-switch"
                   aria-checked={shown}
-                  aria-label={`Afficher ${label}`}
+                  aria-label={`Show ${label}`}
                   onClick={() => onChange(toggleBlock(layout, id))}
                 >
                   <span aria-hidden="true" />
@@ -135,7 +143,7 @@ export function HomeCustomizeSheet(props: {
           })}
         </ol>
         <button type="button" className="home-custom-reset" onClick={props.onReset}>
-          Revenir à l’ordre par défaut
+          Back to the default order
         </button>
       </section>
     </div>

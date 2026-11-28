@@ -62,7 +62,7 @@ export default function VaultClient(props: {
     <FeatureShell
       current="/vault"
       title="Vault"
-      subtitle="Tes documents santé, rien qu’à toi."
+      subtitle="Your health documents, just for you."
       heroMascot={{ src: pageMascots.documents, width: 600, height: 600 }}
     >
       <FaceIdGate
@@ -73,7 +73,7 @@ export default function VaultClient(props: {
         {(lock) => (
           <>
             <button type="button" className="vault-lock-btn" onClick={lock}>
-              Verrouiller le Vault
+              Lock the Vault
             </button>
             {documents.map((doc) => (
               <button
@@ -111,7 +111,7 @@ export default function VaultClient(props: {
                 aria-labelledby="vault-summary-title"
               >
                 <h2 id="vault-summary-title" className="steve-card-title">
-                  Résumé du document
+                  Document summary
                 </h2>
                 {selected.summaryLines.map((line, index) => (
                   <p key={`${index}-${line}`} className="vault-summary-text">
@@ -126,7 +126,7 @@ export default function VaultClient(props: {
                 >
                   <DocumentIcon />
                   <span>
-                    {viewerOpen ? "Fermer le document" : "Ouvrir le document"}
+                    {viewerOpen ? "Close the document" : "Open the document"}
                   </span>
                 </button>
                 {viewerOpen ? (
@@ -147,7 +147,7 @@ export default function VaultClient(props: {
                   setError(null);
                 }}
               >
-                {composerOpen ? "Annuler l’ajout" : "Ajouter un document texte"}
+                {composerOpen ? "Cancel" : "Add a text document"}
               </button>
               {composerOpen ? (
                 <form
@@ -161,13 +161,13 @@ export default function VaultClient(props: {
                       className="steve-field-label"
                       htmlFor="vault-doc-title"
                     >
-                      Titre du document
+                      Document title
                     </label>
                     <input
                       id="vault-doc-title"
                       className="steve-input"
                       value={title}
-                      placeholder="Ex. Compte rendu administratif"
+                      placeholder="E.g. Administrative report"
                       onChange={(event) => setTitle(event.target.value)}
                     />
                   </div>
@@ -176,13 +176,13 @@ export default function VaultClient(props: {
                       className="steve-field-label"
                       htmlFor="vault-doc-text"
                     >
-                      Texte du document (données synthétiques)
+                      Document text (synthetic data)
                     </label>
                     <textarea
                       id="vault-doc-text"
                       className="steve-textarea"
                       value={text}
-                      placeholder="Ex. Rendez-vous administratif confirmé le 4 décembre à 14 h."
+                      placeholder="E.g. Administrative appointment confirmed on 4 December at 2 pm."
                       onChange={(event) => setText(event.target.value)}
                     />
                   </div>
@@ -196,7 +196,7 @@ export default function VaultClient(props: {
                     className="steve-btn-primary"
                     disabled={submitting}
                   >
-                    {submitting ? "Enregistrement…" : "Enregistrer et résumer"}
+                    {submitting ? "Saving…" : "Save and summarize"}
                   </button>
                 </form>
               ) : null}

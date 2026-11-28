@@ -75,26 +75,26 @@ export function FaceIdGate(props: {
             <LockGlyph />
           </span>
           <h2 id="faceid-title" className="faceid-title">
-            Vault verrouillé
+            Vault locked
           </h2>
-          <p className="faceid-copy">Tes documents sont protégés. Déverrouille avec Face ID pour y accéder.</p>
+          <p className="faceid-copy">Your documents are protected. Unlock with Face ID to see them.</p>
           <button type="button" className="steve-btn-primary" onClick={unlock}>
-            Déverrouiller avec Face ID
+            Unlock with Face ID
           </button>
         </>
       ) : (
         <>
           <h2 id="faceid-title" className="faceid-sr">
-            Vault verrouillé
+            Vault locked
           </h2>
           <div className="faceid-hud" data-phase={phase} role="status" aria-live="polite">
             <FaceIdGlyph />
-            <span>{phase === "success" ? "Déverrouillé" : "Face ID"}</span>
+            <span>{phase === "success" ? "Unlocked" : "Face ID"}</span>
           </div>
-          <p className="faceid-copy">{phase === "success" ? "C’est bien toi." : "Regarde ton téléphone…"}</p>
+          <p className="faceid-copy">{phase === "success" ? "It’s you." : "Look at your phone…"}</p>
         </>
       )}
-      <p className="faceid-note">Face ID simulé pour la démo.</p>
+      <p className="faceid-note">Face ID simulated for the demo.</p>
     </section>
   );
 }

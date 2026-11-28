@@ -30,7 +30,7 @@ it("renders the shared shell with back navigation and the app tab bar", () => {
   const html = renderToStaticMarkup(
     createElement(FeatureShell, {
       current: "/directory",
-      title: "Annuaire",
+      title: "Directory",
       badge: "Nouveau",
       headerMascot: { src: "/mascot/state-done.webp", width: 256, height: 256 },
       children: createElement("p", null, "Contenu"),
@@ -40,13 +40,13 @@ it("renders the shared shell with back navigation and the app tab bar", () => {
   host.innerHTML = html;
   expect(host.querySelector(".steve-back")?.getAttribute("href")).toBe("/chat");
   expect(host.querySelector(".app-search-pill")).toBeNull();
-  expect(host.querySelector("h1")?.textContent).toBe("Annuaire");
+  expect(host.querySelector("h1")?.textContent).toBe("Directory");
   expect(host.querySelector(".steve-pill")?.textContent).toBe("Nouveau");
   expect(host.querySelector(".steve-header-mascot")?.getAttribute("src")).toBe(
     "/mascot/state-done.webp",
   );
   expect(host.querySelector('.app-tab[aria-current="page"]')).toBeNull();
-  expect(host.querySelector(".app-tabbar-floating .app-tab-fab")?.getAttribute("href")).toBe("/chat");
+  expect(host.querySelector(".app-tabbar-floating .app-tab-fab")?.getAttribute("href")).toBe("/chat?ecrire=1");
   expect(host.querySelector(".steve-nav")).toBeNull();
   expect(host.textContent).not.toContain("pas médecin");
 });
@@ -58,7 +58,7 @@ it("drops the back link on tab pages and keeps the tab highlighted", () => {
       createElement(FeatureShell, { current, title: "Onglet", children: null }),
     );
     expect(host.querySelector(".steve-back")).toBeNull();
-    expect(host.querySelector(".steve-topbar .app-search-pill")?.textContent).toBe("Rechercher");
+    expect(host.querySelector(".steve-topbar .app-search-pill")?.textContent).toBe("Search");
     expect(host.querySelector('.app-tab[aria-current="page"]')?.getAttribute("href")).toBe(current);
   }
 });

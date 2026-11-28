@@ -17,12 +17,12 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("renders Bonjour Peter from the demo profile", async () => {
+it("renders Hello Peter from the demo profile", async () => {
   const givenName = loadDemoPatientMemory().identity.givenName;
   const view = await mount();
   const greeting = view.container.querySelector(".chat-greeting")?.textContent;
-  expect(greeting).toBe("Bonjour Peter,");
-  expect(greeting).toBe(`Bonjour ${givenName},`);
+  expect(greeting).toBe("Hello Peter,");
+  expect(greeting).toBe(`Hello ${givenName},`);
 });
 
 async function mount(): Promise<{ container: HTMLDivElement }> {

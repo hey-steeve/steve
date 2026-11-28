@@ -26,6 +26,9 @@ export const mascotWebps = [
   { file: "documents.webp", source: "body/documents.png", width: 600, height: 600, sharp: true },
   { file: "mailbox.webp", source: "body/mailbox.png", width: 600, height: 600, sharp: true },
   { file: "running.webp", source: "body/running.png", width: 600, height: 600, sharp: true },
+  { file: "celebrate.webp", source: "body/celebrate.png", width: 600, height: 600, sharp: true },
+  { file: "clipboard.webp", source: "body/clipboard.png", width: 300, height: 551, sharp: true },
+  { file: "thinking.webp", source: "body/thinking.png", width: 300, height: 544, sharp: true },
   {
     file: "state-calling.webp",
     source: "states/calling.png",

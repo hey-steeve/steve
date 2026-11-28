@@ -8,22 +8,22 @@ interface Moment {
 }
 
 export const moments = [
-  { id: "idle", label: "Repos", state: "idle", mood: "neutral" },
+  { id: "idle", label: "Idle", state: "idle", mood: "neutral" },
   {
     id: "listening",
-    label: "Le patient parle",
+    label: "Patient speaking",
     state: "waiting",
     mood: "neutral",
   },
   { id: "thinking", label: "Triage", state: "thinking", mood: "neutral" },
   {
     id: "calling",
-    label: "Appel au cabinet",
+    label: "Calling the practice",
     state: "working",
     mood: "neutral",
   },
-  { id: "happy", label: "Créneau confirmé", state: "done", mood: "happy" },
-  { id: "serious", label: "Urgence", state: "blocked", mood: "neutral" },
+  { id: "happy", label: "Slot confirmed", state: "done", mood: "happy" },
+  { id: "serious", label: "Emergency", state: "blocked", mood: "neutral" },
 ] as const satisfies readonly Moment[];
 
 export type MomentId = (typeof moments)[number]["id"];

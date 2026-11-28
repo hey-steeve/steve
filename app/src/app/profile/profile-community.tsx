@@ -2,44 +2,46 @@
 
 import { useState } from "react";
 import { demoHistory, demoStreakDays, referral } from "../../community/demo";
+import { isMember, usePlan } from "../../community/plan";
 import { challengeById, recordInvite, updateCommunity, useCommunity } from "../../community/store";
-import { Berry, Eyebrow, ShareIcon } from "../challenges/community-ui";
+import { Berry, Eyebrow, ShareIcon, SmallLockIcon } from "../challenges/community-ui";
 import "./profile-community.css";
 
 export function ProfileChallenges() {
   const state = useCommunity();
+  const member = isMember(usePlan());
   const done = demoHistory.length;
   return (
     <section className="steve-card" aria-labelledby="profile-challenges-title">
-      <h2 id="profile-challenges-title" className="steve-card-title">Mes défis</h2>
+      <h2 id="profile-challenges-title" className="steve-card-title">My challenges</h2>
       <ul className="profile-stats">
         <li>
           <strong>{done}</strong>
-          <span>terminés</span>
+          <span>completed</span>
         </li>
         <li>
-          <strong>{demoStreakDays} j</strong>
-          <span>de série</span>
+          <strong>{demoStreakDays} d</strong>
+          <span>streak</span>
         </li>
-        <li>
+        <li data-locked={member ? undefined : ""}>
           <strong>
-            <Berry />
-            {state.berries}
+            {member ? <Berry /> : <SmallLockIcon size={16} />}
+            {member ? state.berries : "—"}
           </strong>
-          <span>Berries</span>
+          <span>{member ? "Berries" : "Berries with Alan"}</span>
         </li>
       </ul>
       <ul className="profile-challenge-list">
         {state.joined.map((membership) => {
           const challenge = challengeById(membership.challengeId, state);
           if (challenge === undefined) return null;
-          const team = membership.teammates.length > 0 ? `avec ${membership.teammates.join(" et ")}` : "solo";
+          const team = membership.teammates.length > 0 ? `with ${membership.teammates.join(" and ")}` : "solo";
           return (
             <li key={membership.challengeId}>
               <span>
                 {challenge.title} · {team}
               </span>
-              <Eyebrow tone="orange">En cours</Eyebrow>
+              <Eyebrow tone="orange">Ongoing</Eyebrow>
             </li>
           );
         })}
@@ -48,7 +50,9 @@ export function ProfileChallenges() {
             <span>
               {item.title} · {item.team}
             </span>
-            <span className="profile-earned">+{item.berries}</span>
+            <span className="profile-earned" data-locked={member ? undefined : ""}>
+              +{item.berries}
+            </span>
           </li>
         ))}
       </ul>
@@ -62,7 +66,7 @@ export function ProfileInvite() {
   const invited = referral.invited + state.invited;
 
   async function share() {
-    const text = `Je prends soin de ma santé avec Stevie. Rejoins-moi avec le code ${referral.code} : on gagne ${referral.berries} Berries chacun après ton premier défi.`;
+    const text = `I look after my health with Stevie. Join me with code ${referral.code}: we each get ${referral.berries} Berries after your first challenge.`;
     try {
       if (typeof navigator.share === "function") {
         await navigator.share({ title: "Stevie", text });
@@ -70,27 +74,27 @@ export function ProfileInvite() {
         await navigator.clipboard.writeText(text);
       }
       updateCommunity(recordInvite);
-      setStatus("Invitation prête à envoyer.");
+      setStatus("Invite ready to send.");
     } catch {
-      setStatus("Partage annulé.");
+      setStatus("Sharing cancelled.");
     }
   }
 
   return (
     <section className="steve-card profile-invite" aria-labelledby="profile-invite-title">
-      <h2 id="profile-invite-title" className="steve-card-title">Invite un proche</h2>
+      <h2 id="profile-invite-title" className="steve-card-title">Invite someone close</h2>
       <p className="steve-detail-secondary">
-        Même s’il n’est pas chez Alan. Vous gagnez {referral.berries} Berries chacun après son premier défi.
+        Even if they’re not with Alan. You each earn {referral.berries} Berries after their first challenge.
       </p>
       <div className="profile-code">
         <span>{referral.code}</span>
         <button type="button" onClick={() => void share()}>
           <ShareIcon />
-          Partager
+          Share
         </button>
       </div>
       <p className="steve-detail-secondary">
-        {invited} proches invités · {referral.joined} a déjà fini un défi
+        {invited} people invited · {referral.joined} already finished a challenge
       </p>
       {status === null ? null : (
         <p className="steve-detail-secondary" role="status">

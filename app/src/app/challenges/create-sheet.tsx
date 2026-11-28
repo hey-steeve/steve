@@ -42,7 +42,7 @@ export function CreateSheet(props: { readonly onClose: (created: Challenge | nul
     event.preventDefault();
     const result = createChallenge(state, { title, goal, days, startsOn, friendIds });
     if (result === null) {
-      setError("Donne un nom et un objectif d’au moins 3 caractères.");
+      setError("Give it a name and a goal of at least 3 characters.");
       return;
     }
     updateCommunity(() => result.state);
@@ -50,56 +50,56 @@ export function CreateSheet(props: { readonly onClose: (created: Challenge | nul
   }
 
   const starts = [
-    { value: communityToday, label: "Aujourd’hui" },
-    { value: nextMonday(), label: "Lundi" },
+    { value: communityToday, label: "Today" },
+    { value: nextMonday(), label: "Monday" },
   ];
 
   return (
     <div className="challenges-sheet-layer">
-      <button type="button" className="challenges-sheet-backdrop" aria-label="Fermer" tabIndex={-1} onClick={() => onClose(null)} />
+      <button type="button" className="challenges-sheet-backdrop" aria-label="Close" tabIndex={-1} onClick={() => onClose(null)} />
       <section className="challenges-sheet create-sheet" role="dialog" aria-modal="true" aria-labelledby="create-sheet-title">
         <header className="create-head">
           <h2 id="create-sheet-title" className="steve-card-title">
-            Crée ton défi
+            Create your challenge
           </h2>
-          <button type="button" className="challenges-sheet-close" aria-label="Fermer" onClick={() => onClose(null)}>
+          <button type="button" className="challenges-sheet-close" aria-label="Close" onClick={() => onClose(null)}>
             ×
           </button>
         </header>
         <form className="create-form" onSubmit={submit}>
           <label className="steve-field-group">
-            <span className="steve-field-label">Nom du défi</span>
+            <span className="steve-field-label">Challenge name</span>
             <input
               ref={titleRef}
               className="steve-input"
               value={title}
               maxLength={40}
-              placeholder="Ex. Marche du midi"
+              placeholder="E.g. Lunchtime walk"
               onChange={(event) => setTitle(event.target.value)}
             />
           </label>
           <label className="steve-field-group">
-            <span className="steve-field-label">Objectif</span>
+            <span className="steve-field-label">Goal</span>
             <input
               className="steve-input"
               value={goal}
               maxLength={60}
-              placeholder="Ex. 20 minutes de marche après déjeuner"
+              placeholder="E.g. 20 minutes of walking after lunch"
               onChange={(event) => setGoal(event.target.value)}
             />
           </label>
           <fieldset className="create-fieldset">
-            <legend className="steve-field-label">Durée</legend>
+            <legend className="steve-field-label">Duration</legend>
             <div className="create-options">
               {customDurations.map((value) => (
                 <button key={value} type="button" aria-pressed={days === value} onClick={() => setDays(value)}>
-                  {value} jours
+                  {value} days
                 </button>
               ))}
             </div>
           </fieldset>
           <fieldset className="create-fieldset">
-            <legend className="steve-field-label">Début</legend>
+            <legend className="steve-field-label">Start</legend>
             <div className="create-options">
               {starts.map((item) => (
                 <button key={item.value} type="button" aria-pressed={startsOn === item.value} onClick={() => setStartsOn(item.value)}>
@@ -110,7 +110,7 @@ export function CreateSheet(props: { readonly onClose: (created: Challenge | nul
           </fieldset>
           {friends.length === 0 ? null : (
             <fieldset className="create-fieldset">
-              <legend className="steve-field-label">Inviter des amis</legend>
+              <legend className="steve-field-label">Invite friends</legend>
               <div className="create-options">
                 {friends.map((friend) => (
                   <button
@@ -126,7 +126,7 @@ export function CreateSheet(props: { readonly onClose: (created: Challenge | nul
             </fieldset>
           )}
           <p className="steve-detail-secondary create-note">
-            Défi privé : visible par toi et tes invités seulement. Pas de Berries sur les défis perso.
+            Private challenge: only you and your guests can see it. Personal challenges earn no Berries.
           </p>
           {error === null ? null : (
             <p className="steve-alert" role="alert">
@@ -134,7 +134,7 @@ export function CreateSheet(props: { readonly onClose: (created: Challenge | nul
             </p>
           )}
           <button type="submit" className="steve-btn-primary">
-            Créer le défi
+            Create challenge
           </button>
         </form>
       </section>

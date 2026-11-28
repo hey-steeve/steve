@@ -7,10 +7,10 @@ export type DirectoryFilters = {
 };
 
 export const sectorLabels: Record<Conventionnement, string> = {
-  "secteur-1": "Secteur 1",
-  "secteur-2": "Secteur 2",
-  "secteur-2-optam": "Secteur 2 OPTAM",
-  "non-conventionne": "Non conventionné",
+  "secteur-1": "Sector 1",
+  "secteur-2": "Sector 2",
+  "secteur-2-optam": "Sector 2 OPTAM",
+  "non-conventionne": "Not contracted",
 };
 
 export function parseDirectoryFilters(value: unknown): DirectoryFilters | undefined {

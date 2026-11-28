@@ -42,9 +42,9 @@ it("shows the demo photo on the user message avatar", async () => {
     throw new Error("missing composer");
   }
   await act(async () => {
-    setField(field, "Bonjour");
+    setField(field, "Hello");
   });
-  const send = view.container.querySelector('button[aria-label="Envoyer"]');
+  const send = view.container.querySelector('button[aria-label="Send"]');
   if (!(send instanceof HTMLButtonElement)) throw new Error("missing send button");
   await act(async () => send.click());
   const avatar = view.container.querySelector(".chat-row-user .chat-avatar-user");

@@ -1,3 +1,8 @@
+:root {
+  --color-call: #16a34a;
+  --color-call-strong: #15803d;
+}
+
 html,
 body {
   margin: 0;

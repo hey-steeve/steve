@@ -82,3 +82,132 @@
 .community-eyebrow-indigo { background: var(--color-indigo-50); color: var(--color-indigo-700); }
 .community-eyebrow-orange { background: #fff3e5; color: #9a4a17; }
 .community-eyebrow-teal { background: #e2f5f2; color: #0e6b62; }
+
+.community-berries[data-locked] {
+  border-color: var(--neutral-200);
+  background: var(--neutral-100);
+  color: var(--color-grey-500);
+  box-shadow: none;
+}
+
+.community-berries-glass[data-locked] {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.community-partner-grey { background: var(--neutral-200); color: var(--color-grey-500); }
+
+.community-premium-tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--neutral-100);
+  color: var(--color-grey-500);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.community-alan-logo { display: block; flex: none; border-radius: 28%; object-fit: cover; }
+
+.community-alan-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid var(--color-indigo-100);
+  border-radius: 20px;
+  background: linear-gradient(100deg, #f1f2ff 0%, var(--color-canvas) 70%);
+  box-shadow: var(--shadow-faint);
+  color: inherit;
+  text-decoration: none;
+}
+
+.community-alan-copy { display: grid; flex: 1; gap: 1px; min-width: 0; }
+.community-alan-copy strong { color: var(--color-heading); font-size: 14px; }
+.community-alan-copy span { overflow: hidden; color: var(--color-caption); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+
+.community-alan-cta {
+  flex: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #282fff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.community-alan-bar:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+.community-rewards { display: grid; margin: 0; padding: 0; list-style: none; }
+.community-reward { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.community-reward + .community-reward { border-top: 1px solid var(--color-border); }
+.community-reward .community-partner .community-berry { width: 18px; height: 18px; }
+.community-reward-copy { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.community-reward-copy strong { color: var(--color-heading); font-size: 15px; }
+.community-reward-copy > span:not(.community-reward-track) { color: var(--color-caption); font-size: 13px; }
+
+.community-reward-track {
+  display: block;
+  height: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-indigo-50);
+}
+
+.community-reward-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff8fb0, #d6336c); }
+
+.community-reward-cost {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-indigo-900);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.community-reward-cost[data-ready] { padding: 4px 10px; border-radius: 999px; background: #e6f6f1; color: #157a5c; }
+
+.community-rewards[data-locked] .community-reward-copy strong,
+.community-rewards[data-locked] .community-reward-cost { color: var(--color-grey-500); }
+.community-rewards[data-locked] .community-reward-cost .community-berry { filter: grayscale(1); opacity: 0.5; }
+
+.community-plan-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--color-indigo-50);
+}
+
+.community-plan-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-indigo-700);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.community-plan-switch button[aria-checked="true"] {
+  background: var(--color-canvas);
+  color: var(--color-indigo-900);
+  box-shadow: 0 2px 8px rgba(12, 10, 102, 0.12);
+}

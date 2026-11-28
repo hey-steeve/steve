@@ -41,15 +41,15 @@ function buttonByText(container: ParentNode, text: string): HTMLButtonElement {
 
 it("renders the confirmed booking card with practitioner details and agenda link", async () => {
   const container = await mount(createElement(BookingClient, { callDelayMs: 0 }));
-  expect(container.querySelector("h1")?.textContent).toBe("Prise de rendez-vous");
-  expect(container.textContent).toContain("Appel au cabinet");
-  expect(container.textContent).toContain("Créneau confirmé");
-  expect(container.textContent).toContain("Rendez-vous confirmé");
+  expect(container.querySelector("h1")?.textContent).toBe("Book an appointment");
+  expect(container.textContent).toContain("Calling the practice");
+  expect(container.textContent).toContain("Slot confirmed");
+  expect(container.textContent).toContain("Appointment confirmed");
   expect(container.textContent).toContain("Camille Lunéval");
-  expect(container.textContent).toContain("Mercredi 2 décembre · 10 h");
+  expect(container.textContent).toContain("Wednesday 2 December · 10:00");
   expect(container.textContent).toContain("1 rue des Nuages Mauves");
   expect(container.querySelector('a[href="/agenda"]')?.textContent).toContain(
-    "Voir dans l’agenda",
+    "See in calendar",
   );
 });
 
@@ -57,44 +57,44 @@ it("renders the in-progress calling state with the phone mascot", async () => {
   const container = await mount(
     createElement(BookingClient, { initialPhase: "calling", callDelayMs: 0 }),
   );
-  expect(container.querySelector("h1")?.textContent).toBe("Appel au cabinet");
+  expect(container.querySelector("h1")?.textContent).toBe("Calling the practice");
   expect(container.querySelector(".steve-hero-mascot")?.getAttribute("src")).toBe(
     "/mascot/state-calling.webp",
   );
-  expect(container.textContent).toContain("Appel en cours");
-  expect(container.textContent).toContain("En attente de confirmation");
+  expect(container.textContent).toContain("Call in progress");
+  expect(container.textContent).toContain("Waiting for confirmation");
 });
 
 it("runs the practice call and confirms the first practitioner's slot", async () => {
   const container = await mount(createElement(BookingClient, { callDelayMs: 0 }));
   await act(async () => {
-    buttonByText(container, "Lancer l’appel au cabinet").click();
+    buttonByText(container, "Start the call to the practice").click();
   });
-  expect(container.textContent).toContain("Rendez-vous confirmé");
-  expect(container.textContent).toContain("Mercredi 2 décembre · 10 h");
+  expect(container.textContent).toContain("Appointment confirmed");
+  expect(container.textContent).toContain("Wednesday 2 December · 10:00");
 });
 
 it("falls back to a second practitioner when the first practice refuses", async () => {
   const container = await mount(createElement(BookingClient, { callDelayMs: 0 }));
   await act(async () => {
-    buttonByText(container, "2e praticien si refus").click();
+    buttonByText(container, "2nd practitioner if refused").click();
   });
   await act(async () => {
-    buttonByText(container, "Lancer l’appel au cabinet").click();
+    buttonByText(container, "Start the call to the practice").click();
   });
-  expect(container.textContent).toContain("Rendez-vous confirmé");
+  expect(container.textContent).toContain("Appointment confirmed");
   expect(container.textContent).toContain("Noé Brumelac");
-  expect(container.textContent).toContain("Mercredi 2 décembre · 14 h");
+  expect(container.textContent).toContain("Wednesday 2 December · 14:00");
 });
 
 it("reports when at most 2 practices refuse without confirming a slot", async () => {
   const container = await mount(createElement(BookingClient, { callDelayMs: 0 }));
   await act(async () => {
-    buttonByText(container, "Aucun créneau libre").click();
+    buttonByText(container, "No free slot").click();
   });
   await act(async () => {
-    buttonByText(container, "Lancer l’appel au cabinet").click();
+    buttonByText(container, "Start the call to the practice").click();
   });
-  expect(container.textContent).toContain("Aucun créneau confirmé");
+  expect(container.textContent).toContain("No slot confirmed");
   expect(container.querySelectorAll(".booking-attempt-item")).toHaveLength(2);
 });

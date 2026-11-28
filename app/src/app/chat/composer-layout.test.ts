@@ -50,7 +50,7 @@ it("keeps attach and mic as siblings outside the bordered field", async () => {
       throw new Error("missing composer controls");
     }
     expectOutside(field.closest(".chat-composer"));
-    await sendComposer(view.container, "Bonjour");
+    await sendComposer(view.container, "Hello");
     expectOutside(
       view.container.querySelector(".chat-column > .chat-dock-enter .chat-composer"),
     );
@@ -129,20 +129,20 @@ function expectOutside(composer: Element | null): void {
     expect(order.indexOf(plus)).toBeLessThan(order.indexOf(field));
     expect(plus.parentElement).toBe(field.parentElement);
     expect(field.contains(plus)).toBe(false);
-    expect(plus.getAttribute("aria-label")).toBe("Ajouter une pièce jointe");
+    expect(plus.getAttribute("aria-label")).toBe("Add an attachment");
   }
   expect(order.indexOf(field)).toBeLessThan(order.indexOf(action));
   expect(action.parentElement).toBe(field.parentElement);
   expect(field.contains(action)).toBe(false);
   if (composer.classList.contains("chat-composer") && composer.closest(".chat-home-dock")) {
     expect(borderedControl(composer)).toBe(composer);
-    expect(["Dicter un message", "Saisir un message"]).toContain(
+    expect(["Dictate a message", "Type a message"]).toContain(
       action.getAttribute("aria-label"),
     );
   } else {
     expect(borderedControl(composer)).toBe(field);
   }
-  expect(field.placeholder).toBe("Demande n'importe quoi");
+  expect(field.placeholder).toBe("Ask anything");
   if (!composer.closest(".chat-home-dock")) {
     const painted = getComputedStyle(field);
     expect(painted.borderTopWidth).toBe("1px");
@@ -167,7 +167,7 @@ async function sendComposer(container: ParentNode, value: string): Promise<void>
     throw new Error("missing composer field");
   }
   setField(field, value);
-  const send = container.querySelector('button[aria-label="Envoyer"]');
+  const send = container.querySelector('button[aria-label="Send"]');
   if (!(send instanceof HTMLButtonElement)) {
     throw new Error("missing send button");
   }

@@ -48,17 +48,17 @@ function button(container: ParentNode, text: string): HTMLButtonElement {
 
 it("lists partner challenges and the team finder", async () => {
   const view = await mount();
-  expect(view.querySelector("h1")?.textContent).toBe("Défis");
+  expect(view.querySelector("h1")?.textContent).toBe("Challenges");
   expect(view.querySelector(".steve-hero-mascot")?.getAttribute("src")).toBe("/mascot/running.webp");
-  await openSection(view, "Découvrir");
-  expect(view.textContent).toContain("Sommeil 7 × 7");
-  expect(view.textContent).toContain("Pas d’équipe ?");
+  await openSection(view, "Discover");
+  expect(view.textContent).toContain("Sleep 7 × 7");
+  expect(view.textContent).toContain("No team?");
   expect(view.querySelectorAll(".challenges-join")).toHaveLength(4);
 });
 
 it("joins a challenge with a friend through Stevie and multiplies the reward", async () => {
   const view = await mount();
-  await openSection(view, "Découvrir");
+  await openSection(view, "Discover");
   const first = view.querySelector(".challenges-join");
   if (!(first instanceof HTMLButtonElement)) throw new Error("missing join button");
   await act(async () => {
@@ -66,111 +66,111 @@ it("joins a challenge with a friend through Stevie and multiplies the reward", a
   });
   const sheet = view.querySelector('[role="dialog"]');
   if (!(sheet instanceof HTMLElement)) throw new Error("missing join sheet");
-  expect(sheet.textContent).toContain("Léa le fait aussi");
+  expect(sheet.textContent).toContain("Léa is doing it too");
   await act(async () => {
-    button(sheet, "Oui, avec Léa").click();
+    button(sheet, "Yes, with Léa").click();
   });
-  expect(sheet.textContent).toContain("Participation confirmée");
-  expect(sheet.textContent).toContain("150 Berries à la clé");
-  expect(sheet.textContent).toContain("on met le défi en pause");
+  expect(sheet.textContent).toContain("You’re in");
+  expect(sheet.textContent).toContain("150 Berries to win");
+  expect(sheet.textContent).toContain("we pause the challenge");
   await act(async () => {
-    button(sheet, "Voir mes défis").click();
+    button(sheet, "See my challenges").click();
   });
   expect(view.querySelector('[role="dialog"]')).toBeNull();
-  // Sommeil 7 × 7 starts on Monday, so it lands under À venir.
-  expect(view.querySelector('.challenges-chip[aria-selected="true"]')?.textContent).toBe("À venir1");
-  expect(view.querySelector(".challenges-active")?.textContent).toContain("×1,5 en équipe");
-  expect(view.querySelector(".challenges-active")?.textContent).toContain("Commence lundi 30 nov.");
-  await openSection(view, "Découvrir");
+  // Sleep 7 × 7 starts on Monday, so it lands under Upcoming.
+  expect(view.querySelector('.challenges-chip[aria-selected="true"]')?.textContent).toBe("Upcoming1");
+  expect(view.querySelector(".challenges-active")?.textContent).toContain("×1.5 as a team");
+  expect(view.querySelector(".challenges-active")?.textContent).toContain("Starts Monday 30 Nov");
+  await openSection(view, "Discover");
   expect(view.querySelectorAll(".challenges-join")).toHaveLength(3);
 });
 
 it("lets Stevie find a team when you have none", async () => {
   const view = await mount();
-  await openSection(view, "Découvrir");
+  await openSection(view, "Discover");
   await act(async () => {
-    button(view, "Trouve-moi une équipe").click();
+    button(view, "Find me a team").click();
   });
   const sheet = view.querySelector('[role="dialog"]');
   if (!(sheet instanceof HTMLElement)) throw new Error("missing join sheet");
   await act(async () => {
-    button(sheet, "Trouve-moi une équipe").click();
+    button(sheet, "Find me a team").click();
   });
-  expect(sheet.textContent).toContain("J’ai trouvé Inès et Marc");
+  expect(sheet.textContent).toContain("I found Inès and Marc");
 });
 
 it("splits my challenges into ongoing, upcoming and history", async () => {
   const view = await mount();
-  expect(view.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("Mes défis");
-  expect(view.textContent).toContain("Aucun défi en cours pour le moment.");
-  await openSection(view, "Historique");
+  expect(view.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe("My challenges");
+  expect(view.textContent).toContain("No ongoing challenge for now.");
+  await openSection(view, "History");
   const rows = [...view.querySelectorAll(".challenges-history li")].map((row) => row.textContent);
   expect(rows).toHaveLength(3);
-  expect(rows[0]).toContain("Terminé le 9 novembre");
+  expect(rows[0]).toContain("Completed 9 November");
   expect(rows[0]).toContain("+150");
 
-  await openSection(view, "Découvrir");
-  const steps = [...view.querySelectorAll(".challenges-item")].find((row) => row.textContent?.includes("10 000 pas"));
+  await openSection(view, "Discover");
+  const steps = [...view.querySelectorAll(".challenges-item")].find((row) => row.textContent?.includes("10,000 steps"));
   const join = steps?.querySelector(".challenges-join");
   if (!(join instanceof HTMLButtonElement)) throw new Error("missing steps join");
   await act(async () => join.click());
   const sheet = view.querySelector('[role="dialog"]');
   if (!(sheet instanceof HTMLElement)) throw new Error("missing join sheet");
-  await act(async () => button(sheet, "Seul·e pour l’instant").click());
-  await act(async () => button(sheet, "Voir mes défis").click());
-  expect(view.querySelector('.challenges-chip[aria-selected="true"]')?.textContent).toBe("En cours1");
-  expect(view.querySelector(".challenges-active")?.textContent).toContain("Jour 8 sur 14");
+  await act(async () => button(sheet, "Solo for now").click());
+  await act(async () => button(sheet, "See my challenges").click());
+  expect(view.querySelector('.challenges-chip[aria-selected="true"]')?.textContent).toBe("Ongoing1");
+  expect(view.querySelector(".challenges-active")?.textContent).toContain("Day 8 of 14");
   expect(view.querySelectorAll('.challenges-days li[data-state="done"]')).toHaveLength(7);
 });
 
 it("shows friends' challenges, joins one with them and adds a new friend", async () => {
   const view = await mount();
-  await openSection(view, "Amis");
-  expect(view.textContent).toContain("Mes amis · 3");
+  await openSection(view, "Friends");
+  expect(view.textContent).toContain("My friends · 3");
   const lea = [...view.querySelectorAll(".friends-head")].find((item) => item.textContent?.includes("Léa"));
   if (!(lea instanceof HTMLButtonElement)) throw new Error("missing Léa");
   await act(async () => lea.click());
-  expect(view.querySelector(".friends-detail")?.textContent).toContain("Sommeil 7 × 7");
-  await act(async () => button(view, "Le rejoindre").click());
+  expect(view.querySelector(".friends-detail")?.textContent).toContain("Sleep 7 × 7");
+  await act(async () => button(view, "Join them").click());
   const sheet = view.querySelector('[role="dialog"]');
   if (!(sheet instanceof HTMLElement)) throw new Error("missing join sheet");
-  await act(async () => button(sheet, "Oui, avec Léa").click());
-  await act(async () => button(sheet, "Voir mes défis").click());
-  expect(view.querySelector(".challenges-active")?.textContent).toContain("Sommeil 7 × 7");
+  await act(async () => button(sheet, "Yes, with Léa").click());
+  await act(async () => button(sheet, "See my challenges").click());
+  expect(view.querySelector(".challenges-active")?.textContent).toContain("Sleep 7 × 7");
 
-  await openSection(view, "Amis");
-  await act(async () => button(view, "+ Ajouter").click());
+  await openSection(view, "Friends");
+  await act(async () => button(view, "+ Add").click());
   const sami = [...view.querySelectorAll(".friends-row")].find((row) => row.textContent?.includes("Sami"));
   const add = sami?.querySelector("button");
   if (!(add instanceof HTMLButtonElement)) throw new Error("missing add button");
   await act(async () => add.click());
-  expect(view.textContent).toContain("Mes amis · 4");
+  expect(view.textContent).toContain("My friends · 4");
   expect(view.querySelector(".friends-add")?.textContent).not.toContain("Sami");
 });
 
-it("creates a private challenge from Découvrir and lists it under À venir", async () => {
+it("creates a private challenge from Discover and lists it under Upcoming", async () => {
   const view = await mount();
-  await openSection(view, "Découvrir");
-  await act(async () => button(view, "Créer").click());
+  await openSection(view, "Discover");
+  await act(async () => button(view, "Create").click());
   const sheet = view.querySelector('[role="dialog"]');
   if (!(sheet instanceof HTMLElement)) throw new Error("missing create sheet");
-  await act(async () => button(sheet, "Créer le défi").click());
-  expect(sheet.querySelector('[role="alert"]')?.textContent).toContain("au moins 3 caractères");
+  await act(async () => button(sheet, "Create challenge").click());
+  expect(sheet.querySelector('[role="alert"]')?.textContent).toContain("at least 3 characters");
   const [name, goal] = [...sheet.querySelectorAll("input")];
   if (!(name instanceof HTMLInputElement) || !(goal instanceof HTMLInputElement)) throw new Error("missing fields");
   await act(async () => setField(name, "Marche du midi"));
   await act(async () => setField(goal, "20 minutes de marche"));
-  await act(async () => button(sheet, "14 jours").click());
+  await act(async () => button(sheet, "14 days").click());
   await act(async () => button(sheet, "Inès").click());
-  await act(async () => button(sheet, "Créer le défi").click());
+  await act(async () => button(sheet, "Create challenge").click());
   expect(view.querySelector('[role="dialog"]')).toBeNull();
-  expect(view.querySelector('.challenges-chip[aria-selected="true"]')?.textContent).toBe("À venir1");
+  expect(view.querySelector('.challenges-chip[aria-selected="true"]')?.textContent).toBe("Upcoming1");
   const card = view.querySelector(".challenges-active")?.textContent ?? "";
   expect(card).toContain("Marche du midi");
-  expect(card).toContain("créé par toi");
-  expect(card).toContain("Défi perso · privé");
+  expect(card).toContain("created by you");
+  expect(card).toContain("Personal challenge · private");
   expect(card).not.toContain("Berries");
-  await openSection(view, "Découvrir");
+  await openSection(view, "Discover");
   expect(view.textContent).not.toContain("Marche du midi");
 });
 

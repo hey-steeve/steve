@@ -70,7 +70,7 @@ Use only synthetic data. Never put real health data in the repo.
 
 Use one feature per branch. Change `shared/` on its own branch. The cross-boundary check flags a pull request that changes both `app/` and `shared/`. The `main-protection` ruleset requires the `app-shared-boundary` check. That check blocks the merge. Add the `cross-boundary` label when that mix is intentional.
 
-Write docs, pull request text, and code comments in English. Keep user-facing strings in the app in French.
+Write docs, pull request text, and code comments in English. Write user-facing strings in the app in English. Stevie's chat and voice replies, and the safety copy they depend on, are still French until they move over in their own pull request.
 
 ## Git rules
 

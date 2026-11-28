@@ -121,7 +121,7 @@ it("writes the webps the chat UI names, and only those", async () => {
   );
   expect(mascotWebps.map((item) => item.file).sort()).toEqual([...new Set(used)].sort());
   expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
-  expect(existsSync(path.join(destDir, "celebrate.webp"))).toBe(false);
+  expect(existsSync(path.join(destDir, "shrug.webp"))).toBe(false);
   expect(existsSync(path.join(destDir, "pfp-indigo.webp"))).toBe(false);
   expect(readdirSync(publicDir).some((name) => name.startsWith("mascot.tmp-"))).toBe(false);
   expect(publicDir.startsWith(path.join(appDir, "public"))).toBe(false);
@@ -170,7 +170,7 @@ it("keeps another run's fresh staging directory and the published folder", async
   expect(statSync(destDir).ino).toBe(folder);
   expect(readFileSync(path.join(fresh, "marker.txt"), "utf8")).toBe("keep");
   expect(existsSync(stale)).toBe(false);
-  expect(existsSync(path.join(destDir, "celebrate.webp"))).toBe(false);
+  expect(existsSync(path.join(destDir, "shrug.webp"))).toBe(false);
   expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
 });
 
