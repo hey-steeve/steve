@@ -64,7 +64,13 @@ export const demoChallenges: readonly Challenge[] = [
   },
 ];
 
+export const demoHistory = [
+  { title: "10 000 pas", team: "équipe de 4", berries: 150 },
+  { title: "Écrans off à 22 h", team: "solo", berries: 50 },
+] as const;
+
 export const demoStartingBerries = 200;
+export const demoStreakDays = 12;
 
 const sleepMinutes = [425, 438, 416, 431, 352, 331, 348, 322, 337, 318, 329, 326, 312, 334];
 
@@ -72,3 +78,10 @@ export const demoSleepNights: readonly SleepNight[] = sleepMinutes.map((minutes,
   date: new Date(Date.UTC(2026, 10, 14 + index)).toISOString().slice(0, 10),
   minutes,
 }));
+
+export const referral = {
+  code: "STEVE-7X7",
+  berries: 50,
+  invited: 2,
+  joined: 1,
+} as const;
