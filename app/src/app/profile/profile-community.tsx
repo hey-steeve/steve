@@ -62,10 +62,10 @@ export function ProfileInvite() {
   const invited = referral.invited + state.invited;
 
   async function share() {
-    const text = `Je prends soin de ma santé avec Steve. Rejoins-moi avec le code ${referral.code} : on gagne ${referral.berries} Berries chacun après ton premier défi.`;
+    const text = `Je prends soin de ma santé avec Stevie. Rejoins-moi avec le code ${referral.code} : on gagne ${referral.berries} Berries chacun après ton premier défi.`;
     try {
       if (typeof navigator.share === "function") {
-        await navigator.share({ title: "Steve", text });
+        await navigator.share({ title: "Stevie", text });
       } else {
         await navigator.clipboard.writeText(text);
       }

@@ -18,7 +18,7 @@ afterEach(() => {
   }
 });
 
-it("creates rounded Steve favicons and matching install icons", async () => {
+it("creates rounded Stevie favicons and matching install icons", async () => {
   const publicDir = mkdtempSync(path.join(tmpdir(), "steve-app-icons-"));
   temps.push(publicDir);
   mkdirSync(path.join(publicDir, "icons"));

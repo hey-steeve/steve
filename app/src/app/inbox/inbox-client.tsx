@@ -202,7 +202,7 @@ export default function InboxClient() {
         requestId: `send-demo-${requestCounter.current}`,
         practitionerEmail,
         subject: subject.trim(),
-        textBody: "Document transmis depuis la messagerie Steve (données de démonstration).",
+        textBody: "Document transmis depuis la messagerie Stevie (données de démonstration).",
         attachments: [
           {
             id: "att-out-1",
@@ -246,7 +246,7 @@ export default function InboxClient() {
     >
       <section className="steve-card" aria-labelledby="inbox-address-title">
         <h2 id="inbox-address-title" className="steve-card-title">
-          Ton adresse Steve
+          Ton adresse Stevie
         </h2>
         <div className="inbox-address-row">
           <MailIcon />
@@ -254,7 +254,7 @@ export default function InboxClient() {
           <button
             type="button"
             className="inbox-copy-btn"
-            aria-label="Copier l’adresse Steve"
+            aria-label="Copier l’adresse Stevie"
             onClick={() => {
               void handleCopyAddress();
             }}
@@ -399,7 +399,7 @@ export default function InboxClient() {
                 checked={authorized}
                 onChange={(event) => setAuthorized(event.target.checked)}
               />
-              <span>J’autorise Steve à envoyer ce document au cabinet indiqué.</span>
+              <span>J’autorise Stevie à envoyer ce document au cabinet indiqué.</span>
             </label>
             <button type="submit" className="steve-btn-primary" disabled={sending}>
               {sending ? "Envoi…" : "Confirmer l’envoi"}

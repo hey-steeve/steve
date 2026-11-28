@@ -40,7 +40,7 @@ describe("defaultInstructions", () => {
 
 describe("defaults and token", () => {
   it("exposes the brief defaults", () => {
-    expect(defaultKeyterms).toEqual(["Steve", "SAMU", "3114"]);
+    expect(defaultKeyterms).toEqual(["Stevie", "SAMU", "3114"]);
     expect(defaultTuning.codec).toBe("pcm16-24k");
   });
 

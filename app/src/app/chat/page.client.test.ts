@@ -150,7 +150,7 @@ it("shows a typing indicator for a plain reply and attaches no trace", async () 
     sendButton(container).click();
   });
 
-  const typing = container.querySelector('[aria-label="Steve écrit"]');
+  const typing = container.querySelector('[aria-label="Stevie écrit"]');
   expect(typing?.getAttribute("aria-live")).toBe("polite");
   expect(typing?.querySelectorAll(".chat-dot")).toHaveLength(3);
   expect(container.querySelector(".chat-trace")).toBeNull();
@@ -165,7 +165,7 @@ it("shows a typing indicator for a plain reply and attaches no trace", async () 
     finish(reply);
   });
 
-  expect(container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Stevie écrit"]')).toBeNull();
   expect(container.textContent).toContain("D'accord.");
   expect(container.querySelector(".chat-trace-summary")).toBeNull();
 });
@@ -190,7 +190,7 @@ it("traces a practitioner search live, then folds it above the result", async ()
   if (!(summary instanceof HTMLButtonElement)) {
     throw new Error("missing trace summary");
   }
-  expect(container.querySelector('[aria-label="Steve réfléchit"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Stevie réfléchit"]')).toBeNull();
   expect(summary.getAttribute("aria-expanded")).toBe("false");
   expect(summary.textContent).toMatch(/^Réfléchi \d+ s · 4 étapes$/);
   await act(async () => summary.click());
@@ -242,7 +242,7 @@ it("disables send while the chat request is in flight", async () => {
   });
 });
 
-it("keeps the composer off the home screen and focuses it from Écrire à Steve", async () => {
+it("keeps the composer off the home screen and focuses it from Écrire à Stevie", async () => {
   const container = await renderPage();
   expect(container.querySelector(".chat-field")).toBeNull();
   expect(container.querySelector(".chat-thread")).toBeNull();

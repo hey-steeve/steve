@@ -39,7 +39,7 @@ it("stacks the home cards in order under the greeting", async () => {
   );
 });
 
-it("reaches every Steve space from the home screen", async () => {
+it("reaches every Stevie space from the home screen", async () => {
   const view = await mount();
   const hrefs = new Set(
     [...view.querySelectorAll("a")].map((link) => link.getAttribute("href")),
@@ -56,7 +56,7 @@ it("reaches every Steve space from the home screen", async () => {
   ]) {
     expect(hrefs.has(href)).toBe(true);
   }
-  const tabs = [...view.querySelectorAll('nav[aria-label="Espaces Steve"] a')];
+  const tabs = [...view.querySelectorAll('nav[aria-label="Espaces Stevie"] a')];
   expect(tabs.map((tab) => tab.getAttribute("aria-label"))).toEqual([
     "Accueil",
     "Défis",

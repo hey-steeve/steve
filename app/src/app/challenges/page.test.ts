@@ -48,7 +48,7 @@ it("lists partner challenges and the team finder", async () => {
   expect(view.querySelectorAll(".challenges-join")).toHaveLength(4);
 });
 
-it("joins a challenge with a friend through Steve and multiplies the reward", async () => {
+it("joins a challenge with a friend through Stevie and multiplies the reward", async () => {
   const view = await mount();
   const first = view.querySelector(".challenges-join");
   if (!(first instanceof HTMLButtonElement)) throw new Error("missing join button");
@@ -72,7 +72,7 @@ it("joins a challenge with a friend through Steve and multiplies the reward", as
   expect(view.querySelectorAll(".challenges-join")).toHaveLength(3);
 });
 
-it("lets Steve find a team when you have none", async () => {
+it("lets Stevie find a team when you have none", async () => {
   const view = await mount();
   await act(async () => {
     button(view, "Trouve-moi une équipe").click();

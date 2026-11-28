@@ -112,7 +112,7 @@ function iconUrls(): string[] {
   return urls.filter((url) => url.startsWith("/icons/"));
 }
 
-it("uses the rounded Steve avatar for the browser and Apple home-screen icons", () => {
+it("uses the rounded Stevie avatar for the browser and Apple home-screen icons", () => {
   const icons = metadata.icons;
   if (icons === null || typeof icons !== "object" || Array.isArray(icons)) {
     throw new Error("missing icon metadata");

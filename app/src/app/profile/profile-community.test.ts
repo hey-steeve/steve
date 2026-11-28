@@ -46,6 +46,6 @@ it("shows challenge stats, the current challenge and past rewards", async () => 
 it("offers a referral code that works outside Alan", async () => {
   const view = await mount(createElement(ProfileInvite));
   expect(view.textContent).toContain("Même s’il n’est pas chez Alan");
-  expect(view.textContent).toContain("STEVE-7X7");
+  expect(view.textContent).toContain("STEVIE-7X7");
   expect(view.querySelector("button")?.textContent).toContain("Partager");
 });

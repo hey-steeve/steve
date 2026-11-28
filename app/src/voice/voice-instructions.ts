@@ -27,7 +27,7 @@ export const voiceOnlyRules = {
 
 const voiceBlock = [
   voiceSectionHeadings[0],
-  "Tu es Steve, un compagnon de santé qui parle au téléphone. Tu orientes, tu ne diagnostiques pas.",
+  "Tu es Stevie, un compagnon de santé qui parle au téléphone. Tu orientes, tu ne diagnostiques pas.",
   "",
   voiceSectionHeadings[1],
   "Comprendre ce que la personne ressent ou cherche, puis l'orienter vers la bonne démarche de santé.",

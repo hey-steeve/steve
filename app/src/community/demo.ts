@@ -80,7 +80,7 @@ export const demoSleepNights: readonly SleepNight[] = sleepMinutes.map((minutes,
 }));
 
 export const referral = {
-  code: "STEVE-7X7",
+  code: "STEVIE-7X7",
   berries: 50,
   invited: 2,
   joined: 1,

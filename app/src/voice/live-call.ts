@@ -38,7 +38,7 @@ export type ThreadEvent =
       readonly text: string;
       readonly final: boolean;
     }
-  // Jev said emergency: the exact sentences Steve is forced to say, in order.
+  // Jev said emergency: the exact sentences Stevie is forced to say, in order.
   | {
       readonly type: "emergency";
       readonly itemId: string;
