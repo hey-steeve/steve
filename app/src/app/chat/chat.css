@@ -207,16 +207,6 @@
   font-size: 13px;
 }
 
-.chat-starters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--safe-gap);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.chat-starters button,
 .chat-ended button {
   min-height: var(--hit-min);
   padding: 0 var(--space-3);
@@ -228,16 +218,6 @@
   font-size: 13px;
   font-weight: var(--font-weight-heading);
   cursor: pointer;
-}
-
-.chat-starters button {
-  border-color: transparent;
-  background: var(--color-indigo-50);
-  color: var(--color-indigo-700);
-}
-
-.chat-starters button:hover {
-  background: var(--color-indigo-100);
 }
 
 .chat-call-bar-copy {

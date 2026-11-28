@@ -61,6 +61,7 @@ it("puts Steve and the quick links in the home header and the greeting in the he
       button.getAttribute("aria-expanded"),
     ]);
     expect(buttons).toEqual([
+      ["Parler à Steve", "false"],
       ["Notifications, 3 nouvelles", "false"],
       ["Mon compte", "false"],
     ]);

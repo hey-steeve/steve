@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { demoUserAvatarSrc } from "../../chat/demo-user-avatar.js";
 import ChatPage from "./chat-page.js";
+import { writingField } from "./test-writing.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -33,7 +34,7 @@ it("shows the demo photo on the user message avatar", async () => {
     ),
   );
   const view = await mount();
-  const field = view.container.querySelector(".chat-field");
+  const field = writingField(view.container);
   if (!(field instanceof HTMLTextAreaElement)) {
     throw new Error("missing composer");
   }

@@ -30,7 +30,6 @@ import { DirectoryWidget } from "./directory-widget";
 import { LiveTrace, TraceSummary } from "./thinking-trace";
 import {
   HomeAppointmentCard,
-  HomeAskCard,
   HomeSpaceCard,
   HomeTiles,
   HomeTopBar,
@@ -48,10 +47,6 @@ const clientTimeoutMs = 35_000;
 const homeLeaveMs = 240;
 const keyboardOpenGap = 120;
 const nearBottomGap = 80;
-const conversationStarters = [
-  { label: "Trouver un praticien", draft: "Je voudrais trouver un praticien près de chez moi." },
-  { label: "Préparer une consultation", draft: "Peux-tu m’aider à préparer ma prochaine consultation ?" },
-];
 
 type UiMessage = { readonly voice?: true } & (
   | {
@@ -112,7 +107,8 @@ export default function ChatPage(props: {
   });
   const call = useLiveCall(onThreadEvent, callDeps);
   const callOpen = call.phase === "connecting" || call.phase === "active";
-  const empty = messages.length === 0 && !callOpen;
+  const [composing, setComposing] = useState(false);
+  const empty = messages.length === 0 && !callOpen && !composing;
   const emptyRef = useRef(empty);
   const [homeMounted, setHomeMounted] = useState(true);
   const [leaving, setLeaving] = useState(false);
@@ -129,6 +125,12 @@ export default function ChatPage(props: {
       newConversationRef.current?.focus();
     }
   }, [ended]);
+
+  useEffect(() => {
+    if (composing && messages.length === 0) {
+      fieldRef.current?.focus();
+    }
+  }, [composing, messages.length]);
 
   useEffect(() => {
     if (call.phase === "ended") {
@@ -259,6 +261,7 @@ export default function ChatPage(props: {
     setRefining(false);
     setShowTranscript(true);
     setExchange("idle");
+    setComposing(false);
     setHomeMounted(true);
     queueMicrotask(() => {
       if (backExit.current === "done") {
@@ -415,6 +418,11 @@ export default function ChatPage(props: {
     }
     setUnseenReply(false);
     setLeaving(true);
+  }
+
+  function startWriting() {
+    if (ended || callOpen || backExit.current !== "idle") return;
+    setComposing(true);
   }
 
   function finishConversation() {
@@ -690,7 +698,12 @@ export default function ChatPage(props: {
       >
         <header className={empty ? "chat-header chat-header-home" : "chat-header"}>
           {empty ? (
-            <HomeTopBar firstName={props.patientFirstName} />
+            <HomeTopBar
+              firstName={props.patientFirstName}
+              disclaimer={disclaimer}
+              onWrite={startWriting}
+              onCall={startCall}
+            />
           ) : (
             <button
               type="button"
@@ -779,28 +792,6 @@ export default function ChatPage(props: {
                 <div className="chat-home-actions">
                   <HomeSignalCard onDiscuss={() => send(sleepDiscussPrompt, false)} />
                   <HomeAppointmentCard />
-                  <HomeAskCard
-                    disclaimer={disclaimerLine}
-                    composer={composer}
-                    starters={
-                      <ul className="chat-starters" aria-label="Suggestions pour commencer">
-                        {conversationStarters.map(({ label, draft: suggestion }) => (
-                          <li key={label}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                dictation.stop();
-                                setDraft(suggestion);
-                                fieldRef.current?.focus();
-                              }}
-                            >
-                              {label}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    }
-                  />
                   <HomeChallengeCard />
                   <HomeSpaceCard />
                   <HomeUpcomingCard />
