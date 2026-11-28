@@ -29,6 +29,7 @@ import {
   warningSignExampleIl,
   warningSignHeadache,
   warningSignPair,
+  warningSignTail,
 } from "./emergency-templates.js";
 import { checkEmergencyReply } from "./eval/check.js";
 import { POST } from "./route.js";
@@ -40,8 +41,8 @@ const hackathonCanary = "test-hackathon-key-canary";
 const jevCanary = "test-jev-key-canary";
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const echo =
-  "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
-const upstreamError = "Le service de chat est indisponible. Réessayez.";
+  "[Simulated reply] You asked: De garde. I don't diagnose. In an emergency, call 15.";
+const upstreamError = "The chat service is unavailable. Try again.";
 
 const history = {
   messages: [{ role: "user", content: "De garde" }],
@@ -60,28 +61,28 @@ afterEach(() => {
 });
 
 const systemPromptRules = [
-  "Ton nom est Stevie.",
-  "Tu aides à organiser des démarches de santé.",
-  "Tu n'es pas médecin et tu ne poses jamais de diagnostic : tu orientes la personne.",
-  "Tu tutoies.",
-  "Tu es chaleureux et calme, comme un ami qui s'y connaît en santé.",
-  "Tu rassures sans minimiser : tu ne dis jamais « ce n'est rien », tu dis plutôt « on va voir ça ensemble ».",
-  "Tu ne te présentes jamais et tu ne salues pas.",
-  `Tu ne donnes le 15 que pour une vraie urgence ou quand une règle ci-dessous l'exige, c'est-à-dire des signes de gravité, une surdose, une automutilation, un danger immédiat, des pensées suicidaires ou une crise de panique avec essoufflement. S'il n'y a pas de pensées suicidaires ni de détresse psychologique, ta réponse s'ouvre exactement par ce bloc : « ${call15Now} ». Si une surdose ou une automutilation s'accompagne de pensées suicidaires ou de la détresse psychologique, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ». Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la réponse s'ouvre exactement par ce bloc : « ${call15Now} », jamais seulement une phrase conditionnelle. Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut. La phrase conditionnelle copie alors exactement « ${warningSignExampleIl} », « ${warningSignDrowsy} » ou « ${warningSignBecomesDrowsy} ». Pour une liste de signes, tu copies exactement « ${warningSignExample} », « ${warningSignPair} » ou « ${warningSignHeadache} ». Les signes sont positifs, séparés par une virgule et un espace, avec « ou » avant le dernier, et la phrase finit par « , appelle le 15 maintenant. ». Tu n'ajoutes aucun autre mot. Pour une crise de panique dont le seul signe physique est un essoufflement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ».`,
-  `Pour des pensées suicidaires sans danger aigu, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ». Pour un danger aigu, un acte en cours, une surdose, une blessure d'automutilation, un plan imminent ou des moyens à portée de main, ta réponse s'ouvre aussi exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ». Une crise de panique compte comme une détresse : avec une douleur thoracique ou un évanouissement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call15Now} », puis « ${call3114} ». Si un signe de gravité physique autre qu'un simple essoufflement, par exemple une douleur thoracique, un évanouissement, une cyanose, ${breathPersists} ou une maladie connue du cœur ou des poumons, s'accompagne de pensées suicidaires ou de détresse, et qu'il n'y a ni surdose ni automutilation, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call15Now} », puis « ${call3114} ». Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114, sans l'exiger en ouverture, et ce bloc est exactement « ${call3114} » ou « ${call3114Now} ». Si une crise de panique n'a comme signe physique qu'un essoufflement, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ». Tu ne mets jamais le 15 et le 3114 dans la même phrase. Une phrase qui nomme un numéro est exactement une phrase modèle, et rien d'autre. Un deuxième numéro va dans sa propre phrase modèle. Pour le 3114 puis le 15, tu écris « ${call3114Now} » puis « ${call15Now} ». Pour le 15 puis le 3114, tu écris « ${call15Now} » puis « ${call3114} ». Tu copies chaque phrase d'appel telle quelle, avec le point, sans guillemets. Tu écris chaque numéro d'urgence (15, 3114, SAMU, quinze) une seule fois, dans sa phrase d'appel canonique, et tu n'y reviens plus ensuite, ni avec « du 15 », ni avec « le SAMU te dira », ni avec « les instructions du 15 ».`,
-  "En urgence, la forme reste douce, mais le numéro arrive clairement et tôt.",
-  "Les règles sur le 15 et le 3114 passent avant chaque autre règle, y compris la règle sur les médicaments et la limite de 2 à 4 phrases.",
-  `Tu ne donnes jamais le 112 ni SOS Médecins. Si tu les nommes, chaque phrase de ta réponse est une phrase d'appel autorisée ou exactement « ${refusal112} », « ${refusalSos} », « ${refusalMedication} » ou « ${redirectMedication} ».`,
-  "Tu ne nommes jamais un médicament, ni une classe de médicaments, ni un principe actif, ni une dose, ni une fréquence, ni une durée.",
-  "Si la personne nomme un médicament, tu ne le confirmes pas, tu ne le compares pas et tu ne l'ajustes pas.",
-  "Pour toute question sur un médicament, tu orientes vers un pharmacien ou le médecin traitant.",
-  `Si on te demande un médicament, y compris un médicament sans ordonnance, par exemple du Doliprane pour la fièvre, tu dis exactement « ${refusalMedication} », puis exactement « ${redirectMedication} ». Si les règles du 15 ou du 3114 s'appliquent, tu les suis avant cette phrase.`,
-  "Pour une question non urgente la nuit ou le week-end, tu orientes vers le médecin traitant ou une pharmacie de garde.",
-  "Tu réponds en français, comme dans une conversation, en 2 à 4 phrases courtes, surtout à l'oral.",
-  "Tu poses une seule question à la fois.",
-  "Tu n'utilises une courte liste que si des étapes sont vraiment nécessaires.",
-  "Pas de titre, pas de gras, pas d'italique.",
-  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation.",
+  "Your name is Stevie.",
+  "You help people organize their healthcare.",
+  "You are not a doctor and you never diagnose: you point the person in the right direction.",
+  "You speak to the person informally, as a friend would.",
+  "You are warm and calm, like a friend who knows about health.",
+  "You reassure without downplaying: you never say “it's nothing”, you say “let's look at this together” instead.",
+  "You never introduce yourself and you never greet.",
+  `You give 15 only for a real emergency or when a rule below requires it, meaning warning signs, an overdose, self-harm, immediate danger, suicidal thoughts or a panic attack with shortness of breath. If there are no suicidal thoughts and no psychological distress, your reply opens with exactly this block: “${call15Now}”. If an overdose or self-harm comes with suicidal thoughts or psychological distress, your reply opens with exactly these two blocks, in this order: “${call3114Now}” then “${call15Now}”. If the message already describes warning signs, for example a baby who has a fever, who is drowsy or who has trouble breathing, the reply opens with exactly this block: “${call15Now}” and never with only a conditional sentence. For a common symptom like a child's fever, you name 15 only next to clear warning signs, for example trouble breathing or unusual drowsiness, never by default. The conditional sentence then copies exactly “${warningSignExampleIl}”, “${warningSignDrowsy}” or “${warningSignBecomesDrowsy}”. For a list of signs, you copy exactly “${warningSignExample}”, “${warningSignPair}” or “${warningSignHeadache}”. The signs are positive, separated by a comma and a space, with “or” before the last one, and the sentence ends with “${warningSignTail}”. You add no other word. For a panic attack whose only physical sign is shortness of breath, your reply opens with exactly these two blocks, in this order: “${call3114Now}” then “${call15Now}”.`,
+  `For suicidal thoughts without acute danger, your reply opens with exactly these two blocks, in this order: “${call3114Now}” then “${call15Now}”. For acute danger, an act in progress, an overdose, a self-harm injury, an imminent plan or means within reach, your reply also opens with exactly these two blocks, in this order: “${call3114Now}” then “${call15Now}”. A panic attack counts as distress: with chest pain or fainting, your reply opens with exactly these two blocks, in this order: “${call15Now}” then “${call3114}”. If a physical warning sign other than simple shortness of breath, for example chest pain, fainting, cyanosis, ${breathPersists} or a known heart or lung disease, comes with suicidal thoughts or distress, and there is no overdose and no self-harm, your reply opens with exactly these two blocks, in this order: “${call15Now}” then “${call3114}”. Intense anxiety or a panic attack, with no suicidal thought and no danger, may mention 3114 without requiring it as the opening, and that block is exactly “${call3114}” or “${call3114Now}”. If a panic attack has shortness of breath as its only physical sign, your reply opens with exactly these two blocks, in this order: “${call3114Now}” then “${call15Now}”. You never put 15 and 3114 in the same sentence. A sentence that names a number is exactly a template sentence, and nothing else. A second number goes in its own template sentence. For 3114 then 15, you write “${call3114Now}” then “${call15Now}”. For 15 then 3114, you write “${call15Now}” then “${call3114}”. You copy each call sentence as is, with the period, without quotation marks. You write each emergency number (15, 3114, SAMU, fifteen) only once, in its canonical call sentence, and you never come back to it afterwards, not with “from 15”, not with “the SAMU will tell you”, not with “the instructions from 15”.`,
+  "In an emergency, the tone stays gentle, but the number comes clearly and early.",
+  "The rules about 15 and 3114 come before every other rule, including the medication rule and the 2 to 4 sentence limit.",
+  `You never give 112 or SOS Médecins. If you name them, every sentence of your reply is an allowed call sentence or exactly “${refusal112}”, “${refusalSos}”, “${refusalMedication}” or “${redirectMedication}”.`,
+  "You never name a medication, a class of medication, an active ingredient, a dose, a frequency or a duration.",
+  "If the person names a medication, you do not confirm it, compare it or adjust it.",
+  "For any question about a medication, you point the person to a pharmacist or their GP.",
+  `If someone asks you for a medication, including an over-the-counter one, for example Doliprane for a fever, you say exactly “${refusalMedication}” then exactly “${redirectMedication}”. If the 15 or 3114 rules apply, you follow them before that sentence.`,
+  "For a non-urgent question at night or on the weekend, you point the person to their GP or an on-duty pharmacy.",
+  "You always reply in English, even when the person writes in another language, like in a conversation, in 2 to 4 short sentences, especially out loud.",
+  "You ask only one question at a time.",
+  "You use a short list only if steps are truly needed.",
+  "No headings, no bold, no italics.",
+  "When in doubt, you ask one short question or you recommend a consultation.",
 ] as const;
 
 it("pins every system prompt rule as a full sentence", () => {
@@ -97,8 +98,8 @@ it("accepts the medication refusal after a 112 refusal", () => {
 });
 
 const forbiddenPromptAdditions = [
-  "Dans le doute, appelle le 15.",
-  "appelle le 116 117",
+  "When in doubt, call 15.",
+  "call 116 117",
 ] as const;
 
 const negationWindow = 32;
@@ -108,7 +109,7 @@ function suicidalThoughtsRule(prompt: string): string {
     .split("\n")
     .find((line) =>
       line.startsWith(
-        "Pour des pensées suicidaires sans danger aigu, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre :",
+        "For suicidal thoughts without acute danger, your reply opens with exactly these two blocks, in this order:",
       ),
     );
   if (rule === undefined) {
@@ -117,7 +118,7 @@ function suicidalThoughtsRule(prompt: string): string {
   return rule;
 }
 
-const suicidalOpener = `Pour des pensées suicidaires sans danger aigu, ta réponse s'ouvre exactement par ces deux blocs, dans cet ordre : « ${call3114Now} », puis « ${call15Now} ».`;
+const suicidalOpener = `For suicidal thoughts without acute danger, your reply opens with exactly these two blocks, in this order: “${call3114Now}” then “${call15Now}”.`;
 
 function sentenceAfterSuicidalOpener(prompt: string): string {
   const sentences = splitPromptLine(suicidalThoughtsRule(prompt));
@@ -132,12 +133,14 @@ function sentenceAfterSuicidalOpener(prompt: string): string {
   return next;
 }
 
+// Prompt sentences that put a negation near 15 or 3114 on purpose. Each one was
+// read by hand: it limits how a number is repeated or combined and never tells
+// Stevie to withhold 15 or 3114.
 const approvedEmergencySentences = [
-  "Tu ne donnes le 15 que pour une vraie urgence ou quand une règle ci-dessous l'exige, c'est-à-dire des signes de gravité, une surdose, une automutilation, un danger immédiat, des pensées suicidaires ou une crise de panique avec essoufflement.",
-  "Pour un symptôme courant comme la fièvre d'un enfant, tu ne nommes le 15 qu'à côté de signes de gravité clairs, par exemple une difficulté à respirer ou une somnolence inhabituelle, jamais par défaut.",
-  `Si le message décrit déjà des signes de gravité, par exemple un bébé qui a de la fièvre, qui est somnolent ou qui a du mal à respirer, la réponse s'ouvre exactement par ce bloc : « ${call15Now} », jamais seulement une phrase conditionnelle.`,
-  `Une angoisse intense ou une crise de panique, sans pensée suicidaire et sans danger, peut citer le 3114, sans l'exiger en ouverture, et ce bloc est exactement « ${call3114} » ou « ${call3114Now} ».`,
-  "Tu ne mets jamais le 15 et le 3114 dans la même phrase.",
+  `If the message already describes warning signs, for example a baby who has a fever, who is drowsy or who has trouble breathing, the reply opens with exactly this block: “${call15Now}” and never with only a conditional sentence.`,
+  `Intense anxiety or a panic attack, with no suicidal thought and no danger, may mention 3114 without requiring it as the opening, and that block is exactly “${call3114}” or “${call3114Now}”.`,
+  "You never put 15 and 3114 in the same sentence.",
+  "You write each emergency number (15, 3114, SAMU, fifteen) only once, in its canonical call sentence, and you never come back to it afterwards, not with “from 15”, not with “the SAMU will tell you”, not with “the instructions from 15”.",
 ] as const;
 
 const discouragingEmergencyVariants = [
@@ -178,6 +181,32 @@ const discouragingEmergencyVariants = [
   "ne pas appeler le 15",
   "e\u0301vite le 15",
   "ne nomme jamais le 3114",
+  "avoid 15",
+  "avoid 3114",
+  "avoid the samu",
+  "avoid\u00A015",
+  "don\u2019t call 15",
+  "don't call 3114",
+  "do not call the samu",
+  "don't give 15",
+  "don't give 3114",
+  "don't mention 15",
+  "do not mention 3114",
+  "without mentioning 15",
+  "without mentioning the samu",
+  "avoid calling 15",
+  "avoid calling 3114",
+  "do not dial 15",
+  "never give 3114",
+  "never the samu",
+  "you never give 15 by default",
+  "not 15 by default",
+  "not 3114 by default",
+  "without naming 15",
+  "do not call",
+  "never name 3114",
+  "15 isn't needed",
+  "no need for 3114",
 ] as const;
 
 function normalizeEmergencyWording(text: string): string {
@@ -187,7 +216,7 @@ function normalizeEmergencyWording(text: string): string {
     .replace(/\p{M}/gu, "")
     .replace(/\p{Z}/gu, " ")
     .replace(/[\u2018\u2019\u201A\u201B\u02BC\u2032\uFF07\u00B4]/g, "'")
-    .toLocaleLowerCase("fr")
+    .toLocaleLowerCase("en")
     .replace(/ +/g, " ")
     .trim();
 }
@@ -206,11 +235,11 @@ function splitPromptLine(line: string): string[] {
   let quote = 0;
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
-    if (char === "«") {
+    if (char === "«" || char === "“") {
       quote += 1;
       continue;
     }
-    if (char === "»" && quote > 0) {
+    if ((char === "»" || char === "”") && quote > 0) {
       quote -= 1;
       continue;
     }
@@ -239,10 +268,26 @@ function splitPromptLine(line: string): string[] {
   return sentences;
 }
 
-function negationNearNumber(normalized: string): boolean {
+// The approved call blocks are reviewed copy. "take no risks. Call 15 now" sits
+// inside call15Now, so each block reads as its bare number before the scan.
+function withCallBlocksAsNumbers(normalized: string): string {
+  let text = normalized;
+  for (const [block, number] of [
+    [call3114Now, "3114"],
+    [call15Now, "15"],
+    [call3114, "3114"],
+  ] as const) {
+    text = text.replaceAll(normalizeEmergencyWording(block), number);
+  }
+  return text;
+}
+
+function negationNearNumber(wording: string): boolean {
+  const normalized = withCallBlocksAsNumbers(wording);
   const numbers =
     /(?<![0-9])3114(?![0-9])|(?<![0-9])15(?![0-9])|(?<![a-z])samu(?![a-z])/g;
-  const negation = /(?<![a-z])(?:ne|pas|jamais|sans)(?![a-z])|n'|(?<![a-z])evit/;
+  const negation =
+    /(?<![a-z])(?:ne|pas|jamais|sans|not|no|never|without|nor|neither)(?![a-z])|n'|n't(?![a-z])|(?<![a-z])(?:evit|avoid)/;
   for (const match of normalized.matchAll(numbers)) {
     const at = match.index;
     const token = match[0];
@@ -273,7 +318,7 @@ function discouragesEmergencyNumber(
         continue;
       }
       const normalized = normalizeEmergencyWording(sentence);
-      if (/(?<![a-z])ne pas appeler(?![a-z])/.test(normalized) || negationNearNumber(normalized)) {
+      if (/(?<![a-z])(?:ne pas appeler|do not call|don't call)(?![a-z])/.test(normalized) || negationNearNumber(normalized)) {
         return true;
       }
     }
@@ -291,7 +336,7 @@ function sentenceOnlyDiscouragesEmergencyNumber(
     if (approved.has(normalized)) {
       continue;
     }
-    if (/(?<![a-z])ne pas appeler(?![a-z])/.test(normalized) || negationNearNumber(normalized)) {
+    if (/(?<![a-z])(?:ne pas appeler|do not call|don't call)(?![a-z])/.test(normalized) || negationNearNumber(normalized)) {
       return true;
     }
   }
@@ -321,7 +366,7 @@ it("rejects a system prompt that adds a doubt default or 116 117", () => {
   expect(discouragesEmergencyNumber(consultGuidance.text)).toBe(false);
   expect(discouragesEmergencyNumber(needInfoGuidance.text)).toBe(false);
   expect(
-    discouragesEmergencyNumber("Tu ne donnes jamais le 112 ni SOS Médecins."),
+    discouragesEmergencyNumber("You never give 112 or SOS Médecins."),
   ).toBe(false);
 });
 
@@ -350,11 +395,11 @@ it("flags discouraging 15, 3114, or samu wording once that wording is injected",
 
 it("requires 15 in the sentence after suicidal thoughts without acute danger", () => {
   const next = sentenceAfterSuicidalOpener(systemPrompt);
-  expect(next).toContain(`« ${call3114Now} »`);
-  expect(next).toContain(`« ${call15Now} »`);
-  expect(next).not.toContain("n'est pas exigé");
-  expect(systemPrompt).not.toContain("Le 15 n'est pas exigé.");
-  const guidanceLike = "Pose une question courte. Le 15 n'est pas exigé.";
+  expect(next).toContain(`“${call3114Now}”`);
+  expect(next).toContain(`“${call15Now}”`);
+  expect(next).not.toContain("is not required");
+  expect(systemPrompt).not.toContain("15 is not required.");
+  const guidanceLike = "Ask one short question. 15 is not required.";
   expect(discouragesEmergencyNumber(guidanceLike)).toBe(true);
   expect(discouragesEmergencyNumber(consultGuidance.text)).toBe(false);
   expect(discouragesEmergencyNumber(needInfoGuidance.text)).toBe(false);
@@ -362,17 +407,17 @@ it("requires 15 in the sentence after suicidal thoughts without acute danger", (
 });
 
 const doubtClause =
-  "Dans le doute, tu poses une seule question courte ou tu recommandes une consultation.";
+  "When in doubt, you ask one short question or you recommend a consultation.";
 
 const chestPainDiscouragement =
-  "Pour une douleur thoracique, tu dis « Appelle le 3114. », pas le 15.";
+  "For chest pain, you say “Call 3114.”, not 15.";
 
 function guillemetsBalanced(sentence: string): boolean {
   let depth = 0;
   for (const char of sentence) {
-    if (char === "«") {
+    if (char === "«" || char === "“") {
       depth += 1;
-    } else if (char === "»") {
+    } else if (char === "»" || char === "”") {
       if (depth === 0) {
         return false;
       }
@@ -403,7 +448,7 @@ it("flags a quoted 3114 line that says not to call 15", () => {
 });
 
 const chestPainFifteenCopy =
-  "Pour une douleur thoracique, rassure la personne. Le 15 n'est pas exigé.";
+  "For chest pain, reassure the person. 15 is not required.";
 
 it("flags an allowed 15 sentence copied onto another rule line", () => {
   expect(discouragesEmergencyNumber(chestPainFifteenCopy, approvedEmergencySentences)).toBe(
@@ -416,7 +461,7 @@ it("flags an allowed 15 sentence copied onto another rule line", () => {
     ),
   ).toBe(true);
   expect(
-    discouragesEmergencyNumber(chestPainFifteenCopy, ["Le 15 n'est pas exigé."]),
+    discouragesEmergencyNumber(chestPainFifteenCopy, ["15 is not required."]),
   ).toBe(true);
   expect(
     discouragesEmergencyNumber(suicidalThoughtsRule(systemPrompt), approvedEmergencySentences),
@@ -425,7 +470,7 @@ it("flags an allowed 15 sentence copied onto another rule line", () => {
     sentenceOnlyDiscouragesEmergencyNumber(chestPainFifteenCopy, approvedEmergencySentences),
   ).toBe(true);
   expect(
-    sentenceOnlyDiscouragesEmergencyNumber(chestPainFifteenCopy, ["Le 15 n'est pas exigé."]),
+    sentenceOnlyDiscouragesEmergencyNumber(chestPainFifteenCopy, ["15 is not required."]),
   ).toBe(false);
 });
 
@@ -694,7 +739,7 @@ it("rejects an oversized body before parsing it", async () => {
     }),
   );
   expect(response.status).toBe(413);
-  expect(await response.json()).toEqual({ error: "Requête trop volumineuse." });
+  expect(await response.json()).toEqual({ error: "Request too large." });
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
@@ -707,7 +752,7 @@ it("still parses a body that is exactly at the byte cap", async () => {
     }),
   );
   expect(response.status).toBe(400);
-  expect(await response.json()).toEqual({ error: "JSON invalide." });
+  expect(await response.json()).toEqual({ error: "Invalid JSON." });
 });
 
 it("trims the OpenRouter key and ignores a blank one", async () => {
@@ -746,7 +791,7 @@ it("requires a JSON content type", async () => {
   const missingResponse = await POST(missing);
   expect(missingResponse.status).toBe(415);
   expect(await missingResponse.json()).toEqual({
-    error: "Type de contenu non pris en charge.",
+    error: "Unsupported content type.",
   });
 
   const plain = await POST(
@@ -813,7 +858,7 @@ it("rejects a history that is not a user and assistant alternation", async () =>
   for (const messages of rejected) {
     const response = await post({ messages });
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Requête invalide." });
+    expect(await response.json()).toEqual({ error: "Invalid request." });
   }
   const accepted = await post({
     messages: [
@@ -831,7 +876,7 @@ it("caps a long mock reply and accepts that reply on the next turn", async () =>
   expect(first.status).toBe(200);
   const payload = await first.json();
   expect(payload).toMatchObject({ mocked: true, model: "mock" });
-  expect(payload.reply.startsWith("[Réponse simulée] ")).toBe(true);
+  expect(payload.reply.startsWith("[Simulated reply] ")).toBe(true);
   expect(payload.reply).toHaveLength(chatRequestLimits.maxMessageChars);
 
   const follow = await post({
@@ -896,13 +941,13 @@ it("rejects an assistant turn longer than the content cap", async () => {
     ],
   });
   expect(over.status).toBe(400);
-  expect(await over.json()).toEqual({ error: "Requête invalide." });
+  expect(await over.json()).toEqual({ error: "Invalid request." });
 });
 
 it("rejects an invalid message list", async () => {
   const response = await post({ messages: [] });
   expect(response.status).toBe(400);
-  expect(await response.json()).toEqual({ error: "Requête invalide." });
+  expect(await response.json()).toEqual({ error: "Invalid request." });
 });
 
 it("rejects a body that is not JSON", async () => {
@@ -915,7 +960,7 @@ it("rejects a body that is not JSON", async () => {
     }),
   );
   expect(response.status).toBe(400);
-  expect(await response.json()).toEqual({ error: "JSON invalide." });
+  expect(await response.json()).toEqual({ error: "Invalid JSON." });
 });
 
 const labelNames = ["emergency", "consult", "self-care", "need-info"] as const;
@@ -1353,7 +1398,7 @@ it("sends only user turns to classify", async () => {
   const response = await post({
     messages: [
       { role: "user", content: "J'ai mal à la gorge." },
-      { role: "assistant", content: "Appelle le 15 maintenant. Appelle le 3114 maintenant." },
+      { role: "assistant", content: "Call 15 now. Call 3114 now." },
       { role: "user", content: "Depuis ce matin." },
     ],
   });

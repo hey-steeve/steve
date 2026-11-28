@@ -6,7 +6,7 @@ import {
   formatEvalSummary,
 } from "./classify.ts";
 
-const upstreamError = "Le service de chat est indisponible. Réessayez.";
+const upstreamError = "The chat service is unavailable. Try again.";
 
 it("classifies an upstream route error as an error, not a scored reply", () => {
   expect(classifyRouteResponse(502, { error: upstreamError })).toEqual({
@@ -32,14 +32,14 @@ it("keeps a live reply and a canned reply out of the error class", () => {
   });
   expect(
     classifyRouteResponse(200, {
-      reply: "[Réponse simulée] Vous avez demandé : bonjour",
+      reply: "[Simulated reply] You asked: bonjour",
       mocked: true,
       model: "mock",
     }),
   ).toEqual({ kind: "canned" });
   expect(
     classifyRouteResponse(200, {
-      reply: "[Réponse simulée] Vous avez demandé : bonjour",
+      reply: "[Simulated reply] You asked: bonjour",
     }),
   ).toEqual({ kind: "canned" });
 });

@@ -5,8 +5,8 @@ import { POST } from "./route.js";
 
 const canary = "test-openrouter-key-canary";
 const echo =
-  "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
-const upstreamError = "Le service de chat est indisponible. Réessayez.";
+  "[Simulated reply] You asked: De garde. I don't diagnose. In an emergency, call 15.";
+const upstreamError = "The chat service is unavailable. Try again.";
 const history = {
   messages: [{ role: "user", content: "De garde" }],
 };

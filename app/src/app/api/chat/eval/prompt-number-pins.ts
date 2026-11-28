@@ -68,11 +68,12 @@ export type SentenceSplit = {
 };
 
 // Sentence rule: a sentence ends at a line break, or at ".", "!" or "?" that is followed
-// by whitespace or the end of the text. A mark inside « … » never ends a sentence, so
-// a quoted template such as « Appelle le 15 maintenant. » stays in its sentence. A
+// by whitespace or the end of the text. A mark inside “ … ” (or « … ») never ends a
+// sentence, so a quoted template such as “Call 15 now.” stays in its sentence. A
 // line break is any character of lineBreakChars, the set the normalization turns into
-// "\n". It always ends a sentence and resets the quote depth. A « still open at a line
-// break or at the end of the text, and a » with no open «, are reported as problems,
+// "\n". It always ends a sentence and resets the quote depth. An opening quote still
+// open at a line break or at the end of the text, and a closing quote with no open
+// quote, are reported as problems,
 // because the quote rule then hides or invents sentence boundaries. Whitespace between
 // sentences belongs to no sentence. Every character of a sentence sits in exactly one
 // range, so a detected number is either inside one range or crosses a boundary.
@@ -92,7 +93,7 @@ export function splitSentences(text: string): SentenceSplit {
   const closeLine = (): void => {
     const [outermost] = open;
     if (outermost !== undefined) {
-      problems.push(`unclosed « at index ${outermost}: "${excerptAt(text, outermost)}"`);
+      problems.push(`unclosed ${text[outermost] ?? ""} at index ${outermost}: "${excerptAt(text, outermost)}"`);
     }
     open.length = 0;
   };
@@ -104,13 +105,13 @@ export function splitSentences(text: string): SentenceSplit {
       closeLine();
       continue;
     }
-    if (char === "«") {
+    if (char === "«" || char === "“") {
       open.push(index);
       continue;
     }
-    if (char === "»") {
+    if (char === "»" || char === "”") {
       if (open.length === 0) {
-        problems.push(`stray » at index ${index}: "${excerptAt(text, index)}"`);
+        problems.push(`stray ${char} at index ${index}: "${excerptAt(text, index)}"`);
       }
       open.pop();
       continue;

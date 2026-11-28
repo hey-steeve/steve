@@ -17,7 +17,7 @@ Ten features. The detail is in each README. The common contracts are in the [sha
 
 - Never diagnose.
 - The patient-facing 15 and 3114 wording stays in `app/src/app/api/chat/system-prompt.ts`. Triage carries the numbers as call data. Steve does not route to 112 or SOS Médecins.
-- `app/src/app/api/chat/route.test.ts` rejects `Dans le doute, appelle le 15.` and `appelle le 116 117`. The same file checks the system prompt and each triage guidance string with one matcher. The matcher applies NFC, strips accents, turns Unicode spaces into a space, turns apostrophes into `'`, and lowercases. It then flags `ne`, `n'`, `pas`, `jamais`, `sans`, or a word starting with `evit` within 32 characters of `15`, `3114`, or `samu`. It also flags `ne pas appeler`. Approved sentences in the system prompt are allowlisted. The live prompt passes. Both guidance strings pass. An injected variant fails.
+- `app/src/app/api/chat/route.test.ts` rejects `When in doubt, call 15.` and `call 116 117`. The same file checks the system prompt and each triage guidance string with one matcher. The matcher applies NFC, strips accents, turns Unicode spaces into a space, turns apostrophes into `'`, and lowercases. It then flags `ne`, `n'`, `pas`, `jamais`, `sans`, or a word starting with `evit` within 32 characters of `15`, `3114`, or `samu`. It also flags `ne pas appeler`. Approved sentences in the system prompt are allowlisted. The live prompt passes. Both guidance strings pass. An injected variant fails.
 - Steve does not book a 15 or 3114 referral.
 - Nothing enters the agenda without confirmation from the practice.
 - Reminders cover only appointments that are in the agenda.

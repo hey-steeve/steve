@@ -8,8 +8,11 @@ import {
   refusal112,
   refusalMedication,
   refusalSos,
+  clauseLead,
+  nounLead,
+  theyLead,
   warningNegations,
-  warningSignLeadIns,
+  warningSignClauses,
   warningSignTail,
   warningSigns,
   warningSignsIl,
@@ -65,38 +68,41 @@ const numberReason = "numbers";
 const sosReason = "contains SOS Médecins";
 const emergencyReason = "contains 112";
 
-// The list is incomplete. A name outside it, with no dose and no "pour dormir", still passes.
+// The list is incomplete. A name outside it, with no dose, still passes. French
+// brand names stay because the users live in France.
 const medicationDrug =
-  /(?<![\p{L}\p{N}])(?:doliprane|dafalgan|paracetamol|ibuprofene|aspirine|xanax|lexomil|valium|temesta|stilnox|imovane|zopiclone|zolpidem|alprazolam|bromazepam|diazepam|lorazepam|somniferes?|anxiolytiques?|antidepresseurs?|benzodiazepines?|hypnotiques?|spasfon)(?![\p{L}\p{N}])/u;
+  /(?<![\p{L}\p{N}])(?:doliprane|dafalgan|efferalgan|paracetamol|acetaminophen|tylenol|ibuprofen|advil|nurofen|aspirin|xanax|lexomil|valium|temesta|stilnox|imovane|ambien|zopiclone|zolpidem|alprazolam|bromazepam|diazepam|lorazepam|melatonin|sleeping pills?|sleeping tablets?|painkillers?|anxiolytics?|antidepressants?|benzodiazepines?|benzos?|hypnotics?|spasfon)(?![\p{L}\p{N}])/u;
 
 const medicationDose =
-  /(?<![\p{L}\p{N}])\d+(?:[.,]\d+)?\s*(?:mg|ml|mcg|µg)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])(?:\d+|un|une|deux|trois|quatre)\s+(?:comprimes?|cachets?|gelules?|gouttes?)(?![\p{L}\p{N}])/u;
+  /(?<![\p{L}\p{N}])\d+(?:[.,]\d+)?\s*(?:mg|ml|mcg|µg)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])(?:\d+|a|an|one|two|three|four|half a)\s+(?:pills?|tablets?|capsules?|caplets?|drops?|doses?)(?![\p{L}\p{N}])/u;
 
+// "you take" and "do you usually take" describe; they do not recommend.
 const imperativeVerb =
-  /(?<![\p{L}\p{N}])(?<!(?:tu|vous) )(?:prends|prenez|avale|avalez)(?!-(?:tu|vous))(?![\p{L}\p{N}])/u;
+  /(?<![\p{L}\p{N}])(?<!(?:you|they|i|we|he|she)(?: \p{L}+ly)? )(?:take|swallow|try)(?![\p{L}\p{N}])/u;
 
-const permissionPrendre =
-  /(?<![\p{L}\p{N}])(?:tu peux|n'hesite pas a) prendre(?![\p{L}\p{N}])/u;
+const permissionTake =
+  /(?<![\p{L}\p{N}])(?:you can|you could|you may|you might|feel free to|don't hesitate to) (?:take|try)(?![\p{L}\p{N}])/u;
 
 const reassurancePhrase =
-  /(?<![\p{L}\p{N}])(?:n'hesite pas|ne t'inquiete pas|ne t'en fais pas)(?![\p{L}\p{N}])/u;
+  /(?<![\p{L}\p{N}])(?:don't hesitate|don't worry|no worries)(?![\p{L}\p{N}])/u;
 
-const neMarker = /(?<![\p{L}\p{N}])n(?:e(?![\p{L}\p{N}])|')/u;
-
-const negationCompleter =
-  /(?<![\p{L}\p{N}])(?:pas|rien|plus|jamais|aucunes?|aucuns?|ni)(?![\p{L}\p{N}])/u;
+// English puts the negation right before the verb, with at most one word
+// between: "don't take", "never take", "you can't take", "no need to take".
+const negationBeforeVerb =
+  /(?<![\p{L}\p{N}])(?:don't|do not|doesn't|does not|can't|cannot|never|not|shouldn't|should not|mustn't|must not|no need to|don't need to|do not need to|don't have to|do not have to)\s+(?:\p{L}+\s+)?$/u;
 
 const fewWords = 4;
 
 const clauseBoundaries = [
-  { token: ", et aussi ", carry: true },
-  { token: " et aussi ", carry: true },
-  { token: ", et ", carry: true },
-  { token: ", puis ", carry: true },
-  { token: " puis ", carry: true },
-  { token: " et ", carry: true },
-  { token: " mais ", carry: false },
-  { token: " donc ", carry: false },
+  { token: ", and also ", carry: true },
+  { token: " and also ", carry: true },
+  { token: ", and ", carry: true },
+  { token: ", then ", carry: true },
+  { token: " then ", carry: true },
+  { token: " and ", carry: true },
+  { token: " or ", carry: true },
+  { token: " but ", carry: false },
+  { token: " so ", carry: false },
   { token: ";", carry: false },
   { token: ":", carry: false },
   { token: ", ", carry: false },
@@ -107,9 +113,9 @@ type VerbSpan = {
   readonly end: number;
 };
 
-// "Prends du zaleplon ce soir." still passes. Zaleplon is outside the list.
-// "Est-ce que tu veux un somnifère ? Prends-en un." still passes. The drug is in the sentence before the verb.
-// "Prends la dose habituelle de ton somnifère." still passes. The drug sits past the 4-word window.
+// "Take some zaleplon tonight." still passes. Zaleplon is outside the list.
+// "Do you want a sleeping pill? Take one." still passes. The drug is in the sentence before the verb.
+// "Take your usual dose of that old sleeping pill." still passes. The drug sits past the 4-word window.
 function recommendsMedication(reply: string): boolean {
   const folded = foldMedicationText(reply);
   return medicationSentences(folded).some((sentence) =>
@@ -234,7 +240,7 @@ function clauseRecommends(conjuncts: readonly string[]): boolean {
 }
 
 function recommendingVerb(clause: string): VerbSpan | undefined {
-  const permission = permissionPrendre.exec(clause);
+  const permission = permissionTake.exec(clause);
   const imperative = imperativeVerb.exec(clause);
   let match = permission;
   if (match === null || (imperative !== null && imperative.index < match.index)) {
@@ -248,84 +254,62 @@ function recommendingVerb(clause: string): VerbSpan | undefined {
 
 function verbIsNegated(clause: string, verb: VerbSpan): boolean {
   const stripped = stripReassurance(clause);
-  return (
-    neMarker.test(stripped.slice(0, verb.start)) && negationCompleter.test(stripped.slice(verb.end))
-  );
+  return negationBeforeVerb.test(stripped.slice(0, verb.start));
 }
 
 function objectConjunctIsNegated(text: string): boolean {
-  const stripped = dropLeadingAussi(stripReassurance(text).trim());
-  if (
-    /^(?:surtout pas|aucunes|aucuns|aucune|aucun|jamais|plus|sans|pas|ni)(?![\p{L}\p{N}])/u.test(
-      stripped,
-    )
-  ) {
-    return true;
-  }
-  if (!/^(?:ne(?![\p{L}\p{N}])|n')/u.test(stripped)) {
-    return false;
-  }
-  return negationCompleter.test(stripped);
+  const stripped = dropLeadingAlso(stripReassurance(text).trim());
+  return /^(?:especially not|certainly not|not|no|never|without|nor|neither|none)(?![\p{L}\p{N}])/u.test(
+    stripped,
+  );
 }
 
 const objectDeterminers = new Set([
-  "le",
-  "la",
-  "les",
-  "l'",
-  "un",
-  "une",
-  "des",
-  "du",
-  "de",
-  "d'",
-  "au",
-  "aux",
-  "mon",
-  "ma",
-  "mes",
-  "ton",
-  "ta",
-  "tes",
-  "son",
-  "sa",
-  "ses",
-  "notre",
-  "nos",
-  "votre",
-  "vos",
-  "leur",
-  "leurs",
-  "aucun",
-  "aucune",
-  "aucuns",
-  "aucunes",
-  "deux",
-  "trois",
-  "quatre",
-  "cinq",
+  "the",
+  "a",
+  "an",
+  "some",
+  "any",
+  "more",
+  "my",
+  "your",
+  "his",
+  "her",
+  "its",
+  "our",
+  "their",
+  "this",
+  "that",
+  "these",
+  "those",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
   "six",
-  "sept",
-  "huit",
-  "neuf",
-  "dix",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "half",
 ]);
 
-function dropLeadingAussi(text: string): string {
-  return text.replace(/^aussi(?![\p{L}\p{N}])\s+/u, "");
+function dropLeadingAlso(text: string): string {
+  return text.replace(/^also(?![\p{L}\p{N}])\s+/u, "");
 }
 
-// "aucun" is a determiner, so a false objectConjunctIsNegated still flags "aucun somnifère".
+// A conjunct that opens on a determiner, a number or a listed drug carries the verb.
 function conjunctStartsWithObject(text: string): boolean {
-  const stripped = dropLeadingAussi(stripReassurance(text).trim());
-  const token = /^(?:l'|d'|\d+(?:[.,]\d+)?|\p{L}+)/u.exec(stripped)?.[0];
+  const stripped = dropLeadingAlso(stripReassurance(text).trim());
+  const token = /^(?:\d+(?:[.,]\d+)?|\p{L}+)/u.exec(stripped)?.[0];
   if (token === undefined) {
     return false;
   }
   if (/^\d/u.test(token)) {
     return true;
   }
-  return objectDeterminers.has(token);
+  return objectDeterminers.has(token) || medicationDrug.exec(stripped)?.index === 0;
 }
 
 function stripReassurance(clause: string): string {
@@ -339,7 +323,7 @@ function targetWithinFewWords(afterVerb: string): boolean {
   return window.length > 0 && drugOrDose(window);
 }
 
-// A "boîte de <drug>" names the box to show rescuers. It is not a dose to take.
+// A "box of <drug>" names the box to show rescuers. It is not a dose to take.
 function drugOrDose(text: string): boolean {
   return medicationDose.test(text) || drugOutsideBox(text);
 }
@@ -348,7 +332,7 @@ function drugOutsideBox(text: string): boolean {
   const pattern = new RegExp(medicationDrug.source, "gu");
   for (const match of text.matchAll(pattern)) {
     const start = match.index ?? 0;
-    if (/boite de $/u.test(text.slice(0, start))) {
+    if (/(?:box|pack|packet|bottle) of $/u.test(text.slice(0, start))) {
       continue;
     }
     return true;
@@ -680,8 +664,8 @@ function prefixOk(
   return true;
 }
 
-// A block is whole only if its last sentence ends its punctuation run: "toi..."
-// is not "toi.", even though the extra dots split into pieces of their own.
+// A block is whole only if its last sentence ends its punctuation run: "you..."
+// is not "you.", even though the extra dots split into pieces of their own.
 function startsWithBlock(
   sentences: readonly string[],
   runs: readonly boolean[],
@@ -861,8 +845,20 @@ function scan(text: string, flexible: boolean): Span[] {
       /(?<!\p{L})trois[^\p{L}\p{N}]*mille[^\p{L}\p{N}]*cent[^\p{L}\p{N}]*quatorze(?!\p{L})/gu,
       "3114",
     );
+    collect(
+      spans,
+      text,
+      /(?<!\p{L})(?:three[^\p{L}\p{N}]*one[^\p{L}\p{N}]*one[^\p{L}\p{N}]*four|thirty[^\p{L}\p{N}]*one[^\p{L}\p{N}]*fourteen|three[^\p{L}\p{N}]*thousand[^\p{L}\p{N}]*(?:one[^\p{L}\p{N}]*)?hundred[^\p{L}\p{N}]*(?:and[^\p{L}\p{N}]*)?fourteen)(?!\p{L})/gu,
+      "3114",
+    );
     collect(spans, text, /(?<![0-9])3[^\p{L}\p{N}]*1[^\p{L}\p{N}]*1[^\p{L}\p{N}]*4(?![0-9])/gu, "3114");
     collect(spans, text, /(?<!\p{L})cent[^\p{L}\p{N}]*douze(?!\p{L})/gu, "112");
+    collect(
+      spans,
+      text,
+      /(?<!\p{L})(?:one[^\p{L}\p{N}]*one[^\p{L}\p{N}]*two|one[^\p{L}\p{N}]*twelve|(?:one[^\p{L}\p{N}]*)?hundred[^\p{L}\p{N}]*(?:and[^\p{L}\p{N}]*)?twelve)(?!\p{L})/gu,
+      "112",
+    );
     collect(spans, text, /(?<![0-9])1[^\p{L}\p{N}]*1[^\p{L}\p{N}]*2(?![0-9])/gu, "112");
     collect(
       spans,
@@ -879,6 +875,8 @@ function scan(text: string, flexible: boolean): Span[] {
     );
     collect(spans, text, /(?<![0-9])3114(?![0-9])/gu, "3114");
     collect(spans, text, /(?<!\p{L})cent[ \t]+douze(?!\p{L})/gu, "112");
+    collect(spans, text, /(?<!\p{L})(?:one[ \t]+)?hundred[ \t]+(?:and[ \t]+)?twelve(?!\p{L})/gu, "112");
+    collect(spans, text, /(?<!\p{L})three[ \t]+one[ \t]+one[ \t]+four(?!\p{L})/gu, "3114");
     collect(spans, text, /(?<![0-9])112(?![0-9])/gu, "112");
     collect(spans, text, /(?<!\p{L})sos m[eé]decins?(?!\p{L})/gu, "sos");
   }
@@ -886,7 +884,7 @@ function scan(text: string, flexible: boolean): Span[] {
   const fifteen: Span[] = [];
   if (flexible) {
     collect(fifteen, masked, /(?<![0-9])1[^\p{L}\p{N}]*5(?![0-9])/gu, "15");
-    collect(fifteen, text, /(?<!\p{L})quinze(?!\p{L})/gu, "15");
+    collect(fifteen, text, /(?<!\p{L})(?:quinze|fifteen)(?!\p{L})/gu, "15");
     collect(
       fifteen,
       text,
@@ -895,7 +893,7 @@ function scan(text: string, flexible: boolean): Span[] {
     );
   } else {
     collect(fifteen, masked, /(?<![0-9])15(?![0-9])/gu, "15");
-    collect(fifteen, text, /(?<!\p{L})quinze(?!\p{L})/gu, "15");
+    collect(fifteen, text, /(?<!\p{L})(?:quinze|fifteen)(?!\p{L})/gu, "15");
     collect(fifteen, text, /(?<!\p{L})samu(?!\p{L})/gu, "15");
   }
   for (const span of fifteen) {
@@ -936,13 +934,13 @@ function mask(text: string, spans: readonly Span[]): string {
 }
 
 const durationCue =
-  /(?:^|[^\p{L}])(?:attendez|attendons|attendent|attends|attend|patientons|patientent|patientez|patientes|patiente|pendant|dans|depuis)[^\S\n]*$/u;
+  /(?:^|[^\p{L}])(?:attendez|attendons|attendent|attends|attend|patientons|patientent|patientez|patientes|patiente|pendant|dans|depuis|wait|waiting|for|in|within|after|every)[^\S\n]*$/u;
 
 const clockCue = /(?:^|[^\p{L}])(?:à|a)[^\S\n]*$/u;
 
 const blockedArticle = /(?:^|[^\p{L}])(?:le|au|du)[^\S\n]*$/u;
 
-const durationUnit = /^[^\S\n]*(?:minutes?|mins?|mn|heures?)(?!\p{L})/u;
+const durationUnit = /^[^\S\n]*(?:minutes?|mins?|mn|heures?|hours?|hrs?)(?!\p{L})/u;
 
 const clockUnit = /^[^\S\n]*h(?!\p{L})/u;
 
@@ -970,7 +968,7 @@ function plain15(text: string, span: Span): boolean {
   if (span.kind !== "15") {
     return false;
   }
-  return /^(?:15|quinze)$/.test(text.slice(span.start, span.end));
+  return /^(?:15|quinze|fifteen)$/.test(text.slice(span.start, span.end));
 }
 
 function blockSentences(text: string): string[] {
@@ -1092,16 +1090,21 @@ function exactWarning(sentence: string): boolean {
     return false;
   }
   const head = sentence.slice(0, -tail.length);
-  const silLead = warningSignLeadIns.find((item) => item === "s'il ");
-  const siLead = warningSignLeadIns.find((item) => item === "si ");
-  if (silLead !== undefined && head.startsWith(silLead)) {
-    const sign = head.slice(silLead.length);
-    return warningSignsIl.some((item) => normalizeForMatch(item) === sign);
+  // Longest lead first: "if they " and "if you notice " both start with "if ".
+  if (head.startsWith(theyLead)) {
+    return matchesOne(head.slice(theyLead.length), warningSignsIl);
   }
-  if (siLead === undefined || !head.startsWith(siLead)) {
-    return false;
+  if (head.startsWith(nounLead)) {
+    return exactSignList(head.slice(nounLead.length));
   }
-  return exactSignList(head.slice(siLead.length));
+  if (head.startsWith(clauseLead)) {
+    return matchesOne(head.slice(clauseLead.length), warningSignClauses);
+  }
+  return false;
+}
+
+function matchesOne(text: string, signs: readonly string[]): boolean {
+  return signs.some((sign) => normalizeForMatch(sign) === text);
 }
 
 function exactSignList(middle: string): boolean {
@@ -1109,7 +1112,7 @@ function exactSignList(middle: string): boolean {
   if (signs.has(middle)) {
     return true;
   }
-  const marker = " ou ";
+  const marker = " or ";
   const at = middle.lastIndexOf(marker);
   if (at <= 0) {
     return false;
@@ -1137,15 +1140,10 @@ function looseWarning(sentence: string): boolean {
     return false;
   }
   const head = sentence.slice(0, at);
-  const silLead = warningSignLeadIns.find((item) => item === "s'il ");
-  const siLead = warningSignLeadIns.find((item) => item === "si ");
-  const leadOk =
-    (siLead !== undefined && head.startsWith(siLead)) ||
-    (silLead !== undefined && head.startsWith(silLead));
-  if (!leadOk) {
+  if (!head.startsWith(clauseLead)) {
     return false;
   }
-  return [...warningSigns, ...warningSignsIl].some((sign) =>
+  return [...warningSigns, ...warningSignsIl, ...warningSignClauses].some((sign) =>
     hasWord(head, normalizeForMatch(sign)),
   );
 }

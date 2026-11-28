@@ -10,7 +10,7 @@ import {
 } from "./request.js";
 
 const echo =
-  "[Réponse simulée] Vous avez demandé : De garde. Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
+  "[Simulated reply] You asked: De garde. I don't diagnose. In an emergency, call 15.";
 
 it("returns a simulated echo of the last user turn when building the mock reply", () => {
   expect(
@@ -182,7 +182,7 @@ it("rejects a history longer than the message cap", () => {
     chatHttpResult({
       messages: alternatingHistory(chatRequestLimits.maxMessages + 1),
     }),
-  ).toEqual({ status: 400, body: { error: "Requête invalide." } });
+  ).toEqual({ status: 400, body: { error: "Invalid request." } });
 });
 
 function alternatingHistory(
@@ -230,7 +230,7 @@ it("rejects a history that does not alternate from the user back to the user", (
   for (const messages of rejected) {
     expect(chatHttpResult({ messages })).toEqual({
       status: 400,
-      body: { error: "Requête invalide." },
+      body: { error: "Invalid request." },
     });
   }
 });
@@ -244,7 +244,7 @@ it("rejects a message longer than the content cap", () => {
     chatHttpResult({
       messages: [{ role: "user", content: `${atCap}b` }],
     }),
-  ).toEqual({ status: 400, body: { error: "Requête invalide." } });
+  ).toEqual({ status: 400, body: { error: "Invalid request." } });
   expect(
     chatHttpResult({ messages: [{ role: "user", content: ` ${atCap} ` }] }).status,
   ).toBe(200);
@@ -264,7 +264,7 @@ it("keeps the newest turns when the history is over the message cap", () => {
   }));
   const sent = toProviderMessages([
     ...older,
-    { role: "error", content: "Le service de chat est indisponible. Réessayez." },
+    { role: "error", content: "The chat service is unavailable. Try again." },
     { role: "user", content: "newest" },
   ]);
   expect(sent[0]).toEqual({ role: "user", content: "old-2" });
@@ -279,7 +279,7 @@ it("keeps the latest user turn when an error sits between two user turns", () =>
   expect(
     toProviderMessages([
       { role: "user", content: "first" },
-      { role: "error", content: "Le service de chat est indisponible. Réessayez." },
+      { role: "error", content: "The chat service is unavailable. Try again." },
       { role: "user", content: "second" },
     ]),
   ).toEqual([{ role: "user", content: "second" }]);
@@ -322,9 +322,9 @@ it("keeps the safety sentence when a mock echo is longer than the reply cap", ()
     return;
   }
   const { reply } = result.body;
-  expect(reply.startsWith("[Réponse simulée] Vous avez demandé : ")).toBe(true);
+  expect(reply.startsWith("[Simulated reply] You asked: ")).toBe(true);
   expect(
-    reply.endsWith("Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15."),
+    reply.endsWith("I don't diagnose. In an emergency, call 15."),
   ).toBe(true);
   expect(reply.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
   expect(
@@ -344,8 +344,8 @@ it("does not split an emoji when a reply is cut at the cap", () => {
   expect(cut).toBe(head);
   expect(cut.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
 
-  const lead = "[Réponse simulée] Vous avez demandé : ";
-  const tail = ". Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
+  const lead = "[Simulated reply] You asked: ";
+  const tail = ". I don't diagnose. In an emergency, call 15.";
   const room = chatRequestLimits.maxMessageChars - lead.length - tail.length;
   const asked = `${"a".repeat(room - 1)}\u{1F600}`;
   const result = chatHttpResult({
@@ -364,8 +364,8 @@ it("does not split an emoji when a reply is cut at the cap", () => {
 });
 
 it("trims a mock echo that is cut after a space", () => {
-  const lead = "[Réponse simulée] Vous avez demandé : ";
-  const tail = ". Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
+  const lead = "[Simulated reply] You asked: ";
+  const tail = ". I don't diagnose. In an emergency, call 15.";
   const room = chatRequestLimits.maxMessageChars - lead.length - tail.length;
   const asked = `${"x".repeat(room - 4)}mot ${"y".repeat(8)}`;
   const result = chatHttpResult({
@@ -378,8 +378,8 @@ it("trims a mock echo that is cut after a space", () => {
   const { reply } = result.body;
   expect(reply.startsWith(lead)).toBe(true);
   expect(reply.endsWith(tail)).toBe(true);
-  expect(reply).toContain("mot. Je ne pose pas de diagnostic.");
-  expect(reply).not.toContain("mot . Je ne pose");
+  expect(reply).toContain("mot. I don't diagnose.");
+  expect(reply).not.toContain("mot . I don't");
   expect(reply.length).toBeLessThanOrEqual(chatRequestLimits.maxMessageChars);
 });
 
@@ -411,7 +411,7 @@ it("omits error cards from the provider history", () => {
   expect(
     toProviderMessages([
       { role: "user", content: "De garde" },
-      { role: "error", content: "Le service de chat est indisponible. Réessayez." },
+      { role: "error", content: "The chat service is unavailable. Try again." },
       { role: "agent", content: "Une pharmacie." },
     ]),
   ).toEqual([

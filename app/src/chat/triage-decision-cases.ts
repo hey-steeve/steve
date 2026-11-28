@@ -19,9 +19,9 @@ export type EmergencyModelReply = {
   readonly reply: string;
 };
 
-const rest = "Reste au chaud.";
-const aside = "Reste calme.";
-const partial15 = "Appelle le 15.";
+const rest = "Keep warm.";
+const aside = "Stay calm.";
+const partial15 = "Call 15.";
 const lead3114Then15 = `${call3114Now} ${call15Now}`;
 const lead15Then3114 = `${call15Now} ${call3114}`;
 

@@ -45,7 +45,7 @@ export type ChatReply =
     }
   | { readonly kind: "invalid" };
 
-const mockPrefix = "[Réponse simulée] ";
+const mockPrefix = "[Simulated reply] ";
 const mockModel = "mock";
 
 export function parseChatMessages(body: unknown): readonly ChatTurn[] | null {
@@ -88,7 +88,7 @@ export function mockChatResult(messages: readonly ChatTurn[]): ChatHttpResult {
 export function chatHttpResult(body: unknown): ChatHttpResult {
   const messages = parseChatMessages(body);
   if (messages === null) {
-    return { status: 400, body: { error: "Requête invalide." } };
+    return { status: 400, body: { error: "Invalid request." } };
   }
   return mockChatResult(messages);
 }
@@ -215,8 +215,8 @@ function mockReply(messages: readonly ChatTurn[]): string {
       break;
     }
   }
-  const lead = `${mockPrefix}Vous avez demandé : `;
-  const tail = ". Je ne pose pas de diagnostic. En cas d'urgence, appelez le 15.";
+  const lead = `${mockPrefix}You asked: `;
+  const tail = ". I don't diagnose. In an emergency, call 15.";
   const room = chatRequestLimits.maxMessageChars - lead.length - tail.length;
   const echoed = clampText(asked, room).trimEnd();
   return `${lead}${echoed}${tail}`;

@@ -10,6 +10,7 @@ import {
   breathPersists,
   breathWorsens,
   breathEmpire,
+  breathPersistsOrWorsens,
   headacheBrutal,
   headacheWeakness,
   headacheSpeech,
@@ -36,6 +37,7 @@ export {
   breathPersists,
   breathWorsens,
   breathEmpire,
+  breathPersistsOrWorsens,
   headacheBrutal,
   headacheWeakness,
   headacheSpeech,
@@ -58,100 +60,93 @@ export const callSentences = [
 ] as const;
 
 
-export const warningSignLeadIns = ["si ", "s'il "] as const;
-
+// The three ways an approved warning sentence opens. "if " takes a whole clause
+// (warningSignClauses), "if you notice " a list of nouns (warningSigns), and
+// "if they " one sign about someone else (warningSignsIl).
+export const warningSignLeadIns = ["if ", "if you notice ", "if they "] as const;
+export const clauseLead = "if ";
+export const nounLead = "if you notice ";
+export const theyLead = "if they ";
 
 export const headacheSigns = [headacheBrutal, headacheWeakness, headacheSpeech] as const;
 
 export const warningSignsIl = [silBreath, silDrowsy, silBecomesDrowsy] as const;
 
-export const warningSigns = [
-  "mal à respirer",
-  "respire mal",
-  "respire difficilement",
-  "difficulté à respirer",
-  "difficulté respiratoire",
-  "souffle court",
-  "somnolence",
-  "somnolent",
-  "somnolente",
-  "inconscience",
-  "inconscient",
-  "inconsciente",
-  "convulsion",
-  "convulse",
-  "malaise",
-  "cyanose",
-  "bleuâtre",
-  "bleuâtres",
-  "lèvres bleues",
-  "lèvre bleue",
-  "raideur de la nuque",
-  "coup de tonnerre",
-  "mal de tête brutal",
-  "mal de tête soudain",
-  "mal de tête sévère",
-  "mal de tête violent",
-  "mal à la tête brutal",
-  "mal à la tête soudain",
-  "douleur thoracique",
-  "douleur dans la poitrine",
-  "évanouissement",
-  "évanoui",
-  "difficulté à parler",
-  headacheSpeech,
-  headacheWeakness,
-  "faiblesse du côté",
-  "paralysie faciale",
-  "bouche qui tombe",
-  "visage qui tombe",
-  "confusion",
-  "confus",
-  "perte de connaissance",
-  "perte de conscience",
-  "essoufflement qui persiste",
-  "essoufflement qui s'aggrave",
-  "essoufflement qui empire",
+export const warningSignClauses = [
   breathPersists,
   breathWorsens,
   breathEmpire,
-  "surdose",
-  "dépassé la dose",
-  "pris trop de comprimés",
-  "avalé trop",
-  "les taches persistent",
+  breathPersistsOrWorsens,
+  "the spots persist",
+] as const;
+
+export const warningSigns = [
+  "trouble breathing",
+  "difficulty breathing",
+  "breathing difficulty",
+  "shortness of breath",
+  "drowsiness",
+  "unusual drowsiness",
+  "unconsciousness",
+  "a seizure",
+  "seizures",
+  "convulsions",
+  "fainting",
+  "a fainting spell",
+  "cyanosis",
+  "bluish skin",
+  "blue lips",
+  "a stiff neck",
+  "a thunderclap headache",
+  "a sudden headache",
+  "a severe headache",
+  "a violent headache",
+  "chest pain",
+  "pain in the chest",
+  "difficulty speaking",
+  headacheSpeech,
+  headacheWeakness,
+  "facial paralysis",
+  "a drooping mouth",
+  "a drooping face",
+  "confusion",
+  "loss of consciousness",
+  "an overdose",
+  "spots that persist",
   headacheBrutal,
 ] as const;
 
+// Words that make a warning sentence vague, delayed or negated. Any of them in
+// a sentence that would otherwise match a warning template fails the match.
 export const warningNegations = [
-  "ne",
-  "n'",
-  "pas",
-  "jamais",
-  "sans",
-  "aucun",
-  "aucune",
-  "plus",
-  "plus tard",
-  "si ça",
-  "si ca",
-  "attends",
-  "attend",
-  "peut-être",
-  "peut-etre",
-  "peut être",
-  "peut etre",
-  "veux",
-  "avis",
-  "sûrement",
-  "surement",
-  "rien",
-  "quand même",
-  "quand meme",
-  "inutile",
-  "d'abord",
-  "demain",
-  "seulement",
+  "not",
+  "n't",
+  "no",
+  "never",
+  "without",
+  "none",
+  "nothing",
+  "no longer",
+  "anymore",
+  "any more",
+  "later",
+  "if it",
+  "if that",
+  "if this",
+  "wait",
+  "waiting",
+  "maybe",
+  "perhaps",
+  "probably",
+  "surely",
+  "want",
+  "opinion",
+  "anyway",
+  "unnecessary",
+  "pointless",
+  "first",
+  "tomorrow",
+  "only",
 ] as const;
 
 
@@ -231,9 +226,9 @@ const block3114Now = callBlock(call3114Now, true);
 const block3114 = callBlock(call3114, true);
 const callBlocks = [block15Now, block3114Now, block3114] as const;
 const closedListeningTails = new Set([
-  normalizeEmergencyText("Ils t'écoutent"),
-  normalizeEmergencyText("Ils t'écoutent."),
-  normalizeEmergencyText("Ils t'écoutent jour et nuit."),
+  normalizeEmergencyText("They'll listen"),
+  normalizeEmergencyText("They'll listen."),
+  normalizeEmergencyText("They'll listen day and night."),
 ]);
 
 // Whole-block match at pieces[start]: each block sentence must equal the next
@@ -553,7 +548,7 @@ const lone15 = loneSentencesOf([block15Now]);
 
 // A single block sentence written alone (any position) would repeat what the
 // prefixed block already says. So does a cut prefix of one that still names the
-// number, even with its own full stop ("Appelle le 15 maintenant.").
+// number, even with its own full stop ("Call 15 now.").
 function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
   if (lone.all.has(norm)) {
     return true;
@@ -572,7 +567,7 @@ function isLoneBlockSentence(norm: string, lone: LoneSentences): boolean {
   );
 }
 
-// A cut prefix with no closing punctuation, such as "Tu peux appeler le 3114", stays.
+// A cut prefix with no closing punctuation, such as "You can call 3114", stays.
 const finishedAll: LoneSentences = { ...loneAll, finishedOnly: true };
 // A [15]-only call keeps the model's own 3114 wording, so only 15 sentences are lone.
 const finished15: LoneSentences = { ...lone15, finishedOnly: true };

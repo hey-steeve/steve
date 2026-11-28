@@ -28,10 +28,10 @@ const openRouterReasoning = {
   effort: "low",
   exclude: true,
 } as const;
-const upstreamError = "Le service de chat est indisponible. Réessayez.";
-const invalidJsonError = "JSON invalide.";
-const tooLargeError = "Requête trop volumineuse.";
-const unsupportedTypeError = "Type de contenu non pris en charge.";
+const upstreamError = "The chat service is unavailable. Try again.";
+const invalidJsonError = "Invalid JSON.";
+const tooLargeError = "Request too large.";
+const unsupportedTypeError = "Unsupported content type.";
 
 export async function POST(request: Request): Promise<Response> {
   if (!isJsonContentType(request.headers.get("content-type"))) {
@@ -46,7 +46,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const messages = parseChatMessages(read.body);
   if (messages === null) {
-    return Response.json({ error: "Requête invalide." }, { status: 400 });
+    return Response.json({ error: "Invalid request." }, { status: 400 });
   }
   const live = liveChatEnabled();
   if (!live) {

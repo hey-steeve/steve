@@ -52,7 +52,7 @@ The TypeSafe HTTP API. There is no `@steve/shared` LLM client in this repo. Lang
 - When P(emergency) is at least 0.8 and the channel is not `none`, the result is `emergency` with ordered numbers. It is not a confirmation question.
 - The patient-facing sentences for 15 and 3114 stay in `app/src/app/api/chat/emergency-templates.ts`. The system prompt imports them. Never 112. Never SOS Médecins.
 - Doubt does not default to 15. Below 0.8, or channel `none`, there is no 15.
-- `app/src/app/api/chat/route.test.ts` rejects `Dans le doute, appelle le 15.` and `appelle le 116 117`. The same file checks the system prompt and each triage guidance string with one matcher. The matcher applies NFC, strips accents, turns Unicode spaces into a space, turns apostrophes into `'`, and lowercases. It then flags `ne`, `n'`, `pas`, `jamais`, `sans`, or a word starting with `evit` within 32 characters of `15`, `3114`, or `samu`. It also flags `ne pas appeler`. Approved sentences in the system prompt are allowlisted. The live prompt passes. Both guidance strings pass. An injected variant fails.
+- `app/src/app/api/chat/route.test.ts` rejects `When in doubt, call 15.` and `call 116 117`. The same file checks the system prompt and each triage guidance string with one matcher. The matcher applies NFC, strips accents, turns Unicode spaces into a space, turns apostrophes into `'`, and lowercases. It then flags `ne`, `n'`, `pas`, `jamais`, `sans`, or a word starting with `evit` within 32 characters of `15`, `3114`, or `samu`. It also flags `ne pas appeler`. Approved sentences in the system prompt are allowlisted. The live prompt passes. Both guidance strings pass. An injected variant fails.
 - Steve does not book a 15 or 3114 referral.
 
 ## triageTurn
