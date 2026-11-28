@@ -1,5 +1,7 @@
 import type { Handoff, Turn } from "@steve/shared";
 import type { EmergencyCalls, TriageDecision } from "@steve/triage";
+import Anthropic from "@anthropic-ai/sdk";
+import { clampAssistantContent } from "../../../chat/request";
 import { readCompletion } from "../../../chat/completion";
 import {
   chatRequestLimits,
@@ -18,6 +20,7 @@ import { systemPrompt } from "./system-prompt";
 
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const defaultModel = "openai/gpt-6.1-terra";
+const hackathonModel = "claude-sonnet";
 const maxCompletionTokens = 1024;
 const upstreamTimeoutMs = 30_000;
 const openRouterReasoning = {
@@ -49,8 +52,9 @@ export async function POST(request: Request): Promise<Response> {
     const directory = directoryReply(messages);
     if (directory !== undefined) return directory;
   }
-  const apiKey = live ? envString("OPENROUTER_API_KEY") : undefined;
-  if (apiKey === undefined) {
+  const hackathon = live ? hackathonConfig() : undefined;
+  const openRouterApiKey = live ? envString("OPENROUTER_API_KEY") : undefined;
+  if (hackathon === undefined && openRouterApiKey === undefined) {
     const result = mockChatResult(messages);
     return Response.json(result.body, { status: result.status });
   }
@@ -60,8 +64,35 @@ export async function POST(request: Request): Promise<Response> {
     const directory = directoryReply(messages);
     if (directory !== undefined) return directory;
   }
-  const result = await completeWithOpenRouter(messages, apiKey, requestedModel(), triage);
+  let result: ChatHttpResult;
+  if (hackathon !== undefined) {
+    result = await completeWithHackathonClaude(messages, hackathon, triage);
+  } else if (openRouterApiKey !== undefined) {
+    result = await completeWithOpenRouter(
+      messages,
+      openRouterApiKey,
+      requestedModel(),
+      triage,
+    );
+  } else {
+    const fallback = mockChatResult(messages);
+    return Response.json(fallback.body, { status: fallback.status });
+  }
   return Response.json(result.body, { status: result.status });
+}
+
+type HackathonConfig = {
+  readonly apiKey: string;
+  readonly baseURL: string;
+};
+
+function hackathonConfig(): HackathonConfig | undefined {
+  const apiKey = envString("HACKATHON_AI_KEY");
+  const baseURL = envString("HACKATHON_AI_BASE_URL");
+  if (apiKey === undefined || baseURL === undefined) {
+    return undefined;
+  }
+  return { apiKey, baseURL };
 }
 
 function directoryReply(messages: readonly ChatTurn[]): Response | undefined {
@@ -164,6 +195,60 @@ async function completeWithOpenRouter(
       reply,
       mocked: false,
       model: completion.model,
+    };
+    if (calls === undefined) {
+      return { status: 200, body };
+    }
+    return { status: 200, body: { ...body, calls } };
+  } catch {
+    return modelFailure(triage);
+  }
+}
+
+async function completeWithHackathonClaude(
+  messages: readonly ChatTurn[],
+  config: HackathonConfig,
+  triage: LiveTriage,
+): Promise<ChatHttpResult> {
+  try {
+    const client = new Anthropic({
+      apiKey: config.apiKey,
+      baseURL: config.baseURL,
+      maxRetries: 0,
+      timeout: upstreamTimeoutMs,
+    });
+    const system = triage.guidance === undefined
+      ? systemPrompt
+      : `${systemPrompt}\n${triage.guidance}`;
+    const completion = await client.messages.create({
+      model: hackathonModel,
+      max_tokens: maxCompletionTokens,
+      system,
+      messages: messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+    });
+    const text = completion.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("\n")
+      .trim();
+    if (text.length === 0) {
+      return modelFailure(triage);
+    }
+    const reply = clampAssistantContent(text);
+    const calls = triage.calls;
+    const safeReply = calls === undefined
+      ? reply
+      : ensureEmergencyCallsSafe(
+          reply,
+          calls.map((call) => call.number),
+        );
+    const body = {
+      reply: safeReply,
+      mocked: false,
+      model: completion.model || hackathonModel,
     };
     if (calls === undefined) {
       return { status: 200, body };

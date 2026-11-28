@@ -13,6 +13,7 @@ export default async function nextConfig(): Promise<NextConfig> {
   await syncMascotAppIcons();
   await syncMascotWebps();
   return {
+    output: "standalone",
     reactStrictMode: true,
     transpilePackages: [
       "@steve/agenda",

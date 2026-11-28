@@ -36,6 +36,7 @@ import { systemPrompt } from "./system-prompt.js";
 import { readTriageLog, resetTriageLog } from "./triage-log.js";
 
 const canary = "test-openrouter-key-canary";
+const hackathonCanary = "test-hackathon-key-canary";
 const jevCanary = "test-jev-key-canary";
 const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
 const echo =
@@ -524,6 +525,51 @@ it("calls OpenRouter when STEVE_CHAT_LIVE is 1 and the key is set", async () => 
       { role: "user", content: "De garde" },
     ],
   });
+});
+
+it("prefers the hackathon Claude gateway when its configuration is complete", async () => {
+  vi.stubEnv("STEVE_CHAT_LIVE", "1");
+  vi.stubEnv("HACKATHON_AI_KEY", `  ${hackathonCanary}  `);
+  vi.stubEnv("HACKATHON_AI_BASE_URL", "  https://gateway.example.test  ");
+  vi.stubEnv("OPENROUTER_API_KEY", canary);
+  const fetchMock = vi.fn<typeof fetch>(async () =>
+    Response.json({
+      id: "msg_test",
+      type: "message",
+      role: "assistant",
+      model: "claude-sonnet-bedrock",
+      content: [{ type: "text", text: "Une pharmacie de garde." }],
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 10, output_tokens: 6 },
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await post(history);
+  const text = await response.text();
+  expect(response.status).toBe(200);
+  expect(text).not.toContain(hackathonCanary);
+  expect(JSON.parse(text)).toEqual({
+    reply: "Une pharmacie de garde.",
+    mocked: false,
+    model: "claude-sonnet-bedrock",
+  });
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  const call = fetchMock.mock.calls[0];
+  expect(String(call?.[0])).toBe("https://gateway.example.test/v1/messages");
+  const init = call?.[1];
+  const headers = new Request(call?.[0] ?? "https://invalid.test", init).headers;
+  expect(headers.get("authorization")).toBe(`Bearer ${hackathonCanary}`);
+  const body = JSON.parse(String(init?.body));
+  expect(body).toMatchObject({
+    model: "claude-sonnet",
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: [{ role: "user", content: "De garde" }],
+  });
+  expect(fetchMock.mock.calls.map((item) => String(item[0]))).not.toContain(openRouterUrl);
 });
 
 it("defaults the model to openai/gpt-6.1-terra and falls back when OpenRouter omits model", async () => {
