@@ -13,6 +13,8 @@ import {
   homeSpace,
   homeUpcoming,
 } from "../../chat/home-summary";
+import { useCommunity } from "../../community/store";
+import { BerriesPill } from "../challenges/community-ui";
 import "./home-view.css";
 
 type TopPanel = "notifications" | "account";
@@ -53,12 +55,14 @@ export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
   }
 
   const name = props.firstName?.trim() ?? "";
+  const community = useCommunity();
   return (
     <>
       <span className="chat-home-logo">
         <img src={headerAvatarSrc} alt="Steve" width={44} height={44} />
       </span>
       <span className="chat-home-glass-row">
+        <BerriesPill count={community.berries} tone="glass" />
         <button
           type="button"
           className="chat-home-glass"

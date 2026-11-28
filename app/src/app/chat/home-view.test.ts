@@ -23,8 +23,10 @@ it("stacks the home cards in order under the greeting", async () => {
   const actions = view.querySelector(".chat-home-actions");
   const order = [...(actions?.children ?? [])].map((child) => child.className);
   expect(order).toEqual([
+    "chat-home-card home-signal",
     "chat-home-appt",
     "chat-home-card chat-home-ask",
+    "chat-home-card home-challenge",
     "chat-home-card chat-home-space",
     "chat-home-card chat-home-upcoming",
     "chat-home-tiles",
@@ -61,6 +63,7 @@ it("reaches every Steve space from the home screen", async () => {
   const tabs = [...view.querySelectorAll('nav[aria-label="Espaces Steve"] a')];
   expect(tabs.map((tab) => tab.getAttribute("aria-label"))).toEqual([
     "Accueil",
+    "Défis",
     "Agenda",
     "Documents",
     "Mon profil",
