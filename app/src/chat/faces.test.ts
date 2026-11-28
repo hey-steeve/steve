@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { mascotCue } from "./exchange.js";
 import { faceFor } from "./faces.js";
 
-it("picks Steve's face from avatar state and mood", () => {
+it("picks Stevie's face from avatar state and mood", () => {
   expect(faceFor({ state: "idle", mood: "neutral" })).toBe(
     "/mascot/state-listening.webp",
   );

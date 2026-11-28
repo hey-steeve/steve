@@ -10,7 +10,7 @@ import { Avatars, Eyebrow, TrophyIcon, WatchIcon } from "../challenges/community
 import "./home-community.css";
 
 export const sleepDiscussPrompt =
-  "Steve m’a fait remarquer que je dors moins bien depuis une dizaine de jours. On peut en parler ?";
+  "Stevie m’a fait remarquer que je dors moins bien depuis une dizaine de jours. On peut en parler ?";
 
 export function HomeSignalCard(props: { readonly onDiscuss: () => void }) {
   const [state, setState] = useState<"open" | "fine" | "hidden">("open");

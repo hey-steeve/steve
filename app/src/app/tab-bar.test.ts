@@ -45,7 +45,7 @@ it("starts the indicator on the previous tab, then slides to the current one", a
   expect(second.querySelector('.app-tab[aria-current="page"]')?.getAttribute("href")).toBe("/agenda");
 });
 
-it("hides the indicator on pages outside the tabs and links the button to Steve", async () => {
+it("hides the indicator on pages outside the tabs and links the button to Stevie", async () => {
   const view = await mount("/directory");
   await nextFrame();
   expect(view.querySelector(".app-tab-indicator")?.hasAttribute("data-hidden")).toBe(true);
