@@ -43,6 +43,7 @@ function button(container: ParentNode, text: string): HTMLButtonElement {
 it("lists partner challenges and the team finder", async () => {
   const view = await mount();
   expect(view.querySelector("h1")?.textContent).toBe("Défis");
+  expect(view.querySelector(".steve-hero-mascot")?.getAttribute("src")).toBe("/mascot/running.webp");
   expect(view.textContent).toContain("Sommeil 7 × 7");
   expect(view.textContent).toContain("Pas d’équipe ?");
   expect(view.querySelectorAll(".challenges-join")).toHaveLength(4);
