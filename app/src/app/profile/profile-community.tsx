@@ -31,7 +31,7 @@ export function ProfileChallenges() {
       </ul>
       <ul className="profile-challenge-list">
         {state.joined.map((membership) => {
-          const challenge = challengeById(membership.challengeId);
+          const challenge = challengeById(membership.challengeId, state);
           if (challenge === undefined) return null;
           const team = membership.teammates.length > 0 ? `avec ${membership.teammates.join(" et ")}` : "solo";
           return (

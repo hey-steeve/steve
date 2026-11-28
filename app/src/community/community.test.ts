@@ -3,6 +3,9 @@ import { demoChallenges, demoSleepNights } from "./demo";
 import { detectSleepDrop, hoursLabel } from "./sleep-signal";
 import {
   addFriend,
+  challengeById,
+  createChallenge,
+  nextMonday,
   findPeople,
   friendsOf,
   removeFriend,
@@ -82,4 +85,20 @@ it("adds and removes friends and only suggests people you can add", () => {
   expect(addFriend(added, "sami")).toBe(added);
   expect(addFriend(added, "nobody")).toBe(added);
   expect(removeFriend(added, "lea").friends).toEqual(["ines", "marc", "sami"]);
+});
+
+it("creates a private challenge without Berries and joins it with the invited friends", () => {
+  expect(nextMonday("2026-11-27")).toBe("2026-11-30");
+  expect(nextMonday("2026-11-30")).toBe("2026-12-07");
+  const input = { title: "Marche du midi", goal: "20 min après déjeuner", days: 7, startsOn: "2026-11-30", friendIds: ["lea", "sami"] };
+  const result = createChallenge(initialCommunityState, input);
+  if (result === null) throw new Error("expected a challenge");
+  expect(result.challenge).toMatchObject({ id: "custom-1", custom: true, berries: 0 });
+  expect(challengeById("custom-1", result.state)?.title).toBe("Marche du midi");
+  expect(challengeById("custom-1")).toBeUndefined();
+  // Sami is not a friend, so only Léa is invited.
+  expect(membershipFor(result.state, "custom-1")?.teammates).toEqual(["Léa"]);
+  expect(rewardFor(result.challenge, ["Léa"])).toBe(0);
+  expect(createChallenge(initialCommunityState, { ...input, title: " a " })).toBeNull();
+  expect(createChallenge(initialCommunityState, { ...input, days: 9 })).toBeNull();
 });

@@ -15,6 +15,8 @@ export type Challenge = {
   readonly teams: number;
   readonly startsOn: string;
   readonly friend?: string;
+  // Set on challenges the person created: private, no Berries, invite only.
+  readonly custom?: true;
 };
 
 // The demo calendar is frozen on this day, like the home summary.

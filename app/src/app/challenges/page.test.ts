@@ -146,3 +146,35 @@ it("shows friends' challenges, joins one with them and adds a new friend", async
   expect(view.textContent).toContain("Mes amis · 4");
   expect(view.querySelector(".friends-add")?.textContent).not.toContain("Sami");
 });
+
+it("creates a private challenge from Découvrir and lists it under À venir", async () => {
+  const view = await mount();
+  await openSection(view, "Découvrir");
+  await act(async () => button(view, "Créer").click());
+  const sheet = view.querySelector('[role="dialog"]');
+  if (!(sheet instanceof HTMLElement)) throw new Error("missing create sheet");
+  await act(async () => button(sheet, "Créer le défi").click());
+  expect(sheet.querySelector('[role="alert"]')?.textContent).toContain("au moins 3 caractères");
+  const [name, goal] = [...sheet.querySelectorAll("input")];
+  if (!(name instanceof HTMLInputElement) || !(goal instanceof HTMLInputElement)) throw new Error("missing fields");
+  await act(async () => setField(name, "Marche du midi"));
+  await act(async () => setField(goal, "20 minutes de marche"));
+  await act(async () => button(sheet, "14 jours").click());
+  await act(async () => button(sheet, "Inès").click());
+  await act(async () => button(sheet, "Créer le défi").click());
+  expect(view.querySelector('[role="dialog"]')).toBeNull();
+  expect(view.querySelector('.challenges-chip[aria-selected="true"]')?.textContent).toBe("À venir1");
+  const card = view.querySelector(".challenges-active")?.textContent ?? "";
+  expect(card).toContain("Marche du midi");
+  expect(card).toContain("créé par toi");
+  expect(card).toContain("Défi perso · privé");
+  expect(card).not.toContain("Berries");
+  await openSection(view, "Découvrir");
+  expect(view.textContent).not.toContain("Marche du midi");
+});
+
+function setField(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}

@@ -18,6 +18,7 @@ import {
   useCommunity,
 } from "../../community/store";
 import { FeatureShell } from "../feature-shell";
+import { CreateSheet } from "./create-sheet";
 import { FriendsSection } from "./friends-section";
 import { Avatars, BerriesPill, Eyebrow, PartnerLogo, TeamIcon } from "./community-ui";
 import "./challenges.css";
@@ -43,6 +44,7 @@ export default function ChallengesClient() {
   const [joining, setJoining] = useState<Challenge | null>(null);
   const [section, setSection] = useState<Section>("mine");
   const [view, setView] = useState<MineView>("ongoing");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -56,7 +58,7 @@ export default function ChallengesClient() {
   }, []);
 
   const mine = state.joined.flatMap((membership) => {
-    const challenge = challengeById(membership.challengeId);
+    const challenge = challengeById(membership.challengeId, state);
     return challenge === undefined ? [] : [{ challenge, teammates: membership.teammates }];
   });
   const ongoing = mine.filter((item) => challengeStatus(item.challenge) === "ongoing");
@@ -157,6 +159,16 @@ export default function ChallengesClient() {
         <FriendsSection onJoin={setJoining} />
       ) : (
         <>
+          <section className="steve-card create-card" aria-labelledby="create-card-title">
+            <span className="challenges-item-copy">
+              <h2 id="create-card-title" className="steve-card-title">Ton propre défi</h2>
+              <span className="steve-detail-secondary">Choisis l’objectif, la durée et qui tu invites.</span>
+            </span>
+            <button type="button" className="challenges-team-btn challenges-find" onClick={() => setCreating(true)}>
+              Créer
+            </button>
+          </section>
+
           <section className="steve-card challenges-team" aria-labelledby="challenges-team-title">
             <div className="challenges-row">
               <TeamIcon />
@@ -206,6 +218,16 @@ export default function ChallengesClient() {
       </button>
 
       {joining === null ? null : <JoinSheet challenge={joining} onClose={close} />}
+      {creating ? (
+        <CreateSheet
+          onClose={(created) => {
+            setCreating(false);
+            if (created === null) return;
+            setSection("mine");
+            setView(challengeStatus(created) === "upcoming" ? "upcoming" : "ongoing");
+          }}
+        />
+      ) : null}
     </FeatureShell>
   );
 }
@@ -222,13 +244,15 @@ function ActiveChallenge(props: { readonly challenge: Challenge; readonly teamma
         <Eyebrow tone={status === "ongoing" ? "orange" : "indigo"}>
           {status === "ongoing" ? `Jour ${today} sur ${challenge.days}` : startLabel(challenge)}
         </Eyebrow>
-        {teammates.length > 0 ? <span className="challenges-mult">{multiplierLabel()} en équipe</span> : null}
+        {teammates.length > 0 && challenge.custom !== true ? (
+          <span className="challenges-mult">{multiplierLabel()} en équipe</span>
+        ) : null}
       </div>
       <div className="challenges-between">
         <div>
           <h2 className="steve-card-title">{challenge.title}</h2>
           <p className="steve-detail-secondary">
-            {challenge.goal} · par {challenge.partner.name}
+            {challenge.goal} · {challenge.custom === true ? "créé par toi" : `par ${challenge.partner.name}`}
           </p>
         </div>
         <Avatars names={["Moi", ...teammates]} />
@@ -241,7 +265,9 @@ function ActiveChallenge(props: { readonly challenge: Challenge; readonly teamma
         ))}
       </ol>
       <div className="challenges-between">
-        <p className="steve-detail-secondary">{rewardFor(challenge, teammates)} Berries à la clé</p>
+        <p className="steve-detail-secondary">
+          {challenge.custom === true ? "Défi perso · privé" : `${rewardFor(challenge, teammates)} Berries à la clé`}
+        </p>
         <button
           type="button"
           className="challenges-link"

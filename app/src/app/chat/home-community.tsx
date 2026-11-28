@@ -70,7 +70,7 @@ export function HomeSignalCard(props: { readonly onDiscuss: () => void }) {
 export function HomeChallengeCard() {
   const state = useCommunity();
   const membership = state.joined[0];
-  const challenge = challengeById(membership?.challengeId ?? "sleep-7x7");
+  const challenge = challengeById(membership?.challengeId ?? "sleep-7x7", state);
   if (challenge === undefined) return null;
 
   if (membership === undefined) {

@@ -23,6 +23,7 @@ export type CommunityState = {
   readonly joined: readonly Membership[];
   readonly invited: number;
   readonly friends: readonly string[];
+  readonly custom: readonly Challenge[];
 };
 
 export const initialCommunityState: CommunityState = {
@@ -30,9 +31,11 @@ export const initialCommunityState: CommunityState = {
   joined: [],
   invited: 0,
   friends: demoInitialFriends,
+  custom: [],
 };
 
 export function rewardFor(challenge: Challenge, teammates: readonly string[]): number {
+  if (challenge.custom === true) return 0;
   return teammates.length > 0 ? Math.round(challenge.berries * teamMultiplier) : challenge.berries;
 }
 
@@ -45,7 +48,7 @@ export function joinChallenge(
   challengeId: string,
   teammates: readonly string[],
 ): CommunityState {
-  if (!demoChallenges.some((item) => item.id === challengeId)) {
+  if (challengeById(challengeId, state) === undefined) {
     return state;
   }
   const others = state.joined.filter((item) => item.challengeId !== challengeId);
@@ -124,8 +127,55 @@ export function shortDate(isoDate: string): string {
   );
 }
 
-export function challengeById(id: string): Challenge | undefined {
-  return demoChallenges.find((item) => item.id === id);
+export function challengeById(id: string, state?: CommunityState): Challenge | undefined {
+  return demoChallenges.find((item) => item.id === id) ?? state?.custom.find((item) => item.id === id);
+}
+
+export const customDurations = [3, 7, 14, 30] as const;
+
+export type NewChallenge = {
+  readonly title: string;
+  readonly goal: string;
+  readonly days: number;
+  readonly startsOn: string;
+  readonly friendIds: readonly string[];
+};
+
+const me = { name: "Toi", initials: "MOI", tone: "indigo" } as const;
+
+export function nextMonday(today: string = communityToday): string {
+  const date = new Date(`${today}T12:00:00Z`);
+  const ahead = ((8 - date.getUTCDay()) % 7) || 7;
+  date.setUTCDate(date.getUTCDate() + ahead);
+  return date.toISOString().slice(0, 10);
+}
+
+// A challenge you create stays private: no Berries (nothing to farm), not
+// in the catalogue, and only the friends you invite join it with you.
+export function createChallenge(
+  state: CommunityState,
+  input: NewChallenge,
+): { readonly state: CommunityState; readonly challenge: Challenge } | null {
+  const title = input.title.trim();
+  const goal = input.goal.trim();
+  if (title.length < 3 || goal.length < 3 || !customDurations.some((days) => days === input.days)) return null;
+  const invited = friendsOf(state).filter((person) => input.friendIds.includes(person.id));
+  const challenge: Challenge = {
+    id: `custom-${state.custom.length + 1}`,
+    title: title.slice(0, 40),
+    goal: goal.slice(0, 60),
+    partner: me,
+    days: input.days,
+    berries: 0,
+    teams: 0,
+    startsOn: input.startsOn,
+    custom: true,
+  };
+  const withChallenge = { ...state, custom: [...state.custom, challenge] };
+  return {
+    challenge,
+    state: joinChallenge(withChallenge, challenge.id, invited.map((person) => person.name)),
+  };
 }
 
 const storageKey = "steve.community.v1";
