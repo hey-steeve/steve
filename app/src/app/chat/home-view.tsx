@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { askAvatarSrc, headerAvatarSrc } from "../../chat/faces";
+import { headerAvatarSrc } from "../../chat/faces";
 import {
   appointmentDay,
   appointmentTime,
@@ -17,9 +17,14 @@ import { useCommunity } from "../../community/store";
 import { BerriesPill } from "../challenges/community-ui";
 import "./home-view.css";
 
-type TopPanel = "notifications" | "account";
+type TopPanel = "steve" | "notifications" | "account";
 
-export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
+export function HomeTopBar(props: {
+  readonly firstName?: string | undefined;
+  readonly disclaimer: string;
+  readonly onWrite: () => void;
+  readonly onCall: () => void;
+}) {
   const [panel, setPanel] = useState<TopPanel | null>(null);
   const [unread, setUnread] = useState(true);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -58,9 +63,20 @@ export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
   const community = useCommunity();
   return (
     <>
-      <span className="chat-home-logo">
+      <button
+        type="button"
+        className="chat-home-logo"
+        aria-label="Parler à Steve"
+        aria-haspopup="dialog"
+        aria-expanded={panel === "steve"}
+        aria-controls="chat-home-steve"
+        onClick={(event) => toggle("steve", event.currentTarget)}
+      >
         <img src={headerAvatarSrc} alt="Steve" width={44} height={44} />
-      </span>
+        <span className="chat-home-logo-badge" aria-hidden="true">
+          <ChatBubbleIcon />
+        </span>
+      </button>
       <span className="chat-home-glass-row">
         <BerriesPill count={community.berries} tone="glass" />
         <button
@@ -96,7 +112,49 @@ export function HomeTopBar(props: { readonly firstName?: string | undefined }) {
             tabIndex={-1}
             onClick={close}
           />
-          {panel === "notifications" ? (
+          {panel === "steve" ? (
+            <div
+              ref={panelRef}
+              id="chat-home-steve"
+              className="chat-home-pop chat-home-steve"
+              role="dialog"
+              aria-label="Parler à Steve"
+            >
+              <button
+                type="button"
+                className="chat-home-steve-item"
+                onClick={() => {
+                  setPanel(null);
+                  props.onWrite();
+                }}
+              >
+                <span className="chat-home-steve-icon chat-home-steve-write" aria-hidden="true">
+                  <ChatBubbleIcon size={20} />
+                </span>
+                <span>
+                  <strong>Écrire à Steve</strong>
+                  <span>Pose ta question par message</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="chat-home-steve-item"
+                onClick={() => {
+                  setPanel(null);
+                  props.onCall();
+                }}
+              >
+                <span className="chat-home-steve-icon chat-home-steve-call" aria-hidden="true">
+                  <PhoneIcon />
+                </span>
+                <span>
+                  <strong>Appeler Steve</strong>
+                  <span>Il répond tout de suite</span>
+                </span>
+              </button>
+              <p className="chat-home-steve-disclaimer">{props.disclaimer}</p>
+            </div>
+          ) : panel === "notifications" ? (
             <div
               ref={panelRef}
               id="chat-home-notifications"
@@ -210,33 +268,6 @@ export function HomeAppointmentCard() {
   );
 }
 
-export function HomeAskCard(props: {
-  readonly disclaimer: ReactNode;
-  readonly composer: ReactNode;
-  readonly starters: ReactNode;
-}) {
-  return (
-    <section className="chat-home-card chat-home-ask" aria-labelledby="chat-home-ask-title">
-      <div className="chat-home-ask-head">
-        <span className="chat-home-ask-avatar" aria-hidden="true">
-          <img src={askAvatarSrc} alt="" width={44} height={44} />
-        </span>
-        <span>
-          <span id="chat-home-ask-title" className="chat-home-prompt-title">
-            Comment puis-je t’aider ?
-          </span>
-          <span className="chat-home-prompt-copy">Écris-moi ici ou appelle-moi.</span>
-        </span>
-      </div>
-      <div className="chat-dock chat-home-dock">
-        {props.disclaimer}
-        {props.composer}
-      </div>
-      {props.starters}
-    </section>
-  );
-}
-
 export function HomeSpaceCard() {
   const total = homeSpace.reduce((sum, item) => sum + item.count, 0);
   return (
@@ -343,6 +374,25 @@ function BellIcon({ size }: { readonly size?: number }) {
       <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
       <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
     </Svg>
+  );
+}
+
+function ChatBubbleIcon({ size }: { readonly size?: number }) {
+  return (
+    <Svg size={size ?? 13}>
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
+    </Svg>
+  );
+}
+
+function PhoneIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1.1-.24 11.4 11.4 0 0 0 3.5.56 1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 5a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .56 3.5 1 1 0 0 1-.25 1.1z"
+      />
+    </svg>
   );
 }
 
