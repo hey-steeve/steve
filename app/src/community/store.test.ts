@@ -1,7 +1,11 @@
 import { expect, it } from "vitest";
 import { demoChallenges } from "./demo";
 import {
+  challengeDay,
+  challengeStatus,
   initialCommunityState,
+  shortDate,
+  startLabel,
   joinChallenge,
   leaveChallenge,
   membershipFor,
@@ -24,4 +28,19 @@ it("joins and leaves a challenge without duplicates", () => {
   expect(membershipFor(twice, "sleep-7x7")?.teammates).toEqual([]);
   expect(joinChallenge(once, "unknown", []).joined).toHaveLength(1);
   expect(leaveChallenge(twice, "sleep-7x7").joined).toHaveLength(0);
+});
+
+it("sorts challenges into upcoming, ongoing and done from the demo calendar", () => {
+  const byId = (id: string) => {
+    const found = demoChallenges.find((item) => item.id === id);
+    if (found === undefined) throw new Error(`missing ${id}`);
+    return found;
+  };
+  expect(challengeStatus(byId("sleep-7x7"))).toBe("upcoming");
+  expect(startLabel(byId("sleep-7x7"))).toBe("Commence lundi 30 nov.");
+  expect(challengeStatus(byId("steps-10k"))).toBe("ongoing");
+  expect(challengeDay(byId("steps-10k"))).toBe(8);
+  expect(challengeStatus(byId("screens-off"), "2026-12-01")).toBe("done");
+  expect(startLabel(byId("sleep-7x7"), "2026-11-29")).toBe("Commence demain");
+  expect(shortDate("2026-11-09")).toBe("9 novembre");
 });
