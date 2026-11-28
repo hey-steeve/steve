@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { demoChallenges, demoStartingBerries, type Challenge } from "./demo";
+import { communityToday, demoChallenges, demoStartingBerries, type Challenge } from "./demo";
 
 export const teamMultiplier = 1.5;
 
@@ -52,6 +52,42 @@ export function recordInvite(state: CommunityState): CommunityState {
 
 export function membershipFor(state: CommunityState, challengeId: string): Membership | undefined {
   return state.joined.find((item) => item.challengeId === challengeId);
+}
+
+export type ChallengeStatus = "ongoing" | "upcoming" | "done";
+
+const dayMs = 86_400_000;
+
+function dayNumber(isoDate: string): number {
+  return Math.round(Date.parse(`${isoDate}T12:00:00Z`) / dayMs);
+}
+
+// Day 1 is the start day. Before it the challenge is upcoming, after the
+// last day it is done.
+export function challengeDay(challenge: Challenge, today: string = communityToday): number {
+  return dayNumber(today) - dayNumber(challenge.startsOn) + 1;
+}
+
+export function challengeStatus(challenge: Challenge, today: string = communityToday): ChallengeStatus {
+  const day = challengeDay(challenge, today);
+  if (day < 1) return "upcoming";
+  return day > challenge.days ? "done" : "ongoing";
+}
+
+export function startLabel(challenge: Challenge, today: string = communityToday): string {
+  const until = 1 - challengeDay(challenge, today);
+  if (until <= 0) return "Commencé";
+  if (until === 1) return "Commence demain";
+  const date = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "short", timeZone: "UTC" }).format(
+    new Date(`${challenge.startsOn}T12:00:00Z`),
+  );
+  return `Commence ${date}`;
+}
+
+export function shortDate(isoDate: string): string {
+  return new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" }).format(
+    new Date(`${isoDate}T12:00:00Z`),
+  );
 }
 
 export function challengeById(id: string): Challenge | undefined {

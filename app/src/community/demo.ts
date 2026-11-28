@@ -13,8 +13,12 @@ export type Challenge = {
   readonly days: number;
   readonly berries: number;
   readonly teams: number;
+  readonly startsOn: string;
   readonly friend?: string;
 };
+
+// The demo calendar is frozen on this day, like the home summary.
+export const communityToday = "2026-11-27";
 
 export type Friend = { readonly name: string; readonly initial: string; readonly tone: "indigo" | "teal" | "orange" };
 
@@ -33,6 +37,7 @@ export const demoChallenges: readonly Challenge[] = [
     days: 7,
     berries: 100,
     teams: 23,
+    startsOn: "2026-11-30",
     friend: demoFriend.name,
   },
   {
@@ -43,6 +48,7 @@ export const demoChallenges: readonly Challenge[] = [
     days: 14,
     berries: 100,
     teams: 12,
+    startsOn: "2026-11-20",
   },
   {
     id: "five-a-day",
@@ -52,6 +58,7 @@ export const demoChallenges: readonly Challenge[] = [
     days: 7,
     berries: 60,
     teams: 8,
+    startsOn: "2026-12-07",
   },
   {
     id: "screens-off",
@@ -61,13 +68,23 @@ export const demoChallenges: readonly Challenge[] = [
     days: 5,
     berries: 50,
     teams: 15,
+    startsOn: "2026-11-25",
   },
 ];
 
-export const demoHistory = [
-  { title: "10 000 pas", team: "équipe de 4", berries: 150 },
-  { title: "Écrans off à 22 h", team: "solo", berries: 50 },
-] as const;
+export type PastChallenge = {
+  readonly title: string;
+  readonly team: string;
+  readonly berries: number;
+  readonly endedOn: string;
+  readonly days: number;
+};
+
+export const demoHistory: readonly PastChallenge[] = [
+  { title: "10 000 pas", team: "équipe de 4", berries: 150, endedOn: "2026-11-09", days: 14 },
+  { title: "Écrans off à 22 h", team: "solo", berries: 50, endedOn: "2026-10-26", days: 5 },
+  { title: "Hydratation 1,5 L", team: "avec Léa", berries: 90, endedOn: "2026-10-12", days: 7 },
+];
 
 export const demoStartingBerries = 200;
 export const demoStreakDays = 12;

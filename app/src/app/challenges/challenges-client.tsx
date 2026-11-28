@@ -2,9 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { askAvatarSrc } from "../../chat/faces";
-import { demoChallenges, demoFriend, type Challenge } from "../../community/demo";
+import { demoChallenges, demoFriend, demoHistory, type Challenge } from "../../community/demo";
 import {
   challengeById,
+  challengeDay,
+  challengeStatus,
+  shortDate,
+  startLabel,
   joinChallenge,
   leaveChallenge,
   multiplierLabel,
@@ -27,108 +31,221 @@ export function teammatesFor(choice: Choice, challenge: Challenge): readonly str
   return [];
 }
 
+type Section = "mine" | "discover";
+type MineView = "ongoing" | "upcoming" | "history";
+
+const sections: readonly Section[] = ["mine", "discover"];
+const sectionLabels: Record<Section, string> = { mine: "Mes défis", discover: "Découvrir" };
+
 export default function ChallengesClient() {
   const state = useCommunity();
   const [joining, setJoining] = useState<Challenge | null>(null);
+  const [section, setSection] = useState<Section>("mine");
+  const [view, setView] = useState<MineView>("ongoing");
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("join");
     const challenge = id === null ? undefined : challengeById(id);
-    if (challenge !== undefined) setJoining(challenge);
+    if (challenge !== undefined) {
+      setSection("discover");
+      setJoining(challenge);
+    }
   }, []);
 
-  const active = state.joined.flatMap((membership) => {
+  const mine = state.joined.flatMap((membership) => {
     const challenge = challengeById(membership.challengeId);
     return challenge === undefined ? [] : [{ challenge, teammates: membership.teammates }];
   });
+  const ongoing = mine.filter((item) => challengeStatus(item.challenge) === "ongoing");
+  const upcoming = mine.filter((item) => challengeStatus(item.challenge) === "upcoming");
   const open = demoChallenges.filter(
-    (challenge) => !state.joined.some((item) => item.challengeId === challenge.id),
+    (challenge) =>
+      challengeStatus(challenge) !== "done" && !state.joined.some((item) => item.challengeId === challenge.id),
   );
+  const counts: Record<MineView, number> = {
+    ongoing: ongoing.length,
+    upcoming: upcoming.length,
+    history: demoHistory.length,
+  };
+
+  function close() {
+    // After joining, land on the list that now holds the new challenge.
+    const joined = joining === null ? undefined : state.joined.find((item) => item.challengeId === joining.id);
+    if (joining !== null && joined !== undefined) {
+      setSection("mine");
+      setView(challengeStatus(joining) === "upcoming" ? "upcoming" : "ongoing");
+    }
+    setJoining(null);
+  }
 
   return (
     <FeatureShell current="/challenges" title="Défis" subtitle="Prends soin de toi, mais pas tout seul.">
-      <div className="challenges-berries">
+      <div className="challenges-bar">
+        <div className="challenges-segments" role="tablist" aria-label="Défis">
+          {sections.map((item) => (
+            <button
+              key={item}
+              type="button"
+              role="tab"
+              aria-selected={section === item}
+              className="challenges-segment"
+              onClick={() => setSection(item)}
+            >
+              {sectionLabels[item]}
+            </button>
+          ))}
+        </div>
         <BerriesPill count={state.berries} />
       </div>
 
-      {active.map(({ challenge, teammates }) => (
-        <section key={challenge.id} className="steve-card challenges-active" aria-label={`Défi en cours : ${challenge.title}`}>
-          <div className="challenges-between">
-            <Eyebrow tone="orange">En cours · commence lundi</Eyebrow>
-            {teammates.length > 0 ? <span className="challenges-mult">{multiplierLabel()} en équipe</span> : null}
+      {section === "mine" ? (
+        <>
+          <div className="challenges-chips" role="tablist" aria-label="Mes défis">
+            {(["ongoing", "upcoming", "history"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                role="tab"
+                aria-selected={view === item}
+                className="challenges-chip"
+                onClick={() => setView(item)}
+              >
+                {mineLabels[item]}
+                <span className="challenges-chip-count">{counts[item]}</span>
+              </button>
+            ))}
           </div>
-          <div className="challenges-between">
-            <div>
-              <h2 className="steve-card-title">{challenge.title}</h2>
+
+          {view === "history" ? (
+            <section className="steve-card" aria-label="Historique">
+              <ul className="challenges-history">
+                {demoHistory.map((item) => (
+                  <li key={item.title}>
+                    <span className="challenges-history-check" aria-hidden="true">
+                      ✓
+                    </span>
+                    <span className="challenges-item-copy">
+                      <span className="steve-detail-primary">{item.title}</span>
+                      <span className="steve-detail-secondary">
+                        Terminé le {shortDate(item.endedOn)} · {item.days} jours · {item.team}
+                      </span>
+                    </span>
+                    <span className="challenges-earned">+{item.berries}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : (view === "ongoing" ? ongoing : upcoming).length === 0 ? (
+            <section className="steve-card challenges-empty">
               <p className="steve-detail-secondary">
-                {challenge.goal} · par {challenge.partner.name}
+                {view === "ongoing" ? "Aucun défi en cours pour le moment." : "Aucun défi à venir."}
               </p>
+              <button type="button" className="challenges-team-btn challenges-find" onClick={() => setSection("discover")}>
+                Trouver un défi
+              </button>
+            </section>
+          ) : (
+            (view === "ongoing" ? ongoing : upcoming).map(({ challenge, teammates }) => (
+              <ActiveChallenge key={challenge.id} challenge={challenge} teammates={teammates} />
+            ))
+          )}
+        </>
+      ) : (
+        <>
+          <section className="steve-card challenges-team" aria-labelledby="challenges-team-title">
+            <div className="challenges-row">
+              <TeamIcon />
+              <h2 id="challenges-team-title" className="steve-card-title">Pas d’équipe ?</h2>
             </div>
-            <Avatars names={["Moi", ...teammates]} />
-          </div>
-          <ol className="challenges-days" aria-label={`${challenge.days} jours`}>
-            {Array.from({ length: challenge.days }, (_, day) => (
-              <li key={day}>J{day + 1}</li>
-            ))}
-          </ol>
-          <div className="challenges-between">
-            <p className="steve-detail-secondary">{rewardFor(challenge, teammates)} Berries à la clé</p>
-            <button
-              type="button"
-              className="challenges-link"
-              onClick={() => updateCommunity((current) => leaveChallenge(current, challenge.id))}
-            >
-              Quitter
-            </button>
-          </div>
-        </section>
-      ))}
+            <p className="challenges-team-copy">Stevie trouve des gens près de chez toi qui font le même défi.</p>
+            {open[0] === undefined ? null : (
+              <button type="button" className="challenges-team-btn" onClick={() => setJoining(open[0] ?? null)}>
+                Trouve-moi une équipe
+              </button>
+            )}
+          </section>
 
-      <section className="steve-card challenges-team" aria-labelledby="challenges-team-title">
-        <div className="challenges-row">
-          <TeamIcon />
-          <h2 id="challenges-team-title" className="steve-card-title">Pas d’équipe ?</h2>
-        </div>
-        <p className="challenges-team-copy">Stevie trouve des gens près de chez toi qui font le même défi.</p>
-        {open[0] === undefined ? null : (
-          <button type="button" className="challenges-team-btn" onClick={() => setJoining(open[0] ?? null)}>
-            Trouve-moi une équipe
-          </button>
-        )}
-      </section>
-
-      {open.length === 0 ? null : (
-        <section className="steve-card" aria-labelledby="challenges-partners-title">
-          <h2 id="challenges-partners-title" className="steve-card-title">Proposés par nos partenaires</h2>
-          <ul className="challenges-list">
-            {open.map((challenge) => (
-              <li key={challenge.id} className="challenges-item">
-                <PartnerLogo partner={challenge.partner} />
-                <span className="challenges-item-copy">
-                  <span className="steve-detail-primary">{challenge.title}</span>
-                  <span className="steve-detail-secondary">
-                    {challenge.partner.name} · {challenge.days} jours
-                  </span>
-                  <span className="challenges-meta">
-                    {challenge.berries} Berries · {challenge.teams} équipes
-                    {challenge.friend === undefined ? null : <> · {challenge.friend} y participe</>}
-                  </span>
-                </span>
-                <button type="button" className="challenges-join" onClick={() => setJoining(challenge)}>
-                  Rejoindre
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+          {open.length === 0 ? (
+            <p className="steve-detail-secondary challenges-all-joined">Tu as rejoint tous les défis du moment.</p>
+          ) : (
+            <section className="steve-card" aria-labelledby="challenges-partners-title">
+              <h2 id="challenges-partners-title" className="steve-card-title">Proposés par nos partenaires</h2>
+              <ul className="challenges-list">
+                {open.map((challenge) => (
+                  <li key={challenge.id} className="challenges-item">
+                    <PartnerLogo partner={challenge.partner} />
+                    <span className="challenges-item-copy">
+                      <span className="steve-detail-primary">{challenge.title}</span>
+                      <span className="steve-detail-secondary">
+                        {challenge.partner.name} · {challenge.days} jours ·{" "}
+                        {challengeStatus(challenge) === "ongoing" ? "déjà commencé" : startLabel(challenge).toLowerCase()}
+                      </span>
+                      <span className="challenges-meta">
+                        {challenge.berries} Berries · {challenge.teams} équipes
+                        {challenge.friend === undefined ? null : <> · {challenge.friend} y participe</>}
+                      </span>
+                    </span>
+                    <button type="button" className="challenges-join" onClick={() => setJoining(challenge)}>
+                      Rejoindre
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       )}
 
       <button type="button" className="challenges-link challenges-reset" onClick={resetCommunity}>
         Réinitialiser la démo
       </button>
 
-      {joining === null ? null : <JoinSheet challenge={joining} onClose={() => setJoining(null)} />}
+      {joining === null ? null : <JoinSheet challenge={joining} onClose={close} />}
     </FeatureShell>
+  );
+}
+
+const mineLabels: Record<MineView, string> = { ongoing: "En cours", upcoming: "À venir", history: "Historique" };
+
+function ActiveChallenge(props: { readonly challenge: Challenge; readonly teammates: readonly string[] }) {
+  const { challenge, teammates } = props;
+  const status = challengeStatus(challenge);
+  const today = challengeDay(challenge);
+  return (
+    <section className="steve-card challenges-active" aria-label={`Défi : ${challenge.title}`}>
+      <div className="challenges-between">
+        <Eyebrow tone={status === "ongoing" ? "orange" : "indigo"}>
+          {status === "ongoing" ? `Jour ${today} sur ${challenge.days}` : startLabel(challenge)}
+        </Eyebrow>
+        {teammates.length > 0 ? <span className="challenges-mult">{multiplierLabel()} en équipe</span> : null}
+      </div>
+      <div className="challenges-between">
+        <div>
+          <h2 className="steve-card-title">{challenge.title}</h2>
+          <p className="steve-detail-secondary">
+            {challenge.goal} · par {challenge.partner.name}
+          </p>
+        </div>
+        <Avatars names={["Moi", ...teammates]} />
+      </div>
+      <ol className="challenges-days" aria-label={`${challenge.days} jours`}>
+        {Array.from({ length: challenge.days }, (_, day) => (
+          <li key={day} data-state={day + 1 < today ? "done" : day + 1 === today ? "today" : undefined}>
+            J{day + 1}
+          </li>
+        ))}
+      </ol>
+      <div className="challenges-between">
+        <p className="steve-detail-secondary">{rewardFor(challenge, teammates)} Berries à la clé</p>
+        <button
+          type="button"
+          className="challenges-link"
+          onClick={() => updateCommunity((current) => leaveChallenge(current, challenge.id))}
+        >
+          Quitter
+        </button>
+      </div>
+    </section>
   );
 }
 
