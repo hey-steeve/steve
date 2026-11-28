@@ -33,21 +33,21 @@ it("opens a full-screen search, shows grouped results and closes on Annuler", as
   const pill = container.querySelector(".app-search-pill");
   if (!(pill instanceof HTMLButtonElement)) throw new Error("missing pill");
   await act(async () => pill.click());
-  const input = container.querySelector('.app-search input');
+  const input = document.querySelector('.app-search input');
   if (!(input instanceof HTMLInputElement)) throw new Error("missing input");
   expect(document.activeElement).toBe(input);
-  expect(container.textContent).toContain("Suggestions");
+  expect(document.body.textContent).toContain("Suggestions");
 
   await act(async () => setInput(input, "sommeil"));
-  expect([...container.querySelectorAll(".app-search-group")].map((node) => node.textContent)).toEqual(["Défis"]);
-  expect(container.querySelector(".app-search-item")?.getAttribute("href")).toBe("/challenges?join=sleep-7x7");
+  expect([...document.querySelectorAll(".app-search-group")].map((node) => node.textContent)).toEqual(["Défis"]);
+  expect(document.querySelector(".app-search-item")?.getAttribute("href")).toBe("/challenges?join=sleep-7x7");
 
   await act(async () => setInput(input, "zzz"));
-  expect(container.querySelector(".app-search-empty")?.textContent).toBe("Aucun résultat pour « zzz ».");
+  expect(document.querySelector(".app-search-empty")?.textContent).toBe("Aucun résultat pour « zzz ».");
 
-  const cancel = container.querySelector(".app-search-cancel");
+  const cancel = document.querySelector(".app-search-cancel");
   if (!(cancel instanceof HTMLButtonElement)) throw new Error("missing cancel");
   await act(async () => cancel.click());
-  expect(container.querySelector(".app-search")).toBeNull();
+  expect(document.querySelector(".app-search")).toBeNull();
   expect(document.activeElement).toBe(pill);
 });

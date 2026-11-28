@@ -147,8 +147,9 @@ it("locks the Vault on every visit and opens it after the mocked Face ID scan", 
     await act(async () => {
       root.render(createElement(VaultClient, { initialDocuments }));
     });
-    expect(container.querySelector(".faceid-title")?.textContent).toBe("Vault verrouillé");
+    expect(container.querySelector("#faceid-title")?.textContent).toBe("Vault verrouillé");
     expect(container.querySelector(".faceid-hud")?.getAttribute("data-phase")).toBe("scanning");
+    expect(container.textContent).toContain("Regarde ton téléphone");
     expect(container.textContent).not.toContain("Lettre de rendez-vous");
 
     await act(async () => vi.advanceTimersByTime(1400));
