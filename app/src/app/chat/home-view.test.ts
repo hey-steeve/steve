@@ -25,19 +25,15 @@ it("stacks the home cards in order under the greeting", async () => {
   expect(order).toEqual([
     "chat-home-card home-signal",
     "chat-home-appt",
-    "chat-home-card chat-home-ask",
     "chat-home-card home-challenge",
     "chat-home-card chat-home-space",
     "chat-home-card chat-home-upcoming",
     "chat-home-tiles",
   ]);
-  expect(view.querySelector(".chat-home-dock > .chat-disclaimer")?.textContent).toBe(
-    "Steve n’est pas médecin et ne pose pas de diagnostic.",
-  );
+  expect(view.querySelector(".chat-home-dock")).toBeNull();
   expect(view.querySelector(".chat-home-chip")?.textContent).toBe("Dans 5 jours");
   expect(view.querySelector(".chat-home-appt-name")?.textContent).toBe("Dr Camille Lunéval");
   expect(view.querySelector(".chat-home-appt-foot")?.textContent).toBe("Mer. 2 déc.10:00");
-  expect(view.querySelector(".chat-home-ask .chat-starters")).not.toBeNull();
   expect(view.querySelector(".chat-home-stats")?.textContent).toBe(
     "1document1rappel2messages",
   );
@@ -79,7 +75,8 @@ it("hides the appointment card when dismissed", async () => {
   }
   await act(async () => close.click());
   expect(view.querySelector(".chat-home-appt")).toBeNull();
-  expect(view.querySelector(".chat-home-ask")).not.toBeNull();
+  expect(view.querySelector(".chat-home-ask")).toBeNull();
+  expect(view.querySelector(".chat-home-signal, .home-signal")).not.toBeNull();
 });
 
 it("opens the notification list from the bell without leaving the home", async () => {

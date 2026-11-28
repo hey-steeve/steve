@@ -8,6 +8,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import RootLayout from "../layout.js";
 import ChatPage from "./chat-page.js";
+import { writingField } from "./test-writing.js";
 
 vi.mock("next/font/local", () => ({
   default: () => ({ variable: "alan-sans" }),
@@ -44,11 +45,11 @@ it("keeps attach and mic as siblings outside the bordered field", async () => {
     const view = await mount(
       createElement(RootLayout, null, createElement(ChatPage)),
     );
-    expectOutside(view.container.querySelector(".chat-home-dock .chat-composer"));
-    const field = view.container.querySelector(".chat-home-dock .chat-field");
+    const field = writingField(view.container);
     if (!(field instanceof HTMLTextAreaElement)) {
-      throw new Error("missing home composer controls");
+      throw new Error("missing composer controls");
     }
+    expectOutside(field.closest(".chat-composer"));
     await sendComposer(view.container, "Bonjour");
     expectOutside(
       view.container.querySelector(".chat-column > .chat-dock-enter .chat-composer"),

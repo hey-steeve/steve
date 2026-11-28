@@ -9,6 +9,7 @@ vi.mock("../../chat/demo-user-avatar.js", () => ({
 }));
 
 import ChatPage from "./chat-page.js";
+import { writingField } from "./test-writing.js";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -34,7 +35,7 @@ it("keeps the message glyph when no demo avatar is set", async () => {
     ),
   );
   const view = await mount();
-  const field = view.container.querySelector(".chat-field");
+  const field = writingField(view.container);
   if (!(field instanceof HTMLTextAreaElement)) {
     throw new Error("missing composer");
   }
