@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { askAvatarSrc } from "../../chat/faces";
-import { demoSleepNights } from "../../community/demo";
+import { demoSleepNights, demoFriend } from "../../community/demo";
 import { detectSleepDrop, hoursLabel } from "../../community/sleep-signal";
-import { Eyebrow, WatchIcon } from "../challenges/community-ui";
+import { challengeById, multiplierLabel, useCommunity } from "../../community/store";
+import { Avatars, Eyebrow, TrophyIcon, WatchIcon } from "../challenges/community-ui";
 import "./home-community.css";
 
 export const sleepDiscussPrompt =
@@ -62,5 +64,59 @@ export function HomeSignalCard(props: { readonly onDiscuss: () => void }) {
         </div>
       )}
     </section>
+  );
+}
+
+export function HomeChallengeCard() {
+  const state = useCommunity();
+  const membership = state.joined[0];
+  const challenge = challengeById(membership?.challengeId ?? "sleep-7x7");
+  if (challenge === undefined) return null;
+
+  if (membership === undefined) {
+    return (
+      <Link className="chat-home-card home-challenge" href={`/challenges?join=${challenge.id}`}>
+        <span className="home-challenge-top">
+          <Eyebrow tone="orange">
+            <TrophyIcon size={14} />
+            Défi à deux
+          </Eyebrow>
+          <span className="home-challenge-mult">{multiplierLabel()} en équipe</span>
+        </span>
+        <span className="home-challenge-row">
+          <span className="home-challenge-copy">
+            <strong>{challenge.title}</strong>
+            <span>
+              {demoFriend.name} le fait aussi. Vous le faites ensemble ?
+            </span>
+          </span>
+          <Avatars names={[demoFriend.name]} />
+        </span>
+      </Link>
+    );
+  }
+
+  return (
+    <Link className="chat-home-card home-challenge" href="/challenges">
+      <span className="home-challenge-top">
+        <Eyebrow tone="orange">
+          <TrophyIcon size={14} />
+          Défi en cours
+        </Eyebrow>
+        {membership.teammates.length > 0 ? (
+          <span className="home-challenge-mult">{multiplierLabel()} en équipe</span>
+        ) : null}
+      </span>
+      <span className="home-challenge-row">
+        <span className="home-challenge-copy">
+          <strong>{challenge.title}</strong>
+          <span>
+            Commence lundi
+            {membership.teammates.length > 0 ? ` · avec ${membership.teammates.join(" et ")}` : ""}
+          </span>
+        </span>
+        <Avatars names={["Moi", ...membership.teammates]} />
+      </span>
+    </Link>
   );
 }

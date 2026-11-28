@@ -6,6 +6,7 @@ import "./tab-bar.css";
 
 export const appTabs = [
   { href: "/chat", label: "Accueil" },
+  { href: "/challenges", label: "Défis" },
   { href: "/agenda", label: "Agenda" },
   { href: "/vault", label: "Documents" },
   { href: "/profile", label: "Mon profil" },
@@ -101,6 +102,10 @@ function Svg({ children }: { readonly children: ReactNode }) {
 const tabIcons = [
   <Svg key="home">
     <path d="M4 10.5 12 4l8 6.5V19a2 2 0 0 1-2 2h-3v-6H9v6H6a2 2 0 0 1-2-2z" />
+  </Svg>,
+  <Svg key="challenges">
+    <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z" />
+    <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
   </Svg>,
   <Svg key="agenda">
     <rect x="3" y="5" width="18" height="16" rx="3" />

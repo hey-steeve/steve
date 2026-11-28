@@ -36,7 +36,7 @@ import {
   HomeTopBar,
   HomeUpcomingCard,
 } from "./home-view";
-import { HomeSignalCard, sleepDiscussPrompt } from "./home-community";
+import { HomeChallengeCard, HomeSignalCard, sleepDiscussPrompt } from "./home-community";
 import { runPractitionerSearch, type DirectoryResult } from "./search-practitioners";
 import "./chat.css";
 import "./directory-widget.css";
@@ -801,6 +801,7 @@ export default function ChatPage(props: {
                       </ul>
                     }
                   />
+                  <HomeChallengeCard />
                   <HomeSpaceCard />
                   <HomeUpcomingCard />
                   <HomeTiles />
