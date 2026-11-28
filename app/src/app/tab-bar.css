@@ -1,6 +1,6 @@
 .app-tabbar {
-  --app-tab-width: 52px;
-  --app-tab-gap: 4px;
+  --app-tab-width: 48px;
+  --app-tab-gap: 2px;
   --app-tab-step: calc(var(--app-tab-width) + var(--app-tab-gap));
   --app-spring: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -141,9 +141,9 @@
   }
 }
 
-@media (max-width: 350px) {
+@media (max-width: 370px) {
   .app-tabbar {
-    --app-tab-width: 44px;
+    --app-tab-width: 42px;
   }
 }
 

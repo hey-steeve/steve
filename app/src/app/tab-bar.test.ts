@@ -21,7 +21,8 @@ afterEach(() => {
 
 it("maps routes to tabs and leaves other pages without one", () => {
   expect(tabIndexFor("/chat")).toBe(0);
-  expect(tabIndexFor("/vault")).toBe(2);
+  expect(tabIndexFor("/challenges")).toBe(1);
+  expect(tabIndexFor("/vault")).toBe(3);
   expect(tabIndexFor("/directory")).toBeNull();
 });
 
@@ -39,7 +40,7 @@ it("starts the indicator on the previous tab, then slides to the current one", a
 
   const second = await mount("/vault");
   await nextFrame();
-  expect(indicator(second)).toContain("2 * var(--app-tab-step)");
+  expect(indicator(second)).toContain("3 * var(--app-tab-step)");
   expect(second.querySelector('.app-tab[aria-current="page"]')?.getAttribute("href")).toBe("/vault");
 });
 

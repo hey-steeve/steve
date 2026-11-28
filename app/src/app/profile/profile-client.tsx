@@ -16,6 +16,7 @@ import {
   SettingsIcon,
   UserIcon,
 } from "../feature-shell";
+import { ProfileChallenges, ProfileInvite } from "./profile-community";
 import "./profile.css";
 
 type ProfileSection = "preferences" | "history" | "calls" | "edit" | null;
@@ -100,6 +101,9 @@ export default function ProfileClient(props: {
           </h2>
         </div>
       </section>
+
+      <ProfileChallenges />
+      <ProfileInvite />
 
       <section className="steve-card" aria-label="Rubriques du profil">
         <ul className="steve-row-list">

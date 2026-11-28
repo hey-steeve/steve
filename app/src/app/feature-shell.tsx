@@ -5,6 +5,7 @@ import "./feature-shell.css";
 
 export const featureNavItems = [
   { href: "/chat", label: "Accueil" },
+  { href: "/challenges", label: "Défis" },
   { href: "/directory", label: "Annuaire" },
   { href: "/booking", label: "Rendez-vous" },
   { href: "/agenda", label: "Agenda" },

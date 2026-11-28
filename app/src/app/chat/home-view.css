@@ -633,3 +633,5 @@
     animation: none;
   }
 }
+
+.chat-home-glass-row { align-items: center; }
