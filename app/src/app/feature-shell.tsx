@@ -1,9 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AppTabBar } from "./tab-bar";
 import "./feature-shell.css";
-
-export const steveDisclaimer =
-  "Steve n’est pas médecin et ne pose pas de diagnostic.";
 
 export const featureNavItems = [
   { href: "/chat", label: "Accueil" },
@@ -49,21 +47,8 @@ export function FeatureShell(props: {
         <img className="steve-hero-mascot" src={props.heroMascot.src} alt="" width={props.heroMascot.width} height={props.heroMascot.height} />
       )}
       {props.children}
-      <FeatureNav current={props.current} />
-      <p className="steve-disclaimer">{steveDisclaimer}</p>
+      <AppTabBar current={props.current} floating />
     </main>
-  );
-}
-
-export function FeatureNav({ current }: { readonly current: FeatureRoute }) {
-  return (
-    <nav className="steve-nav" aria-label="Espaces Steve">
-      {featureNavItems.map(({ href, label }) => (
-        <Link key={href} href={href} className="steve-nav-link" aria-current={href === current ? "page" : undefined}>
-          {label}
-        </Link>
-      ))}
-    </nav>
   );
 }
 

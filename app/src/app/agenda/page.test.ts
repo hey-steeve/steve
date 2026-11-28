@@ -46,7 +46,7 @@ it("renders the confirmed appointment for December 2 and week calendar", async (
 it("exports a valid VCALENDAR .ics payload via @steve/agenda", async () => {
   const container = await mount();
   const exportButton = [...container.querySelectorAll("button")].find((button) =>
-    button.textContent?.includes("Exporter en .ics"),
+    button.textContent?.includes("Ajouter au calendrier"),
   );
   if (!(exportButton instanceof HTMLButtonElement)) {
     throw new Error("Missing export button");

@@ -3,6 +3,7 @@ import type { EmergencyCalls, TriageDecision } from "@steve/triage";
 import Anthropic from "@anthropic-ai/sdk";
 import { clampAssistantContent } from "../../../chat/request";
 import { readCompletion } from "../../../chat/completion";
+import { triageTraceHeader } from "../../../chat/thinking-trace";
 import {
   chatRequestLimits,
   mockChatResult,
@@ -62,7 +63,7 @@ export async function POST(request: Request): Promise<Response> {
   const triage = decision === null ? {} : triageFields(decision);
   if (canSearchDirectory(decision)) {
     const directory = directoryReply(messages);
-    if (directory !== undefined) return directory;
+    if (directory !== undefined) return withTriageTrace(directory, decision);
   }
   let result: ChatHttpResult;
   if (hackathon !== undefined) {
@@ -78,7 +79,16 @@ export async function POST(request: Request): Promise<Response> {
     const fallback = mockChatResult(messages);
     return Response.json(fallback.body, { status: fallback.status });
   }
-  return Response.json(result.body, { status: result.status });
+  return withTriageTrace(Response.json(result.body, { status: result.status }), decision);
+}
+
+// Tells the app which triage label this turn got, so its thinking trace shows
+// the urgency check only when that check really ran. Label only.
+function withTriageTrace(response: Response, decision: TriageDecision | null): Response {
+  if (decision !== null) {
+    response.headers.set(triageTraceHeader, decision.label);
+  }
+  return response;
 }
 
 type HackathonConfig = {

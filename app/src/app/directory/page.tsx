@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FeatureNav, steveDisclaimer } from "../feature-shell";
+import { AppTabBar } from "../tab-bar";
 import DirectoryClient from "./directory-client";
 import "./directory.css";
 
@@ -14,8 +14,7 @@ export default function DirectoryPage() {
         <p>Annuaire Santé · recherche par spécialité, distance et secteur</p>
       </header>
       <DirectoryClient />
-      <FeatureNav current="/directory" />
-      <p className="steve-disclaimer">{steveDisclaimer}</p>
+      <AppTabBar current="/directory" floating />
     </main>
   );
 }

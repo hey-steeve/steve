@@ -14,13 +14,14 @@
 }
 
 .vault-doc-card[aria-pressed="true"] {
-  border-color: var(--color-primary);
+  border-color: var(--neutral-200);
+  box-shadow: 0 0 0 1px var(--neutral-200), var(--shadow-faint);
   background: var(--color-canvas);
   color: var(--color-heading);
 }
 
 .vault-doc-card:hover {
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
 }
 
 .vault-doc-icon {
@@ -30,8 +31,8 @@
   width: 58px;
   height: 58px;
   border-radius: var(--radius-lg);
-  background: var(--color-indigo-50);
-  color: var(--color-primary);
+  background: var(--neutral-50);
+  color: var(--neutral-icon);
   font-size: 13px;
   font-weight: var(--font-weight-heading);
 }
@@ -61,7 +62,7 @@
   margin: 0;
   padding: 14px;
   border-radius: var(--radius-lg);
-  background: var(--color-indigo-50);
+  background: var(--neutral-50);
   color: var(--color-heading);
   font: inherit;
   font-size: 14px;

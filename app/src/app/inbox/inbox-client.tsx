@@ -1,5 +1,6 @@
 "use client";
 
+import { pageMascots } from "../../chat/faces";
 import {
   createInbox,
   InMemoryInboxStorage,
@@ -241,8 +242,7 @@ export default function InboxClient() {
     <FeatureShell
       current="/inbox"
       title="Ma messagerie"
-      badge="Démonstration"
-      heroMascot={{ src: "/mascot/state-done.webp", width: 256, height: 256 }}
+      heroMascot={{ src: pageMascots.inbox, width: 600, height: 600 }}
     >
       <section className="steve-card" aria-labelledby="inbox-address-title">
         <h2 id="inbox-address-title" className="steve-card-title">
@@ -298,7 +298,7 @@ export default function InboxClient() {
                         ? "Confirmation de rendez-vous"
                         : "Document du cabinet"}
                     </span>
-                    <span className="steve-pill">
+                    <span className={isConfirmation ? "steve-pill steve-pill-warning" : "steve-pill"}>
                       {isConfirmation ? "À vérifier" : "Document reçu"}
                     </span>
                   </span>
@@ -343,8 +343,6 @@ export default function InboxClient() {
             );
           })}
         </ul>
-
-        <p className="steve-demo-note">Données de démonstration</p>
 
         <button
           type="button"

@@ -129,7 +129,7 @@ it("preserves the 500 error text and hides valid call actions", async () => {
   expectCallActions(container, ".chat-error", []);
 });
 
-it("shows a typing indicator while the reply is pending and removes it after the reply", async () => {
+it("shows a typing indicator for a plain reply and attaches no trace", async () => {
   const pending: Array<(value: Response | PromiseLike<Response>) => void> = [];
   vi.stubGlobal(
     "fetch",
@@ -152,18 +152,56 @@ it("shows a typing indicator while the reply is pending and removes it after the
   const typing = container.querySelector('[aria-label="Steve écrit"]');
   expect(typing?.getAttribute("aria-live")).toBe("polite");
   expect(typing?.querySelectorAll(".chat-dot")).toHaveLength(3);
-  expect(container.querySelector(".chat-agent")).toBeNull();
+  expect(container.querySelector(".chat-trace")).toBeNull();
 
   const finish = pending[0];
   if (finish === undefined) {
     throw new Error("missing release");
   }
+  const reply = Response.json({ reply: "D'accord.", mocked: true, model: "mock" });
+  reply.headers.set("x-steve-triage", "consult");
   await act(async () => {
-    finish(Response.json({ reply: "D'accord.", mocked: true, model: "mock" }));
+    finish(reply);
   });
 
   expect(container.querySelector('[aria-label="Steve écrit"]')).toBeNull();
   expect(container.textContent).toContain("D'accord.");
+  expect(container.querySelector(".chat-trace-summary")).toBeNull();
+});
+
+it("traces a practitioner search live, then folds it above the result", async () => {
+  const reply = Response.json({ directory: { specialty: "médecin généraliste", postalCode: "75011" } });
+  reply.headers.set("x-steve-triage", "consult");
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => reply));
+  const container = await renderPage();
+  await act(async () => {
+    setField(fieldIn(container), "Je cherche un généraliste près de 75011");
+  });
+  await act(async () => {
+    sendButton(container).click();
+  });
+  for (let tries = 0; tries < 20 && container.querySelector(".chat-trace-summary") === null; tries += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  }
+  const summary = container.querySelector(".chat-trace-summary");
+  if (!(summary instanceof HTMLButtonElement)) {
+    throw new Error("missing trace summary");
+  }
+  expect(container.querySelector('[aria-label="Steve réfléchit"]')).toBeNull();
+  expect(summary.getAttribute("aria-expanded")).toBe("false");
+  expect(summary.textContent).toMatch(/^Réfléchi \d+ s · 4 étapes$/);
+  await act(async () => summary.click());
+  expect(
+    [...container.querySelectorAll(".chat-trace-step-title")].map((step) => step.textContent),
+  ).toEqual([
+    "Je lis ta demande",
+    "Je vérifie s’il y a une urgence",
+    "Je cherche : médecin généraliste près de 75011",
+    "Je prépare ma réponse",
+  ]);
+  expect(container.textContent).toContain("Pas de signe d’urgence repéré");
 });
 
 it("disables send while the chat request is in flight", async () => {

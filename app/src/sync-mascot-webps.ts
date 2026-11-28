@@ -20,7 +20,11 @@ export const mascotWebps = [
     width: 192,
     height: 192,
   },
-  { file: "bubbles.webp", source: "body/bubbles.png", lossless: true },
+  { file: "pfp-phone.webp", source: "avatar/pfp-phone.png", width: 192, height: 192, sharp: true },
+  { file: "bubbles-hd.webp", source: "body/bubbles-hd.png", lossless: true },
+  { file: "profile-card.webp", source: "body/profile-card.png", width: 600, height: 600, sharp: true },
+  { file: "documents.webp", source: "body/documents.png", width: 600, height: 600, sharp: true },
+  { file: "mailbox.webp", source: "body/mailbox.png", width: 600, height: 600, sharp: true },
   {
     file: "state-calling.webp",
     source: "states/calling.png",
@@ -82,7 +86,9 @@ export async function syncMascotWebps(target?: MascotSyncTarget): Promise<void> 
         const webp =
           "lossless" in item
             ? { lossless: true as const }
-            : { quality: 80, alphaQuality: 80, effort: 4 };
+            : "sharp" in item
+              ? { quality: 90, alphaQuality: 100, effort: 4 }
+              : { quality: 80, alphaQuality: 80, effort: 4 };
         await image.webp(webp).toFile(path.join(staging, item.file));
       }),
     );

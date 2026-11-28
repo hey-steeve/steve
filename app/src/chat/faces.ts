@@ -28,11 +28,19 @@ const faceByState = {
   blocked: steveFace.urgent,
 } as const satisfies Record<AvatarState, SteveFace>;
 
-export const heroSrc = "/mascot/bubbles.webp";
+export const heroSrc = "/mascot/bubbles-hd.webp";
+
+export const pageMascots = {
+  profile: "/mascot/profile-card.webp",
+  documents: "/mascot/documents.webp",
+  inbox: "/mascot/mailbox.webp",
+} as const;
 
 export const headerAvatarSrc = "/mascot/pfp-lavender-profile.webp";
 
 export const replyAvatarSrc = headerAvatarSrc;
+
+export const askAvatarSrc = "/mascot/pfp-phone.webp";
 
 export function faceFor(cue: MascotCue): SteveFace {
   if (cue.mood === "happy") {

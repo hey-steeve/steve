@@ -1,5 +1,6 @@
 "use client";
 
+import { heroSrc } from "../../chat/faces";
 import { createAgenda, InMemoryAppointmentStorage } from "@steve/agenda";
 import {
   createReminderService,
@@ -196,12 +197,11 @@ export default function RemindersClient() {
     <FeatureShell
       current="/reminders"
       title="Mes rappels"
-      badge="Démonstration"
-      heroMascot={{ src: "/mascot/bubbles.webp", width: 1137, height: 840 }}
+      heroMascot={{ src: heroSrc, width: 1459, height: 1078 }}
     >
       <section className="steve-card" aria-labelledby="reminder-card-title">
         <div className="reminders-pill-row">
-          <span className="steve-pill">
+          <span className={activeReminder.status === "scheduled" ? "steve-pill steve-pill-success" : "steve-pill"}>
             {activeReminder.status === "scheduled"
               ? "Planifié"
               : activeReminder.status === "cancelled"
@@ -248,8 +248,6 @@ export default function RemindersClient() {
           </li>
         </ul>
 
-        <hr className="steve-divider" />
-        <p className="steve-demo-note">Données de démonstration</p>
 
         {editing ? (
           <div className="reminders-editor">

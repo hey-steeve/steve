@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { afterEach, expect, it } from "vitest";
-import { headerAvatarSrc, heroSrc, replyAvatarSrc, steveFace } from "./chat/faces.js";
+import { askAvatarSrc, headerAvatarSrc, heroSrc, pageMascots, replyAvatarSrc, steveFace } from "./chat/faces.js";
 import { mascotWebps, syncMascotWebps } from "./sync-mascot-webps.js";
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -39,30 +39,30 @@ function fileName(url: string): string {
   return url.slice("/mascot/".length);
 }
 
-it("registers the bubbles pose", async () => {
-  const relative = "body/bubbles.png";
+it("registers the HD bubbles pose", async () => {
+  const relative = "body/bubbles-hd.png";
   const png = path.join(sourceRoot, relative);
   expect(existsSync(png)).toBe(true);
   const meta = await sharp(png).metadata();
-  expect(meta.width).toBe(1137);
-  expect(meta.height).toBe(840);
+  expect(meta.width).toBe(1459);
+  expect(meta.height).toBe(1078);
   expect(meta.hasAlpha).toBe(true);
   const hash = createHash("sha256").update(readFileSync(png)).digest("hex");
   const sums = readFileSync(path.join(sourceRoot, "SHA256SUMS"), "utf8");
   expect(sums.split("\n")).toContain(`${hash}  ${relative}`);
   expect(mascotWebps).toContainEqual({
-    file: "bubbles.webp",
+    file: "bubbles-hd.webp",
     source: relative,
     lossless: true,
   });
 });
 
-it("serves the bubbles pose at the full source size", async () => {
+it("serves the HD bubbles pose at the full source size", async () => {
   const cssWidth = 284;
   const publicDir = tempPublic();
-  const pngPath = path.join(sourceRoot, "body/bubbles.png");
+  const pngPath = path.join(sourceRoot, "body/bubbles-hd.png");
   await syncMascotWebps({ publicDir, sourceRoot });
-  const bytes = readFileSync(path.join(publicDir, "mascot", "bubbles.webp"));
+  const bytes = readFileSync(path.join(publicDir, "mascot", "bubbles-hd.webp"));
   const sourceMeta = await sharp(pngPath).metadata();
   const meta = await sharp(bytes).metadata();
   const sourceWidth = sourceMeta.width ?? 0;
@@ -115,12 +115,12 @@ it("writes the webps the chat UI names, and only those", async () => {
   );
   await syncMascotWebps({ publicDir, sourceRoot });
 
-  const used = [heroSrc, headerAvatarSrc, replyAvatarSrc, ...Object.values(steveFace)].map(
+  const used = [heroSrc, askAvatarSrc, headerAvatarSrc, replyAvatarSrc, ...Object.values(steveFace), ...Object.values(pageMascots)].map(
     fileName,
   );
   expect(mascotWebps.map((item) => item.file).sort()).toEqual([...new Set(used)].sort());
   expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
-  expect(existsSync(path.join(destDir, "hello.webp"))).toBe(false);
+  expect(existsSync(path.join(destDir, "celebrate.webp"))).toBe(false);
   expect(existsSync(path.join(destDir, "pfp-indigo.webp"))).toBe(false);
   expect(readdirSync(publicDir).some((name) => name.startsWith("mascot.tmp-"))).toBe(false);
   expect(publicDir.startsWith(path.join(appDir, "public"))).toBe(false);
@@ -138,9 +138,9 @@ it("writes the webps the chat UI names, and only those", async () => {
     }
   }
 
-  const bubbles = await sharp(path.join(destDir, "bubbles.webp")).metadata();
-  expect(bubbles.width).toBe(1137);
-  expect(bubbles.height).toBe(840);
+  const bubbles = await sharp(path.join(destDir, "bubbles-hd.webp")).metadata();
+  expect(bubbles.width).toBe(1459);
+  expect(bubbles.height).toBe(1078);
 
   for (const [index, item] of mascotWebps.entries()) {
     const source = sources[index];
@@ -169,7 +169,7 @@ it("keeps another run's fresh staging directory and the published folder", async
   expect(statSync(destDir).ino).toBe(folder);
   expect(readFileSync(path.join(fresh, "marker.txt"), "utf8")).toBe("keep");
   expect(existsSync(stale)).toBe(false);
-  expect(existsSync(path.join(destDir, "hello.webp"))).toBe(false);
+  expect(existsSync(path.join(destDir, "celebrate.webp"))).toBe(false);
   expect(readdirSync(destDir).sort()).toEqual(mascotWebps.map((item) => item.file).sort());
 });
 
